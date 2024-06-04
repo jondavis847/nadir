@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use super::MultibodyTrait;
 use sim_value::SimValue;
 
@@ -19,12 +20,12 @@ impl<T> MultibodyTrait for Joint<T>
 where
     T: SimValue,
 {
-    fn connect_inner(&mut self, id: usize) {
+    fn connect_inner(&mut self, id: Uuid) {
         match self {
             Joint::Revolute(joint) => joint.connect_inner(id),
         }
     }
-    fn connect_outer(&mut self, id: usize) {
+    fn connect_outer(&mut self, id: Uuid) {
         match self {
             Joint::Revolute(joint) => joint.connect_outer(id),
         }
@@ -36,19 +37,19 @@ where
         }
     }
 
-    fn delete_outer(&mut self, id: usize) {
+    fn delete_outer(&mut self, id: Uuid) {
         match self {
             Joint::Revolute(joint) => joint.delete_outer(id),
         }
     }
 
-    fn get_id(&self) -> Option<usize> {
+    fn get_id(&self) -> Uuid {
         match self {
             Joint::Revolute(revolute) => revolute.get_id(),
         }
     }
 
-    fn get_inner_id(&self) -> Option<usize> {
+    fn get_inner_id(&self) -> Option<Uuid> {
         match self {
             Joint::Revolute(revolute) => revolute.get_inner_id(),
         }
@@ -60,15 +61,9 @@ where
         }
     }
 
-    fn get_outer_id(&self) -> &Vec<usize> {
+    fn get_outer_id(&self) -> &Vec<Uuid> {
         match self {
             Joint::Revolute(revolute) => revolute.get_outer_id(),
-        }
-    }
-
-    fn set_id(&mut self, id: usize) {
-        match self {
-            Joint::Revolute(revolute) => revolute.set_id(id),
         }
     }
 

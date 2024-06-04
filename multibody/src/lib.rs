@@ -1,4 +1,5 @@
 use sim_value::SimValue;
+use uuid::Uuid;
 
 pub mod base;
 pub mod body;
@@ -8,50 +9,38 @@ pub mod mass_properties;
 use base::{Base, BaseErrors};
 use body::{Body, BodyErrors};
 use joints::{
-    revolute::{Revolute, RevoluteErrors},
+    revolute::RevoluteErrors,
     Joint,
 };
-
-#[derive(Debug, Clone)]
-struct Id {
-    component: Option<usize>,
-    inner: Option<usize>,
-    outer: Vec<usize>,
-}
-
-impl Default for Id {
-    fn default() -> Self {
-        Self {
-            component: None,
-            inner: None,
-            outer: Vec::new(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct MultibodyMeta {
     name: String,
-    id: Id,
+    id: Uuid,
+    id_inner: Option<Uuid>,
+    id_outer: Vec<Uuid>    
 }
 
 impl MultibodyMeta {
     pub fn new(name: String) -> Self {
-        let id = Id::default();
-        Self { name, id }
+        
+        Self { 
+            name: name, 
+            id: Uuid::new_v4(),
+            id_inner: None,
+            id_outer: Vec::new(),
+         }
     }
 }
 
 pub trait MultibodyTrait {
-    fn connect_inner(&mut self, id: usize);
-    fn connect_outer(&mut self, id: usize);
+    fn connect_inner(&mut self, id: Uuid);
+    fn connect_outer(&mut self, id: Uuid);
     fn delete_inner(&mut self);
-    fn delete_outer(&mut self, id: usize);
-    fn get_id(&self) -> Option<usize>;
-    fn get_inner_id(&self) -> Option<usize>;
+    fn delete_outer(&mut self, id: Uuid);
+    fn get_id(&self) -> Uuid;
+    fn get_inner_id(&self) -> Option<Uuid>;
     fn get_name(&self) -> &str;
-    fn get_outer_id(&self) -> &Vec<usize>;
-    fn set_id(&mut self, id: usize);
+    fn get_outer_id(&self) -> &Vec<Uuid>;    
     fn set_name(&mut self, name: String);
 }
 
@@ -75,14 +64,14 @@ impl<T> MultibodyTrait for MultibodyComponent<T>
 where
     T: SimValue,
 {
-    fn connect_inner(&mut self, id: usize) {
+    fn connect_inner(&mut self, id: Uuid) {
         match self {
             MultibodyComponent::Base(base) => base.connect_inner(id),
             MultibodyComponent::Body(body) => body.connect_inner(id),
             MultibodyComponent::Joint(joint) => joint.connect_inner(id),
         }
     }
-    fn connect_outer(&mut self, id: usize) {
+    fn connect_outer(&mut self, id: Uuid) {
         match self {
             MultibodyComponent::Base(base) => base.connect_outer(id),
             MultibodyComponent::Body(body) => body.connect_outer(id),
@@ -98,7 +87,7 @@ where
         }
     }
 
-    fn delete_outer(&mut self, id: usize) {
+    fn delete_outer(&mut self, id: Uuid) {
         match self {
             MultibodyComponent::Base(base) => base.delete_outer(id),
             MultibodyComponent::Body(body) => body.delete_outer(id),
@@ -106,7 +95,7 @@ where
         }
     }
 
-    fn get_id(&self) -> Option<usize> {
+    fn get_id(&self) -> Uuid {
         match self {
             MultibodyComponent::Base(base) => base.get_id(),
             MultibodyComponent::Body(body) => body.get_id(),
@@ -114,7 +103,7 @@ where
         }
     }
 
-    fn get_inner_id(&self) -> Option<usize> {
+    fn get_inner_id(&self) -> Option<Uuid> {
         match self {
             MultibodyComponent::Base(base) => base.get_inner_id(),
             MultibodyComponent::Body(body) => body.get_inner_id(),
@@ -130,19 +119,11 @@ where
         }
     }
 
-    fn get_outer_id(&self) -> &Vec<usize> {
+    fn get_outer_id(&self) -> &Vec<Uuid> {
         match self {
             MultibodyComponent::Base(base) => base.get_outer_id(),
             MultibodyComponent::Body(body) => body.get_outer_id(),
             MultibodyComponent::Joint(joint) => joint.get_outer_id(),
-        }
-    }
-
-    fn set_id(&mut self, id: usize) {
-        match self {
-            MultibodyComponent::Base(base) => base.set_id(id),
-            MultibodyComponent::Body(body) => body.set_id(id),
-            MultibodyComponent::Joint(joint) => joint.set_id(id),
         }
     }
 

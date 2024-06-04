@@ -1,3 +1,4 @@
+use uuid::Uuid;
 use crate::{joints::JointParameters, MultibodyMeta, MultibodyTrait};
 use sim_value::SimValue;
 
@@ -52,38 +53,34 @@ impl<T> MultibodyTrait for Revolute<T>
 where
     T: SimValue,
 {
-    fn connect_inner(&mut self, id: usize) {
-        self.meta.id.inner = Some(id);
+    fn connect_inner(&mut self, id: Uuid) {
+        self.meta.id_inner = Some(id);
     }
 
-    fn connect_outer(&mut self, id: usize) {
-        self.meta.id.outer.push(id);
+    fn connect_outer(&mut self, id: Uuid) {
+        self.meta.id_outer.push(id);
     }
     fn delete_inner(&mut self) {
-        self.meta.id.inner = None;
+        self.meta.id_inner = None;
     }
-    fn delete_outer(&mut self, id: usize) {
-        self.meta.id.outer.retain(|&outer_id| outer_id != id);
-    }
-
-    fn get_id(&self) -> Option<usize> {
-        self.meta.id.component
+    fn delete_outer(&mut self, id: Uuid) {
+        self.meta.id_outer.retain(|&outer_id| outer_id != id);
     }
 
-    fn get_inner_id(&self) -> Option<usize> {
-        self.meta.id.inner
+    fn get_id(&self) -> Uuid {
+        self.meta.id
+    }
+
+    fn get_inner_id(&self) -> Option<Uuid> {
+        self.meta.id_inner
     }
 
     fn get_name(&self) -> &str {
         &self.meta.name
     }
 
-    fn get_outer_id(&self) -> &Vec<usize> {
-        &self.meta.id.outer
-    }
-
-    fn set_id(&mut self, id: usize) {
-        self.meta.id.component = Some(id);
+    fn get_outer_id(&self) -> &Vec<Uuid> {
+        &self.meta.id_outer
     }
 
     fn set_name(&mut self, name: String) {
