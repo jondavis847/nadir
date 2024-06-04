@@ -1,36 +1,30 @@
 use num_traits::{One, Zero};
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::convert::From;
 //NOTE: Do we want to use Pow instead of making our own Sqrt?
 
 pub trait SimValue:
     Abs
-    + Add<Output = Self>
+    + Add<Output = Self>    
     + Copy
+    + Default
     + Div<Output = Self>    
-    + Mul<Output = Self>
-    + Neg<Output = Self>    
+    + From<f64>
+    + From<f32>
+    + Mul<Output = Self>    
+    + Neg<Output = Self>
     + One
     + PartialOrd
-    + Sub<Output = Self>
+    + Sub<Output = Self>    
     + Sqrt
+    + Trigonometry
     + Zero
 {
     const EPSILON: Self;
 }
-impl<T> SimValue for T where
-    T: Abs
-        + Add<Output = Self>
-        + Copy
-        + Div<Output = Self>        
-        + Mul<Output = Self>
-        + Neg<Output = Self>
-        + One
-        + PartialOrd
-        + Sub<Output = Self>
-        + Sqrt
-        + Zero
-{
-    const EPSILON:T = T::EPSILON;
+
+impl SimValue for f64 {
+    const EPSILON: f64 = f64::EPSILON;
 }
 
 /// Trait defining a square root operation.
@@ -69,3 +63,26 @@ impl Abs for f32 {
     }
 }
 
+pub trait Trigonometry {
+    fn cos(self) -> Self;
+    fn sin(self) -> Self;
+}
+
+impl Trigonometry for f64 {
+    fn cos(self) -> Self {
+        f64::cos(self)
+    }
+    fn sin(self) -> Self {
+        f64::sin(self)
+    }
+}
+
+
+impl Trigonometry for f32 {
+    fn cos(self) -> Self {
+        f32::cos(self)
+    }
+    fn sin(self) -> Self {
+        f32::sin(self)
+    }
+}

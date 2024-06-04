@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+coordinate_systems = {path = "../coordinate_systems"}
+rotations = {path = "../rotations"}
+sim_value = {path = "../sim_value"}
 approx = "0.5.1"

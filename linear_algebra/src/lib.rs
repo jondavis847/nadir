@@ -2,7 +2,7 @@ use sim_value::SimValue;
 use std::ops::Mul;
 
 /// A 3-dimensional vector.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Vector3<T>
 where
     T: SimValue,
