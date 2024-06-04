@@ -1,14 +1,20 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub mod cartesian;
+pub mod cylindrical;
+pub mod spherical;
+
+use cartesian::Cartesian;
+use cylindrical::Cylindrical;
+use spherical::Spherical;
+
+#[derive(Debug, Copy, Clone)]
+pub enum CoordinateSystem {
+    Cartesian(Cartesian),
+    Cylindrical(Cylindrical),
+    Spherical(Spherical),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl Default for CoordinateSystem {
+    fn default() -> Self {
+        Self::Cartesian(Cartesian::default())
     }
 }

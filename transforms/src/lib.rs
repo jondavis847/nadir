@@ -1,14 +1,8 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+use crate::coordinate_systems::cartesian::Cartesian;
+use crate::rotations::Rotation;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Transform {
+    translation: Cartesian,
+    rotation: Rotation,
 }
