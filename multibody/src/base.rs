@@ -1,11 +1,4 @@
 use super::{MultibodyMeta, MultibodyTrait};
-use crate::ui::dummies::{DummyBase, DummyComponent, DummyErrors, DummyTrait};
-use uuid::Uuid;
-
-#[derive(Debug, Clone, Copy)]
-pub enum BaseErrors {
-    DummyErrors(DummyErrors),
-}
 
 #[derive(Debug, Clone)]
 pub struct Base {
@@ -13,80 +6,49 @@ pub struct Base {
 }
 
 impl Base {
-    pub fn from_dummy(
-        component_id: Uuid,        
-        dummy: &DummyBase,
-        node_id: Uuid,
-    ) -> Result<Self, BaseErrors> {
-        if dummy.get_name().is_empty() {
-            return Err(BaseErrors::DummyErrors(DummyErrors::NameIsEmpty));
-        }
-
-        let meta = MultibodyMeta::new(component_id, dummy.get_id(), dummy.get_name(), node_id);
-
-        Ok(Self { meta })
+    pub fn new(meta: MultibodyMeta) -> Self {
+        Self { meta }
     }
 }
 
+pub enum BaseErrors {}
+
 impl MultibodyTrait for Base {
-    fn connect_from(&mut self, _id: Uuid) {
+    fn connect_inner(&mut self, _id: usize) {
         //do nothing, nothing before base
     }
 
-    fn connect_to(&mut self, id: Uuid) {
-        self.meta.to_id.push(id);
+    fn connect_outer(&mut self, id: usize) {
+        self.meta.id.outer.push(id);
     }
-    fn delete_from(&mut self) {
-        self.meta.from_id = None;
+    fn delete_inner(&mut self) {
+        //shouldn't matter, nothing before Base
     }
-    fn delete_to(&mut self, id: Uuid) {
-        self.meta.to_id.retain(|&to_id| to_id != id);
-    }
-
-    fn get_component_id(&self) -> Uuid {
-        self.meta.component_id
+    fn delete_outer(&mut self, id: usize) {
+        self.meta.id.outer.retain(|&outer_id| outer_id != id);
     }
 
-    fn get_dummy_id(&self) -> Uuid {
-        self.meta.dummy_id
+    fn get_id(&self) -> Option<usize> {
+        self.meta.id.component
     }
 
-    fn get_from_id(&self) -> Option<Uuid> {
-        self.meta.from_id
+    fn get_inner_id(&self) -> Option<usize> {
+        self.meta.id.inner
+    }
+
+    fn get_outer_id(&self) -> &Vec<usize> {
+        &self.meta.id.outer
     }
 
     fn get_name(&self) -> &str {
         &self.meta.name
     }
 
-    fn get_node_id(&self) -> Uuid {
-        self.meta.node_id
-    }
-
-    fn get_to_id(&self) -> &Vec<Uuid> {
-        &self.meta.to_id
-    }
-
-    fn inherit_from(&mut self, dummy: &DummyComponent) {
-        match dummy {
-            DummyComponent::Base(_) => {}
-            _ => {} // error! must be dummy base
-        }
-    }
-
-    fn set_component_id(&mut self, id: Uuid) {
-        self.meta.component_id = id;
+    fn set_id(&mut self, id: usize) {
+        self.meta.id.component = Some(id);
     }
 
     fn set_name(&mut self, name: String) {
         self.meta.name = name;
-    }
-
-    fn set_node_id(&mut self, id: Uuid) {
-        self.meta.node_id = id;
-    }
-
-    fn set_system_id(&mut self, id: usize) {
-        self.meta.system_id = Some(id);
     }
 }

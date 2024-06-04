@@ -1,54 +1,64 @@
-#[derive(Debug, Clone, Copy)]
-struct CenterOfMass {
-    cmx: f64,
-    cmy: f64,
-    cmz: f64,
+use sim_value::SimValue;
+#[derive(Clone, Copy, Debug, Default)]
+struct CenterOfMass<T>
+where
+    T: SimValue,
+{
+    cmx: T,
+    cmy: T,
+    cmz: T,
 }
 
-impl CenterOfMass {
-    fn new(cmx: f64, cmy: f64, cmz: f64) -> Self {
+impl<T> CenterOfMass<T>
+where
+    T: SimValue,
+{
+    fn new(cmx: T, cmy: T, cmz: T) -> Self {
         Self { cmx, cmy, cmz }
     }
 
     /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> f64 {
+    pub fn get_cmx(&self) -> T {
         self.cmx
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> f64 {
+    pub fn get_cmy(&self) -> T {
         self.cmy
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> f64 {
+    pub fn get_cmz(&self) -> T {
         self.cmz
     }
 
     /// Sets the x-coordinate of the center of mass.
-    pub fn set_cmx(&mut self, cmx: f64) {
+    pub fn set_cmx(&mut self, cmx: T) {
         self.cmx = cmx;
     }
 
     /// Sets the y-coordinate of the center of mass.
-    pub fn set_cmy(&mut self, cmy: f64) {
+    pub fn set_cmy(&mut self, cmy: T) {
         self.cmy = cmy;
     }
 
     /// Sets the z-coordinate of the center of mass.
-    pub fn set_cmz(&mut self, cmz: f64) {
+    pub fn set_cmz(&mut self, cmz: T) {
         self.cmz = cmz;
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Inertia {
-    ixx: f64,
-    ixy: f64,
-    ixz: f64,
-    iyy: f64,
-    iyz: f64,
-    izz: f64,
+struct Inertia<T>
+where
+    T: SimValue,
+{
+    ixx: T,
+    ixy: T,
+    ixz: T,
+    iyy: T,
+    iyz: T,
+    izz: T,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,22 +68,18 @@ pub enum InertiaErrors {
     IzzLessThanOrEqualToZero,
 }
 
-impl Inertia {
-    fn new(
-        ixx: f64,
-        iyy: f64,
-        izz: f64,
-        ixy: f64,
-        ixz: f64,
-        iyz: f64,
-    ) -> Result<Self, InertiaErrors> {
-        if ixx <= 0.0 {
+impl<T> Inertia<T>
+where
+    T: SimValue,
+{
+    fn new(ixx: T, iyy: T, izz: T, ixy: T, ixz: T, iyz: T) -> Result<Self, InertiaErrors> {
+        if ixx <= T::zero() {
             return Err(InertiaErrors::IxxLessThanOrEqualToZero);
         }
-        if iyy <= 0.0 {
+        if iyy <= T::zero() {
             return Err(InertiaErrors::IyyLessThanOrEqualToZero);
         }
-        if izz <= 0.0 {
+        if izz <= T::zero() {
             return Err(InertiaErrors::IzzLessThanOrEqualToZero);
         }
         Ok(Self {
@@ -86,27 +92,27 @@ impl Inertia {
         })
     }
 
-    fn get_ixx(&self) -> f64 {
+    fn get_ixx(&self) -> T {
         self.ixx
     }
-    fn get_iyy(&self) -> f64 {
+    fn get_iyy(&self) -> T {
         self.iyy
     }
-    fn get_izz(&self) -> f64 {
+    fn get_izz(&self) -> T {
         self.izz
     }
-    fn get_ixy(&self) -> f64 {
+    fn get_ixy(&self) -> T {
         self.ixy
     }
-    fn get_ixz(&self) -> f64 {
+    fn get_ixz(&self) -> T {
         self.ixz
     }
-    fn get_iyz(&self) -> f64 {
+    fn get_iyz(&self) -> T {
         self.iyz
     }
 
-    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), InertiaErrors> {
-        if ixx <= 0.0 {
+    pub fn set_ixx(&mut self, ixx: T) -> Result<(), InertiaErrors> {
+        if ixx <= T::zero() {
             return Err(InertiaErrors::IxxLessThanOrEqualToZero);
         }
         self.ixx = ixx;
@@ -114,12 +120,12 @@ impl Inertia {
     }
 
     /// Sets the product of inertia for the xy-plane.
-    pub fn set_ixy(&mut self, ixy: f64) {
+    pub fn set_ixy(&mut self, ixy: T) {
         self.ixy = ixy;
     }
 
     /// Sets the product of inertia for the xz-plane.
-    pub fn set_ixz(&mut self, ixz: f64) {
+    pub fn set_ixz(&mut self, ixz: T) {
         self.ixz = ixz;
     }
 
@@ -128,8 +134,8 @@ impl Inertia {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IyyLessThanOrEqualToZero` if `iyy` is less than or equal to zero.
-    pub fn set_iyy(&mut self, iyy: f64) -> Result<(), InertiaErrors> {
-        if iyy <= 0.0 {
+    pub fn set_iyy(&mut self, iyy: T) -> Result<(), InertiaErrors> {
+        if iyy <= T::zero() {
             return Err(InertiaErrors::IyyLessThanOrEqualToZero);
         }
         self.iyy = iyy;
@@ -137,7 +143,7 @@ impl Inertia {
     }
 
     /// Sets the product of inertia for the yz-plane.
-    pub fn set_iyz(&mut self, iyz: f64) {
+    pub fn set_iyz(&mut self, iyz: T) {
         self.iyz = iyz;
     }
 
@@ -146,8 +152,8 @@ impl Inertia {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IzzLessThanOrEqualToZero` if `izz` is less than or equal to zero.
-    pub fn set_izz(&mut self, izz: f64) -> Result<(), InertiaErrors> {
-        if izz <= 0.0 {
+    pub fn set_izz(&mut self, izz: T) -> Result<(), InertiaErrors> {
+        if izz <= T::zero() {
             return Err(InertiaErrors::IzzLessThanOrEqualToZero);
         }
         self.izz = izz;
@@ -158,10 +164,13 @@ impl Inertia {
 /// Represents the mass properties of an object
 /// Mass, Center of Mass, Inertia
 #[derive(Debug, Clone, Copy)]
-pub struct MassProperties {
-    center_of_mass: CenterOfMass,
-    mass: f64,
-    inertia: Inertia,
+pub struct MassProperties<T>
+where
+    T: SimValue,
+{
+    center_of_mass: CenterOfMass<T>,
+    mass: T,
+    inertia: Inertia<T>,
 }
 
 /// Enum representing possible errors when creating or modifying `MassProperties`.
@@ -171,7 +180,10 @@ pub enum MassPropertiesErrors {
     MassLessThanOrEqualToZero,
 }
 
-impl MassProperties {
+impl<T> MassProperties<T>
+where
+    T: SimValue,
+{
     /// Creates a new `MassProperties` instance.
     ///
     /// # Arguments
@@ -192,18 +204,18 @@ impl MassProperties {
     /// Returns a `MassPropertiesError` if any of the mass or principal moments of inertia
     /// are less than or equal to zero.
     pub fn new(
-        mass: f64,
-        cmx: f64,
-        cmy: f64,
-        cmz: f64,
-        ixx: f64,
-        iyy: f64,
-        izz: f64,
-        ixy: f64,
-        ixz: f64,
-        iyz: f64,
+        mass: T,
+        cmx: T,
+        cmy: T,
+        cmz: T,
+        ixx: T,
+        iyy: T,
+        izz: T,
+        ixy: T,
+        ixz: T,
+        iyz: T,
     ) -> Result<Self, MassPropertiesErrors> {
-        if mass <= 0.0 {
+        if mass <= T::zero() {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
         }
 
@@ -222,68 +234,68 @@ impl MassProperties {
     }
 
     /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> f64 {
+    pub fn get_cmx(&self) -> T {
         self.center_of_mass.get_cmx()
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> f64 {
+    pub fn get_cmy(&self) -> T {
         self.center_of_mass.get_cmy()
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> f64 {
+    pub fn get_cmz(&self) -> T {
         self.center_of_mass.get_cmz()
     }
 
     /// Returns the moment of inertia around the x-axis.
-    pub fn get_ixx(&self) -> f64 {
+    pub fn get_ixx(&self) -> T {
         self.inertia.get_ixx()
     }
 
     /// Returns the product of inertia for the xy-plane.
-    pub fn get_ixy(&self) -> f64 {
+    pub fn get_ixy(&self) -> T {
         self.inertia.get_ixy()
     }
 
     /// Returns the product of inertia for the xz-plane.
-    pub fn get_ixz(&self) -> f64 {
+    pub fn get_ixz(&self) -> T {
         self.inertia.get_ixz()
     }
 
     /// Returns the moment of inertia around the y-axis.
-    pub fn get_iyy(&self) -> f64 {
+    pub fn get_iyy(&self) -> T {
         self.inertia.get_iyy()
     }
 
     /// Returns the product of inertia for the yz-plane.
-    pub fn get_iyz(&self) -> f64 {
+    pub fn get_iyz(&self) -> T {
         self.inertia.get_iyz()
     }
 
     /// Returns the moment of inertia around the z-axis.
-    pub fn get_izz(&self) -> f64 {
+    pub fn get_izz(&self) -> T {
         self.inertia.get_izz()
     }
 
     /// Returns the mass of the object.
-    pub fn get_mass(&self) -> f64 {
+    pub fn get_mass(&self) -> T {
         self.mass
     }
 
     /// Sets the x-coordinate of the center of mass.
-    pub fn set_cmx(&mut self, cmx: f64) {
-        self.set_cmx(cmx);
+    pub fn set_cmx(&mut self, cmx: T) {
+        self.center_of_mass.set_cmx(cmx);
     }
 
     /// Sets the y-coordinate of the center of mass.
-    pub fn set_cmy(&mut self, cmy: f64) {
-        self.set_cmy(cmy);
+    pub fn set_cmy(&mut self, cmy: T) {
+        self.center_of_mass.set_cmy(cmy);
     }
 
     /// Sets the z-coordinate of the center of mass.
-    pub fn set_cmz(&mut self, cmz: f64) {
-        self.set_cmz(cmz);
+    pub fn set_cmz(&mut self, cmz: T) {
+        self.center_of_mass.set_cmz(cmz);
     }
 
     /// Sets the moment of inertia around the x-axis.
@@ -291,7 +303,7 @@ impl MassProperties {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IxxLessThanOrEqualToZero` if `ixx` is less than or equal to zero.
-    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), MassPropertiesErrors> {
+    pub fn set_ixx(&mut self, ixx: T) -> Result<(), MassPropertiesErrors> {
         match self.inertia.set_ixx(ixx) {
             Ok(_) => Ok(()),
             Err(error) => Err(MassPropertiesErrors::Inertia(error)),
@@ -299,12 +311,12 @@ impl MassProperties {
     }
 
     /// Sets the product of inertia for the xy-plane.
-    pub fn set_ixy(&mut self, ixy: f64) {
-        self.inertia.set_ixy(ixy);        
+    pub fn set_ixy(&mut self, ixy: T) {
+        self.inertia.set_ixy(ixy);
     }
 
     /// Sets the product of inertia for the xz-plane.
-    pub fn set_ixz(&mut self, ixz: f64) {
+    pub fn set_ixz(&mut self, ixz: T) {
         self.inertia.set_ixz(ixz);
     }
     /// Sets the moment of inertia around the y-axis.
@@ -312,15 +324,15 @@ impl MassProperties {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IyyLessThanOrEqualToZero` if `iyy` is less than or equal to zero.
-    pub fn set_iyy(&mut self, iyy: f64) -> Result<(), MassPropertiesErrors> {        
+    pub fn set_iyy(&mut self, iyy: T) -> Result<(), MassPropertiesErrors> {
         match self.inertia.set_iyy(iyy) {
-        Ok(_) => Ok(()),
-        Err(error) => Err(MassPropertiesErrors::Inertia(error))
-        }        
+            Ok(_) => Ok(()),
+            Err(error) => Err(MassPropertiesErrors::Inertia(error)),
+        }
     }
 
     /// Sets the product of inertia for the yz-plane.
-    pub fn set_iyz(&mut self, iyz: f64) -> Result<(), MassPropertiesErrors> {
+    pub fn set_iyz(&mut self, iyz: T) -> Result<(), MassPropertiesErrors> {
         self.inertia.set_iyz(iyz);
         Ok(())
     }
@@ -330,11 +342,11 @@ impl MassProperties {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IzzLessThanOrEqualToZero` if `izz` is less than or equal to zero.
-    pub fn set_izz(&mut self, izz: f64) -> Result<(), MassPropertiesErrors> {        
+    pub fn set_izz(&mut self, izz: T) -> Result<(), MassPropertiesErrors> {
         match self.inertia.set_izz(izz) {
-        Ok(_) => Ok(()),
-        Err(error) => Err(MassPropertiesErrors::Inertia(error))
-        }        
+            Ok(_) => Ok(()),
+            Err(error) => Err(MassPropertiesErrors::Inertia(error)),
+        }
     }
 
     /// Sets the mass of the object.
@@ -342,8 +354,8 @@ impl MassProperties {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::MassLessThanOrEqualToZero` if `mass` is less than or equal to zero.
-    pub fn set_mass(&mut self, mass: f64) -> Result<(), MassPropertiesErrors> {
-        if mass <= 0.0 {
+    pub fn set_mass(&mut self, mass: T) -> Result<(), MassPropertiesErrors> {
+        if mass <= T::zero() {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
         }
         self.mass = mass;

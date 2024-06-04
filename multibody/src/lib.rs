@@ -1,11 +1,10 @@
-use uuid::Uuid;
+use sim_value::SimValue;
 
 pub mod base;
 pub mod body;
 pub mod joints;
 pub mod mass_properties;
 
-use crate::ui::dummies::DummyComponent;
 use base::{Base, BaseErrors};
 use body::{Body, BodyErrors};
 use joints::{
@@ -14,49 +13,46 @@ use joints::{
 };
 
 #[derive(Debug, Clone)]
-pub struct MultibodyMeta {
-    component_id: Uuid,
-    dummy_id: Uuid,
-    from_id: Option<Uuid>,
-    name: String,
-    node_id: Uuid,
-    system_id: Option<usize>,
-    to_id: Vec<Uuid>,
+struct Id {
+    component: Option<usize>,
+    inner: Option<usize>,
+    outer: Vec<usize>,
 }
 
-impl MultibodyMeta {
-    pub fn new(component_id: Uuid, dummy_id: Uuid, name: String, node_id: Uuid) -> Self {
-        let from_id = None;
-        let system_id = None;
-        let to_id = Vec::new();
+impl Default for Id {
+    fn default() -> Self {
         Self {
-            component_id,
-            dummy_id,
-            from_id,
-            name,
-            node_id,
-            system_id,
-            to_id,
+            component: None,
+            inner: None,
+            outer: Vec::new(),
         }
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MultibodyMeta {
+    name: String,
+    id: Id,
+}
+
+impl MultibodyMeta {
+    pub fn new(name: String) -> Self {
+        let id = Id::default();
+        Self { name, id }
+    }
+}
+
 pub trait MultibodyTrait {
-    fn connect_from(&mut self, id: Uuid);
-    fn connect_to(&mut self, id: Uuid);
-    fn delete_from(&mut self);
-    fn delete_to(&mut self, id: Uuid);
-    fn get_component_id(&self) -> Uuid;
-    fn get_dummy_id(&self) -> Uuid;
-    fn get_from_id(&self) -> Option<Uuid>;
+    fn connect_inner(&mut self, id: usize);
+    fn connect_outer(&mut self, id: usize);
+    fn delete_inner(&mut self);
+    fn delete_outer(&mut self, id: usize);
+    fn get_id(&self) -> Option<usize>;
+    fn get_inner_id(&self) -> Option<usize>;
     fn get_name(&self) -> &str;
-    fn get_node_id(&self) -> Uuid;
-    fn get_to_id(&self) -> &Vec<Uuid>;
-    fn inherit_from(&mut self, dummy: &DummyComponent);
-    fn set_component_id(&mut self, id: Uuid);
+    fn get_outer_id(&self) -> &Vec<usize>;
+    fn set_id(&mut self, id: usize);
     fn set_name(&mut self, name: String);
-    fn set_node_id(&mut self, id: Uuid);
-    fn set_system_id(&mut self, id: usize);
 }
 
 pub enum MultibodyErrors {
@@ -66,65 +62,63 @@ pub enum MultibodyErrors {
 }
 
 #[derive(Debug, Clone)]
-pub enum MultibodyComponent {
+pub enum MultibodyComponent<T>
+where
+    T: SimValue,
+{
     Base(Base),
-    Body(Body),
-    Joint(Joint),
+    Body(Body<T>),
+    Joint(Joint<T>),
 }
 
-impl MultibodyTrait for MultibodyComponent {
-    fn connect_from(&mut self, from_id: Uuid) {
+impl<T> MultibodyTrait for MultibodyComponent<T>
+where
+    T: SimValue,
+{
+    fn connect_inner(&mut self, id: usize) {
         match self {
-            MultibodyComponent::Base(base) => base.connect_from(from_id),
-            MultibodyComponent::Body(body) => body.connect_from(from_id),
-            MultibodyComponent::Joint(joint) => joint.connect_from(from_id),
+            MultibodyComponent::Base(base) => base.connect_inner(id),
+            MultibodyComponent::Body(body) => body.connect_inner(id),
+            MultibodyComponent::Joint(joint) => joint.connect_inner(id),
         }
     }
-    fn connect_to(&mut self, to_id: Uuid) {
+    fn connect_outer(&mut self, id: usize) {
         match self {
-            MultibodyComponent::Base(base) => base.connect_to(to_id),
-            MultibodyComponent::Body(body) => body.connect_to(to_id),
-            MultibodyComponent::Joint(joint) => joint.connect_to(to_id),
-        }
-    }
-
-    fn delete_from(&mut self) {
-        match self {
-            MultibodyComponent::Base(base) => base.delete_from(),
-            MultibodyComponent::Body(body) => body.delete_from(),
-            MultibodyComponent::Joint(joint) => joint.delete_from(),
+            MultibodyComponent::Base(base) => base.connect_outer(id),
+            MultibodyComponent::Body(body) => body.connect_outer(id),
+            MultibodyComponent::Joint(joint) => joint.connect_outer(id),
         }
     }
 
-    fn delete_to(&mut self, id: Uuid) {
+    fn delete_inner(&mut self) {
         match self {
-            MultibodyComponent::Base(base) => base.delete_to(id),
-            MultibodyComponent::Body(body) => body.delete_to(id),
-            MultibodyComponent::Joint(joint) => joint.delete_to(id),
+            MultibodyComponent::Base(base) => base.delete_inner(),
+            MultibodyComponent::Body(body) => body.delete_inner(),
+            MultibodyComponent::Joint(joint) => joint.delete_inner(),
         }
     }
 
-    fn get_component_id(&self) -> Uuid {
+    fn delete_outer(&mut self, id: usize) {
         match self {
-            MultibodyComponent::Base(base) => base.get_component_id(),
-            MultibodyComponent::Body(body) => body.get_component_id(),
-            MultibodyComponent::Joint(joint) => joint.get_component_id(),
+            MultibodyComponent::Base(base) => base.delete_outer(id),
+            MultibodyComponent::Body(body) => body.delete_outer(id),
+            MultibodyComponent::Joint(joint) => joint.delete_outer(id),
         }
     }
 
-    fn get_dummy_id(&self) -> Uuid {
+    fn get_id(&self) -> Option<usize> {
         match self {
-            MultibodyComponent::Base(base) => base.get_dummy_id(),
-            MultibodyComponent::Body(body) => body.get_dummy_id(),
-            MultibodyComponent::Joint(joint) => joint.get_dummy_id(),
+            MultibodyComponent::Base(base) => base.get_id(),
+            MultibodyComponent::Body(body) => body.get_id(),
+            MultibodyComponent::Joint(joint) => joint.get_id(),
         }
     }
 
-    fn get_from_id(&self) -> Option<Uuid> {
+    fn get_inner_id(&self) -> Option<usize> {
         match self {
-            MultibodyComponent::Base(base) => base.get_from_id(),
-            MultibodyComponent::Body(body) => body.get_from_id(),
-            MultibodyComponent::Joint(joint) => joint.get_from_id(),
+            MultibodyComponent::Base(base) => base.get_inner_id(),
+            MultibodyComponent::Body(body) => body.get_inner_id(),
+            MultibodyComponent::Joint(joint) => joint.get_inner_id(),
         }
     }
 
@@ -136,35 +130,19 @@ impl MultibodyTrait for MultibodyComponent {
         }
     }
 
-    fn get_node_id(&self) -> Uuid {
+    fn get_outer_id(&self) -> &Vec<usize> {
         match self {
-            MultibodyComponent::Base(base) => base.get_node_id(),
-            MultibodyComponent::Body(body) => body.get_node_id(),
-            MultibodyComponent::Joint(joint) => joint.get_node_id(),
+            MultibodyComponent::Base(base) => base.get_outer_id(),
+            MultibodyComponent::Body(body) => body.get_outer_id(),
+            MultibodyComponent::Joint(joint) => joint.get_outer_id(),
         }
     }
 
-    fn get_to_id(&self) -> &Vec<Uuid> {
+    fn set_id(&mut self, id: usize) {
         match self {
-            MultibodyComponent::Base(base) => base.get_to_id(),
-            MultibodyComponent::Body(body) => body.get_to_id(),
-            MultibodyComponent::Joint(joint) => joint.get_to_id(),
-        }
-    }
-
-    fn inherit_from(&mut self, dummy: &DummyComponent) {
-        match self {
-            MultibodyComponent::Base(base) => base.inherit_from(dummy),
-            MultibodyComponent::Body(body) => body.inherit_from(dummy),
-            MultibodyComponent::Joint(joint) => joint.inherit_from(dummy),
-        }
-    }
-
-    fn set_component_id(&mut self, id: Uuid) {
-        match self {
-            MultibodyComponent::Base(base) => base.set_component_id(id),
-            MultibodyComponent::Body(body) => body.set_component_id(id),
-            MultibodyComponent::Joint(joint) => joint.set_component_id(id),
+            MultibodyComponent::Base(base) => base.set_id(id),
+            MultibodyComponent::Body(body) => body.set_id(id),
+            MultibodyComponent::Joint(joint) => joint.set_id(id),
         }
     }
 
@@ -175,77 +153,22 @@ impl MultibodyTrait for MultibodyComponent {
             MultibodyComponent::Joint(joint) => joint.set_name(name),
         }
     }
-
-    fn set_node_id(&mut self, id: Uuid) {
-        match self {
-            MultibodyComponent::Base(base) => base.set_node_id(id),
-            MultibodyComponent::Body(body) => body.set_node_id(id),
-            MultibodyComponent::Joint(joint) => joint.set_node_id(id),
-        }
-    }
-
-    fn set_system_id(&mut self, id: usize) {
-        match self {
-            MultibodyComponent::Base(base) => base.set_system_id(id),
-            MultibodyComponent::Body(body) => body.set_system_id(id),
-            MultibodyComponent::Joint(joint) => joint.set_system_id(id),
-        }
-    }
-}
-
-impl MultibodyComponent {
-    pub fn from_dummy(
-        component_id: Uuid,
-        dummy: &DummyComponent,
-        node_id: Uuid,
-    ) -> Result<Self, MultibodyErrors> {
-        let component = match dummy {
-            DummyComponent::Base(dummy) => {
-                let base = match Base::from_dummy(component_id, dummy, node_id) {
-                    Ok(base) => base,
-                    Err(error) => return Err(MultibodyErrors::Base(error)),
-                };
-                MultibodyComponent::Base(base)
-            }
-            DummyComponent::Body(dummy) => {
-                let body = match Body::from_dummy(component_id, dummy, node_id) {
-                    Ok(body) => body,
-                    Err(error) => return Err(MultibodyErrors::Body(error)),
-                };
-                MultibodyComponent::Body(body)
-            }
-            DummyComponent::Revolute(dummy) => {
-                let revolute = match Revolute::from_dummy(component_id, dummy, node_id) {
-                    Ok(revolute) => revolute,
-                    Err(error) => return Err(MultibodyErrors::Revolute(error)),
-                };
-                MultibodyComponent::Joint(Joint::Revolute(revolute))
-            }
-        };
-        Ok(component)
-    }
 }
 
 #[derive(Debug, Clone)]
-pub struct MultibodySystem {
-    bodies: Vec<MultibodyComponent>, // MultibodyComponent since its both base and bodies
-    joints: Vec<Joint>,
+pub struct MultibodySystem<T>
+where
+    T: SimValue,
+{
+    bodies: Vec<MultibodyComponent<T>>, // MultibodyComponent since its both base and bodies
+    joints: Vec<Joint<T>>,
 }
 
-impl MultibodySystem {
-    pub fn new(bodies: Vec<MultibodyComponent>, joints: Vec<Joint>) -> Self {
+impl<T> MultibodySystem<T>
+where
+    T: SimValue,
+{
+    pub fn new(bodies: Vec<MultibodyComponent<T>>, joints: Vec<Joint<T>>) -> Self {
         Self { bodies, joints }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
     }
 }

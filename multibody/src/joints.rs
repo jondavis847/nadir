@@ -1,57 +1,56 @@
 use super::MultibodyTrait;
-use uuid::Uuid;
+use sim_value::SimValue;
 
 pub mod revolute;
-use crate::ui::dummies::DummyComponent;
 use revolute::Revolute;
 
 #[derive(Debug, Clone)]
-pub enum Joint {
+pub enum Joint<T>
+where
+    T: SimValue,
+{
     //Floating,
     //Prismatic,
-    Revolute(Revolute),
+    Revolute(Revolute<T>),
     //Spherical,
 }
 
-impl MultibodyTrait for Joint {
-    fn connect_from(&mut self, from_id: Uuid) {
+impl<T> MultibodyTrait for Joint<T>
+where
+    T: SimValue,
+{
+    fn connect_inner(&mut self, id: usize) {
         match self {
-            Joint::Revolute(joint) => joint.connect_from(from_id),
+            Joint::Revolute(joint) => joint.connect_inner(id),
         }
     }
-    fn connect_to(&mut self, to_id: Uuid) {
+    fn connect_outer(&mut self, id: usize) {
         match self {
-            Joint::Revolute(joint) => joint.connect_to(to_id),
-        }
-    }
-
-    fn delete_from(&mut self) {
-        match self {
-            Joint::Revolute(joint) => joint.delete_from(),
+            Joint::Revolute(joint) => joint.connect_outer(id),
         }
     }
 
-    fn delete_to(&mut self, id: Uuid) {
+    fn delete_inner(&mut self) {
         match self {
-            Joint::Revolute(joint) => joint.delete_to(id),
+            Joint::Revolute(joint) => joint.delete_inner(),
         }
     }
 
-    fn get_component_id(&self) -> Uuid {
+    fn delete_outer(&mut self, id: usize) {
         match self {
-            Joint::Revolute(revolute) => revolute.get_component_id(),
+            Joint::Revolute(joint) => joint.delete_outer(id),
         }
     }
 
-    fn get_dummy_id(&self) -> Uuid {
+    fn get_id(&self) -> Option<usize> {
         match self {
-            Joint::Revolute(revolute) => revolute.get_dummy_id(),
+            Joint::Revolute(revolute) => revolute.get_id(),
         }
     }
 
-    fn get_from_id(&self) -> Option<Uuid> {
+    fn get_inner_id(&self) -> Option<usize> {
         match self {
-            Joint::Revolute(revolute) => revolute.get_from_id(),
+            Joint::Revolute(revolute) => revolute.get_inner_id(),
         }
     }
 
@@ -61,26 +60,15 @@ impl MultibodyTrait for Joint {
         }
     }
 
-    fn get_node_id(&self) -> Uuid {
+    fn get_outer_id(&self) -> &Vec<usize> {
         match self {
-            Joint::Revolute(revolute) => revolute.get_node_id(),
+            Joint::Revolute(revolute) => revolute.get_outer_id(),
         }
     }
 
-    fn get_to_id(&self) -> &Vec<Uuid> {
+    fn set_id(&mut self, id: usize) {
         match self {
-            Joint::Revolute(revolute) => revolute.get_to_id(),
-        }
-    }
-
-    fn inherit_from(&mut self, dummy: &DummyComponent) {
-        match self {
-            Joint::Revolute(joint) => joint.inherit_from(dummy),
-        }
-    }
-    fn set_component_id(&mut self, id: Uuid) {
-        match self {
-            Joint::Revolute(revolute) => revolute.set_component_id(id),
+            Joint::Revolute(revolute) => revolute.set_id(id),
         }
     }
 
@@ -89,29 +77,23 @@ impl MultibodyTrait for Joint {
             Joint::Revolute(revolute) => revolute.set_name(name),
         }
     }
-
-    fn set_node_id(&mut self, id: Uuid) {
-        match self {
-            Joint::Revolute(revolute) => revolute.set_node_id(id),
-        }
-    }
-
-    fn set_system_id(&mut self, id: usize) {
-        match self {
-            Joint::Revolute(revolute) => revolute.set_system_id(id),
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct JointParameters {
-    pub constant_force: f64,
-    pub dampening: f64,
-    pub spring_constant: f64,
+pub struct JointParameters<T>
+where
+    T: SimValue,
+{
+    constant_force: T,
+    dampening: T,
+    spring_constant: T,
 }
 
-impl JointParameters {
-    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {
+impl<T> JointParameters<T>
+where
+    T: SimValue,
+{
+    pub fn new(constant_force: T, dampening: T, spring_constant: T) -> Self {
         Self {
             constant_force,
             dampening,
