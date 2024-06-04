@@ -54,7 +54,7 @@ where
         {
             let mag_squared = e1 * e1 + e2 * e2 + e3 * e3;
 
-            if mag_squared <= T::EPSILON {
+            if mag_squared < T::EPSILON {
                 return Err(RotationMatrixError::ZeroMagnitudeColumn);
             }
 

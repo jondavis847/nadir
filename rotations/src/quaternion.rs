@@ -26,7 +26,7 @@ where
     pub fn new(x: T, y: T, z: T, s: T) -> Result<Self, QuaternionErrors> {
         let mag_squared = x * x + y * y + z * z + s * s;
 
-        if mag_squared <= T::EPSILON {
+        if mag_squared < T::EPSILON {
             return Err(QuaternionErrors::ZeroMagnitude);
         }
 
@@ -58,36 +58,28 @@ where
         Self::new(-self.x, -self.y, -self.z, self.s).unwrap()
     }
 
-    pub fn transform(&self, v: Vector3<T>) -> Result<Vector3<T>, QuaternionErrors> {
+    pub fn rotate(&self, v: Vector3<T>) -> Vector3<T> {
         let v_mag = v.norm();
-        if v_mag <= T::EPSILON {
-            return Err(QuaternionErrors::ZeroMagnitude);
-        };
-        let v_augmented = Self::new(v.e1, v.e2, v.e3, T::zero()).unwrap();
-        let inv_q = self.inv();
-        let q_tmp = inv_q * v_augmented;
-        let q_tmp = q_tmp * *self;
-        Ok(Vector3::new(
-            v_mag * q_tmp.x,
-            v_mag * q_tmp.y,
-            v_mag * q_tmp.z,
-        ))
-    }
-
-    pub fn rotate(&self, v: Vector3<T>) -> Result<Vector3<T>, QuaternionErrors> {
-        let v_mag = v.norm();
-        if v_mag <= T::EPSILON {
-            return Err(QuaternionErrors::ZeroMagnitude);
+        if v_mag < T::EPSILON {
+            return Vector3::new(T::zero(), T::zero(), T::zero());
         };
         let v_augmented = Self::new(v.e1, v.e2, v.e3, T::zero()).unwrap();
         let inv_q = self.inv();
         let q_tmp = *self * v_augmented;
         let q_tmp = q_tmp * inv_q;
-        Ok(Vector3::new(
-            v_mag * q_tmp.x,
-            v_mag * q_tmp.y,
-            v_mag * q_tmp.z,
-        ))
+        Vector3::new(v_mag * q_tmp.x, v_mag * q_tmp.y, v_mag * q_tmp.z)
+    }
+
+    pub fn transform(&self, v: Vector3<T>) -> Vector3<T> {
+        let v_mag = v.norm();
+        if v_mag < T::EPSILON {
+            return Vector3::new(T::zero(), T::zero(), T::zero());
+        };
+        let v_augmented = Self::new(v.e1, v.e2, v.e3, T::zero()).unwrap();
+        let inv_q = self.inv();
+        let q_tmp = inv_q * v_augmented;
+        let q_tmp = q_tmp * *self;
+        Vector3::new(v_mag * q_tmp.x, v_mag * q_tmp.y, v_mag * q_tmp.z)
     }
 }
 
@@ -111,7 +103,8 @@ where
             self.s * rhs.y - self.x * rhs.z + self.y * rhs.s + self.z * rhs.x,
             self.s * rhs.z + self.x * rhs.y - self.y * rhs.x + self.z * rhs.s,
             self.s * rhs.s - self.x * rhs.x - self.y * rhs.y - self.z * rhs.z,
-        ).unwrap()
+        )
+        .unwrap()
     }
 }
 
@@ -147,13 +140,15 @@ mod tests {
             0.4381103371317225,
             0.10015469662419728,
             0.8747551502773175,
-        ).unwrap();
+        )
+        .unwrap();
         let quat2 = Quaternion::new(
             0.4605004692970668,
             -0.13901506620501594,
             -0.7574522634418864,
             -0.44145237314115715,
-        ).unwrap();
+        )
+        .unwrap();
         let result = quat1 * quat2;
 
         assert_eq!(result.s, -0.3328369942072665);
