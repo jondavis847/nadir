@@ -1,6 +1,5 @@
-use super::{connection::ConnectionErrors, MultibodyTrait};
+use super::MultibodyTrait;
 use sim_value::SimValue;
-use uuid::Uuid;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -8,13 +7,6 @@ pub mod revolute;
 use revolute::Revolute;
 
 pub type JointRef<T> = Rc<RefCell<Joint<T>>>;
-
-pub trait JointTrait {
-    fn connect_inner_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors>;
-    fn connect_outer_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors>;
-    fn delete_inner_body(&mut self);
-    fn delete_outer_body(&mut self);
-}
 
 #[derive(Debug, Clone)]
 pub enum Joint<T>
@@ -27,42 +19,10 @@ where
     //Spherical,
 }
 
-impl<T> JointTrait for Joint<T>
-where
-    T: SimValue,
-{
-    fn connect_inner_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors> {
-        match self {
-            Joint::Revolute(joint) => joint.connect_inner_body(id),
-        }
-    }
-    fn connect_outer_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors> {
-        match self {
-            Joint::Revolute(joint) => joint.connect_outer_body(id),
-        }
-    }
-    fn delete_inner_body(&mut self) {
-        match self {
-            Joint::Revolute(joint) => joint.delete_inner_body(),
-        }
-    }
-    fn delete_outer_body(&mut self) {
-        match self {
-            Joint::Revolute(joint) => joint.delete_outer_body(),
-        }
-    }
-}
-
 impl<T> MultibodyTrait for Joint<T>
 where
     T: SimValue,
 {
-    fn get_id(&self) -> Uuid {
-        match self {
-            Joint::Revolute(revolute) => revolute.get_id(),
-        }
-    }
-
     fn get_name(&self) -> &str {
         match self {
             Joint::Revolute(revolute) => revolute.get_name(),

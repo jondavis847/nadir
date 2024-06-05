@@ -55,11 +55,8 @@ where
 
         f.debug_struct("Connection")
             .field("joint_name", &joint.get_name())
-            .field("joint_id", &joint.get_id())
-            .field("inner_body_name", &inner_body.get_name())
-            .field("inner_body_id", &inner_body.get_id())
+            .field("inner_body_name", &inner_body.get_name())            
             .field("outer_body_name", &outer_body.get_name())
-            .field("outer_body_id", &outer_body.get_id())
             .finish()
     }
 }

@@ -1,8 +1,4 @@
 use sim_value::SimValue;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use uuid::Uuid;
 
 pub mod base;
 pub mod body;
@@ -11,25 +7,10 @@ pub mod joint;
 pub mod mass_properties;
 
 use base::{Base, BaseErrors};
-use body::{Bodies, Body, BodyErrors, BodyRef};
-use connection::{Connection, ConnectionErrors, Port};
+use body::{Body, BodyErrors, BodyRef};
+use connection::{Connection, ConnectionErrors};
 use joint::{revolute::RevoluteErrors, Joint, JointRef};
 use transforms::Transform;
-
-#[derive(Debug, Clone)]
-pub struct MultibodyMeta {
-    name: String,
-    id: Uuid,
-}
-
-impl MultibodyMeta {
-    pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            id: Uuid::new_v4(),
-        }
-    }
-}
 
 pub enum MultibodyErrors {
     Base(BaseErrors),
@@ -38,7 +19,6 @@ pub enum MultibodyErrors {
 }
 
 pub trait MultibodyTrait {
-    fn get_id(&self) -> Uuid;
     fn get_name(&self) -> &str;
     fn set_name(&mut self, name: String);
 }
@@ -48,7 +28,7 @@ pub enum MultibodyComponent<T>
 where
     T: SimValue,
 {
-    Base(Base<T>),
+    Base(Base),
     Body(Body<T>),
     Joint(Joint<T>),
 }
@@ -57,14 +37,6 @@ impl<T> MultibodyTrait for MultibodyComponent<T>
 where
     T: SimValue,
 {
-    fn get_id(&self) -> Uuid {
-        match self {
-            MultibodyComponent::Base(base) => base.get_id(),
-            MultibodyComponent::Body(body) => body.get_id(),
-            MultibodyComponent::Joint(joint) => joint.get_id(),
-        }
-    }
-
     fn get_name(&self) -> &str {
         match self {
             MultibodyComponent::Base(base) => base.get_name(),

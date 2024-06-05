@@ -1,12 +1,10 @@
 use crate::{
-    connection::ConnectionErrors,
-    joint::{Joint, JointParameters, JointRef, JointTrait},
-    MultibodyMeta, MultibodyTrait,
+    joint::{Joint, JointParameters, JointRef},
+    MultibodyTrait,
 };
 use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
-use uuid::Uuid;
 
 pub enum RevoluteErrors {}
 
@@ -33,11 +31,9 @@ pub struct Revolute<T>
 where
     T: SimValue,
 {
-    meta: MultibodyMeta,
+    name: String,
     parameters: JointParameters<T>,
     state: RevoluteState<T>,
-    inner_body: Option<Uuid>,
-    outer_body: Option<Uuid>,
 }
 
 impl<T> Revolute<T>
@@ -46,38 +42,10 @@ where
 {
     pub fn new(name: &str, parameters: JointParameters<T>, state: RevoluteState<T>) -> JointRef<T> {
         Rc::new(RefCell::new(Joint::Revolute(Self {
-            meta: MultibodyMeta::new(name),
+            name: name.to_string(),
             parameters: parameters,
             state: state,
-            inner_body: None,
-            outer_body: None,
         })))
-    }
-}
-
-impl<T> JointTrait for Revolute<T>
-where
-    T: SimValue,
-{
-    fn connect_inner_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors> {
-        match self.inner_body {
-            Some(_) => return Err(ConnectionErrors::JointInnerAlreadyExists),
-            None => self.inner_body = Some(id),
-        }
-        Ok(())
-    }
-    fn connect_outer_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors> {
-        match self.outer_body {
-            Some(_) => return Err(ConnectionErrors::JointOuterAlreadyExists),
-            None => self.inner_body = Some(id),
-        }
-        Ok(())
-    }
-    fn delete_inner_body(&mut self) {
-        self.inner_body = None;
-    }
-    fn delete_outer_body(&mut self) {
-        self.outer_body = None;
     }
 }
 
@@ -85,15 +53,11 @@ impl<T> MultibodyTrait for Revolute<T>
 where
     T: SimValue,
 {
-    fn get_id(&self) -> Uuid {
-        self.meta.id
-    }
-
     fn get_name(&self) -> &str {
-        &self.meta.name
+        &self.name
     }
 
     fn set_name(&mut self, name: String) {
-        self.meta.name = name;
+        self.name = name;
     }
 }

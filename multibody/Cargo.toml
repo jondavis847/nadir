@@ -6,4 +6,3 @@ edition = "2021"
 [dependencies]
 sim_value = {path = "../sim_value"}
 transforms = {path = "../transforms"}
-uuid = {version = "1.8.0", features = ["v4"]}

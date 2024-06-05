@@ -1,88 +1,36 @@
 use super::{
-    body::{Bodies, BodyConnection, BodyRef, BodyTrait},
-    MultibodyMeta, MultibodyTrait,
+    body::{Bodies, BodyRef},
+    MultibodyTrait,
 };
-use crate::connection::ConnectionErrors;
+
 use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
-use transforms::Transform;
-use uuid::Uuid;
 
 #[derive(Debug, Clone)]
-pub struct Base<T>
-where
-    T: SimValue,
-{
-    pub meta: MultibodyMeta,
-    outer_joints: Vec<BodyConnection<T>>,
+pub struct Base {
+    name: String,
 }
 
-impl<T> Base<T>
-where
-    T: SimValue,
-{
-    pub fn new(name: &str) -> BodyRef<T> {
+impl Base {
+    pub fn new<T>(name: &str) -> BodyRef<T>
+    where
+        T: SimValue,
+    {
         Rc::new(RefCell::new(Bodies::Base(Self {
-            meta: MultibodyMeta::new(name),
-            outer_joints: Vec::new(),
+            name: name.to_string(),
         })))
     }
 }
 
 pub enum BaseErrors {}
 
-impl<T> BodyTrait<T> for Base<T>
-where
-    T: SimValue,
-{
-    fn connect_inner_joint(
-        &mut self,
-        _id: Uuid,
-        _transform: Transform<T>,
-    ) -> Result<(), ConnectionErrors> {
-        Err(ConnectionErrors::NothingBeforeBase)
-    }
-
-    fn connect_outer_joint(
-        &mut self,
-        id: Uuid,
-        transform: Transform<T>,
-    ) -> Result<(), ConnectionErrors> {
-        if !self
-            .outer_joints
-            .iter()
-            .any(|connection| connection.get_joint_id() == id)
-        {
-            let connection = BodyConnection::new(id, transform);
-            self.outer_joints.push(connection);
-        }
-        Ok(())
-    }
-
-    fn delete_inner_joint(&mut self) {
-        //nothing to delete for base
-    }
-
-    fn delete_outer_joint(&mut self, id: Uuid) {
-        self.outer_joints
-            .retain(|connection| connection.get_joint_id() != id)
-    }
-}
-
-impl<T> MultibodyTrait for Base<T>
-where
-    T: SimValue,
-{
-    fn get_id(&self) -> Uuid {
-        self.meta.id
-    }
-
+impl MultibodyTrait for Base {
     fn get_name(&self) -> &str {
-        &self.meta.name
+        &self.name
     }
 
     fn set_name(&mut self, name: String) {
-        self.meta.name = name;
+        self.name = name;
     }
 }
