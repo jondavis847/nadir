@@ -34,6 +34,12 @@ dependencies = [
 [[package]]
 name = "gdt"
 version = "0.1.0"
+dependencies = [
+ "coordinate_systems",
+ "multibody",
+ "rotations",
+ "transforms",
+]
 
 [[package]]
 name = "getrandom"
@@ -65,6 +71,7 @@ name = "multibody"
 version = "0.1.0"
 dependencies = [
  "sim_value",
+ "transforms",
  "uuid",
 ]
 

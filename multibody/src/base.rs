@@ -1,45 +1,79 @@
+use super::{
+    body::{BodyConnection, BodyTrait},
+    MultibodyMeta, MultibodyTrait,
+};
+use crate::connection::ConnectionErrors;
+use sim_value::SimValue;
+use transforms::Transform;
 use uuid::Uuid;
-use super::{MultibodyMeta, MultibodyTrait};
 
 #[derive(Debug, Clone)]
-pub struct Base {
+pub struct Base<T>
+where
+    T: SimValue,
+{
     pub meta: MultibodyMeta,
+    outer_joints: Vec<BodyConnection<T>>,
 }
 
-impl Base {
-    pub fn new(name: String) -> Self {
-        let meta = MultibodyMeta::new(name);
-        Self { meta }
+impl<T> Base<T>
+where
+    T: SimValue,
+{
+    pub fn new(name: &str) -> Self {
+        Self {
+            meta: MultibodyMeta::new(name),
+            outer_joints: Vec::new(),
+        }
     }
 }
 
 pub enum BaseErrors {}
 
-impl MultibodyTrait for Base {
-    fn connect_inner(&mut self, _id: Uuid) {
-        //do nothing, nothing before base
+impl<T> BodyTrait<T> for Base<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        _id: Uuid,
+        _transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        Err(ConnectionErrors::NothingBeforeBase)
     }
 
-    fn connect_outer(&mut self, id: Uuid) {
-        self.meta.id_outer.push(id);
-    }
-    fn delete_inner(&mut self) {
-        //shouldn't matter, nothing before Base
-    }
-    fn delete_outer(&mut self, id: Uuid) {
-        self.meta.id_outer.retain(|&outer_id| outer_id != id);
+    fn connect_outer_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        if !self
+            .outer_joints
+            .iter()
+            .any(|connection| connection.get_joint_id() == id)
+        {
+            let connection = BodyConnection::new(id, transform);
+            self.outer_joints.push(connection);
+        }
+        Ok(())
     }
 
+    fn delete_inner_joint(&mut self) {
+        //nothing to delete for base
+    }
+
+    fn delete_outer_joint(&mut self, id: Uuid) {
+        self.outer_joints
+            .retain(|connection| connection.get_joint_id() != id)
+    }
+}
+
+impl<T> MultibodyTrait for Base<T>
+where
+    T: SimValue,
+{
     fn get_id(&self) -> Uuid {
         self.meta.id
-    }
-
-    fn get_inner_id(&self) -> Option<Uuid> {
-        self.meta.id_inner
-    }
-
-    fn get_outer_id(&self) -> &Vec<Uuid> {
-        &self.meta.id_outer
     }
 
     fn get_name(&self) -> &str {

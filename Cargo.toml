@@ -11,3 +11,9 @@ members = [
     "rotations", "sim_value",
     "transforms",    
 ]
+
+[dependencies]
+coordinate_systems = {path = "./coordinate_systems"}
+multibody = { path = "./multibody" }
+rotations = { path = "./rotations" }
+transforms = { path = "./transforms" }

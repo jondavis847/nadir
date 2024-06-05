@@ -112,7 +112,7 @@ where
     }
 
     pub fn set_ixx(&mut self, ixx: T) -> Result<(), InertiaErrors> {
-        if ixx <= T::zero() {
+        if ixx < T::EPSILON {
             return Err(InertiaErrors::IxxLessThanOrEqualToZero);
         }
         self.ixx = ixx;
@@ -135,7 +135,7 @@ where
     ///
     /// Returns a `MassPropertiesError::IyyLessThanOrEqualToZero` if `iyy` is less than or equal to zero.
     pub fn set_iyy(&mut self, iyy: T) -> Result<(), InertiaErrors> {
-        if iyy <= T::zero() {
+        if iyy < T::EPSILON {
             return Err(InertiaErrors::IyyLessThanOrEqualToZero);
         }
         self.iyy = iyy;
@@ -153,7 +153,7 @@ where
     ///
     /// Returns a `MassPropertiesError::IzzLessThanOrEqualToZero` if `izz` is less than or equal to zero.
     pub fn set_izz(&mut self, izz: T) -> Result<(), InertiaErrors> {
-        if izz <= T::zero() {
+        if izz < T::EPSILON {
             return Err(InertiaErrors::IzzLessThanOrEqualToZero);
         }
         self.izz = izz;
@@ -355,7 +355,7 @@ where
     ///
     /// Returns a `MassPropertiesError::MassLessThanOrEqualToZero` if `mass` is less than or equal to zero.
     pub fn set_mass(&mut self, mass: T) -> Result<(), MassPropertiesErrors> {
-        if mass <= T::zero() {
+        if mass < T::EPSILON {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
         }
         self.mass = mass;

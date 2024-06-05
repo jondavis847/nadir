@@ -1,10 +1,108 @@
-use uuid::Uuid;
 use sim_value::SimValue;
+use transforms::Transform;
+use uuid::Uuid;
 
 use super::{
+    base::Base,
+    connection::ConnectionErrors,
     mass_properties::{MassProperties, MassPropertiesErrors},
     MultibodyMeta, MultibodyTrait,
 };
+
+pub trait BodyTrait<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors>;
+
+    fn connect_outer_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors>;
+
+    fn delete_inner_joint(&mut self);
+    fn delete_outer_joint(&mut self, id: Uuid);
+}
+
+#[derive(Clone, Debug)]
+pub enum Bodies<T>
+where
+    T: SimValue,
+{
+    Base(Base<T>),
+    Body(Body<T>),
+}
+
+impl<T> BodyTrait<T> for Bodies<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        match self {
+            Bodies::Base(base) => base.connect_inner_joint(id, transform),
+            Bodies::Body(body) => body.connect_inner_joint(id, transform),
+        }
+    }
+
+    fn connect_outer_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        match self {
+            Bodies::Base(base) => base.connect_outer_joint(id, transform),
+            Bodies::Body(body) => body.connect_outer_joint(id, transform),
+        }
+    }
+
+    fn delete_inner_joint(&mut self) {
+        match self {
+            Bodies::Base(base) => base.delete_inner_joint(),
+            Bodies::Body(body) => body.delete_inner_joint(),
+        }
+    }
+    fn delete_outer_joint(&mut self, id: Uuid) {
+        match self {
+            Bodies::Base(base) => base.delete_outer_joint(id),
+            Bodies::Body(body) => body.delete_outer_joint(id),
+        }
+    }
+}
+
+impl<T> MultibodyTrait for Bodies<T>
+where
+    T: SimValue,
+{
+    fn get_id(&self) -> Uuid {
+        match self {
+            Bodies::Base(base) => base.get_id(),
+            Bodies::Body(body) => body.get_id(),
+        }
+    }
+
+    fn get_name(&self) -> &str {
+        match self {
+            Bodies::Base(base) => base.get_name(),
+            Bodies::Body(body) => body.get_name(),
+        }
+    }
+
+    fn set_name(&mut self, name: String) {
+        match self {
+            Bodies::Base(base) => base.set_name(name),
+            Bodies::Body(body) => body.set_name(name),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum BodyErrors {
@@ -18,16 +116,20 @@ where
 {
     mass_properties: MassProperties<T>,
     meta: MultibodyMeta,
+    inner_joint: Option<BodyConnection<T>>,
+    outer_joints: Vec<BodyConnection<T>>,
 }
 
 impl<T> Body<T>
 where
     T: SimValue,
 {
-    pub fn new(mass_properties: MassProperties<T>, meta: MultibodyMeta) -> Self {
+    pub fn new(name: &str, mass_properties: MassProperties<T>) -> Self {
         Self {
-            mass_properties,
-            meta,
+            mass_properties: mass_properties,
+            meta: MultibodyMeta::new(name),
+            inner_joint: None,
+            outer_joints: Vec::new(),
         }
     }
 
@@ -137,41 +239,89 @@ where
     }
 }
 
+impl<T> BodyTrait<T> for Body<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        match self.inner_joint {
+            Some(_) => return Err(ConnectionErrors::BodyInnerAlreadyExists),
+            None => {
+                let connection = BodyConnection::new(id, transform);
+                self.inner_joint = Some(connection);
+                Ok(())
+            }
+        }
+    }
+
+    fn connect_outer_joint(
+        &mut self,
+        id: Uuid,
+        transform: Transform<T>,
+    ) -> Result<(), ConnectionErrors> {
+        if !self
+            .outer_joints
+            .iter()
+            .any(|connection| connection.get_joint_id() == id)
+        {
+            let connection = BodyConnection::new(id, transform);
+            self.outer_joints.push(connection);
+        }
+        Ok(())
+    }
+
+    fn delete_inner_joint(&mut self) {
+        self.inner_joint = None;
+    }
+
+    fn delete_outer_joint(&mut self, id: Uuid) {
+        self.outer_joints
+            .retain(|connection| connection.get_joint_id() != id)
+    }
+}
+
 impl<T> MultibodyTrait for Body<T>
 where
     T: SimValue,
 {
-    fn connect_inner(&mut self, id: Uuid) {
-        self.meta.id_inner = Some(id);
-    }
-
-    fn connect_outer(&mut self, id: Uuid) {
-        self.meta.id_outer.push(id);
-    }
-    fn delete_inner(&mut self) {
-        self.meta.id_inner = None;
-    }
-    fn delete_outer(&mut self, id: Uuid) {
-        self.meta.id_outer.retain(|&outer_id| outer_id != id);
-    }
-
     fn get_id(&self) -> Uuid {
         self.meta.id
-    }
-
-    fn get_inner_id(&self) -> Option<Uuid> {
-        self.meta.id_inner
     }
 
     fn get_name(&self) -> &str {
         &self.meta.name
     }
 
-    fn get_outer_id(&self) -> &Vec<Uuid> {
-        &self.meta.id_outer
-    }
-
     fn set_name(&mut self, name: String) {
         self.meta.name = name;
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BodyConnection<T>
+where
+    T: SimValue,
+{
+    joint_id: Uuid,
+    transform: Transform<T>,
+}
+
+impl<T> BodyConnection<T>
+where
+    T: SimValue,
+{
+    pub fn new(joint_id: Uuid, transform: Transform<T>) -> Self {
+        Self {
+            joint_id,
+            transform,
+        }
+    }
+
+    pub fn get_joint_id(&self) -> Uuid {
+        self.joint_id
     }
 }
