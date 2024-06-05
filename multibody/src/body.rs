@@ -1,4 +1,6 @@
 use sim_value::SimValue;
+use std::cell::RefCell;
+use std::rc::Rc;
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -8,6 +10,8 @@ use super::{
     mass_properties::{MassProperties, MassPropertiesErrors},
     MultibodyMeta, MultibodyTrait,
 };
+
+pub type BodyRef<T> = Rc<RefCell<Bodies<T>>>;
 
 pub trait BodyTrait<T>
 where
@@ -124,13 +128,13 @@ impl<T> Body<T>
 where
     T: SimValue,
 {
-    pub fn new(name: &str, mass_properties: MassProperties<T>) -> Self {
-        Self {
+    pub fn new(name: &str, mass_properties: MassProperties<T>) -> BodyRef<T> {
+        Rc::new(RefCell::new(Bodies::Body(Self {
             mass_properties: mass_properties,
             meta: MultibodyMeta::new(name),
             inner_joint: None,
             outer_joints: Vec::new(),
-        }
+        })))
     }
 
     /// Returns the x-coordinate of the center of mass.

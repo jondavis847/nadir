@@ -1,9 +1,13 @@
 use super::{connection::ConnectionErrors, MultibodyTrait};
 use sim_value::SimValue;
 use uuid::Uuid;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub mod revolute;
 use revolute::Revolute;
+
+pub type JointRef<T> = Rc<RefCell<Joint<T>>>;
 
 pub trait JointTrait {
     fn connect_inner_body(&mut self, id: Uuid) -> Result<(), ConnectionErrors>;

@@ -1,9 +1,11 @@
 use super::{
-    body::{BodyConnection, BodyTrait},
+    body::{Bodies, BodyConnection, BodyRef, BodyTrait},
     MultibodyMeta, MultibodyTrait,
 };
 use crate::connection::ConnectionErrors;
 use sim_value::SimValue;
+use std::cell::RefCell;
+use std::rc::Rc;
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -20,11 +22,11 @@ impl<T> Base<T>
 where
     T: SimValue,
 {
-    pub fn new(name: &str) -> Self {
-        Self {
+    pub fn new(name: &str) -> BodyRef<T> {
+        Rc::new(RefCell::new(Bodies::Base(Self {
             meta: MultibodyMeta::new(name),
             outer_joints: Vec::new(),
-        }
+        })))
     }
 }
 

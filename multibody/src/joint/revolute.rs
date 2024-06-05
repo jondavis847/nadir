@@ -1,9 +1,11 @@
 use crate::{
     connection::ConnectionErrors,
-    joint::{JointParameters, JointTrait},
+    joint::{Joint, JointParameters, JointRef, JointTrait},
     MultibodyMeta, MultibodyTrait,
 };
 use sim_value::SimValue;
+use std::cell::RefCell;
+use std::rc::Rc;
 use uuid::Uuid;
 
 pub enum RevoluteErrors {}
@@ -42,14 +44,14 @@ impl<T> Revolute<T>
 where
     T: SimValue,
 {
-    pub fn new(name: &str, parameters: JointParameters<T>, state: RevoluteState<T>) -> Self {
-        Self {
+    pub fn new(name: &str, parameters: JointParameters<T>, state: RevoluteState<T>) -> JointRef<T> {
+        Rc::new(RefCell::new(Joint::Revolute(Self {
             meta: MultibodyMeta::new(name),
             parameters: parameters,
             state: state,
             inner_body: None,
             outer_body: None,
-        }
+        })))
     }
 }
 
