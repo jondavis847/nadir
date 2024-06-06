@@ -14,7 +14,7 @@ use transforms::Transform;
 fn main() {
     let mut sys = MultibodySystem::new();
 
-    let base = Base::new("base");
+    let base = Base::new("base").unwrap();
     sys.add_body(base);
 
     let joint = Revolute::new(
@@ -25,7 +25,7 @@ fn main() {
     sys.add_joint(joint);
 
     let mp = MassProperties::new(1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    let body = Body::new("body", mp.unwrap());
+    let body = Body::new("body", mp.unwrap()).unwrap();
     sys.add_body(body);
 
     sys.connect(
