@@ -3,6 +3,15 @@ use rotations::Rotation;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Transform {
-    translation: CoordinateSystem,
     rotation: Rotation,
+    translation: CoordinateSystem,
+}
+
+impl Transform {
+    pub fn new(rotation: Rotation, translation: CoordinateSystem) -> Self {
+        Self {
+            rotation,
+            translation,
+        }
+    }
 }

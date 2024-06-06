@@ -3,8 +3,7 @@ use multibody::{
     body::{Body, BodyTrait},
     joint::{
         revolute::{Revolute, RevoluteState},
-        JointParameters,
-        JointTrait,
+        JointParameters, JointTrait,
     },
     mass_properties::MassProperties,
     MultibodySystem,
@@ -18,22 +17,40 @@ fn main() {
     let mut base = Base::new("base").unwrap();
     sys.add_body(base.clone());
 
-    let mut joint = Revolute::new(
-        "joint",
+    let mut joint1 = Revolute::new(
+        "joint1",
         JointParameters::default(),
         RevoluteState::default(),
     );
-    sys.add_joint(joint.clone());
+    sys.add_joint(joint1.clone());
+
+    let mut joint2 = Revolute::new(
+        "joint2",
+        JointParameters::default(),
+        RevoluteState::default(),
+    );
+    sys.add_joint(joint2.clone());
 
     let mp = MassProperties::new(1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    let mut body = Body::new("body", mp.unwrap()).unwrap();
-    sys.add_body(body.clone());
+    let mut body1 = Body::new("body1", mp.unwrap()).unwrap();
+    sys.add_body(body1.clone());
 
-    base.connect_outer_joint(joint.clone(),Transform::default());
-    joint.connect_inner_body(base.clone());
-    body.connect_inner_joint(joint.clone(), Transform::default());
-    joint.connect_outer_body(body.clone());
-    
+    let mp = MassProperties::new(1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+    let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
+    sys.add_body(body2.clone());
+
+
     dbg!(&sys);
-    sys.validate();
+    
+    base.connect_outer_joint(joint2.clone(), Transform::default());
+    joint2.connect_inner_body(base.clone());
+    body2.connect_inner_joint(joint2.clone(), Transform::default());
+    joint2.connect_outer_body(body2.clone());
+    body2.connect_outer_joint(joint1.clone(), Transform::default());
+    joint1.connect_inner_body(body2.clone());
+    body1.connect_inner_joint(joint1.clone(), Transform::default());
+    joint1.connect_outer_body(body1.clone());
+
+    sys.sort();
+    dbg!(&sys);
 }

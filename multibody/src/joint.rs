@@ -1,5 +1,6 @@
 use super::{body::BodyRef, MultibodyTrait};
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 
 pub mod revolute;
@@ -9,6 +10,7 @@ pub type JointRef = Rc<RefCell<Joint>>;
 pub trait JointTrait {
     fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
     fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
+    fn calculate_transform(&mut self);
     fn delete_inner_body(&mut self);
     fn delete_outer_body(&mut self);
     fn get_inner_body(&self) -> Option<BodyRef>;
@@ -16,18 +18,16 @@ pub trait JointTrait {
 }
 
 impl JointTrait for JointRef {
-    fn connect_inner_body(
-        &mut self,
-        bodyref: BodyRef,        
-    ) -> Result<(), JointErrors> {
+    fn connect_inner_body(&mut self, bodyref: BodyRef) -> Result<(), JointErrors> {
         self.borrow_mut().connect_inner_body(bodyref)
     }
 
-    fn connect_outer_body(
-        &mut self,
-        bodyref: BodyRef,        
-    ) -> Result<(), JointErrors> {
+    fn connect_outer_body(&mut self, bodyref: BodyRef) -> Result<(), JointErrors> {
         self.borrow_mut().connect_outer_body(bodyref)
+    }
+
+    fn calculate_transform(&mut self) {
+        self.borrow_mut().calculate_transform();
     }
 
     fn delete_inner_body(&mut self) {
@@ -84,6 +84,11 @@ impl JointTrait for Joint {
             Joint::Revolute(joint) => joint.connect_outer_body(body),
         }
     }
+    fn calculate_transform(&mut self) {
+        match self {
+            Joint::Revolute(joint) => joint.calculate_transform()
+        }
+    }
     fn delete_inner_body(&mut self) {
         match self {
             Joint::Revolute(joint) => joint.delete_inner_body(),
@@ -106,10 +111,29 @@ impl JointTrait for Joint {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct JointConnection {
     inner_body: Option<BodyRef>,
     outer_body: Option<BodyRef>,
+}
+
+impl fmt::Debug for JointConnection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner_body = match &self.inner_body {
+            None => None,
+            Some(body) => Some(body.borrow().get_name().to_string()),
+        };
+
+        let outer_body = match &self.outer_body {
+            None => None,
+            Some(body) => Some(body.borrow().get_name().to_string()),
+        };
+
+        f.debug_struct("JointConnection")
+            .field("inner_body", &inner_body)
+            .field("outer_body", &outer_body)
+            .finish()
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]

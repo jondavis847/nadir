@@ -137,7 +137,7 @@ impl MultibodySystem {
     }
 
     pub fn validate(&mut self) -> Result<(), MultibodyErrors> {
-        // check that there's at least 1 and only 1 base
+        // check that there's exactly 1 base
         let num_bases = self
             .bodies
             .iter()
@@ -157,13 +157,18 @@ impl MultibodySystem {
         println!("Found exactly 1 base.");
 
         // check that the base has an outer joint
-        if let Some(base) = self.bodies.iter().find(|bodyref| {
-            let body = bodyref.borrow();
-            match &*body {
-                BodyEnum::Base(base) => base.get_outer_joints().is_empty(),
-                BodyEnum::Body(_) => false,
-            }
-        }) {
+        if self
+            .bodies
+            .iter()
+            .find(|bodyref| {
+                let body = bodyref.borrow();
+                match &*body {
+                    BodyEnum::Base(base) => base.get_outer_joints().is_empty(),
+                    BodyEnum::Body(_) => false,
+                }
+            })
+            .is_some()
+        {
             return Err(MultibodyErrors::BaseMissingOuterJoint);
         }
 
@@ -204,5 +209,58 @@ impl MultibodySystem {
         println!("All joints have an outer body.");
 
         Ok(())
+    }
+
+    pub fn sort(&mut self) -> Result<(), MultibodyErrors> {
+        match self.validate() {
+            Ok(()) => {}
+            Err(error) => return Err(error),
+        }
+
+        let mut new_bodies = Vec::new();
+        let mut new_joints = Vec::new();
+
+        let base = self.find_base();
+        new_bodies.push(base.clone());
+
+        find_joints_for_sort(base.clone(), &mut new_bodies, &mut new_joints);
+
+        self.bodies = new_bodies;
+        self.joints = new_joints;
+        Ok(())
+    }
+
+    fn find_base(&self) -> BodyRef {
+        self.bodies
+            .iter()
+            .find(|bodyref| {
+                let body = bodyref.borrow();
+                match &*body {
+                    BodyEnum::Base(_) => true,
+                    BodyEnum::Body(_) => false,
+                }
+            })
+            .unwrap()
+            .clone()
+    }
+}
+
+fn find_body_for_sort(
+    joint: JointRef,
+    new_bodies: &mut Vec<BodyRef>,
+    new_joints: &mut Vec<JointRef>,
+) {
+    new_joints.push(joint.clone());
+    find_joints_for_sort(joint.get_outer_body().unwrap(), new_bodies, new_joints);
+}
+
+fn find_joints_for_sort(
+    body: BodyRef,
+    new_bodies: &mut Vec<BodyRef>,
+    new_joints: &mut Vec<JointRef>,
+) {
+    new_bodies.push(body.clone());
+    for joint_connection in body.get_outer_joints() {
+        find_body_for_sort(joint_connection.component, new_bodies, new_joints);
     }
 }

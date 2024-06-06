@@ -1,3 +1,4 @@
+use super::euler_angles::{EulerAngles, EulerSequence};
 use linear_algebra::Vector3;
 use rand::prelude::*;
 use std::ops::Mul;
@@ -92,6 +93,89 @@ impl Mul<Quaternion> for Quaternion {
             self.s * rhs.s - self.x * rhs.x - self.y * rhs.y - self.z * rhs.z,
         )
         .unwrap()
+    }
+}
+
+impl From<EulerAngles> for Quaternion {
+    fn from(euler: EulerAngles) -> Self {
+        let (phi, theta, psi) = (euler.x, euler.y, euler.z);
+        let (c_phi, c_theta, c_psi) = ((phi / 2.0).cos(), (theta / 2.0).cos(), (psi / 2.0).cos());
+        let (s_phi, s_theta, s_psi) = ((phi / 2.0).sin(), (theta / 2.0).sin(), (psi / 2.0).sin());
+
+        match euler.sequence {
+            EulerSequence::XYZ => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+            EulerSequence::ZYX => Quaternion {
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::XZY => Quaternion {
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+            EulerSequence::YXZ => Quaternion {
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::YZX => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::ZXY => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+            EulerSequence::XYX => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::XZX => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+            EulerSequence::YXY => Quaternion {
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::YZY => Quaternion {
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+            EulerSequence::ZXZ => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+            },
+            EulerSequence::ZYZ => Quaternion {
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+            },
+        }
     }
 }
 

@@ -3,20 +3,31 @@ use crate::{
     joint::{Joint, JointConnection, JointErrors, JointParameters, JointRef, JointTrait},
     MultibodyTrait,
 };
+use coordinate_systems::CoordinateSystem;
+use rotations::euler_angles::{EulerAngles, EulerSequence};
 use std::cell::RefCell;
 use std::rc::Rc;
+use transforms::Transform;
 
 pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
-    pub theta: f64,
-    pub omega: f64,
+    theta: f64,
+    omega: f64,
+    transform: Transform,
 }
 
 impl RevoluteState {
     pub fn new(theta: f64, omega: f64) -> Self {
-        Self { theta, omega }
+        let rotation = EulerAngles::new(0.0, 0.0, theta, EulerSequence::XYZ);
+        // assume this is about Z until we add more axes
+        let transform = Transform::new(rotation.into(), CoordinateSystem::default());
+        Self {
+            theta,
+            omega,
+            transform,
+        }
     }
 }
 
@@ -55,6 +66,8 @@ impl JointTrait for Revolute {
         self.connection.outer_body = Some(body);
         Ok(())
     }
+
+    fn calculate_transform(&mut self) {}
 
     fn delete_inner_body(&mut self) {
         if self.connection.inner_body.is_some() {

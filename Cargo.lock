@@ -70,6 +70,8 @@ dependencies = [
 name = "multibody"
 version = "0.1.0"
 dependencies = [
+ "coordinate_systems",
+ "rotations",
  "sim_value",
  "transforms",
 ]
