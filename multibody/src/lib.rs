@@ -7,14 +7,16 @@ pub mod joint;
 pub mod mass_properties;
 
 use base::{Base, BaseErrors};
-use body::{Body, BodyErrors, BodyRef};
+use body::{Bodies, Body, BodyErrors, BodyRef};
 use connection::{Connection, ConnectionErrors};
 use joint::{revolute::RevoluteErrors, Joint, JointRef};
 use transforms::Transform;
 
 pub enum MultibodyErrors {
     Base(BaseErrors),
+    BaseAlreadyExists,
     Body(BodyErrors),
+    NameTaken,
     Revolute(RevoluteErrors),
 }
 
@@ -59,7 +61,7 @@ pub struct MultibodySystem<T>
 where
     T: SimValue,
 {
-    bodies: Vec<BodyRef<T>>, // MultibodyComponent since its both base and bodies
+    bodies: Vec<BodyRef<T>>, // must be Body
     connections: Vec<Connection<T>>,
     joints: Vec<JointRef<T>>,
 }
@@ -76,12 +78,61 @@ where
         }
     }
 
-    pub fn add_body(&mut self, body: BodyRef<T>) {
-        self.bodies.push(body);
+    pub fn add_body(&mut self, bodyref: BodyRef<T>) -> Result<(), MultibodyErrors> {
+        // return if this is a Base and we already have a Base
+        if matches!(*bodyref.borrow(), Bodies::Base(_)) {
+            if let Some(_) = self.bodies.iter().find(|body| {
+                let body = body.borrow();
+                matches!(*body, Bodies::Base(_))
+            }) {
+                return Err(MultibodyErrors::BaseAlreadyExists);
+            }
+        }
+
+        // Return if a component with this name already exists
+        let name = bodyref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
+
+        if self
+            .bodies
+            .iter()
+            .any(|body| body.borrow().get_name() == name)
+        {
+            return Err(MultibodyErrors::NameTaken);
+        }
+
+        if self
+            .joints
+            .iter()
+            .any(|joint| joint.borrow().get_name() == name)
+        {
+            return Err(MultibodyErrors::NameTaken);
+        }
+
+        self.bodies.push(bodyref);
+        Ok(())
     }
 
-    pub fn add_joint(&mut self, joint: JointRef<T>) {
-        self.joints.push(joint);
+    pub fn add_joint(&mut self, jointref: JointRef<T>) -> Result<(), MultibodyErrors> {
+        // Return if a component with this name already exists
+        let name = jointref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
+
+        if self
+            .bodies
+            .iter()
+            .any(|body| body.borrow().get_name() == name)
+        {
+            return Err(MultibodyErrors::NameTaken);
+        }
+
+        if self
+            .joints
+            .iter()
+            .any(|joint| joint.borrow().get_name() == name)
+        {
+            return Err(MultibodyErrors::NameTaken);
+        }
+        self.joints.push(jointref);
+        Ok(())
     }
 
     pub fn connect(
@@ -129,4 +180,6 @@ where
             .find(|joint| joint.borrow().get_name() == name)
             .cloned()
     }
+
+    pub fn sort(&mut self) {}
 }

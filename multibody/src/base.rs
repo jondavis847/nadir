@@ -1,5 +1,5 @@
 use super::{
-    body::{Bodies, BodyRef},
+    body::{Bodies, BodyErrors, BodyRef},
     MultibodyTrait,
 };
 
@@ -7,19 +7,23 @@ use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+pub type BaseRef = Rc<RefCell<Base>>;
 #[derive(Debug, Clone)]
 pub struct Base {
     name: String,
 }
 
 impl Base {
-    pub fn new<T>(name: &str) -> BodyRef<T>
+    pub fn new<T>(name: &str) -> Result<BodyRef<T>, BodyErrors>
     where
         T: SimValue,
     {
-        Rc::new(RefCell::new(Bodies::Base(Self {
+        if name.is_empty() {
+            return Err(BodyErrors::EmptyName);
+        }
+        Ok(Rc::new(RefCell::new(Bodies::Base(Self {
             name: name.to_string(),
-        })))
+        }))))
     }
 }
 

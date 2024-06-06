@@ -1,11 +1,9 @@
 use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
-use transforms::Transform;
 
 use super::{
     base::Base,
-    connection::ConnectionErrors,
     mass_properties::{MassProperties, MassPropertiesErrors},
     MultibodyTrait,
 };
@@ -41,8 +39,9 @@ where
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum BodyErrors {
-    MassPropertiesErrors(MassPropertiesErrors),
+pub enum BodyErrors {    
+    EmptyName,
+    MassPropertiesErrors(MassPropertiesErrors),    
 }
 
 #[derive(Debug, Clone)]
@@ -58,11 +57,14 @@ impl<T> Body<T>
 where
     T: SimValue,
 {
-    pub fn new(name: &str, mass_properties: MassProperties<T>) -> BodyRef<T> {
-        Rc::new(RefCell::new(Bodies::Body(Self {
+    pub fn new(name: &str, mass_properties: MassProperties<T>) -> Result<BodyRef<T>, BodyErrors> {
+        if name.is_empty() {
+            return Err(BodyErrors::EmptyName);
+        }
+        Ok(Rc::new(RefCell::new(Bodies::Body(Self {
             mass_properties: mass_properties,
             name: name.to_string(),
-        })))
+        }))))
     }
 
     /// Returns the x-coordinate of the center of mass.

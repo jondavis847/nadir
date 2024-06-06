@@ -3,10 +3,10 @@ use multibody::{
     body::Body,
     joint::{
         revolute::{Revolute, RevoluteState},
-        Joint, JointParameters,
+        JointParameters,
     },
     mass_properties::MassProperties,
-    MultibodySystem, MultibodyTrait,
+    MultibodySystem,
 };
 
 use transforms::Transform;
