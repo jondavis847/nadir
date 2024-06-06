@@ -1,22 +1,112 @@
 use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::fmt;
+use transforms::Transform;
 
 use super::{
     base::Base,
+    joint::JointRef,
     mass_properties::{MassProperties, MassPropertiesErrors},
     MultibodyTrait,
 };
 
 pub type BodyRef<T> = Rc<RefCell<Bodies<T>>>;
 
+impl<T> BodyTrait<T> for BodyRef<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        self.borrow_mut().connect_inner_joint(jointref, transform)
+    }
+
+    fn connect_outer_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        self.borrow_mut().connect_outer_joint(jointref, transform)
+    }
+
+    fn delete_inner_joint(&mut self) {
+        self.borrow_mut().delete_inner_joint()
+    }
+    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+        self.borrow_mut().delete_outer_joint(jointref)
+    }
+}
+pub trait BodyTrait<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors>;
+
+    fn connect_outer_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors>;
+
+    fn delete_inner_joint(&mut self);
+    fn delete_outer_joint(&mut self, jointref: JointRef<T>);
+}
+
 #[derive(Clone, Debug)]
 pub enum Bodies<T>
 where
     T: SimValue,
 {
-    Base(Base),
+    Base(Base<T>),
     Body(Body<T>),
+}
+
+impl<T> BodyTrait<T> for Bodies<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        match self {
+            Bodies::Base(base) => base.connect_inner_joint(jointref, transform),
+            Bodies::Body(body) => body.connect_inner_joint(jointref, transform),
+        }
+    }
+
+    fn connect_outer_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        match self {
+            Bodies::Base(base) => base.connect_outer_joint(jointref, transform),
+            Bodies::Body(body) => body.connect_outer_joint(jointref, transform),
+        }
+    }
+
+    fn delete_inner_joint(&mut self) {
+        match self {
+            Bodies::Base(base) => base.delete_inner_joint(),
+            Bodies::Body(body) => body.delete_inner_joint(),
+        }
+    }
+    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+        match self {
+            Bodies::Base(base) => base.delete_outer_joint(jointref),
+            Bodies::Body(body) => body.delete_outer_joint(jointref),
+        }
+    }
 }
 
 impl<T> MultibodyTrait for Bodies<T>
@@ -39,9 +129,46 @@ where
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum BodyErrors {    
+pub enum BodyErrors {
     EmptyName,
-    MassPropertiesErrors(MassPropertiesErrors),    
+    InnerJointExists,
+    MassPropertiesErrors(MassPropertiesErrors),
+    NoBaseInnerConnection,
+    OuterJointExists,
+}
+
+#[derive(Clone)]
+pub struct BodyJointConnection<T>
+where
+    T: SimValue,
+{
+    pub component: JointRef<T>,
+    pub transform: Transform<T>,
+}
+
+impl<T> BodyJointConnection<T>
+where
+    T: SimValue,
+{
+    pub fn new(component: JointRef<T>, transform: Transform<T>) -> Self {
+        Self {
+            component,
+            transform,
+        }
+    }
+}
+
+impl<T> fmt::Debug for BodyJointConnection<T>
+where
+    T: SimValue,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let joint = self.component.borrow();        
+
+        f.debug_struct("BodyJointConnection")
+            .field("joint_name", &joint.get_name())            
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -49,8 +176,12 @@ pub struct Body<T>
 where
     T: SimValue,
 {
+    //actuators: Vec<BodyActuatorConnection<T>>,
+    inner_joint: Option<BodyJointConnection<T>>,
     mass_properties: MassProperties<T>,
     name: String,
+    outer_joints: Vec<BodyJointConnection<T>>,
+    //sensors: Vec<BodySensorConnection<T>>,
 }
 
 impl<T> Body<T>
@@ -62,8 +193,12 @@ where
             return Err(BodyErrors::EmptyName);
         }
         Ok(Rc::new(RefCell::new(Bodies::Body(Self {
+            //actuators: Vec::new(),
+            inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
+            outer_joints: Vec::new(),
+            //sensors: Vec::new(),
         }))))
     }
 
@@ -173,6 +308,56 @@ where
     }
 }
 
+impl<T> BodyTrait<T> for Body<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        match self.inner_joint {
+            Some(_) => return Err(BodyErrors::InnerJointExists),
+            None => self.inner_joint = Some(BodyJointConnection::new(jointref, transform)),
+        }
+        Ok(())
+    }
+
+    fn connect_outer_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors> {
+        // Borrow the joint and get its name
+        let joint_name = jointref.borrow().get_name().to_string();
+
+        // Check if the joint already exists in outer_joints
+        if self
+            .outer_joints
+            .iter()
+            .any(|connection| connection.component.borrow().get_name() == joint_name)
+        {
+            return Err(BodyErrors::OuterJointExists);
+        }
+
+        // Push the new joint connection
+        self.outer_joints
+            .push(BodyJointConnection::new(jointref, transform));
+        Ok(())
+    }
+
+    fn delete_inner_joint(&mut self) {
+        if self.inner_joint.is_some() {
+            self.inner_joint = None;
+        }
+    }
+
+    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+        self.outer_joints
+            .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
+    }
+}
 impl<T> MultibodyTrait for Body<T>
 where
     T: SimValue,

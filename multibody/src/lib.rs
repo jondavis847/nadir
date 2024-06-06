@@ -2,13 +2,11 @@ use sim_value::SimValue;
 
 pub mod base;
 pub mod body;
-pub mod connection;
 pub mod joint;
 pub mod mass_properties;
 
 use base::{Base, BaseErrors};
 use body::{Bodies, Body, BodyErrors, BodyRef};
-use connection::{Connection, ConnectionErrors};
 use joint::{revolute::RevoluteErrors, Joint, JointRef};
 use transforms::Transform;
 
@@ -30,7 +28,7 @@ pub enum MultibodyComponent<T>
 where
     T: SimValue,
 {
-    Base(Base),
+    Base(Base<T>),
     Body(Body<T>),
     Joint(Joint<T>),
 }
@@ -62,7 +60,6 @@ where
     T: SimValue,
 {
     bodies: Vec<BodyRef<T>>, // must be Body
-    connections: Vec<Connection<T>>,
     joints: Vec<JointRef<T>>,
 }
 
@@ -73,7 +70,6 @@ where
     pub fn new() -> Self {
         Self {
             bodies: Vec::new(),
-            connections: Vec::new(),
             joints: Vec::new(),
         }
     }
@@ -132,38 +128,6 @@ where
             return Err(MultibodyErrors::NameTaken);
         }
         self.joints.push(jointref);
-        Ok(())
-    }
-
-    pub fn connect(
-        &mut self,
-        joint_name: &str,
-        inner_body_name: &str,
-        inner_body_frame: Transform<T>,
-        outer_body_name: &str,
-        outer_body_frame: Transform<T>,
-    ) -> Result<(), ConnectionErrors> {
-        let joint = match self.find_joint_by_name(joint_name) {
-            Some(joint) => joint,
-            None => return Err(ConnectionErrors::ComponentNotFound),
-        };
-        let inner_body = match self.find_body_by_name(inner_body_name) {
-            Some(body) => body,
-            None => return Err(ConnectionErrors::ComponentNotFound),
-        };
-        let outer_body = match self.find_body_by_name(outer_body_name) {
-            Some(body) => body,
-            None => return Err(ConnectionErrors::ComponentNotFound),
-        };
-
-        let connection = Connection::new(
-            joint,
-            inner_body,
-            inner_body_frame,
-            outer_body,
-            outer_body_frame,
-        );
-        self.connections.push(connection);
         Ok(())
     }
 

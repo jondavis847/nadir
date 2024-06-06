@@ -1,6 +1,6 @@
 use multibody::{
     base::Base,
-    body::Body,
+    body::{Body, BodyTrait},
     joint::{
         revolute::{Revolute, RevoluteState},
         JointParameters,
@@ -22,19 +22,13 @@ fn main() {
         JointParameters::default(),
         RevoluteState::<f64>::default(),
     );
-    sys.add_joint(joint);
+    sys.add_joint(joint.clone());
 
     let mp = MassProperties::new(1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    let body = Body::new("body", mp.unwrap()).unwrap();
-    sys.add_body(body);
+    let mut body = Body::new("body", mp.unwrap()).unwrap();
+    sys.add_body(body.clone());
 
-    sys.connect(
-        "joint",
-        "base",
-        Transform::default(),
-        "body",
-        Transform::default(),
-    );
+    body.connect_inner_joint(joint, Transform::default());
 
     dbg!(sys);
 }
