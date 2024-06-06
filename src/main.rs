@@ -4,6 +4,7 @@ use multibody::{
     joint::{
         revolute::{Revolute, RevoluteState},
         JointParameters,
+        JointTrait,
     },
     mass_properties::MassProperties,
     MultibodySystem,
@@ -14,10 +15,10 @@ use transforms::Transform;
 fn main() {
     let mut sys = MultibodySystem::new();
 
-    let base = Base::new("base").unwrap();
-    sys.add_body(base);
+    let mut base = Base::new("base").unwrap();
+    sys.add_body(base.clone());
 
-    let joint = Revolute::new(
+    let mut joint = Revolute::new(
         "joint",
         JointParameters::default(),
         RevoluteState::default(),
@@ -28,7 +29,11 @@ fn main() {
     let mut body = Body::new("body", mp.unwrap()).unwrap();
     sys.add_body(body.clone());
 
-    body.connect_inner_joint(joint, Transform::default());
-
-    dbg!(sys);
+    base.connect_outer_joint(joint.clone(),Transform::default());
+    joint.connect_inner_body(base.clone());
+    body.connect_inner_joint(joint.clone(), Transform::default());
+    joint.connect_outer_body(body.clone());
+    
+    dbg!(&sys);
+    sys.validate();
 }

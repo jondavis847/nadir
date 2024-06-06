@@ -49,10 +49,10 @@ impl JointTrait for Revolute {
     }
 
     fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
-        if self.connection.inner_body.is_some() {
+        if self.connection.outer_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
-        self.connection.inner_body = Some(body);
+        self.connection.outer_body = Some(body);
         Ok(())
     }
 
@@ -66,6 +66,13 @@ impl JointTrait for Revolute {
         if self.connection.outer_body.is_some() {
             self.connection.outer_body = None;
         }
+    }
+
+    fn get_inner_body(&self) -> Option<BodyRef> {
+        self.connection.inner_body.clone()
+    }
+    fn get_outer_body(&self) -> Option<BodyRef> {
+        self.connection.outer_body.clone()
     }
 }
 

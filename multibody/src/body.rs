@@ -25,6 +25,8 @@ pub trait BodyTrait {
 
     fn delete_inner_joint(&mut self);
     fn delete_outer_joint(&mut self, jointref: JointRef);
+    fn get_inner_joint(&self) -> Option<BodyJointConnection>;
+    fn get_outer_joints(&self) -> Vec<BodyJointConnection>;
 }
 
 pub type BodyRef = Rc<RefCell<BodyEnum>>;
@@ -51,6 +53,14 @@ impl BodyTrait for BodyRef {
     }
     fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.borrow_mut().delete_outer_joint(jointref)
+    }
+
+    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
+        self.borrow().get_inner_joint()
+    }
+
+    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
+        self.borrow().get_outer_joints()
     }
 }
 
@@ -93,6 +103,20 @@ impl BodyTrait for BodyEnum {
         match self {
             BodyEnum::Base(base) => base.delete_outer_joint(jointref),
             BodyEnum::Body(body) => body.delete_outer_joint(jointref),
+        }
+    }
+
+    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
+        match self {
+            BodyEnum::Base(base) => base.get_inner_joint(),
+            BodyEnum::Body(body) => body.get_inner_joint(),
+        }
+    }
+
+    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
+        match self {
+            BodyEnum::Base(base) => base.get_outer_joints(),
+            BodyEnum::Body(body) => body.get_outer_joints(),
         }
     }
 }
@@ -323,6 +347,14 @@ impl BodyTrait for Body {
     fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.outer_joints
             .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
+    }
+
+    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
+        self.inner_joint.clone()
+    }
+
+    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
+        self.outer_joints.clone()
     }
 }
 impl MultibodyTrait for Body {

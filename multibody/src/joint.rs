@@ -6,6 +6,45 @@ pub mod revolute;
 use revolute::Revolute;
 
 pub type JointRef = Rc<RefCell<Joint>>;
+pub trait JointTrait {
+    fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
+    fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
+    fn delete_inner_body(&mut self);
+    fn delete_outer_body(&mut self);
+    fn get_inner_body(&self) -> Option<BodyRef>;
+    fn get_outer_body(&self) -> Option<BodyRef>;
+}
+
+impl JointTrait for JointRef {
+    fn connect_inner_body(
+        &mut self,
+        bodyref: BodyRef,        
+    ) -> Result<(), JointErrors> {
+        self.borrow_mut().connect_inner_body(bodyref)
+    }
+
+    fn connect_outer_body(
+        &mut self,
+        bodyref: BodyRef,        
+    ) -> Result<(), JointErrors> {
+        self.borrow_mut().connect_outer_body(bodyref)
+    }
+
+    fn delete_inner_body(&mut self) {
+        self.borrow_mut().delete_inner_body()
+    }
+    fn delete_outer_body(&mut self) {
+        self.borrow_mut().delete_outer_body()
+    }
+
+    fn get_inner_body(&self) -> Option<BodyRef> {
+        self.borrow().get_inner_body()
+    }
+
+    fn get_outer_body(&self) -> Option<BodyRef> {
+        self.borrow().get_outer_body()
+    }
+}
 
 pub enum JointErrors {
     InnerBodyExists,
@@ -34,11 +73,37 @@ impl MultibodyTrait for Joint {
     }
 }
 
-pub trait JointTrait {
-    fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
-    fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
-    fn delete_inner_body(&mut self);
-    fn delete_outer_body(&mut self);
+impl JointTrait for Joint {
+    fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
+        match self {
+            Joint::Revolute(joint) => joint.connect_inner_body(body),
+        }
+    }
+    fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
+        match self {
+            Joint::Revolute(joint) => joint.connect_outer_body(body),
+        }
+    }
+    fn delete_inner_body(&mut self) {
+        match self {
+            Joint::Revolute(joint) => joint.delete_inner_body(),
+        }
+    }
+    fn delete_outer_body(&mut self) {
+        match self {
+            Joint::Revolute(joint) => joint.delete_outer_body(),
+        }
+    }
+    fn get_inner_body(&self) -> Option<BodyRef> {
+        match self {
+            Joint::Revolute(joint) => joint.get_inner_body(),
+        }
+    }
+    fn get_outer_body(&self) -> Option<BodyRef> {
+        match self {
+            Joint::Revolute(joint) => joint.get_outer_body(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]

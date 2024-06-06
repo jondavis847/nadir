@@ -69,6 +69,14 @@ impl BodyTrait for Base {
         self.outer_joints
             .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
     }
+
+    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
+        None
+    }
+
+    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
+        self.outer_joints.clone()
+    }
 }
 impl MultibodyTrait for Base {
     fn get_name(&self) -> &str {
