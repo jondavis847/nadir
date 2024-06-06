@@ -1,21 +1,14 @@
-use sim_value::SimValue;
 use std::ops::Mul;
 
 /// A 3-dimensional vector.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Vector3<T>
-where
-    T: SimValue,
-{
-    pub e1: T,
-    pub e2: T,
-    pub e3: T,
+pub struct Vector3 {
+    pub e1: f64,
+    pub e2: f64,
+    pub e3: f64,
 }
 
-impl<T> Vector3<T>
-where
-    T: SimValue,
-{
+impl Vector3 {
     /// Creates a new `Vector3` with the given components.
     ///
     /// # Arguments
@@ -27,7 +20,7 @@ where
     /// # Returns
     ///
     /// A `Vector3` instance.
-    pub fn new(e1: T, e2: T, e3: T) -> Self {
+    pub fn new(e1: f64, e2: f64, e3: f64) -> Self {
         Self { e1, e2, e3 }
     }
 
@@ -36,7 +29,7 @@ where
     /// # Returns
     ///
     /// The norm of the vector.
-    pub fn norm(&self) -> T {
+    pub fn norm(&self) -> f64 {
         (self.e1 * self.e1 + self.e2 * self.e2 + self.e3 * self.e3).sqrt()
     }
 
@@ -45,10 +38,7 @@ where
     /// # Returns
     ///
     /// A normalized `Vector3`.
-    pub fn normalize(&self) -> Vector3<T>
-    where
-        T: SimValue,
-    {
+    pub fn normalize(&self) -> Vector3 {
         let mag = self.norm();
         Vector3::new(self.e1 / mag, self.e2 / mag, self.e3 / mag)
     }
@@ -58,20 +48,9 @@ where
     /// # Returns
     ///
     /// A `Matrix3` representing the skew-symmetric matrix.
-    pub fn skew(&self) -> Matrix3<T>
-    where
-        T: SimValue,
-    {
+    pub fn skew(&self) -> Matrix3 {
         Matrix3::new(
-            T::zero(),
-            self.e3,
-            -self.e2,
-            -self.e3,
-            T::zero(),
-            self.e1,
-            self.e2,
-            -self.e1,
-            T::zero(),
+            0.0, self.e3, -self.e2, -self.e3, 0.0, self.e1, self.e2, -self.e1, 0.0,
         )
     }
 
@@ -84,10 +63,7 @@ where
     /// # Returns
     ///
     /// The cross product of the two vectors.
-    pub fn cross(&self, rhs: Self) -> Self
-    where
-        T: SimValue,
-    {
+    pub fn cross(&self, rhs: Self) -> Self {
         Self::new(
             self.e2 * rhs.e3 - self.e3 * rhs.e2,
             self.e3 * rhs.e1 - self.e1 * rhs.e3,
@@ -98,25 +74,19 @@ where
 
 /// A 3x3 matrix.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Matrix3<T>
-where
-    T: SimValue,
-{
-    pub e11: T,
-    pub e21: T,
-    pub e31: T,
-    pub e12: T,
-    pub e22: T,
-    pub e32: T,
-    pub e13: T,
-    pub e23: T,
-    pub e33: T,
+pub struct Matrix3 {
+    pub e11: f64,
+    pub e21: f64,
+    pub e31: f64,
+    pub e12: f64,
+    pub e22: f64,
+    pub e32: f64,
+    pub e13: f64,
+    pub e23: f64,
+    pub e33: f64,
 }
 
-impl<T> Matrix3<T>
-where
-    T: SimValue,
-{
+impl Matrix3 {
     /// Creates a new `Matrix3` with the given elements.
     ///
     /// # Arguments
@@ -134,7 +104,17 @@ where
     /// # Returns
     ///
     /// A `Matrix3` instance.
-    pub fn new(e11: T, e21: T, e31: T, e12: T, e22: T, e32: T, e13: T, e23: T, e33: T) -> Self {
+    pub fn new(
+        e11: f64,
+        e21: f64,
+        e31: f64,
+        e12: f64,
+        e22: f64,
+        e32: f64,
+        e13: f64,
+        e23: f64,
+        e33: f64,
+    ) -> Self {
         Self {
             e11,
             e21,
@@ -149,11 +129,8 @@ where
     }
 }
 
-impl<T> Mul<Vector3<T>> for Matrix3<T>
-where
-    T: SimValue,
-{
-    type Output = Vector3<T>;
+impl Mul<Vector3> for Matrix3 {
+    type Output = Vector3;
 
     /// Multiplies the matrix by a vector.
     ///
@@ -164,7 +141,7 @@ where
     /// # Returns
     ///
     /// The result of the matrix-vector multiplication.
-    fn mul(self, v: Vector3<T>) -> Vector3<T> {
+    fn mul(self, v: Vector3) -> Vector3 {
         Vector3::new(
             self.e11 * v.e1 + self.e12 * v.e2 + self.e13 * v.e3,
             self.e21 * v.e1 + self.e22 * v.e2 + self.e23 * v.e3,
@@ -173,10 +150,7 @@ where
     }
 }
 
-impl<T> Mul<Matrix3<T>> for Matrix3<T>
-where
-    T: SimValue,
-{
+impl Mul<Matrix3> for Matrix3 {
     type Output = Self;
 
     /// Multiplies the matrix by another matrix.

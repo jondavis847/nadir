@@ -1,20 +1,12 @@
-use sim_value::SimValue;
-
 #[derive(Debug, Default, Copy, Clone)]
-pub struct Spherical<T>
-where
-    T: SimValue,
-{
-    azimuth: T,
-    elevation: T,
-    radius: T,
+pub struct Spherical {
+    azimuth: f64,
+    elevation: f64,
+    radius: f64,
 }
 
-impl<T> Spherical<T>
-where
-    T: SimValue,
-{
-    pub fn new(azimuth: T, elevation: T, radius: T) -> Self {
+impl Spherical {
+    pub fn new(azimuth: f64, elevation: f64, radius: f64) -> Self {
         Self {
             azimuth,
             elevation,
@@ -22,15 +14,15 @@ where
         }
     }
 
-    pub fn get_azimuth(&self) -> T {
+    pub fn get_azimuth(&self) -> f64 {
         self.azimuth
     }
 
-    pub fn get_elevation(&self) -> T {
+    pub fn get_elevation(&self) -> f64 {
         self.elevation
     }
 
-    pub fn get_radius(&self) -> T {
+    pub fn get_radius(&self) -> f64 {
         self.radius
     }
 }

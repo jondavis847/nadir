@@ -20,7 +20,7 @@ fn main() {
     let joint = Revolute::new(
         "joint",
         JointParameters::default(),
-        RevoluteState::<f64>::default(),
+        RevoluteState::default(),
     );
     sys.add_joint(joint.clone());
 

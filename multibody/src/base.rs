@@ -5,32 +5,22 @@ use super::{
 };
 use transforms::Transform;
 
-use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub type BaseRef<T> = Rc<RefCell<Base<T>>>;
+pub type BaseRef = Rc<RefCell<Base>>;
 #[derive(Debug, Clone)]
-pub struct Base<T>
-where
-    T: SimValue,
-{
+pub struct Base {
     name: String,
-    outer_joints: Vec<BodyJointConnection<T>>,
+    outer_joints: Vec<BodyJointConnection>,
 }
 
-impl<T> Base<T>
-where
-    T: SimValue,
-{
-    pub fn new(name: &str) -> Result<BodyRef<T>, BodyErrors>
-    where
-        T: SimValue,
-    {
+impl Base {
+    pub fn new(name: &str) -> Result<BodyRef, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(Rc::new(RefCell::new(BodyEnum::Base(Self {            
+        Ok(Rc::new(RefCell::new(BodyEnum::Base(Self {
             name: name.to_string(),
             outer_joints: Vec::new(),
         }))))
@@ -39,22 +29,19 @@ where
 
 pub enum BaseErrors {}
 
-impl<T> BodyTrait<T> for Base<T>
-where
-    T: SimValue,
-{
+impl BodyTrait for Base {
     fn connect_inner_joint(
         &mut self,
-        _jointref: JointRef<T>,
-        _transform: Transform<T>,
+        _jointref: JointRef,
+        _transform: Transform,
     ) -> Result<(), BodyErrors> {
-        Err(BodyErrors::NoBaseInnerConnection)        
+        Err(BodyErrors::NoBaseInnerConnection)
     }
 
     fn connect_outer_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         // Borrow the joint and get its name
         let joint_name = jointref.borrow().get_name().to_string();
@@ -78,12 +65,12 @@ where
         //nothing to do
     }
 
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+    fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.outer_joints
             .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
     }
 }
-impl<T> MultibodyTrait for Base<T> where T: SimValue {
+impl MultibodyTrait for Base {
     fn get_name(&self) -> &str {
         &self.name
     }

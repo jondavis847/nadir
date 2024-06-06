@@ -1,7 +1,6 @@
-use sim_value::SimValue;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::fmt;
+use std::rc::Rc;
 use transforms::Transform;
 
 use super::{
@@ -11,45 +10,38 @@ use super::{
     MultibodyTrait,
 };
 
-pub trait BodyTrait<T>
-where
-    T: SimValue,
-{
+pub trait BodyTrait {
     fn connect_inner_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors>;
 
     fn connect_outer_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors>;
 
     fn delete_inner_joint(&mut self);
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>);
+    fn delete_outer_joint(&mut self, jointref: JointRef);
 }
 
+pub type BodyRef = Rc<RefCell<BodyEnum>>;
 
-pub type BodyRef<T> = Rc<RefCell<BodyEnum<T>>>;
-
-impl<T> BodyTrait<T> for BodyRef<T>
-where
-    T: SimValue,
-{
+impl BodyTrait for BodyRef {
     fn connect_inner_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         self.borrow_mut().connect_inner_joint(jointref, transform)
     }
 
     fn connect_outer_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         self.borrow_mut().connect_outer_joint(jointref, transform)
     }
@@ -57,29 +49,22 @@ where
     fn delete_inner_joint(&mut self) {
         self.borrow_mut().delete_inner_joint()
     }
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+    fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.borrow_mut().delete_outer_joint(jointref)
     }
 }
 
-
 #[derive(Clone, Debug)]
-pub enum BodyEnum<T>
-where
-    T: SimValue,
-{
-    Base(Base<T>),
-    Body(Body<T>),
+pub enum BodyEnum {
+    Base(Base),
+    Body(Body),
 }
 
-impl<T> BodyTrait<T> for BodyEnum<T>
-where
-    T: SimValue,
-{
+impl BodyTrait for BodyEnum {
     fn connect_inner_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         match self {
             BodyEnum::Base(base) => base.connect_inner_joint(jointref, transform),
@@ -89,8 +74,8 @@ where
 
     fn connect_outer_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         match self {
             BodyEnum::Base(base) => base.connect_outer_joint(jointref, transform),
@@ -104,7 +89,7 @@ where
             BodyEnum::Body(body) => body.delete_inner_joint(),
         }
     }
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+    fn delete_outer_joint(&mut self, jointref: JointRef) {
         match self {
             BodyEnum::Base(base) => base.delete_outer_joint(jointref),
             BodyEnum::Body(body) => body.delete_outer_joint(jointref),
@@ -112,10 +97,7 @@ where
     }
 }
 
-impl<T> MultibodyTrait for BodyEnum<T>
-where
-    T: SimValue,
-{
+impl MultibodyTrait for BodyEnum {
     fn get_name(&self) -> &str {
         match self {
             BodyEnum::Base(base) => base.get_name(),
@@ -141,19 +123,13 @@ pub enum BodyErrors {
 }
 
 #[derive(Clone)]
-pub struct BodyJointConnection<T>
-where
-    T: SimValue,
-{
-    pub component: JointRef<T>,
-    pub transform: Transform<T>,
+pub struct BodyJointConnection {
+    pub component: JointRef,
+    pub transform: Transform,
 }
 
-impl<T> BodyJointConnection<T>
-where
-    T: SimValue,
-{
-    pub fn new(component: JointRef<T>, transform: Transform<T>) -> Self {
+impl BodyJointConnection {
+    pub fn new(component: JointRef, transform: Transform) -> Self {
         Self {
             component,
             transform,
@@ -161,37 +137,28 @@ where
     }
 }
 
-impl<T> fmt::Debug for BodyJointConnection<T>
-where
-    T: SimValue,
-{
+impl fmt::Debug for BodyJointConnection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let joint = self.component.borrow();        
+        let joint = self.component.borrow();
 
         f.debug_struct("BodyJointConnection")
-            .field("joint_name", &joint.get_name())            
+            .field("joint_name", &joint.get_name())
             .finish()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Body<T>
-where
-    T: SimValue,
-{
-    //actuators: Vec<BodyActuatorConnection<T>>,
-    inner_joint: Option<BodyJointConnection<T>>,
-    mass_properties: MassProperties<T>,
+pub struct Body {
+    //actuators: Vec<BodyActuatorConnection>,
+    inner_joint: Option<BodyJointConnection>,
+    mass_properties: MassProperties,
     name: String,
-    outer_joints: Vec<BodyJointConnection<T>>,
-    //sensors: Vec<BodySensorConnection<T>>,
+    outer_joints: Vec<BodyJointConnection>,
+    //sensors: Vec<BodySensorConnection>,
 }
 
-impl<T> Body<T>
-where
-    T: SimValue,
-{
-    pub fn new(name: &str, mass_properties: MassProperties<T>) -> Result<BodyRef<T>, BodyErrors> {
+impl Body {
+    pub fn new(name: &str, mass_properties: MassProperties) -> Result<BodyRef, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
@@ -206,104 +173,104 @@ where
     }
 
     /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> T {
+    pub fn get_cmx(&self) -> f64 {
         self.mass_properties.get_cmx()
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> T {
+    pub fn get_cmy(&self) -> f64 {
         self.mass_properties.get_cmy()
     }
 
     /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> T {
+    pub fn get_cmz(&self) -> f64 {
         self.mass_properties.get_cmz()
     }
 
     /// Returns the moment of inertia around the x-axis.
-    pub fn get_ixx(&self) -> T {
+    pub fn get_ixx(&self) -> f64 {
         self.mass_properties.get_ixx()
     }
 
     /// Returns the product of inertia for the xy-plane.
-    pub fn get_ixy(&self) -> T {
+    pub fn get_ixy(&self) -> f64 {
         self.mass_properties.get_ixy()
     }
 
     /// Returns the product of inertia for the xz-plane.
-    pub fn get_ixz(&self) -> T {
+    pub fn get_ixz(&self) -> f64 {
         self.mass_properties.get_ixz()
     }
 
     /// Returns the moment of inertia around the y-axis.
-    pub fn get_iyy(&self) -> T {
+    pub fn get_iyy(&self) -> f64 {
         self.mass_properties.get_iyy()
     }
 
     /// Returns the product of inertia for the yz-plane.
-    pub fn get_iyz(&self) -> T {
+    pub fn get_iyz(&self) -> f64 {
         self.mass_properties.get_iyz()
     }
 
     /// Returns the moment of inertia around the z-axis.
-    pub fn get_izz(&self) -> T {
+    pub fn get_izz(&self) -> f64 {
         self.mass_properties.get_izz()
     }
 
     /// Returns the mass of the object.
-    pub fn get_mass(&self) -> T {
+    pub fn get_mass(&self) -> f64 {
         self.mass_properties.get_mass()
     }
 
-    fn set_cmx(&mut self, cmx: T) {
+    fn set_cmx(&mut self, cmx: f64) {
         self.mass_properties.set_cmx(cmx);
     }
 
-    fn set_cmy(&mut self, cmy: T) {
+    fn set_cmy(&mut self, cmy: f64) {
         self.mass_properties.set_cmy(cmy);
     }
 
-    fn set_cmz(&mut self, cmz: T) {
+    fn set_cmz(&mut self, cmz: f64) {
         self.mass_properties.set_cmz(cmz);
     }
 
-    fn set_ixx(&mut self, ixx: T) -> Result<(), BodyErrors> {
+    fn set_ixx(&mut self, ixx: f64) -> Result<(), BodyErrors> {
         match self.mass_properties.set_ixx(ixx) {
             Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
             Ok(_) => Ok(()),
         }
     }
 
-    fn set_ixy(&mut self, ixy: T) {
+    fn set_ixy(&mut self, ixy: f64) {
         self.mass_properties.set_ixy(ixy);
     }
 
-    fn set_ixz(&mut self, ixz: T) {
+    fn set_ixz(&mut self, ixz: f64) {
         self.mass_properties.set_ixz(ixz);
     }
 
-    fn set_iyy(&mut self, iyy: T) -> Result<(), BodyErrors> {
+    fn set_iyy(&mut self, iyy: f64) -> Result<(), BodyErrors> {
         match self.mass_properties.set_iyy(iyy) {
             Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
             Ok(_) => Ok(()),
         }
     }
 
-    fn set_iyz(&mut self, iyz: T) -> Result<(), BodyErrors> {
+    fn set_iyz(&mut self, iyz: f64) -> Result<(), BodyErrors> {
         match self.mass_properties.set_ixx(iyz) {
             Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
             Ok(_) => Ok(()),
         }
     }
 
-    fn set_izz(&mut self, izz: T) -> Result<(), BodyErrors> {
+    fn set_izz(&mut self, izz: f64) -> Result<(), BodyErrors> {
         match self.mass_properties.set_izz(izz) {
             Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
             Ok(_) => Ok(()),
         }
     }
 
-    fn set_mass(&mut self, mass: T) -> Result<(), BodyErrors> {
+    fn set_mass(&mut self, mass: f64) -> Result<(), BodyErrors> {
         match self.mass_properties.set_mass(mass) {
             Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
             Ok(_) => Ok(()),
@@ -311,14 +278,11 @@ where
     }
 }
 
-impl<T> BodyTrait<T> for Body<T>
-where
-    T: SimValue,
-{
+impl BodyTrait for Body {
     fn connect_inner_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         match self.inner_joint {
             Some(_) => return Err(BodyErrors::InnerJointExists),
@@ -329,8 +293,8 @@ where
 
     fn connect_outer_joint(
         &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
+        jointref: JointRef,
+        transform: Transform,
     ) -> Result<(), BodyErrors> {
         // Borrow the joint and get its name
         let joint_name = jointref.borrow().get_name().to_string();
@@ -356,15 +320,12 @@ where
         }
     }
 
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
+    fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.outer_joints
             .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
     }
 }
-impl<T> MultibodyTrait for Body<T>
-where
-    T: SimValue,
-{
+impl MultibodyTrait for Body {
     fn get_name(&self) -> &str {
         &self.name
     }

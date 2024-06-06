@@ -1,17 +1,13 @@
 use linear_algebra::Vector3;
 use rand::prelude::*;
-use sim_value::SimValue;
 use std::ops::Mul;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Quaternion<T>
-where
-    T: SimValue,
-{
-    pub x: T,
-    pub y: T,
-    pub z: T,
-    pub s: T,
+pub struct Quaternion {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub s: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -19,14 +15,11 @@ pub enum QuaternionErrors {
     ZeroMagnitude,
 }
 
-impl<T> Quaternion<T>
-where
-    T: SimValue,
-{
-    pub fn new(x: T, y: T, z: T, s: T) -> Result<Self, QuaternionErrors> {
+impl Quaternion {
+    pub fn new(x: f64, y: f64, z: f64, s: f64) -> Result<Self, QuaternionErrors> {
         let mag_squared = x * x + y * y + z * z + s * s;
 
-        if mag_squared < T::EPSILON {
+        if mag_squared < f64::EPSILON {
             return Err(QuaternionErrors::ZeroMagnitude);
         }
 
@@ -41,10 +34,10 @@ where
     }
 
     pub fn identity() -> Self {
-        Self::new(T::zero(), T::zero(), T::zero(), T::one()).unwrap()
+        Self::new(0.0, 0.0, 0.0, 1.0).unwrap()
     }
 
-    pub fn rand() -> Quaternion<f64> {
+    pub fn rand() -> Quaternion {
         let mut rng = thread_rng();
         let x = rng.gen_range(-1.0..1.0);
         let y = rng.gen_range(-1.0..1.0);
@@ -58,24 +51,24 @@ where
         Self::new(-self.x, -self.y, -self.z, self.s).unwrap()
     }
 
-    pub fn rotate(&self, v: Vector3<T>) -> Vector3<T> {
+    pub fn rotate(&self, v: Vector3) -> Vector3 {
         let v_mag = v.norm();
-        if v_mag < T::EPSILON {
-            return Vector3::new(T::zero(), T::zero(), T::zero());
+        if v_mag < f64::EPSILON {
+            return Vector3::new(0.0, 0.0, 0.0);
         };
-        let v_augmented = Self::new(v.e1, v.e2, v.e3, T::zero()).unwrap();
+        let v_augmented = Self::new(v.e1, v.e2, v.e3, 0.0).unwrap();
         let inv_q = self.inv();
         let q_tmp = *self * v_augmented;
         let q_tmp = q_tmp * inv_q;
         Vector3::new(v_mag * q_tmp.x, v_mag * q_tmp.y, v_mag * q_tmp.z)
     }
 
-    pub fn transform(&self, v: Vector3<T>) -> Vector3<T> {
+    pub fn transform(&self, v: Vector3) -> Vector3 {
         let v_mag = v.norm();
-        if v_mag < T::EPSILON {
-            return Vector3::new(T::zero(), T::zero(), T::zero());
+        if v_mag < f64::EPSILON {
+            return Vector3::new(0.0, 0.0, 0.0);
         };
-        let v_augmented = Self::new(v.e1, v.e2, v.e3, T::zero()).unwrap();
+        let v_augmented = Self::new(v.e1, v.e2, v.e3, 0.0).unwrap();
         let inv_q = self.inv();
         let q_tmp = inv_q * v_augmented;
         let q_tmp = q_tmp * *self;
@@ -83,19 +76,13 @@ where
     }
 }
 
-impl<T> Default for Quaternion<T>
-where
-    T: SimValue,
-{
+impl Default for Quaternion {
     fn default() -> Self {
         Self::identity()
     }
 }
 
-impl<T> Mul<Quaternion<T>> for Quaternion<T>
-where
-    T: SimValue,
-{
+impl Mul<Quaternion> for Quaternion {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self {
         Self::new(
@@ -124,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_inv() {
-        let quat = Quaternion::<f64>::rand();
+        let quat = Quaternion::rand();
         let inv = quat.inv();
 
         assert_eq!(inv.s, quat.s);

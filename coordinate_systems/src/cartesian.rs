@@ -1,50 +1,49 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical};
-use sim_value::SimValue;
 use std::f64::consts::PI;
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Cartesian<T>
-where
-    T: SimValue,
-{
-    x: T,
-    y: T,
-    z: T,
+pub struct Cartesian {
+    x: f64,
+    y: f64,
+    z: f64,
 }
 
-impl<T> Cartesian<T>
-where
-    T: SimValue,
-{
-    pub fn new(x: T, y: T, z: T) -> Self {
+impl Cartesian {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
+    }
+
+    pub fn get_x(&self) -> f64 {
+        self.x
+    }
+
+    pub fn get_y(&self) -> f64 {
+        self.y
+    }
+
+    pub fn get_z(&self) -> f64 {
+        self.z
     }
 }
 
-// Implement From<Cylindrical<T>> for Cartesian<T>
-impl<T> From<Cylindrical<T>> for Cartesian<T>
-where
-    T: SimValue,
-{
-    fn from(cyl: Cylindrical<T>) -> Self {
+// Implement From<Cylindrical> for Cartesian
+impl From<Cylindrical> for Cartesian {
+    fn from(cyl: Cylindrical) -> Self {
         let height = cyl.get_height();
         let radius = cyl.get_radius();
         let theta = cyl.get_theta();
 
-        let x = radius * (theta * T::from(PI / 180.0)).cos();
-        let y = radius * (theta * T::from(PI / 180.0)).sin();
+        let x = radius * (theta * PI / 180.0).cos();
+        let y = radius * (theta * PI / 180.0).sin();
         let z = height;
 
         Self::new(x, y, z)
     }
 }
 
-// Implement From<Spherical<T>> for Cartesian<T>
-impl<T> From<Spherical<T>> for Cartesian<T>
-where
-    T: SimValue,
-{
-    fn from(sph: Spherical<T>) -> Self {
+// Implement From<Spherical> for Cartesian
+impl From<Spherical> for Cartesian {
+    fn from(sph: Spherical) -> Self {
         let azimuth = sph.get_azimuth();
         let elevation = sph.get_elevation();
         let radius = sph.get_radius();

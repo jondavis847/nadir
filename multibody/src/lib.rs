@@ -1,14 +1,11 @@
-use sim_value::SimValue;
-
 pub mod base;
 pub mod body;
 pub mod joint;
 pub mod mass_properties;
 
 use base::{Base, BaseErrors};
-use body::{BodyEnum, Body, BodyErrors, BodyRef};
+use body::{Body, BodyEnum, BodyErrors, BodyRef};
 use joint::{revolute::RevoluteErrors, Joint, JointRef};
-use transforms::Transform;
 
 pub enum MultibodyErrors {
     Base(BaseErrors),
@@ -24,19 +21,13 @@ pub trait MultibodyTrait {
 }
 
 #[derive(Debug, Clone)]
-pub enum MultibodyComponent<T>
-where
-    T: SimValue,
-{
-    Base(Base<T>),
-    Body(Body<T>),
-    Joint(Joint<T>),
+pub enum MultibodyComponent {
+    Base(Base),
+    Body(Body),
+    Joint(Joint),
 }
 
-impl<T> MultibodyTrait for MultibodyComponent<T>
-where
-    T: SimValue,
-{
+impl MultibodyTrait for MultibodyComponent {
     fn get_name(&self) -> &str {
         match self {
             MultibodyComponent::Base(base) => base.get_name(),
@@ -55,18 +46,12 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct MultibodySystem<T>
-where
-    T: SimValue,
-{
-    BodyEnum: Vec<BodyRef<T>>, // must be Body
-    joints: Vec<JointRef<T>>,
+pub struct MultibodySystem {
+    BodyEnum: Vec<BodyRef>, // must be Body
+    joints: Vec<JointRef>,
 }
 
-impl<T> MultibodySystem<T>
-where
-    T: SimValue,
-{
+impl MultibodySystem {
     pub fn new() -> Self {
         Self {
             BodyEnum: Vec::new(),
@@ -74,7 +59,7 @@ where
         }
     }
 
-    pub fn add_body(&mut self, bodyref: BodyRef<T>) -> Result<(), MultibodyErrors> {
+    pub fn add_body(&mut self, bodyref: BodyRef) -> Result<(), MultibodyErrors> {
         // return if this is a Base and we already have a Base
         if matches!(*bodyref.borrow(), BodyEnum::Base(_)) {
             if let Some(_) = self.BodyEnum.iter().find(|body| {
@@ -108,7 +93,7 @@ where
         Ok(())
     }
 
-    pub fn add_joint(&mut self, jointref: JointRef<T>) -> Result<(), MultibodyErrors> {
+    pub fn add_joint(&mut self, jointref: JointRef) -> Result<(), MultibodyErrors> {
         // Return if a component with this name already exists
         let name = jointref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
 
@@ -131,14 +116,14 @@ where
         Ok(())
     }
 
-    pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef<T>> {
+    pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef> {
         self.BodyEnum
             .iter()
             .find(|joint| joint.borrow().get_name() == name)
             .cloned()
     }
 
-    pub fn find_joint_by_name(&self, name: &str) -> Option<JointRef<T>> {
+    pub fn find_joint_by_name(&self, name: &str) -> Option<JointRef> {
         self.joints
             .iter()
             .find(|joint| joint.borrow().get_name() == name)

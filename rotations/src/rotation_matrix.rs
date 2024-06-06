@@ -1,13 +1,9 @@
-use sim_value::SimValue;
 use linear_algebra::{Matrix3, Vector3};
 use std::ops::Mul;
 
 #[derive(Debug, Copy, Clone)]
-pub struct RotationMatrix<T>
-where
-    T: SimValue,
-{
-    value: Matrix3<T>,
+pub struct RotationMatrix {
+    value: Matrix3,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -15,10 +11,7 @@ pub enum RotationMatrixError {
     ZeroMagnitudeColumn,
 }
 
-impl<T> RotationMatrix<T>
-where
-    T: SimValue,
-{
+impl RotationMatrix {
     /// Creates a new `RotationMatrix` ensuring columns are normalized.
     ///
     /// # Arguments
@@ -38,27 +31,24 @@ where
     /// A `Result` which is `Ok` containing a new `RotationMatrix` if columns are valid,
     /// or an `Err` containing a `RotationMatrixError`.
     pub fn new(
-        e11: T,
-        e21: T,
-        e31: T,
-        e12: T,
-        e22: T,
-        e32: T,
-        e13: T,
-        e23: T,
-        e33: T,
+        e11: f64,
+        e21: f64,
+        e31: f64,
+        e12: f64,
+        e22: f64,
+        e32: f64,
+        e13: f64,
+        e23: f64,
+        e33: f64,
     ) -> Result<Self, RotationMatrixError> {
-        fn normalize<T>(e1: T, e2: T, e3: T) -> Result<(T, T, T), RotationMatrixError>
-        where
-            T: SimValue,
-        {
+        fn normalize(e1: f64, e2: f64, e3: f64) -> Result<(f64, f64, f64), RotationMatrixError> {
             let mag_squared = e1 * e1 + e2 * e2 + e3 * e3;
 
-            if mag_squared < T::EPSILON {
+            if mag_squared < f64::EPSILON {
                 return Err(RotationMatrixError::ZeroMagnitudeColumn);
             }
 
-            if (mag_squared - T::one()).abs() >= T::EPSILON {
+            if (mag_squared - 1.0).abs() >= f64::EPSILON {
                 let mag = mag_squared.sqrt();
                 return Ok((e1 / mag, e2 / mag, e3 / mag));
             }
@@ -76,12 +66,9 @@ where
     }
 }
 
-impl<T> Mul<Vector3<T>> for RotationMatrix<T>
-where
-    T: SimValue,
-{
-    type Output = Vector3<T>;
-    fn mul(self, rhs: Vector3<T>) -> Vector3<T> {
+impl Mul<Vector3> for RotationMatrix {
+    type Output = Vector3;
+    fn mul(self, rhs: Vector3) -> Vector3 {
         self.value * rhs
     }
 }

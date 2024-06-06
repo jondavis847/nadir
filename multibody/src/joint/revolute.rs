@@ -3,46 +3,33 @@ use crate::{
     joint::{Joint, JointConnection, JointErrors, JointParameters, JointRef, JointTrait},
     MultibodyTrait,
 };
-use sim_value::SimValue;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct RevoluteState<T>
-where
-    T: SimValue,
-{
-    pub theta: T,
-    pub omega: T,
+pub struct RevoluteState {
+    pub theta: f64,
+    pub omega: f64,
 }
 
-impl<T> RevoluteState<T>
-where
-    T: SimValue,
-{
-    pub fn new(theta: T, omega: T) -> Self {
+impl RevoluteState {
+    pub fn new(theta: f64, omega: f64) -> Self {
         Self { theta, omega }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Revolute<T>
-where
-    T: SimValue,
-{
-    connection: JointConnection<T>,
+pub struct Revolute {
+    connection: JointConnection,
     name: String,
-    parameters: JointParameters<T>,
-    state: RevoluteState<T>,
+    parameters: JointParameters,
+    state: RevoluteState,
 }
 
-impl<T> Revolute<T>
-where
-    T: SimValue,
-{
-    pub fn new(name: &str, parameters: JointParameters<T>, state: RevoluteState<T>) -> JointRef<T> {
+impl Revolute {
+    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
         Rc::new(RefCell::new(Joint::Revolute(Self {
             connection: JointConnection::default(),
             name: name.to_string(),
@@ -52,11 +39,8 @@ where
     }
 }
 
-impl<T> JointTrait<T> for Revolute<T>
-where
-    T: SimValue,
-{
-    fn connect_inner_body(&mut self, body: BodyRef<T>) -> Result<(), JointErrors> {
+impl JointTrait for Revolute {
+    fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
         if self.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
@@ -64,7 +48,7 @@ where
         Ok(())
     }
 
-    fn connect_outer_body(&mut self, body: BodyRef<T>) -> Result<(), JointErrors> {
+    fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
         if self.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
@@ -85,10 +69,7 @@ where
     }
 }
 
-impl<T> MultibodyTrait for Revolute<T>
-where
-    T: SimValue,
-{
+impl MultibodyTrait for Revolute {
     fn get_name(&self) -> &str {
         &self.name
     }
