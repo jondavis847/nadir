@@ -1,5 +1,5 @@
 use super::{
-    body::{Bodies, BodyErrors, BodyJointConnection, BodyRef, BodyTrait},
+    body::{BodyEnum, BodyErrors, BodyJointConnection, BodyRef, BodyTrait},
     joint::JointRef,
     MultibodyTrait,
 };
@@ -30,7 +30,7 @@ where
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(Rc::new(RefCell::new(Bodies::Base(Self {            
+        Ok(Rc::new(RefCell::new(BodyEnum::Base(Self {            
             name: name.to_string(),
             outer_joints: Vec::new(),
         }))))

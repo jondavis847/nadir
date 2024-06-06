@@ -11,7 +11,28 @@ use super::{
     MultibodyTrait,
 };
 
-pub type BodyRef<T> = Rc<RefCell<Bodies<T>>>;
+pub trait BodyTrait<T>
+where
+    T: SimValue,
+{
+    fn connect_inner_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors>;
+
+    fn connect_outer_joint(
+        &mut self,
+        jointref: JointRef<T>,
+        transform: Transform<T>,
+    ) -> Result<(), BodyErrors>;
+
+    fn delete_inner_joint(&mut self);
+    fn delete_outer_joint(&mut self, jointref: JointRef<T>);
+}
+
+
+pub type BodyRef<T> = Rc<RefCell<BodyEnum<T>>>;
 
 impl<T> BodyTrait<T> for BodyRef<T>
 where
@@ -40,28 +61,10 @@ where
         self.borrow_mut().delete_outer_joint(jointref)
     }
 }
-pub trait BodyTrait<T>
-where
-    T: SimValue,
-{
-    fn connect_inner_joint(
-        &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
-    ) -> Result<(), BodyErrors>;
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef<T>,
-        transform: Transform<T>,
-    ) -> Result<(), BodyErrors>;
-
-    fn delete_inner_joint(&mut self);
-    fn delete_outer_joint(&mut self, jointref: JointRef<T>);
-}
 
 #[derive(Clone, Debug)]
-pub enum Bodies<T>
+pub enum BodyEnum<T>
 where
     T: SimValue,
 {
@@ -69,7 +72,7 @@ where
     Body(Body<T>),
 }
 
-impl<T> BodyTrait<T> for Bodies<T>
+impl<T> BodyTrait<T> for BodyEnum<T>
 where
     T: SimValue,
 {
@@ -79,8 +82,8 @@ where
         transform: Transform<T>,
     ) -> Result<(), BodyErrors> {
         match self {
-            Bodies::Base(base) => base.connect_inner_joint(jointref, transform),
-            Bodies::Body(body) => body.connect_inner_joint(jointref, transform),
+            BodyEnum::Base(base) => base.connect_inner_joint(jointref, transform),
+            BodyEnum::Body(body) => body.connect_inner_joint(jointref, transform),
         }
     }
 
@@ -90,40 +93,40 @@ where
         transform: Transform<T>,
     ) -> Result<(), BodyErrors> {
         match self {
-            Bodies::Base(base) => base.connect_outer_joint(jointref, transform),
-            Bodies::Body(body) => body.connect_outer_joint(jointref, transform),
+            BodyEnum::Base(base) => base.connect_outer_joint(jointref, transform),
+            BodyEnum::Body(body) => body.connect_outer_joint(jointref, transform),
         }
     }
 
     fn delete_inner_joint(&mut self) {
         match self {
-            Bodies::Base(base) => base.delete_inner_joint(),
-            Bodies::Body(body) => body.delete_inner_joint(),
+            BodyEnum::Base(base) => base.delete_inner_joint(),
+            BodyEnum::Body(body) => body.delete_inner_joint(),
         }
     }
     fn delete_outer_joint(&mut self, jointref: JointRef<T>) {
         match self {
-            Bodies::Base(base) => base.delete_outer_joint(jointref),
-            Bodies::Body(body) => body.delete_outer_joint(jointref),
+            BodyEnum::Base(base) => base.delete_outer_joint(jointref),
+            BodyEnum::Body(body) => body.delete_outer_joint(jointref),
         }
     }
 }
 
-impl<T> MultibodyTrait for Bodies<T>
+impl<T> MultibodyTrait for BodyEnum<T>
 where
     T: SimValue,
 {
     fn get_name(&self) -> &str {
         match self {
-            Bodies::Base(base) => base.get_name(),
-            Bodies::Body(body) => body.get_name(),
+            BodyEnum::Base(base) => base.get_name(),
+            BodyEnum::Body(body) => body.get_name(),
         }
     }
 
     fn set_name(&mut self, name: String) {
         match self {
-            Bodies::Base(base) => base.set_name(name),
-            Bodies::Body(body) => body.set_name(name),
+            BodyEnum::Base(base) => base.set_name(name),
+            BodyEnum::Body(body) => body.set_name(name),
         }
     }
 }
@@ -192,7 +195,7 @@ where
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(Rc::new(RefCell::new(Bodies::Body(Self {
+        Ok(Rc::new(RefCell::new(BodyEnum::Body(Self {
             //actuators: Vec::new(),
             inner_joint: None,
             mass_properties: mass_properties,

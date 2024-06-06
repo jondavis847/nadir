@@ -6,7 +6,7 @@ pub mod joint;
 pub mod mass_properties;
 
 use base::{Base, BaseErrors};
-use body::{Bodies, Body, BodyErrors, BodyRef};
+use body::{BodyEnum, Body, BodyErrors, BodyRef};
 use joint::{revolute::RevoluteErrors, Joint, JointRef};
 use transforms::Transform;
 
@@ -59,7 +59,7 @@ pub struct MultibodySystem<T>
 where
     T: SimValue,
 {
-    bodies: Vec<BodyRef<T>>, // must be Body
+    BodyEnum: Vec<BodyRef<T>>, // must be Body
     joints: Vec<JointRef<T>>,
 }
 
@@ -69,17 +69,17 @@ where
 {
     pub fn new() -> Self {
         Self {
-            bodies: Vec::new(),
+            BodyEnum: Vec::new(),
             joints: Vec::new(),
         }
     }
 
     pub fn add_body(&mut self, bodyref: BodyRef<T>) -> Result<(), MultibodyErrors> {
         // return if this is a Base and we already have a Base
-        if matches!(*bodyref.borrow(), Bodies::Base(_)) {
-            if let Some(_) = self.bodies.iter().find(|body| {
+        if matches!(*bodyref.borrow(), BodyEnum::Base(_)) {
+            if let Some(_) = self.BodyEnum.iter().find(|body| {
                 let body = body.borrow();
-                matches!(*body, Bodies::Base(_))
+                matches!(*body, BodyEnum::Base(_))
             }) {
                 return Err(MultibodyErrors::BaseAlreadyExists);
             }
@@ -89,7 +89,7 @@ where
         let name = bodyref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
 
         if self
-            .bodies
+            .BodyEnum
             .iter()
             .any(|body| body.borrow().get_name() == name)
         {
@@ -104,7 +104,7 @@ where
             return Err(MultibodyErrors::NameTaken);
         }
 
-        self.bodies.push(bodyref);
+        self.BodyEnum.push(bodyref);
         Ok(())
     }
 
@@ -113,7 +113,7 @@ where
         let name = jointref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
 
         if self
-            .bodies
+            .BodyEnum
             .iter()
             .any(|body| body.borrow().get_name() == name)
         {
@@ -132,7 +132,7 @@ where
     }
 
     pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef<T>> {
-        self.bodies
+        self.BodyEnum
             .iter()
             .find(|joint| joint.borrow().get_name() == name)
             .cloned()
