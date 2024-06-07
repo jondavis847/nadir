@@ -1,6 +1,6 @@
 use crate::{
     body::BodyRef,
-    joint::{Joint, JointConnection, JointErrors, JointParameters, JointRef, JointTrait},
+    joint::{JointEnum, JointConnection, JointErrors, JointParameters, JointRef, JointTrait},
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
@@ -41,7 +41,7 @@ pub struct Revolute {
 
 impl Revolute {
     pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
-        Rc::new(RefCell::new(Joint::Revolute(Self {
+        Rc::new(RefCell::new(JointEnum::Revolute(Self {
             connection: JointConnection::default(),
             name: name.to_string(),
             parameters: parameters,

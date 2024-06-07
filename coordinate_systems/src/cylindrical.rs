@@ -1,8 +1,11 @@
+use std::ops::Add;
+use super::{cartesian::Cartesian, spherical::Spherical};
+
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Cylindrical {
-    height: f64,
-    radius: f64,
-    theta: f64,
+    pub height: f64,
+    pub radius: f64,
+    pub theta: f64,
 }
 
 impl Cylindrical {
@@ -13,16 +16,23 @@ impl Cylindrical {
             theta,
         }
     }
+}
 
-    pub fn get_height(&self) -> f64 {
-        self.height
+impl From<Cartesian> for Cylindrical {
+    fn from(cartesian: Cartesian) -> Self {
+        let r = (cartesian.x.powi(2) + cartesian.y.powi(2)).sqrt();
+        let theta = cartesian.y.atan2(cartesian.x);
+        Cylindrical::new(r, theta, cartesian.z)
     }
+}
 
-    pub fn get_radius(&self) -> f64 {
-        self.radius
-    }
-
-    pub fn get_theta(&self) -> f64 {
-        self.theta
+impl Add<Cylindrical> for Cylindrical {
+    type Output = Self;
+    fn add(self, rhs: Cylindrical) -> Cylindrical {
+        Cylindrical::new(
+            self.height + rhs.height,
+            self.radius + rhs.radius,
+            self.theta + rhs.theta,
+        )
     }
 }

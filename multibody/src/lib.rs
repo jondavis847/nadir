@@ -5,7 +5,8 @@ pub mod mass_properties;
 
 use base::{Base, BaseErrors};
 use body::{Body, BodyEnum, BodyErrors, BodyRef, BodyTrait};
-use joint::{revolute::RevoluteErrors, Joint, JointRef, JointTrait};
+use joint::{revolute::RevoluteErrors, JointEnum, JointRef, JointTrait};
+use transforms::Transform;
 
 pub enum MultibodyErrors {
     Base(BaseErrors),
@@ -30,7 +31,7 @@ pub trait MultibodyTrait {
 pub enum MultibodyComponent {
     Base(Base),
     Body(Body),
-    Joint(Joint),
+    Joint(JointEnum),
 }
 
 impl MultibodyTrait for MultibodyComponent {
@@ -120,6 +121,10 @@ impl MultibodySystem {
         }
         self.joints.push(jointref);
         Ok(())
+    }
+
+    pub fn calculate_transforms(&mut self) {
+
     }
 
     pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef> {
@@ -264,3 +269,5 @@ fn find_joints_for_sort(
         find_body_for_sort(joint_connection.component, new_bodies, new_joints);
     }
 }
+
+

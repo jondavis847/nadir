@@ -1,8 +1,11 @@
+use std::ops::Add;
+use super::{cartesian::Cartesian, cylindrical::Cylindrical};
+
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Spherical {
-    azimuth: f64,
-    elevation: f64,
-    radius: f64,
+    pub azimuth: f64,
+    pub elevation: f64,
+    pub radius: f64,
 }
 
 impl Spherical {
@@ -13,16 +16,24 @@ impl Spherical {
             radius,
         }
     }
+}
 
-    pub fn get_azimuth(&self) -> f64 {
-        self.azimuth
+impl From<Cartesian> for Spherical {
+    fn from(cartesian: Cartesian) -> Self {
+        let radius = (cartesian.x.powi(2) + cartesian.y.powi(2) + cartesian.z.powi(2)).sqrt();
+        let elevation = (cartesian.z / radius).acos();
+        let azimuth = cartesian.y.atan2(cartesian.x);
+        Spherical::new(radius, elevation, azimuth)
     }
+}
 
-    pub fn get_elevation(&self) -> f64 {
-        self.elevation
-    }
-
-    pub fn get_radius(&self) -> f64 {
-        self.radius
+impl Add<Spherical> for Spherical {
+    type Output = Self;
+    fn add(self, rhs: Spherical) -> Spherical {
+        Spherical::new(
+            self.azimuth + rhs.azimuth,
+            self.elevation + rhs.elevation,
+            self.radius + rhs.radius,
+        )
     }
 }

@@ -1,4 +1,8 @@
-use super::euler_angles::{EulerAngles, EulerSequence};
+use super::{
+    euler_angles::{EulerAngles, EulerSequence},
+    Rotation,
+    rotation_matrix::RotationMatrix,
+};
 use linear_algebra::Vector3;
 use rand::prelude::*;
 use std::ops::Mul;
@@ -96,6 +100,16 @@ impl Mul<Quaternion> for Quaternion {
     }
 }
 
+impl From<Rotation> for Quaternion {
+    fn from(rotation: Rotation) -> Self {
+        match rotation {
+            Rotation::Quaternion(v) => v,
+            Rotation::RotationMatrix(v) => Quaternion::from(v),
+            Rotation::EulerAngles(v) => Quaternion::from(v),
+        }                
+    }
+}
+
 impl From<EulerAngles> for Quaternion {
     fn from(euler: EulerAngles) -> Self {
         let (phi, theta, psi) = (euler.x, euler.y, euler.z);
@@ -175,6 +189,46 @@ impl From<EulerAngles> for Quaternion {
                 y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
                 z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
             },
+        }
+    }
+}
+impl From<RotationMatrix> for Quaternion {
+    fn from(matrix: RotationMatrix) -> Self {
+        let m = matrix.value;
+        let trace = m.e11 + m.e22 + m.e33;
+
+        if trace > 0.0 {
+            let s = (trace + 1.0).sqrt() * 2.0;
+            Quaternion {
+                s: 0.25 * s,
+                x: (m.e32 - m.e23) / s,
+                y: (m.e13 - m.e31) / s,
+                z: (m.e21 - m.e12) / s,
+            }
+        } else if (m.e11 > m.e22) && (m.e11 > m.e33) {
+            let s = (1.0 + m.e11 - m.e22 - m.e33).sqrt() * 2.0;
+            Quaternion {
+                s: (m.e32 - m.e23) / s,
+                x: 0.25 * s,
+                y: (m.e12 + m.e21) / s,
+                z: (m.e13 + m.e31) / s,
+            }
+        } else if m.e22 > m.e33 {
+            let s = (1.0 + m.e22 - m.e11 - m.e33).sqrt() * 2.0;
+            Quaternion {
+                s: (m.e13 - m.e31) / s,
+                x: (m.e12 + m.e21) / s,
+                y: 0.25 * s,
+                z: (m.e23 + m.e32) / s,
+            }
+        } else {
+            let s = (1.0 + m.e33 - m.e11 - m.e22).sqrt() * 2.0;
+            Quaternion {
+                s: (m.e21 - m.e12) / s,
+                x: (m.e13 + m.e31) / s,
+                y: (m.e23 + m.e32) / s,
+                z: 0.25 * s,
+            }
         }
     }
 }

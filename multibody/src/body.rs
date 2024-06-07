@@ -64,7 +64,6 @@ impl BodyTrait for BodyRef {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub enum BodyEnum {
     Base(Base),
@@ -179,6 +178,7 @@ pub struct Body {
     mass_properties: MassProperties,
     name: String,
     outer_joints: Vec<BodyJointConnection>,
+    transforms: Vec<BodyTransforms>,
     //sensors: Vec<BodySensorConnection>,
 }
 
@@ -193,6 +193,7 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
+            transforms: Vec::new(),
             //sensors: Vec::new(),
         }))))
     }
@@ -366,4 +367,20 @@ impl MultibodyTrait for Body {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
+}
+
+/// base: the "body/base frame" of the base
+/// body: the "body frame" of the current body
+/// parent: the "body frame" of the parent body of the current body
+/// ijof: the "inner joint outer frame" of the current body
+#[derive(Clone, Copy, Debug)]
+struct BodyTransforms {
+    ijof_to_parent: Transform,
+    ijof_to_base: Transform,
+    parent_to_ijof: Transform,
+    base_to_ijof: Transform,
+    body_to_parent: Transform,
+    body_to_base: Transform,
+    parent_to_body: Transform,
+    base_to_body: Transform,
 }

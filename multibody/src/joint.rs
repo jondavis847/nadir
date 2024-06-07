@@ -6,7 +6,7 @@ use std::rc::Rc;
 pub mod revolute;
 use revolute::Revolute;
 
-pub type JointRef = Rc<RefCell<Joint>>;
+pub type JointRef = Rc<RefCell<JointEnum>>;
 pub trait JointTrait {
     fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
     fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors>;
@@ -52,61 +52,61 @@ pub enum JointErrors {
 }
 
 #[derive(Debug, Clone)]
-pub enum Joint {
+pub enum JointEnum {
     //Floating,
     //Prismatic,
     Revolute(Revolute),
     //Spherical,
 }
 
-impl MultibodyTrait for Joint {
+impl MultibodyTrait for JointEnum {
     fn get_name(&self) -> &str {
         match self {
-            Joint::Revolute(revolute) => revolute.get_name(),
+            JointEnum::Revolute(revolute) => revolute.get_name(),
         }
     }
 
     fn set_name(&mut self, name: String) {
         match self {
-            Joint::Revolute(revolute) => revolute.set_name(name),
+            JointEnum::Revolute(revolute) => revolute.set_name(name),
         }
     }
 }
 
-impl JointTrait for Joint {
+impl JointTrait for JointEnum {
     fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
         match self {
-            Joint::Revolute(joint) => joint.connect_inner_body(body),
+            JointEnum::Revolute(joint) => joint.connect_inner_body(body),
         }
     }
     fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
         match self {
-            Joint::Revolute(joint) => joint.connect_outer_body(body),
+            JointEnum::Revolute(joint) => joint.connect_outer_body(body),
         }
     }
     fn calculate_transform(&mut self) {
         match self {
-            Joint::Revolute(joint) => joint.calculate_transform()
+            JointEnum::Revolute(joint) => joint.calculate_transform()
         }
     }
     fn delete_inner_body(&mut self) {
         match self {
-            Joint::Revolute(joint) => joint.delete_inner_body(),
+            JointEnum::Revolute(joint) => joint.delete_inner_body(),
         }
     }
     fn delete_outer_body(&mut self) {
         match self {
-            Joint::Revolute(joint) => joint.delete_outer_body(),
+            JointEnum::Revolute(joint) => joint.delete_outer_body(),
         }
     }
     fn get_inner_body(&self) -> Option<BodyRef> {
         match self {
-            Joint::Revolute(joint) => joint.get_inner_body(),
+            JointEnum::Revolute(joint) => joint.get_inner_body(),
         }
     }
     fn get_outer_body(&self) -> Option<BodyRef> {
         match self {
-            Joint::Revolute(joint) => joint.get_outer_body(),
+            JointEnum::Revolute(joint) => joint.get_outer_body(),
         }
     }
 }

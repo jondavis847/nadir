@@ -125,9 +125,9 @@ dependencies = [
 name = "rotations"
 version = "0.1.0"
 dependencies = [
+ "coordinate_systems",
  "linear_algebra",
  "rand",
- "sim_value",
 ]
 
 [[package]]

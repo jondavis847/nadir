@@ -1,9 +1,10 @@
+use super::{euler_angles::EulerAngles, quaternion::Quaternion};
 use linear_algebra::{Matrix3, Vector3};
 use std::ops::Mul;
 
 #[derive(Debug, Copy, Clone)]
 pub struct RotationMatrix {
-    value: Matrix3,
+    pub value: Matrix3,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -70,5 +71,37 @@ impl Mul<Vector3> for RotationMatrix {
     type Output = Vector3;
     fn mul(self, rhs: Vector3) -> Vector3 {
         self.value * rhs
+    }
+}
+
+impl Mul<RotationMatrix> for RotationMatrix {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self {
+        let v = self.value * rhs.value;
+        RotationMatrix::new(
+            v.e11, v.e21, v.e31, v.e12, v.e22, v.e32, v.e13, v.e23, v.e33,
+        )
+        .unwrap()
+    }
+}
+
+impl From<Quaternion> for RotationMatrix {
+    fn from(q: Quaternion) -> Self {
+        let s = q.s;
+        let x = q.x;
+        let y = q.y;
+        let z = q.z;
+
+        let e11 = 1.0 - 2.0 * y * y - 2.0 * z * z;
+        let e12 = 2.0 * x * y - 2.0 * s * z;
+        let e13 = 2.0 * x * z + 2.0 * s * y;
+        let e21 = 2.0 * x * y + 2.0 * s * z;
+        let e22 = 1.0 - 2.0 * x * x - 2.0 * z * z;
+        let e23 = 2.0 * y * z - 2.0 * s * x;
+        let e31 = 2.0 * x * z - 2.0 * s * y;
+        let e32 = 2.0 * y * z + 2.0 * s * x;
+        let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;
+
+        RotationMatrix::new(e11, e21, e31, e12, e22, e32, e13, e23, e33).unwrap()
     }
 }
