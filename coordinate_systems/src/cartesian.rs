@@ -1,9 +1,9 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical};
-use crate::CoordinateSystem;
+use crate::coordinate_system::CoordinateSystem;
 use linear_algebra::Vector3;
-use std::f64::consts::PI;
 use std::ops::Add;
 
+/// Represents a point in Cartesian coordinates.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cartesian {
     pub x: f64,
@@ -12,6 +12,15 @@ pub struct Cartesian {
 }
 
 impl Cartesian {
+    /// Creates a new `Cartesian` instance from a `Vector3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - A reference to a `Vector3` containing the x, y, and z components.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
     pub fn from_vec(v: &Vector3) -> Self {
         Self {
             x: v.e1,
@@ -19,10 +28,27 @@ impl Cartesian {
             z: v.e3,
         }
     }
+
+    /// Creates a new `Cartesian` instance with the given x, y, and z components.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The x component.
+    /// * `y` - The y component.
+    /// * `z` - The z component.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
 
+    /// Converts the `Cartesian` instance to a `Vector3`.
+    ///
+    /// # Returns
+    ///
+    /// A `Vector3` instance.
     pub fn vec(&self) -> Vector3 {
         Vector3::new(self.x, self.y, self.z)
     }
@@ -30,13 +56,22 @@ impl Cartesian {
 
 // Implement From<Cylindrical> for Cartesian
 impl From<Cylindrical> for Cartesian {
+    /// Converts a `Cylindrical` coordinate to a `Cartesian` coordinate.
+    ///
+    /// # Arguments
+    ///
+    /// * `cyl` - A `Cylindrical` instance.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
     fn from(cyl: Cylindrical) -> Self {
         let height = cyl.height;
         let radius = cyl.radius;
         let azimuth = cyl.azimuth;
 
-        let x = radius * (azimuth * PI / 180.0).cos();
-        let y = radius * (azimuth * PI / 180.0).sin();
+        let x = radius * azimuth.cos();
+        let y = radius * azimuth.sin();
         let z = height;
 
         Self::new(x, y, z)
@@ -45,20 +80,38 @@ impl From<Cylindrical> for Cartesian {
 
 // Implement From<Spherical> for Cartesian
 impl From<Spherical> for Cartesian {
+    /// Converts a `Spherical` coordinate to a `Cartesian` coordinate.
+    ///
+    /// # Arguments
+    ///
+    /// * `sph` - A `Spherical` instance.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
     fn from(sph: Spherical) -> Self {
         let azimuth = sph.azimuth;
-        let elevation = sph.elevation;
+        let inclination = sph.inclination;
         let radius = sph.radius;
 
-        let x = radius * elevation.sin() * azimuth.cos();
-        let y = radius * elevation.sin() * azimuth.sin();
-        let z = radius * elevation.cos();
+        let x = radius * inclination.sin() * azimuth.cos();
+        let y = radius * inclination.sin() * azimuth.sin();
+        let z = radius * inclination.cos();
 
         Self::new(x, y, z)
     }
 }
 
 impl From<CoordinateSystem> for Cartesian {
+    /// Converts a `CoordinateSystem` enum to a `Cartesian` coordinate.
+    ///
+    /// # Arguments
+    ///
+    /// * `cs` - A `CoordinateSystem` enum instance.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
     fn from(cs: CoordinateSystem) -> Self {
         match cs {
             CoordinateSystem::Cartesian(cs) => cs,
@@ -70,7 +123,179 @@ impl From<CoordinateSystem> for Cartesian {
 
 impl Add<Cartesian> for Cartesian {
     type Output = Self;
+
+    /// Adds two `Cartesian` coordinates.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The left-hand side `Cartesian` coordinate.
+    /// * `rhs` - The right-hand side `Cartesian` coordinate.
+    ///
+    /// # Returns
+    ///
+    /// A new `Cartesian` instance representing the sum.
     fn add(self, rhs: Cartesian) -> Cartesian {
         Cartesian::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f64::consts::PI;
+    const TOL: f64 = 1e-12;
+
+    /// Tests the conversion from a `Vector3` to a `Cartesian` coordinate.
+    #[test]
+    fn test_cartesian_from_vec() {
+        let vec = Vector3::new(1.0, 2.0, 3.0);
+        let cartesian = Cartesian::from_vec(&vec);
+        assert!(
+            (cartesian.x - 1.0).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            1.0,
+            cartesian.x
+        );
+        assert!(
+            (cartesian.y - 2.0).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            2.0,
+            cartesian.y
+        );
+        assert!(
+            (cartesian.z - 3.0).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            3.0,
+            cartesian.z
+        );
+    }
+
+    /// Tests the conversion from a `Cylindrical` coordinate to a `Cartesian` coordinate.
+    #[test]
+    fn test_cartesian_from_cylindrical() {
+        let cylindrical = Cylindrical {
+            radius: 5.0,
+            azimuth: PI / 4.0,
+            height: 10.0,
+        };
+        let cartesian = Cartesian::from(cylindrical);
+        let expected_x = 3.5355339059327378;
+        let expected_y = 3.5355339059327378;
+        let expected_z = 10.0;
+
+        assert!(
+            (cartesian.x - expected_x).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_x,
+            cartesian.x
+        );
+        assert!(
+            (cartesian.y - expected_y).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_y,
+            cartesian.y
+        );
+        assert!(
+            (cartesian.z - expected_z).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_z,
+            cartesian.z
+        );
+    }
+
+    /// Tests the conversion from a `Spherical` coordinate to a `Cartesian` coordinate.
+    #[test]
+    fn test_cartesian_from_spherical() {
+        let spherical = Spherical {
+            radius: 5.0,
+            azimuth: PI / 4.0,
+            inclination: PI / 4.0,
+        };
+        let cartesian = Cartesian::from(spherical);
+        let expected_x = 2.5;
+        let expected_y = 2.5;
+        let expected_z = 3.5355339059327378;
+
+        assert!(
+            (cartesian.x - expected_x).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_x,
+            cartesian.x
+        );
+        assert!(
+            (cartesian.y - expected_y).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_y,
+            cartesian.y
+        );
+        assert!(
+            (cartesian.z - expected_z).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_z,
+            cartesian.z
+        );
+    }
+
+    /// Tests the addition of two `Cartesian` coordinates.
+    #[test]
+    fn test_cartesian_addition() {
+        let cart1 = Cartesian::new(1.0, 2.0, 3.0);
+        let cart2 = Cartesian::new(4.0, 5.0, 6.0);
+        let result = cart1 + cart2;
+        let expected_x = 5.0;
+        let expected_y = 7.0;
+        let expected_z = 9.0;
+
+        assert!(
+            (result.x - expected_x).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_x,
+            result.x
+        );
+        assert!(
+            (result.y - expected_y).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_y,
+            result.y
+        );
+        assert!(
+            (result.z - expected_z).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_z,
+            result.z
+        );
+    }
+
+    /// Tests the conversion from a `CoordinateSystem` enum to a `Cartesian` coordinate.
+    #[test]
+    fn test_cartesian_from_coordinate_system() {
+        let spherical = CoordinateSystem::Spherical(Spherical {
+            radius: 5.0,
+            azimuth: PI / 4.0,
+            inclination: PI / 4.0,
+        });
+        let cartesian = Cartesian::from(spherical);
+        let expected_x = 2.5;
+        let expected_y = 2.5;
+        let expected_z = 3.5355339059327378;
+
+        assert!(
+            (cartesian.x - expected_x).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_x,
+            cartesian.x
+        );
+        assert!(
+            (cartesian.y - expected_y).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_y,
+            cartesian.y
+        );
+        assert!(
+            (cartesian.z - expected_z).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected_z,
+            cartesian.z
+        );
     }
 }
