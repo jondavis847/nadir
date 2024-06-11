@@ -3,9 +3,6 @@ pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
 
-use coordinate_systems::{
-    cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
-};
 use euler_angles::EulerAngles;
 use linear_algebra::Vector3;
 use quaternion::Quaternion;
