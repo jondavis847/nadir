@@ -1,5 +1,6 @@
-use std::ops::Add;
 use super::{cartesian::Cartesian, cylindrical::Cylindrical};
+use linear_algebra::Vector3;
+use std::ops::Add;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Spherical {
@@ -9,6 +10,13 @@ pub struct Spherical {
 }
 
 impl Spherical {
+    pub fn from_vec(v: &Vector3) -> Self {
+        Self {
+            azimuth: v.e1,
+            elevation: v.e2,
+            radius: v.e3,
+        }
+    }
     pub fn new(azimuth: f64, elevation: f64, radius: f64) -> Self {
         Self {
             azimuth,

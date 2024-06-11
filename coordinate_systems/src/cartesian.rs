@@ -1,8 +1,8 @@
-use crate::CoordinateSystem;
-use std::ops::Add;
-
 use super::{cylindrical::Cylindrical, spherical::Spherical};
+use crate::CoordinateSystem;
+use linear_algebra::Vector3;
 use std::f64::consts::PI;
+use std::ops::Add;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cartesian {
@@ -12,8 +12,19 @@ pub struct Cartesian {
 }
 
 impl Cartesian {
+    pub fn from_vec(v: &Vector3) -> Self {
+        Self {
+            x: v.e1,
+            y: v.e2,
+            z: v.e3,
+        }
+    }
     pub fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
+    }
+
+    pub fn vec(&self) -> Vector3 {
+        Vector3::new(self.x, self.y, self.z)
     }
 }
 

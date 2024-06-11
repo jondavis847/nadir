@@ -9,6 +9,22 @@ pub struct Vector3 {
 }
 
 impl Vector3 {
+    /// Creates a new `Vector3` from the given array ([f64;3]).
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - An array with 3 elements all of type f64 - [f64;3].
+    ///
+    /// # Returns
+    ///
+    /// A `Vector3` instance.
+    pub fn from_vec(v: [f64; 3]) -> Self {
+        Self {
+            e1: v[0],
+            e2: v[1],
+            e3: v[2],
+        }
+    }
     /// Creates a new `Vector3` with the given components.
     ///
     /// # Arguments
@@ -87,6 +103,38 @@ pub struct Matrix3 {
 }
 
 impl Matrix3 {
+
+    /// Creates a new `Matrix3` with the given elements.
+    ///
+    /// # Arguments
+    ///
+    /// * `e11` - Element at row 1, column 1.
+    /// * `e21` - Element at row 2, column 1.
+    /// * `e31` - Element at row 3, column 1.
+    /// * `e12` - Element at row 1, column 2.
+    /// * `e22` - Element at row 2, column 2.
+    /// * `e32` - Element at row 3, column 2.
+    /// * `e13` - Element at row 1, column 3.
+    /// * `e23` - Element at row 2, column 3.
+    /// * `e33` - Element at row 3, column 3.
+    ///
+    /// # Returns
+    ///
+    /// A `Matrix3` instance.
+    pub fn from_vec(v:[f64;9]) -> Self {
+        Self {
+            e11: v[0],
+            e21: v[1],
+            e31: v[2],
+            e12: v[3],
+            e22: v[4],
+            e32: v[5],
+            e13: v[6],
+            e23: v[7],
+            e33: v[8],
+        }
+    }
+
     /// Creates a new `Matrix3` with the given elements.
     ///
     /// # Arguments
@@ -126,6 +174,13 @@ impl Matrix3 {
             e23,
             e33,
         }
+    }
+
+    pub fn transpose(&self) -> Self {
+        Matrix3::new(
+            self.e11, self.e12, self.e13, self.e21, self.e22, self.e23, self.e31, self.e32,
+            self.e33,
+        )
     }
 }
 
