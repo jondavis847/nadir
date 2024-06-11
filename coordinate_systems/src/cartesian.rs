@@ -33,10 +33,10 @@ impl From<Cylindrical> for Cartesian {
     fn from(cyl: Cylindrical) -> Self {
         let height = cyl.height;
         let radius = cyl.radius;
-        let theta = cyl.theta;
+        let azimuth = cyl.azimuth;
 
-        let x = radius * (theta * PI / 180.0).cos();
-        let y = radius * (theta * PI / 180.0).sin();
+        let x = radius * (azimuth * PI / 180.0).cos();
+        let y = radius * (azimuth * PI / 180.0).sin();
         let z = height;
 
         Self::new(x, y, z)
