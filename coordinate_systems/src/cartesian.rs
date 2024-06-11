@@ -1,5 +1,4 @@
-use super::{cylindrical::Cylindrical, spherical::Spherical};
-use crate::coordinate_system::CoordinateSystem;
+use super::{CoordinateSystem, cylindrical::Cylindrical, spherical::Spherical};
 use linear_algebra::Vector3;
 use std::ops::Add;
 
