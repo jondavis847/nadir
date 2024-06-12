@@ -15,23 +15,6 @@ pub struct Spherical {
 }
 
 impl Spherical {
-    /// Creates a new `Spherical` instance from a `Vector3`.
-    ///
-    /// # Arguments
-    ///
-    /// * `v` - A reference to a `Vector3` containing the radius, azimuth, and inclination.
-    ///
-    /// # Returns
-    ///
-    /// A `Spherical` instance.
-    pub fn from_vec(v: &Vector3) -> Self {
-        Self {
-            radius: v.e1,
-            azimuth: v.e2,
-            inclination: v.e3,
-        }
-    }
-
     /// Creates a new `Spherical` instance with the given radius, azimuth, and inclination.
     ///
     /// # Arguments
@@ -49,6 +32,30 @@ impl Spherical {
             azimuth,
             inclination,
         }
+    }
+
+    /// Converts the `Spherical` instance to a `Vector3`.
+    ///
+    /// # Returns
+    ///
+    /// A `Vector3` instance.
+    pub fn vec(&self) -> Vector3 {
+        Vector3::new(self.radius, self.azimuth, self.inclination)
+    }
+}
+
+impl From<Vector3> for Spherical {
+    /// Creates a new `Spherical` instance from a `Vector3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - A reference to a `Vector3` containing the height, azmituh, and inclination components.
+    ///
+    /// # Returns
+    ///
+    /// A `Spherical` instance.
+    fn from(v: Vector3) -> Spherical {
+        Spherical::new(v.e1, v.e2, v.e3)
     }
 }
 
@@ -125,7 +132,7 @@ mod tests {
     #[test]
     fn test_spherical_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
-        let spherical = Spherical::from_vec(&vec);
+        let spherical = Spherical::from(vec);
         assert_close(spherical.radius, 1.0);
         assert_close(spherical.azimuth, 2.0);
         assert_close(spherical.inclination, 3.0);

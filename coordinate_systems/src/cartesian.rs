@@ -11,23 +11,6 @@ pub struct Cartesian {
 }
 
 impl Cartesian {
-    /// Creates a new `Cartesian` instance from a `Vector3`.
-    ///
-    /// # Arguments
-    ///
-    /// * `v` - A reference to a `Vector3` containing the x, y, and z components.
-    ///
-    /// # Returns
-    ///
-    /// A `Cartesian` instance.
-    pub fn from_vec(v: &Vector3) -> Self {
-        Self {
-            x: v.e1,
-            y: v.e2,
-            z: v.e3,
-        }
-    }
-
     /// Creates a new `Cartesian` instance with the given x, y, and z components.
     ///
     /// # Arguments
@@ -50,6 +33,21 @@ impl Cartesian {
     /// A `Vector3` instance.
     pub fn vec(&self) -> Vector3 {
         Vector3::new(self.x, self.y, self.z)
+    }
+}
+
+impl From<Vector3> for Cartesian {
+    /// Creates a new `Cartesian` instance from a `Vector3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - A reference to a `Vector3` containing the x, y, and z components.
+    ///
+    /// # Returns
+    ///
+    /// A `Cartesian` instance.
+    fn from(v: Vector3) -> Cartesian {
+        Cartesian::new(v.e1, v.e2, v.e3)
     }
 }
 
@@ -158,7 +156,7 @@ mod tests {
     #[test]
     fn test_cartesian_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
-        let cartesian = Cartesian::from_vec(&vec);
+        let cartesian = Cartesian::from(vec);
         assert_close(cartesian.x, 1.0);
         assert_close(cartesian.y, 2.0);
         assert_close(cartesian.z, 3.0);
@@ -219,6 +217,5 @@ mod tests {
         assert_close(cartesian.x, 2.5);
         assert_close(cartesian.y, 2.5);
         assert_close(cartesian.z, 3.5355339059327378);
-        
     }
 }

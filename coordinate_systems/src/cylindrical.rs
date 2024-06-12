@@ -14,23 +14,6 @@ pub struct Cylindrical {
 }
 
 impl Cylindrical {
-    /// Creates a new `Cylindrical` instance from a `Vector3`.
-    ///
-    /// # Arguments
-    ///
-    /// * `v` - A reference to a `Vector3` containing the radius, azimuth, and height.
-    ///
-    /// # Returns
-    ///
-    /// A `Cylindrical` instance.
-    pub fn from_vec(v: &Vector3) -> Self {
-        Self {
-            radius: v.e1,
-            azimuth: v.e2,
-            height: v.e3,
-        }
-    }
-
     /// Creates a new `Cylindrical` instance with the given radius, azimuth, and height.
     ///
     /// # Arguments
@@ -48,6 +31,30 @@ impl Cylindrical {
             azimuth,
             height,
         }
+    }
+
+    /// Converts the `Cylindrical` instance to a `Vector3`.
+    ///
+    /// # Returns
+    ///
+    /// A `Vector3` instance.
+    pub fn vec(&self) -> Vector3 {
+        Vector3::new(self.radius, self.azimuth, self.height)
+    }
+}
+
+impl From<Vector3> for Cylindrical {
+    /// Creates a new `Cylindrical` instance from a `Vector3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - A reference to a `Vector3` containing the radius, azimuth, and height components.
+    ///
+    /// # Returns
+    ///
+    /// A `Cylindrical` instance.
+    fn from(v: Vector3) -> Cylindrical {
+        Cylindrical::new(v.e1, v.e2, v.e3)
     }
 }
 
@@ -105,7 +112,7 @@ impl Add<Cylindrical> for Cylindrical {
     }
 }
 
-    //TODO: make all the number unique for better tests
+//TODO: make all the number unique for better tests
 
 #[cfg(test)]
 mod tests {
@@ -127,7 +134,7 @@ mod tests {
     #[test]
     fn test_cylindrical_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
-        let cylindrical = Cylindrical::from_vec(&vec);
+        let cylindrical = Cylindrical::from(vec);
 
         assert_close(cylindrical.radius, 1.0);
         assert_close(cylindrical.azimuth, 2.0);

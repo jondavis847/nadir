@@ -1,4 +1,4 @@
-use super::{quaternion::Quaternion, RotationTrait};
+use super::*;
 use linear_algebra::{Matrix3, Vector3};
 use std::ops::Mul;
 
@@ -145,6 +145,11 @@ impl RotationTrait for RotationMatrix {
     /// The transformed vector.
     fn transform(&self, v: Vector3) -> Vector3 {
         self.value.transpose() * v
+    }
+
+    fn inv(&self) -> Self {
+        let rotation_matrix = RotationMatrix::from(*self).value;
+        RotationMatrix::from_mat(rotation_matrix.transpose())
     }
 }
 

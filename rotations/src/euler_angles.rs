@@ -1,4 +1,5 @@
-use super::{quaternion::Quaternion, RotationTrait};
+//use super::{quaternion::Quaternion, RotationTrait};
+use super::*;
 use linear_algebra::Vector3;
 
 /// Enum representing different Euler angle sequences.
@@ -111,5 +112,46 @@ impl RotationTrait for EulerAngles {
     fn transform(&self, v: Vector3) -> Vector3 {
         let quat = Quaternion::from(*self);
         quat.transform(v)
+    }
+
+    fn inv(&self) -> EulerAngles {
+        match *self {
+            EulerAngles::XYZ(angles) => {
+                EulerAngles::ZYX(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::XZY(angles) => {
+                EulerAngles::YZX(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::YXZ(angles) => {
+                EulerAngles::ZXY(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::YZX(angles) => {
+                EulerAngles::XZY(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::ZXY(angles) => {
+                EulerAngles::YXZ(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::ZYX(angles) => {
+                EulerAngles::XYZ(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            }
+            EulerAngles::XYX(angles) => {
+                EulerAngles::XYX(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+            EulerAngles::XZX(angles) => {
+                EulerAngles::XZX(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+            EulerAngles::YXY(angles) => {
+                EulerAngles::YXY(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+            EulerAngles::YZY(angles) => {
+                EulerAngles::YZY(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+            EulerAngles::ZXZ(angles) => {
+                EulerAngles::ZXZ(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+            EulerAngles::ZYZ(angles) => {
+                EulerAngles::ZYZ(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            }
+        }
     }
 }

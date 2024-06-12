@@ -2,11 +2,18 @@ use std::ops::Mul;
 pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
-
 use euler_angles::EulerAngles;
 use linear_algebra::Vector3;
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
+
+pub mod prelude {
+    pub use crate::euler_angles::*;
+    pub use crate::quaternion::*;
+    pub use crate::rotation_matrix::*;
+    pub use crate::{Rotation, RotationTrait};
+    pub use linear_algebra::Vector3;
+}
 
 /// Trait defining rotation and transformation operations.
 pub trait RotationTrait {
@@ -31,6 +38,8 @@ pub trait RotationTrait {
     ///
     /// The transformed vector.
     fn transform(&self, v: Vector3) -> Vector3;
+
+    fn inv(&self) -> Self;
 }
 
 /// Enum representing different types of rotations.
@@ -49,6 +58,35 @@ impl Default for Rotation {
     /// The default `Rotation`, which is a quaternion representing no rotation.
     fn default() -> Self {
         Rotation::Quaternion(Quaternion::identity())
+    }
+}
+impl From<Quaternion> for Rotation {
+    /// Converts Quaternion to a Rotation.
+    ///
+    /// # Arguments
+    ///
+    /// * `quaternion` - The quaternion.
+    ///
+    /// # Returns
+    ///
+    /// A new `Rotation` instance representing the quaternion.
+    fn from(quaternion: Quaternion) -> Self {
+        Rotation::Quaternion(quaternion)
+    }
+}
+
+impl From<RotationMatrix> for Rotation {
+    /// Converts RotationMatrix to a Rotation.
+    ///
+    /// # Arguments
+    ///
+    /// * `rotation_matrix` - The RotationMatrix.
+    ///
+    /// # Returns
+    ///
+    /// A new `Rotation` instance representing the RotationMatrix.
+    fn from(rotation_matrix: RotationMatrix) -> Self {
+        Rotation::RotationMatrix(rotation_matrix)
     }
 }
 
@@ -126,6 +164,14 @@ impl RotationTrait for Rotation {
             Rotation::EulerAngles(rotation) => rotation.transform(v),
             Rotation::RotationMatrix(rotation) => rotation.transform(v),
             Rotation::Quaternion(rotation) => rotation.transform(v),
+        }
+    }
+
+    fn inv(&self) -> Self {
+        match self {
+            Rotation::EulerAngles(rotation) => Rotation::EulerAngles(rotation.inv()),
+            Rotation::RotationMatrix(rotation) => Rotation::RotationMatrix(rotation.inv()),
+            Rotation::Quaternion(rotation) => Rotation::Quaternion(rotation.inv()),
         }
     }
 }
