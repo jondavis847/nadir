@@ -2,9 +2,17 @@ pub mod cartesian;
 pub mod cylindrical;
 pub mod spherical;
 
+pub mod prelude {
+    pub use crate::cartesian::Cartesian;
+    pub use crate::cylindrical::Cylindrical;
+    pub use crate::spherical::Spherical;
+    pub use crate::CoordinateSystem;
+}
+
 use cartesian::Cartesian;
 use cylindrical::Cylindrical;
 use spherical::Spherical;
+
 use std::ops::Add;
 
 /// Represents a point in a generic coordinate system, which can be Cartesian, Cylindrical, or Spherical.

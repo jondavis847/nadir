@@ -13,7 +13,6 @@ members = [
 ]
 
 [dependencies]
-cargo-script = "0.2.8"
 coordinate_systems = {path = "./coordinate_systems"}
 multibody = { path = "./multibody" }
 rotations = { path = "./rotations" }

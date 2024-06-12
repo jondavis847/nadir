@@ -207,82 +207,85 @@ impl From<EulerAngles> for Quaternion {
     ///
     /// The corresponding `Quaternion`.
     fn from(euler: EulerAngles) -> Self {
+        // phi is rotation about x
+        // theta is rotation about y
+        // psi is rotation about z
         let (phi, theta, psi) = (euler.x, euler.y, euler.z);
         let (c_phi, c_theta, c_psi) = ((phi / 2.0).cos(), (theta / 2.0).cos(), (psi / 2.0).cos());
         let (s_phi, s_theta, s_psi) = ((phi / 2.0).sin(), (theta / 2.0).sin(), (psi / 2.0).sin());
 
         match euler.sequence {
-            EulerSequence::XYZ => Quaternion {
-                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
+            EulerSequence::XYZ => Quaternion {                
                 x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
                 y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
                 z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
             },
-            EulerSequence::ZYX => Quaternion {
-                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+            
+            EulerSequence::XZY => Quaternion {                
                 x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
-            },
-            EulerSequence::XZY => Quaternion {
-                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                y: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
                 z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
-            },
-            EulerSequence::YXZ => Quaternion {
                 s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
             },
-            EulerSequence::YZX => Quaternion {
-                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+            EulerSequence::YXZ => Quaternion {                
+                x: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
+                y: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
                 z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
             },
-            EulerSequence::ZXY => Quaternion {
+            EulerSequence::YZX => Quaternion {                
+                x: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+                y: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+                z: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
                 s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
             },
-            EulerSequence::XYX => Quaternion {
+            EulerSequence::ZXY => Quaternion {                
+                x: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
+                y: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+                z: c_phi * s_theta * s_psi + s_phi * c_theta * c_psi,
                 s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
+            },
+            EulerSequence::ZYX => Quaternion {                
+                x: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
                 y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+                z: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
+                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
+            },
+            EulerSequence::XYX => Quaternion {                
+                x: c_theta * (s_phi + s_psi),
+                y: s_theta * (c_phi - c_psi),
+                z: s_theta * (s_phi - s_psi),
+                s: c_theta * (c_phi + c_psi),
             },
             EulerSequence::XZX => Quaternion {
-                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+                x: c_theta * (s_phi + s_psi),
+                y: s_theta * (s_psi - s_phi),
+                z: s_theta * (c_psi - c_phi),
+                s: c_theta * (c_phi + c_psi),
             },
             EulerSequence::YXY => Quaternion {
-                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+                x: s_theta * (c_psi - c_phi),
+                y: c_theta * (s_phi + s_psi),
+                z: s_theta * (s_psi - s_phi),
+                s: c_theta * (c_phi + c_psi),
             },
             EulerSequence::YZY => Quaternion {
-                s: c_phi * c_theta * c_psi + s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi - c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
-            },
+                x: s_theta * (s_phi - s_psi),
+                y: c_theta * (s_phi + c_psi),
+                z: s_theta * (c_phi - c_psi),
+                s: c_theta * (c_phi + c_psi),            },
             EulerSequence::ZXZ => Quaternion {
-                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi + s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi - s_phi * s_theta * c_psi,
+                x: s_theta * (c_phi - s_psi),
+                y: s_theta * (s_phi - c_psi),
+                z: c_theta * (s_phi + s_psi),
+                s: c_theta * (c_phi + c_psi),
             },
             EulerSequence::ZYZ => Quaternion {
-                s: c_phi * c_theta * c_psi - s_phi * s_theta * s_psi,
-                x: s_phi * c_theta * c_psi + c_phi * s_theta * s_psi,
-                y: c_phi * s_theta * c_psi - s_phi * c_theta * s_psi,
-                z: c_phi * c_theta * s_psi + s_phi * s_theta * c_psi,
+                x: s_theta * (s_psi - s_phi),
+                y: s_theta * (c_psi - c_phi),
+                z: c_theta * (s_phi + s_psi),
+                s: c_theta * (c_phi + c_psi),
             },
         }
     }
@@ -368,6 +371,30 @@ mod tests {
     /// Test for quaternion multiplication.
     #[test]
     fn test_quaternion_multiplication() {
+        let q1 = Quaternion::new(
+            0.18119546436307749,
+            0.4381103371317225,
+            0.10015469662419728,
+            0.8747551502773175,
+        )
+        .unwrap();
+        let q2 = Quaternion::new(
+            0.4605004692970668,
+            -0.13901506620501594,
+            -0.7574522634418864,
+            -0.44145237314115715,
+        )
+        .unwrap();
+        let result = q1 * q2;
+
+        assert_eq!(result.s, -0.3328369942072665);
+        assert_eq!(result.x, 0.004911334761481288);
+        assert_eq!(result.y, -0.13164079374848636);
+        assert_eq!(result.z, -0.9337377123685223);
+    }
+
+    #[test]
+    fn test_quaternion_from_xyz() {
         let q1 = Quaternion::new(
             0.18119546436307749,
             0.4381103371317225,
