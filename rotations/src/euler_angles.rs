@@ -6,7 +6,7 @@ use linear_algebra::Vector3;
 pub enum EulerSequence {
     /// Default sequence ZYX.
     #[default]
-    ZYX,    
+    ZYX,
     XYZ,
     XZY,
     YXZ,
@@ -62,7 +62,12 @@ impl EulerAngles {
     ///
     /// A new `EulerAngles` instance.
     pub fn new(phi: f64, theta: f64, psi: f64, sequence: EulerSequence) -> Self {
-        Self { phi, theta, psi, sequence }
+        Self {
+            phi,
+            theta,
+            psi,
+            sequence,
+        }
     }
 
     /// Creates an identity `EulerAngles` instance with default sequence ZYX.
@@ -122,5 +127,38 @@ impl RotationTrait for EulerAngles {
     fn transform(&self, v: Vector3) -> Vector3 {
         let quat = Quaternion::from(*self);
         quat.transform(v)
+    }
+}
+
+mod tests {
+    use super::*;
+    use std::f64::consts::PI;
+    const TOL: f64 = 1e-12;
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected,
+            actual
+        );
+    }
+
+    /// Test for quaternion normalization.
+    #[test]
+    fn test_xyz_from_quaternion() {
+        let q = Quaternion::new(
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+        )
+        .unwrap();
+        let euler_angles = EulerAngles::from(q);
+
+        assert_close(euler_angles.phi, 0.0);
+        assert_close(euler_angles.theta, PI / 2.0);
+        assert_close(euler_angles.psi, PI / 2.0);
+        assert_eq!(euler_angles.sequence, EulerSequence::default());
     }
 }
