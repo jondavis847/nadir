@@ -23,9 +23,9 @@ pub enum EulerSequence {
 /// Struct representing Euler angles with a specific rotation sequence.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct EulerAngles {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
+    pub phi: f64,
+    pub theta: f64,
+    pub psi: f64,
     pub sequence: EulerSequence,
 }
 
@@ -42,9 +42,9 @@ impl EulerAngles {
     /// A new `EulerAngles` instance.
     pub fn from_vec(v: &Vector3, sequence: EulerSequence) -> Self {
         Self {
-            x: v.e1,
-            y: v.e2,
-            z: v.e3,
+            phi: v.e1,
+            theta: v.e2,
+            psi: v.e3,
             sequence: sequence,
         }
     }
@@ -61,8 +61,8 @@ impl EulerAngles {
     /// # Returns
     ///
     /// A new `EulerAngles` instance.
-    pub fn new(x: f64, y: f64, z: f64, sequence: EulerSequence) -> Self {
-        Self { x, y, z, sequence }
+    pub fn new(phi: f64, theta: f64, psi: f64, sequence: EulerSequence) -> Self {
+        Self { phi, theta, psi, sequence }
     }
 
     /// Creates an identity `EulerAngles` instance with default sequence ZYX.
@@ -87,9 +87,9 @@ impl From<Quaternion> for EulerAngles {
     /// A new `EulerAngles` instance.
     fn from(quat: Quaternion) -> Self {
         EulerAngles {
-            x: quat.x,
-            y: quat.y,
-            z: quat.z,
+            phi: quat.x,
+            theta: quat.y,
+            psi: quat.z,
             sequence: EulerSequence::default(),
         }
     }
