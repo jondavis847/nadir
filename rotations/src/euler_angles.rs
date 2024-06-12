@@ -6,7 +6,7 @@ use linear_algebra::Vector3;
 pub enum EulerSequence {
     /// Default sequence ZYX.
     #[default]
-    ZYX,
+    ZYX,    
     XYZ,
     XZY,
     YXZ,
