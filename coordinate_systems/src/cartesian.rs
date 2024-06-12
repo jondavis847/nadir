@@ -1,4 +1,4 @@
-use super::{CoordinateSystem, cylindrical::Cylindrical, spherical::Spherical};
+use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
 use linear_algebra::Vector3;
 use std::ops::Add;
 
@@ -138,35 +138,30 @@ impl Add<Cartesian> for Cartesian {
     }
 }
 
+//TODO: make all the number unique for better tests
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::f64::consts::PI;
     const TOL: f64 = 1e-12;
 
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected,
+            actual
+        );
+    }
+
     /// Tests the conversion from a `Vector3` to a `Cartesian` coordinate.
     #[test]
     fn test_cartesian_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
         let cartesian = Cartesian::from_vec(&vec);
-        assert!(
-            (cartesian.x - 1.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            1.0,
-            cartesian.x
-        );
-        assert!(
-            (cartesian.y - 2.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            2.0,
-            cartesian.y
-        );
-        assert!(
-            (cartesian.z - 3.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            3.0,
-            cartesian.z
-        );
+        assert_close(cartesian.x, 1.0);
+        assert_close(cartesian.y, 2.0);
+        assert_close(cartesian.z, 3.0);
     }
 
     /// Tests the conversion from a `Cylindrical` coordinate to a `Cartesian` coordinate.
@@ -178,28 +173,10 @@ mod tests {
             height: 10.0,
         };
         let cartesian = Cartesian::from(cylindrical);
-        let expected_x = 3.5355339059327378;
-        let expected_y = 3.5355339059327378;
-        let expected_z = 10.0;
 
-        assert!(
-            (cartesian.x - expected_x).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_x,
-            cartesian.x
-        );
-        assert!(
-            (cartesian.y - expected_y).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_y,
-            cartesian.y
-        );
-        assert!(
-            (cartesian.z - expected_z).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_z,
-            cartesian.z
-        );
+        assert_close(cartesian.x, 3.5355339059327378);
+        assert_close(cartesian.y, 3.5355339059327378);
+        assert_close(cartesian.z, 10.0);
     }
 
     /// Tests the conversion from a `Spherical` coordinate to a `Cartesian` coordinate.
@@ -211,28 +188,10 @@ mod tests {
             inclination: PI / 4.0,
         };
         let cartesian = Cartesian::from(spherical);
-        let expected_x = 2.5;
-        let expected_y = 2.5;
-        let expected_z = 3.5355339059327378;
 
-        assert!(
-            (cartesian.x - expected_x).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_x,
-            cartesian.x
-        );
-        assert!(
-            (cartesian.y - expected_y).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_y,
-            cartesian.y
-        );
-        assert!(
-            (cartesian.z - expected_z).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_z,
-            cartesian.z
-        );
+        assert_close(cartesian.x, 2.5);
+        assert_close(cartesian.y, 2.5);
+        assert_close(cartesian.z, 3.5355339059327378);
     }
 
     /// Tests the addition of two `Cartesian` coordinates.
@@ -241,28 +200,10 @@ mod tests {
         let cart1 = Cartesian::new(1.0, 2.0, 3.0);
         let cart2 = Cartesian::new(4.0, 5.0, 6.0);
         let result = cart1 + cart2;
-        let expected_x = 5.0;
-        let expected_y = 7.0;
-        let expected_z = 9.0;
 
-        assert!(
-            (result.x - expected_x).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_x,
-            result.x
-        );
-        assert!(
-            (result.y - expected_y).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_y,
-            result.y
-        );
-        assert!(
-            (result.z - expected_z).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_z,
-            result.z
-        );
+        assert_close(result.x, 5.0);
+        assert_close(result.y, 7.0);
+        assert_close(result.z, 9.0);
     }
 
     /// Tests the conversion from a `CoordinateSystem` enum to a `Cartesian` coordinate.
@@ -274,27 +215,10 @@ mod tests {
             inclination: PI / 4.0,
         });
         let cartesian = Cartesian::from(spherical);
-        let expected_x = 2.5;
-        let expected_y = 2.5;
-        let expected_z = 3.5355339059327378;
 
-        assert!(
-            (cartesian.x - expected_x).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_x,
-            cartesian.x
-        );
-        assert!(
-            (cartesian.y - expected_y).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_y,
-            cartesian.y
-        );
-        assert!(
-            (cartesian.z - expected_z).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_z,
-            cartesian.z
-        );
+        assert_close(cartesian.x, 2.5);
+        assert_close(cartesian.y, 2.5);
+        assert_close(cartesian.z, 3.5355339059327378);
+        
     }
 }

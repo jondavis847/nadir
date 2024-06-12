@@ -4,7 +4,7 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
-use rotations::euler_angles::{EulerAngles, EulerSequence};
+use rotations::euler_angles::{Angles,EulerAngles};
 use std::cell::RefCell;
 use std::rc::Rc;
 use transforms::Transform;
@@ -20,7 +20,7 @@ pub struct RevoluteState {
 
 impl RevoluteState {
     pub fn new(theta: f64, omega: f64) -> Self {
-        let rotation = EulerAngles::new(0.0, 0.0, theta, EulerSequence::XYZ);
+        let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, theta));
         // assume this is about Z until we add more axes
         let transform = Transform::new(rotation.into(), CoordinateSystem::default());
         Self {

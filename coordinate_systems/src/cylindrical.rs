@@ -3,8 +3,8 @@ use linear_algebra::Vector3;
 use std::ops::Add;
 
 /// Represents a point in cylindrical coordinates.  Relative to a Cartesian x-y-z coordinate system,
-/// azimuth is the right hand rotation angle about +z where +x is 0. 
-/// Unique values are not enforced (all values can be negative and are unbounded). This is so 
+/// azimuth is the right hand rotation angle about +z where +x is 0.
+/// Unique values are not enforced (all values can be negative and are unbounded). This is so
 /// that instabilites are easily detectable without rolling over.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Cylindrical {
@@ -105,6 +105,8 @@ impl Add<Cylindrical> for Cylindrical {
     }
 }
 
+    //TODO: make all the number unique for better tests
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,33 +114,24 @@ mod tests {
 
     const TOL: f64 = 1e-12;
 
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected,
+            actual
+        );
+    }
+
     /// Tests the conversion from a `Vector3` to a `Cylindrical` coordinate.
     #[test]
     fn test_cylindrical_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
         let cylindrical = Cylindrical::from_vec(&vec);
-        let expected_radius = 1.0;
-        let expected_azimuth = 2.0;
-        let expected_height = 3.0;
 
-        assert_eq!(
-            cylindrical.radius, expected_radius,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            cylindrical.radius
-        );
-        assert_eq!(
-            cylindrical.azimuth, expected_azimuth,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            cylindrical.azimuth
-        );
-        assert_eq!(
-            cylindrical.height, expected_height,
-            "Expected: {}, Actual: {}",
-            expected_height,
-            cylindrical.height
-        );
+        assert_close(cylindrical.radius, 1.0);
+        assert_close(cylindrical.azimuth, 2.0);
+        assert_close(cylindrical.height, 3.0);
     }
 
     /// Tests the conversion from a `Cartesian` coordinate to a `Cylindrical` coordinate.
@@ -146,28 +139,10 @@ mod tests {
     fn test_cylindrical_from_cartesian() {
         let cartesian = Cartesian::new(3.0, 4.0, 5.0);
         let cylindrical = Cylindrical::from(cartesian);
-        let expected_radius = 5.0;
-        let expected_azimuth = 0.9272952180016122;
-        let expected_height = 5.0;
 
-        assert!(
-            (cylindrical.radius - expected_radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            cylindrical.radius
-        );
-        assert!(
-            (cylindrical.azimuth - expected_azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            cylindrical.azimuth
-        );
-        assert!(
-            (cylindrical.height - expected_height).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_height,
-            cylindrical.height
-        );
+        assert_close(cylindrical.radius, 5.0);
+        assert_close(cylindrical.azimuth, 0.9272952180016122);
+        assert_close(cylindrical.height, 5.0);
     }
 
     /// Tests the conversion from a `Spherical` coordinate to a `Cylindrical` coordinate.
@@ -179,28 +154,10 @@ mod tests {
             inclination: PI / 4.0,
         };
         let cylindrical = Cylindrical::from(spherical);
-        let expected_radius = 3.5355339059327378;
-        let expected_azimuth = PI / 4.0;
-        let expected_height = 3.5355339059327378;
 
-        assert!(
-            (cylindrical.radius - expected_radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            cylindrical.radius
-        );
-        assert!(
-            (cylindrical.azimuth - expected_azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            cylindrical.azimuth
-        );
-        assert!(
-            (cylindrical.height - expected_height).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_height,
-            cylindrical.height
-        );
+        assert_close(cylindrical.radius, 3.5355339059327378);
+        assert_close(cylindrical.azimuth, PI / 4.0);
+        assert_close(cylindrical.height, 3.5355339059327378);
     }
 
     /// Tests the addition of two `Cylindrical` coordinates.
@@ -210,27 +167,8 @@ mod tests {
         let cyl2 = Cylindrical::new(-2.0, -10.0 * PI - PI, -2.0);
         let result = cyl1 + cyl2;
 
-        let expected_radius = 2.23606797749979;
-        let expected_azimuth = 0.4636476090008061;
-        let expected_height = -1.0;
-
-        assert!(
-            (result.radius - expected_radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            result.radius
-        );
-        assert!(
-            (result.azimuth - expected_azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            result.azimuth
-        );
-        assert!(
-            (result.height - expected_height).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_height,
-            result.height
-        );
+        assert_close(result.radius, 2.23606797749979);
+        assert_close(result.azimuth, 0.4636476090008061);
+        assert_close(result.height, -1.0);
     }
 }

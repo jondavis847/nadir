@@ -4,8 +4,8 @@ use std::ops::Add;
 
 /// Represents a point in spherical coordinates. Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0, and inclination is the angle
-/// from the +z axis. 
-/// Unique values are not enforced (all values can be negative and are unbounded). This is so 
+/// from the +z axis.
+/// Unique values are not enforced (all values can be negative and are unbounded). This is so
 /// that instabilites are easily detectable without rolling over.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Spherical {
@@ -111,32 +111,24 @@ impl Add<Spherical> for Spherical {
 mod tests {
     use super::*;
     use std::f64::consts::PI;
-
     const TOL: f64 = 1e-12;
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected,
+            actual
+        );
+    }
 
     /// Tests the conversion from a `Vector3` to a `Spherical` coordinate.
     #[test]
     fn test_spherical_from_vec() {
         let vec = Vector3::new(1.0, 2.0, 3.0);
         let spherical = Spherical::from_vec(&vec);
-        assert!(
-            (spherical.radius - 1.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            1.0,
-            spherical.radius
-        );
-        assert!(
-            (spherical.azimuth - 2.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            2.0,
-            spherical.azimuth
-        );
-        assert!(
-            (spherical.inclination - 3.0).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            3.0,
-            spherical.inclination
-        );
+        assert_close(spherical.radius, 1.0);
+        assert_close(spherical.azimuth, 2.0);
+        assert_close(spherical.inclination, 3.0);
     }
 
     /// Tests the conversion from a `Cartesian` coordinate to a `Spherical` coordinate.
@@ -144,28 +136,10 @@ mod tests {
     fn test_spherical_from_cartesian() {
         let cartesian = Cartesian::new(3.0, 4.0, 5.0);
         let spherical = Spherical::from(cartesian);
-        let expected_radius = 7.0710678118654755; // sqrt(3^2 + 4^2 + 5^2)
-        let expected_azimuth = 0.9272952180016122; // atan2(4.0, 3.0)
-        let expected_inclination = 0.7853981633974483; // acos(5.0 / 7.0710678118654755)
 
-        assert!(
-            (spherical.radius - expected_radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            spherical.radius
-        );
-        assert!(
-            (spherical.azimuth - expected_azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            spherical.azimuth
-        );
-        assert!(
-            (spherical.inclination - expected_inclination).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_inclination,
-            spherical.inclination
-        );
+        assert_close(spherical.radius, 7.0710678118654755);
+        assert_close(spherical.azimuth, 0.9272952180016122);
+        assert_close(spherical.inclination, 0.7853981633974483);
     }
 
     /// Tests the conversion from a `Cylindrical` coordinate to a `Spherical` coordinate.
@@ -177,28 +151,10 @@ mod tests {
             height: 4.0,
         };
         let spherical = Spherical::from(cylindrical);
-        let expected_radius = 5.0; // sqrt(3^2 + 4^2)
-        let expected_azimuth = PI / 4.0;
-        let expected_inclination = 0.6435011087932844; // asin(3.0 / 5.0)
 
-        assert!(
-            (spherical.radius - expected_radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_radius,
-            spherical.radius
-        );
-        assert!(
-            (spherical.azimuth - expected_azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_azimuth,
-            spherical.azimuth
-        );
-        assert!(
-            (spherical.inclination - expected_inclination).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected_inclination,
-            spherical.inclination
-        );
+        assert_close(spherical.radius, 5.0);
+        assert_close(spherical.azimuth, PI / 4.0);
+        assert_close(spherical.inclination, 0.6435011087932844);
     }
 
     /// Tests the addition of two `Spherical` coordinates.
@@ -213,23 +169,8 @@ mod tests {
         let rhs = Cartesian::from(sph2);
         let expected = Spherical::from(lhs + rhs);
 
-        assert!(
-            (result.radius - expected.radius).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected.radius,
-            result.radius
-        );
-        assert!(
-            (result.azimuth - expected.azimuth).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected.azimuth,
-            result.azimuth
-        );
-        assert!(
-            (result.inclination - expected.inclination).abs() < TOL,
-            "Expected: {}, Actual: {}",
-            expected.inclination,
-            result.inclination
-        );
+        assert_close(result.radius, expected.radius);
+        assert_close(result.azimuth, expected.azimuth);
+        assert_close(result.inclination, expected.inclination);
     }
 }
