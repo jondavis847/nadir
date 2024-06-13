@@ -16,19 +16,6 @@ pub enum RotationMatrixError {
 }
 
 impl RotationMatrix {
-    /// Creates a `RotationMatrix` from a `Matrix3`.
-    ///
-    /// # Arguments
-    ///
-    /// * `value` - The 3x3 matrix representing the rotation.
-    ///
-    /// # Returns
-    ///
-    /// A new `RotationMatrix`.
-    pub fn from_mat(value: Matrix3) -> Self {
-        Self { value }
-    }
-
     /// Creates a new `RotationMatrix` ensuring columns are normalized.
     ///
     /// # Arguments
@@ -78,14 +65,21 @@ impl RotationMatrix {
             value: Matrix3::new(e11, e21, e31, e12, e22, e32, e13, e23, e33),
         })
     }
+}
 
-    /// Creates an identity `RotationMatrix`.
-    ///
-    /// # Returns
-    ///
-    /// A new `RotationMatrix` representing the identity matrix.
-    pub fn identity() -> Self {
-        Self::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).unwrap()
+impl From<Matrix3> for RotationMatrix {
+    fn from(value: Matrix3) -> Self {
+        Self { value }
+    }
+}
+
+impl From<Rotation> for RotationMatrix {
+    fn from(rotation: Rotation) -> RotationMatrix {
+        match rotation {
+            Rotation::EulerAngles(rotation) => RotationMatrix::from(rotation),
+            Rotation::Quaternion(rotation) => RotationMatrix::from(rotation),
+            Rotation::RotationMatrix(rotation) => rotation,
+        }
     }
 }
 
@@ -120,6 +114,65 @@ impl From<Quaternion> for RotationMatrix {
     }
 }
 
+impl From<EulerAngles> for RotationMatrix {
+    /// Converts `EulerAngles` into a `RotationMatrix`.
+    ///
+    /// # Arguments
+    ///
+    /// * `euler_angles` - The euler_angles to be converted.
+    ///
+    /// # Returns
+    ///
+    /// A new `RotationMatrix` representing the rotation defined by the euler angles.
+    fn from(euler_angles: EulerAngles) -> RotationMatrix {
+        let rotx =
+            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), -a.sin(), 0.0, a.sin(), a.cos());
+        let roty =
+            |a: f64| Matrix3::new(a.cos(), 0.0, a.sin(), 0.0, 1.0, 0.0, -a.sin(), 0.0, a.cos());
+        let rotz =
+            |a: f64| Matrix3::new(a.cos(), -a.sin(), 0.0, a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
+
+        match euler_angles {
+            EulerAngles::XYZ(angles) => {
+                RotationMatrix::from(rotz(angles.psi) * roty(angles.theta) * rotx(angles.phi))
+            }
+            EulerAngles::XZY(angles) => {
+                RotationMatrix::from(roty(angles.psi) * rotz(angles.theta) * rotx(angles.phi))
+            }
+            EulerAngles::YXZ(angles) => {
+                RotationMatrix::from(rotz(angles.psi) * rotx(angles.theta) * roty(angles.phi))
+            }
+            EulerAngles::YZX(angles) => {
+                RotationMatrix::from(rotx(angles.psi) * rotz(angles.theta) * roty(angles.phi))
+            }
+            EulerAngles::ZXY(angles) => {
+                RotationMatrix::from(roty(angles.psi) * rotx(angles.theta) * rotz(angles.phi))
+            }
+            EulerAngles::ZYX(angles) => {
+                RotationMatrix::from(rotx(angles.psi) * roty(angles.theta) * rotz(angles.phi))
+            }
+            EulerAngles::XYX(angles) => {
+                RotationMatrix::from(rotx(angles.psi) * roty(angles.theta) * rotx(angles.phi))
+            }
+            EulerAngles::YXY(angles) => {
+                RotationMatrix::from(roty(angles.psi) * rotx(angles.theta) * roty(angles.phi))
+            }
+            EulerAngles::XZX(angles) => {
+                RotationMatrix::from(rotx(angles.psi) * rotz(angles.theta) * rotx(angles.phi))
+            }
+            EulerAngles::ZXZ(angles) => {
+                RotationMatrix::from(rotz(angles.psi) * rotx(angles.theta) * rotz(angles.phi))
+            }
+            EulerAngles::YZY(angles) => {
+                RotationMatrix::from(roty(angles.psi) * rotz(angles.theta) * roty(angles.phi))
+            }
+            EulerAngles::ZYZ(angles) => {
+                RotationMatrix::from(rotz(angles.psi) * roty(angles.theta) * rotz(angles.phi))
+            }
+        }
+    }
+}
+
 impl RotationTrait for RotationMatrix {
     /// Rotates a vector by the rotation matrix.
     ///
@@ -148,8 +201,16 @@ impl RotationTrait for RotationMatrix {
     }
 
     fn inv(&self) -> Self {
-        let rotation_matrix = RotationMatrix::from(*self).value;
-        RotationMatrix::from_mat(rotation_matrix.transpose())
+        RotationMatrix::from(self.value.transpose())
+    }
+
+    /// Creates an identity `RotationMatrix`.
+    ///
+    /// # Returns
+    ///
+    /// A new `RotationMatrix` representing the identity matrix.
+    fn identity() -> Self {
+        Self::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).unwrap()
     }
 }
 
@@ -166,6 +227,6 @@ impl Mul<RotationMatrix> for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the product of the two rotation matrices.
     fn mul(self, rhs: RotationMatrix) -> RotationMatrix {
-        RotationMatrix::from_mat(self.value * rhs.value)
+        RotationMatrix::from(self.value * rhs.value)
     }
 }

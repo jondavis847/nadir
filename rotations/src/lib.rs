@@ -40,6 +40,8 @@ pub trait RotationTrait {
     fn transform(&self, v: Vector3) -> Vector3;
 
     fn inv(&self) -> Self;
+
+    fn identity() -> Self;
 }
 
 /// Enum representing different types of rotations.
@@ -173,5 +175,9 @@ impl RotationTrait for Rotation {
             Rotation::RotationMatrix(rotation) => Rotation::RotationMatrix(rotation.inv()),
             Rotation::Quaternion(rotation) => Rotation::Quaternion(rotation.inv()),
         }
+    }
+
+    fn identity() -> Self {
+        Rotation::Quaternion(Quaternion::identity())
     }
 }

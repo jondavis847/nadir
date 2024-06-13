@@ -86,6 +86,7 @@ impl Vector3 {
             self.e1 * rhs.e2 - self.e2 * rhs.e1,
         )
     }
+    
 }
 
 impl Add<Vector3> for Vector3 {

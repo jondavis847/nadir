@@ -21,7 +21,7 @@ pub enum EulerAngles {
 
 impl Default for EulerAngles {
     fn default() -> Self {
-        EulerAngles::ZYX(Angles::new(0.0, 0.0, 0.0))
+        Self::identity()
     }
 }
 
@@ -64,15 +64,6 @@ impl Angles {
     /// A new `Angles` instance.
     pub fn new(phi: f64, theta: f64, psi: f64) -> Self {
         Self { phi, theta, psi }
-    }
-
-    /// Creates an identity `Angles` instance.
-    ///
-    /// # Returns
-    ///
-    /// A new `Angles` instance representing no rotation.
-    pub fn identity() -> Self {
-        Self::new(0.0, 0.0, 0.0)
     }
 }
 
@@ -153,5 +144,14 @@ impl RotationTrait for EulerAngles {
                 EulerAngles::ZYZ(Angles::new(-angles.phi, -angles.theta, -angles.psi))
             }
         }
+    }
+
+    /// Creates an identity `Angles` instance.
+    ///
+    /// # Returns
+    ///
+    /// A new `Angles` instance representing no rotation.
+    fn identity() -> Self {
+        EulerAngles::ZYX(Angles::new(0.0, 0.0, 0.0))
     }
 }

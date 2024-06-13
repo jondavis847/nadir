@@ -63,15 +63,6 @@ impl Quaternion {
         })
     }
 
-    /// Creates an identity quaternion.
-    ///
-    /// # Returns
-    ///
-    /// A `Quaternion` representing no rotation.
-    pub fn identity() -> Self {
-        Self::new(0.0, 0.0, 0.0, 1.0).unwrap()
-    }
-
     /// Creates a random quaternion.
     ///
     /// # Returns
@@ -86,13 +77,15 @@ impl Quaternion {
 
         Quaternion::new(x, y, z, s).unwrap()
     }
+}
 
+impl RotationTrait for Quaternion {
     /// Computes the inverse of the quaternion.
     ///
     /// # Returns
     ///
     /// A new `Quaternion` representing the inverse.
-    pub fn inv(&self) -> Self {
+    fn inv(&self) -> Self {
         Self::new(-self.x, -self.y, -self.z, self.s).unwrap()
     }
 
@@ -107,7 +100,7 @@ impl Quaternion {
     /// # Returns
     ///
     /// The rotated vector.
-    pub fn rotate(&self, v: Vector3) -> Vector3 {
+    fn rotate(&self, v: Vector3) -> Vector3 {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.s);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v.e1
@@ -138,7 +131,7 @@ impl Quaternion {
     /// # Returns
     ///
     /// The transformed vector.
-    pub fn transform(&self, v: Vector3) -> Vector3 {
+    fn transform(&self, v: Vector3) -> Vector3 {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.s);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v.e1
@@ -154,6 +147,15 @@ impl Quaternion {
             + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v.e3;
 
         Vector3::new(out1, out2, out3)
+    }
+
+    /// Creates an identity quaternion.
+    ///
+    /// # Returns
+    ///
+    /// A `Quaternion` representing no rotation.
+    fn identity() -> Self {
+        Self::new(0.0, 0.0, 0.0, 1.0).unwrap()
     }
 }
 

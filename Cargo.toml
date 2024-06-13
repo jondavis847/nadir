@@ -8,7 +8,7 @@ members = [
     "coordinate_systems",
     "linear_algebra",
     "multibody",
-    "rotations", "sim_value",
+    "rotations", "sim_value", "spatial_algebra",
     "transforms",    
 ]
 
