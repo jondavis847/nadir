@@ -196,6 +196,7 @@ dependencies = [
  "approx",
  "approx_eq",
  "coordinate_systems",
+ "linear_algebra",
  "rotations",
  "sim_value",
 ]

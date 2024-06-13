@@ -1,7 +1,7 @@
 use coordinate_systems::{
     cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
 };
-
+use linear_algebra::Vector3;
 use rotations::{Rotation, RotationTrait};
 use std::ops::Mul;
 
@@ -10,7 +10,8 @@ pub mod prelude {
     pub use rotations::prelude::*;
 }
 
-/// ROTATION IS ACTUALLY A TRANSFORM(PASSIVE ROTATION), NOT AN ACTIVE ROTATION
+/// Represents the rotational and translational
+/// Transform between two Frames
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Transform {
     pub rotation: Rotation,
@@ -26,19 +27,36 @@ impl Transform {
     }
 }
 
+impl Mul<Vector3> for Transform {
+    type Output = Vector3;
+    /// T is a transform from A to B
+    /// v is assumed to be values referenced in A
+    /// the output should be v referenced in B
+    fn mul(self, v_a: Vector3) -> Vector3 {
+        // the translation of T is referenced in A, so just add the translation
+        // translation is from A to B, so we need to take the negative since this is a transform, not motion
+        let v_a_translated_to_b = v_a - Cartesian::from(self.translation).vec();
+        // now transform via rotation
+        let v_b = self.rotation.transform(v_a_translated_to_b);
+        v_b
+    }
+}
+
 impl Mul<Transform> for Transform {
     type Output = Self;
 
+    /// The Transforms are implemented so that they work like Matrix multiplication.
+    /// i.e. to take some vector V_A to V_C, V_C = T_B2C * T_B2A * V_A
     fn mul(self, rhs: Transform) -> Transform {
-        // t1 is a transform from the f1 frame to the ref frame
-        let t1 = &self;
-        // t2 is a transform from the f2 frame to f1
-        let t2 = &rhs;
+        // t1 is a transform from the ref frame to the f1 frame
+        let t1 = &rhs;
+        // t2 is a transform from the f1 frame to f2
+        let t2 = &self;
 
         let translation_ref_to_t1_in_ref = t1.translation;
         let translation_t1_to_t2_in_t1 = t2.translation;
 
-        // convert to cartesian so we can transform it, then convert back
+        // convert to cartesian (in case it's something else) so we can transform it, then convert back
         let cartesian_vec = Cartesian::from(translation_t1_to_t2_in_t1).vec();
         let rotated_vec = t1.rotation.inv().transform(cartesian_vec);
         let translation_t1_to_t2_in_ref = match translation_t1_to_t2_in_t1 {
@@ -63,6 +81,7 @@ impl Mul<Transform> for Transform {
 mod tests {
     use super::*;
     use approx_eq::assert_approx_eq;
+    use linear_algebra::Vector3;
     use rotations::{
         euler_angles::{Angles, EulerAngles},
         quaternion::Quaternion,
@@ -77,6 +96,7 @@ mod tests {
         translation2: Cartesian,
         expected_angles: Angles,
         expected_translation: Cartesian,
+        expected_vector: Vector3,
     ) {
         let rotation1 = EulerAngles::XYZ(angles1).into();
         let transform1 = Transform::new(rotation1, translation1.into());
@@ -84,12 +104,15 @@ mod tests {
         let rotation2 = EulerAngles::XYZ(angles2).into();
         let transform2 = Transform::new(rotation2, translation2.into());
 
-        let result = transform1 * transform2;
+        let result = transform2 * transform1;
         let result_rotation = Quaternion::from(result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
         let expected_rotation = Quaternion::from(EulerAngles::XYZ(expected_angles));
         let expected_translation = expected_translation;
+
+        let test_vector = Vector3::new(1.0, 2.0, 3.0);
+        let result_vector = result * test_vector;
 
         assert_approx_eq!(result_rotation.s, expected_rotation.s, TOL);
         assert_approx_eq!(result_rotation.x, expected_rotation.x, TOL);
@@ -98,6 +121,51 @@ mod tests {
         assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
         assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
         assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
+        assert_approx_eq!(result_vector.e1, expected_vector.e1, TOL);
+        assert_approx_eq!(result_vector.e2, expected_vector.e2, TOL);
+        assert_approx_eq!(result_vector.e3, expected_vector.e3, TOL);
+    }
+
+    fn assert_transform_mul3(
+        angles1: Angles,
+        translation1: Cartesian,
+        angles2: Angles,
+        translation2: Cartesian,
+        angles3: Angles,
+        translation3: Cartesian,
+        expected_angles: Angles,
+        expected_translation: Cartesian,
+        expected_vector: Vector3,
+    ) {
+        let rotation1 = EulerAngles::XYZ(angles1).into();
+        let transform1 = Transform::new(rotation1, translation1.into());
+
+        let rotation2 = EulerAngles::XYZ(angles2).into();
+        let transform2 = Transform::new(rotation2, translation2.into());
+
+        let rotation3 = EulerAngles::XYZ(angles3).into();
+        let transform3 = Transform::new(rotation3, translation3.into());
+
+        let result = transform3 * (transform2 * transform1);
+        let result_rotation = Quaternion::from(result.rotation);
+        let result_translation = Cartesian::from(result.translation);
+
+        let expected_rotation = Quaternion::from(EulerAngles::XYZ(expected_angles));
+        let expected_translation = expected_translation;
+
+        let test_vector = Vector3::new(1.0, 2.0, 3.0);
+        let result_vector = result * test_vector;
+
+        assert_approx_eq!(result_rotation.s, expected_rotation.s, TOL);
+        assert_approx_eq!(result_rotation.x, expected_rotation.x, TOL);
+        assert_approx_eq!(result_rotation.y, expected_rotation.y, TOL);
+        assert_approx_eq!(result_rotation.z, expected_rotation.z, TOL);        
+        assert_approx_eq!(result_translation.x, expected_translation.x, TOL);        
+        assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
+        assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
+        assert_approx_eq!(result_vector.e1, expected_vector.e1, TOL);
+        assert_approx_eq!(result_vector.e2, expected_vector.e2, TOL);
+        assert_approx_eq!(result_vector.e3, expected_vector.e3, TOL);
     }
 
     #[test]
@@ -108,6 +176,7 @@ mod tests {
         let translation2 = Cartesian::new(1.0, 0.0, 0.0);
         let expected_angles = Angles::new(PI, 0.0, 0.0);
         let expected_translation = Cartesian::new(2.0, 0.0, 0.0);
+        let expected_vector = Vector3::new(-1.0, -2.0, -3.0);
 
         assert_transform_mul(
             angles1,
@@ -116,6 +185,7 @@ mod tests {
             translation2,
             expected_angles,
             expected_translation,
+            expected_vector,
         );
     }
 
@@ -127,6 +197,7 @@ mod tests {
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
         let expected_angles = Angles::new(0.0, PI, 0.0);
         let expected_translation = Cartesian::new(0.0, 2.0, 0.0);
+        let expected_vector = Vector3::new(-1.0, 0.0, -3.0);
 
         assert_transform_mul(
             angles1,
@@ -135,6 +206,7 @@ mod tests {
             translation2,
             expected_angles,
             expected_translation,
+            expected_vector,
         );
     }
 
@@ -146,6 +218,7 @@ mod tests {
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
         let expected_angles = Angles::new(0.0, 0.0, PI);
         let expected_translation = Cartesian::new(0.0, 0.0, 2.0);
+        let expected_vector = Vector3::new(-1.0, -2.0, 1.0);
 
         assert_transform_mul(
             angles1,
@@ -154,6 +227,7 @@ mod tests {
             translation2,
             expected_angles,
             expected_translation,
+            expected_vector,
         );
     }
 
@@ -165,6 +239,7 @@ mod tests {
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
         let expected_angles = Angles::new(PI / 2.0, PI / 2.0, 0.0);
         let expected_translation = Cartesian::new(1.0, 0.0, 1.0);
+        let expected_vector = Vector3::new(2.0, 2.0, 0.0);
 
         assert_transform_mul(
             angles1,
@@ -173,6 +248,75 @@ mod tests {
             translation2,
             expected_angles,
             expected_translation,
+            expected_vector,
+        );
+    }
+
+    #[test]
+    fn test_transform_mul_xz() {
+        let angles1 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let translation1 = Cartesian::new(1.0, 0.0, 0.0);
+        let angles2 = Angles::new(0.0, 0.0, PI / 2.0);
+        let translation2 = Cartesian::new(0.0, 0.0, 1.0);
+        let expected_angles = Angles::new(PI / 2.0, 0.0, PI / 2.0);
+        let expected_translation = Cartesian::new(1.0, -1.0, 0.0);
+        let expected_vector = Vector3::new(3.0, 0.0, -3.0);
+
+        assert_transform_mul(
+            angles1,
+            translation1,
+            angles2,
+            translation2,
+            expected_angles,
+            expected_translation,
+            expected_vector,
+        );
+    }
+
+    #[test]
+    fn test_transform_mul_yz() {
+        let angles1 = Angles::new(0.0, PI / 2.0, 0.0);
+        let translation1 = Cartesian::new(0.0, 1.0, 0.0);
+        let angles2 = Angles::new(0.0, 0.0, PI / 2.0);
+        let translation2 = Cartesian::new(0.0, 0.0, 1.0);
+        let expected_angles = Angles::new(0.0, PI / 2.0, PI / 2.0);
+        let expected_translation = Cartesian::new(1.0, 1.0, 0.0);
+        let expected_vector = Vector3::new(1.0, 3.0, 0.0);
+
+        assert_transform_mul(
+            angles1,
+            translation1,
+            angles2,
+            translation2,
+            expected_angles,
+            expected_translation,
+            expected_vector,
+        );
+    }
+
+    #[test]
+    fn test_transform_mul_zyx() {
+        let angles1 = Angles::new(0.0, 0.0, PI / 2.0);
+        let translation1 = Cartesian::new(0.0, 0.0, 1.0);
+        let angles2 = Angles::new(0.0, PI / 2.0, 0.0);
+        let translation2 = Cartesian::new(0.0, 1.0, 0.0);
+        let angles3 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let translation3 = Cartesian::new(1.0, 0.0, 0.0);
+
+        let expected_angles = Angles::new(PI / 2.0, PI / 2.0, -PI / 2.0);
+        let expected_translation = Cartesian::new(-1.0, 0.0, 0.0);
+        let expected_vector = Vector3::new(-3.0, 2.0, 2.0);
+
+        assert_transform_mul3(
+            angles1,
+            translation1,
+            angles2,
+            translation2,
+            angles3,
+            translation3,
+            expected_angles,
+            expected_translation,
+            expected_vector,
         );
     }
 }

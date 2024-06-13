@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Add, Mul, Sub};
 
 /// A 3-dimensional vector.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -88,6 +88,20 @@ impl Vector3 {
     }
 }
 
+impl Add<Vector3> for Vector3 {
+    type Output = Self;
+    fn add(self, rhs: Vector3) -> Vector3 {
+        Vector3::new(self.e1 + rhs.e1, self.e2 + rhs.e2, self.e3 + rhs.e3)
+    }
+}
+
+impl Sub<Vector3> for Vector3 {
+    type Output = Self;
+    fn sub(self, rhs: Vector3) -> Vector3 {
+        Vector3::new(self.e1 - rhs.e1, self.e2 - rhs.e2, self.e3 - rhs.e3)
+    }
+}
+
 /// A 3x3 matrix.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Matrix3 {
@@ -103,7 +117,6 @@ pub struct Matrix3 {
 }
 
 impl Matrix3 {
-
     /// Creates a new `Matrix3` with the given elements.
     ///
     /// # Arguments
@@ -121,7 +134,7 @@ impl Matrix3 {
     /// # Returns
     ///
     /// A `Matrix3` instance.
-    pub fn from_vec(v:[f64;9]) -> Self {
+    pub fn from_vec(v: [f64; 9]) -> Self {
         Self {
             e11: v[0],
             e21: v[1],
