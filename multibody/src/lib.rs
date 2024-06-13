@@ -123,8 +123,10 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn calculate_transforms(&mut self) {
-
+    pub fn update_joints(&mut self) {
+        self.joints
+            .iter_mut()
+            .for_each(|joint| joint.update_transforms());
     }
 
     pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef> {
@@ -256,7 +258,7 @@ fn find_body_for_sort(
     new_joints: &mut Vec<JointRef>,
 ) {
     new_joints.push(joint.clone());
-    find_joints_for_sort(joint.get_outer_body().unwrap(), new_bodies, new_joints);
+    find_joints_for_sort(joint.get_outer_body().unwrap().body, new_bodies, new_joints);
 }
 
 fn find_joints_for_sort(
@@ -266,8 +268,6 @@ fn find_joints_for_sort(
 ) {
     new_bodies.push(body.clone());
     for joint_connection in body.get_outer_joints() {
-        find_body_for_sort(joint_connection.component, new_bodies, new_joints);
+        find_body_for_sort(joint_connection.joint, new_bodies, new_joints);
     }
 }
-
-

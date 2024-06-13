@@ -39,17 +39,16 @@ fn main() {
     let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
     sys.add_body(body2.clone());
 
-
     dbg!(&sys);
-    
-    base.connect_outer_joint(joint2.clone(), Transform::default());
-    joint2.connect_inner_body(base.clone());
-    body2.connect_inner_joint(joint2.clone(), Transform::default());
-    joint2.connect_outer_body(body2.clone());
-    body2.connect_outer_joint(joint1.clone(), Transform::default());
-    joint1.connect_inner_body(body2.clone());
-    body1.connect_inner_joint(joint1.clone(), Transform::default());
-    joint1.connect_outer_body(body1.clone());
+
+    base.connect_outer_joint(joint2.clone());
+    joint2.connect_inner_body(base.clone(), Transform::default());
+    body2.connect_inner_joint(joint2.clone());
+    joint2.connect_outer_body(body2.clone(), Transform::default());
+    body2.connect_outer_joint(joint1.clone());
+    joint1.connect_inner_body(body2.clone(), Transform::default());
+    body1.connect_inner_joint(joint1.clone());
+    joint1.connect_outer_body(body1.clone(), Transform::default());
 
     sys.sort();
     dbg!(&sys);

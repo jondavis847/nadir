@@ -1,10 +1,12 @@
 use crate::{
     body::BodyRef,
-    joint::{JointEnum, JointConnection, JointErrors, JointParameters, JointRef, JointTrait},
+    joint::{
+        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait, JointTransforms,
+    },
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
-use rotations::euler_angles::{Angles,EulerAngles};
+use rotations::euler_angles::{Angles, EulerAngles};
 use std::cell::RefCell;
 use std::rc::Rc;
 use transforms::Transform;
@@ -33,68 +35,90 @@ impl RevoluteState {
 
 #[derive(Debug, Clone)]
 pub struct Revolute {
-    connection: JointConnection,
-    name: String,
+    common: JointCommon,
     parameters: JointParameters,
     state: RevoluteState,
 }
 
 impl Revolute {
     pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
+        let common = JointCommon::new(name);
+
         Rc::new(RefCell::new(JointEnum::Revolute(Self {
-            connection: JointConnection::default(),
-            name: name.to_string(),
-            parameters: parameters,
-            state: state,
+            common,
+            parameters,
+            state,
         })))
     }
 }
 
 impl JointTrait for Revolute {
-    fn connect_inner_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
-        if self.connection.inner_body.is_some() {
+    fn connect_inner_body(
+        &mut self,
+        body: BodyRef,
+        transform: Transform,
+    ) -> Result<(), JointErrors> {
+        if self.common.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
-        self.connection.inner_body = Some(body);
+        let connection = Connection::new(body, transform);
+        self.common.connection.inner_body = Some(connection);
         Ok(())
     }
 
-    fn connect_outer_body(&mut self, body: BodyRef) -> Result<(), JointErrors> {
-        if self.connection.outer_body.is_some() {
-            return Err(JointErrors::InnerBodyExists);
+    fn connect_outer_body(
+        &mut self,
+        body: BodyRef,
+        transform: Transform,
+    ) -> Result<(), JointErrors> {
+        if self.common.connection.outer_body.is_some() {
+            return Err(JointErrors::OuterBodyExists);
         }
-        self.connection.outer_body = Some(body);
+        let connection = Connection::new(body, transform);
+        self.common.connection.outer_body = Some(connection);
         Ok(())
     }
-
-    fn calculate_transform(&mut self) {}
 
     fn delete_inner_body(&mut self) {
-        if self.connection.inner_body.is_some() {
-            self.connection.inner_body = None;
+        if self.common.connection.inner_body.is_some() {
+            self.common.connection.inner_body = None;
         }
     }
 
     fn delete_outer_body(&mut self) {
-        if self.connection.outer_body.is_some() {
-            self.connection.outer_body = None;
+        if self.common.connection.outer_body.is_some() {
+            self.common.connection.outer_body = None;
         }
     }
 
-    fn get_inner_body(&self) -> Option<BodyRef> {
-        self.connection.inner_body.clone()
+    fn get_inner_body(&self) -> Option<Connection> {
+        self.common.connection.inner_body.clone()
     }
-    fn get_outer_body(&self) -> Option<BodyRef> {
-        self.connection.outer_body.clone()
+    fn get_outer_body(&self) -> Option<Connection> {
+        self.common.connection.outer_body.clone()
+    }
+
+    fn get_transforms(&self) -> JointTransforms {
+        self.common.transforms
+    }
+
+    fn update_transforms(&mut self) {
+        //update the joint transform (transform from joint inner frame(jif) to joint outer frame (jof))
+        let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, self.state.theta));
+        // assume this is about Z until we add more axes
+        self.state.transform.rotation = rotation.into();
+
+        //update all of the transforms now that we have updated the joint transform        
+        self.common.update_transforms();
     }
 }
 
 impl MultibodyTrait for Revolute {
     fn get_name(&self) -> &str {
-        &self.name
+        &self.common.name
     }
 
     fn set_name(&mut self, name: String) {
-        self.name = name;
+        self.common.name = name;
     }
 }

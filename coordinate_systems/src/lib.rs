@@ -4,10 +4,9 @@ pub mod spherical;
 
 use cartesian::Cartesian;
 use cylindrical::Cylindrical;
-use spherical::Spherical;
 use linear_algebra::Vector3;
-use std::ops::Add;
-
+use spherical::Spherical;
+use std::ops::{Add, Neg};
 
 pub mod prelude {
     pub use crate::cartesian::Cartesian;
@@ -15,7 +14,6 @@ pub mod prelude {
     pub use crate::spherical::Spherical;
     pub use crate::CoordinateSystem;
 }
-
 
 /// Represents a point in a generic coordinate system, which can be Cartesian, Cylindrical, or Spherical.
 #[derive(Debug, Copy, Clone)]
@@ -42,6 +40,17 @@ impl CoordinateSystem {
             CoordinateSystem::Cartesian(cs) => cs.vec(),
             CoordinateSystem::Cylindrical(cs) => cs.vec(),
             CoordinateSystem::Spherical(cs) => cs.vec(),
+        }
+    }
+}
+
+impl Neg for CoordinateSystem {
+    type Output = Self;
+    fn neg(self) -> Self {
+        match self {
+            CoordinateSystem::Cartesian(cs) => CoordinateSystem::Cartesian(cs.neg()),
+            CoordinateSystem::Cylindrical(cs) => CoordinateSystem::Cylindrical(cs.neg()),
+            CoordinateSystem::Spherical(cs) => CoordinateSystem::Spherical(cs.neg()),
         }
     }
 }

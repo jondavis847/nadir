@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
-use transforms::Transform;
 
 use super::{
     base::Base,
@@ -11,17 +10,9 @@ use super::{
 };
 
 pub trait BodyTrait {
-    fn connect_inner_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors>;
+    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors>;
+    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
 
     fn delete_inner_joint(&mut self);
     fn delete_outer_joint(&mut self, jointref: JointRef);
@@ -32,20 +23,12 @@ pub trait BodyTrait {
 pub type BodyRef = Rc<RefCell<BodyEnum>>;
 
 impl BodyTrait for BodyRef {
-    fn connect_inner_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
-        self.borrow_mut().connect_inner_joint(jointref, transform)
+    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
+        self.borrow_mut().connect_inner_joint(jointref)
     }
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
-        self.borrow_mut().connect_outer_joint(jointref, transform)
+    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
+        self.borrow_mut().connect_outer_joint(jointref)
     }
 
     fn delete_inner_joint(&mut self) {
@@ -71,25 +54,17 @@ pub enum BodyEnum {
 }
 
 impl BodyTrait for BodyEnum {
-    fn connect_inner_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         match self {
-            BodyEnum::Base(base) => base.connect_inner_joint(jointref, transform),
-            BodyEnum::Body(body) => body.connect_inner_joint(jointref, transform),
+            BodyEnum::Base(base) => base.connect_inner_joint(jointref),
+            BodyEnum::Body(body) => body.connect_inner_joint(jointref),
         }
     }
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         match self {
-            BodyEnum::Base(base) => base.connect_outer_joint(jointref, transform),
-            BodyEnum::Body(body) => body.connect_outer_joint(jointref, transform),
+            BodyEnum::Base(base) => base.connect_outer_joint(jointref),
+            BodyEnum::Body(body) => body.connect_outer_joint(jointref),
         }
     }
 
@@ -146,24 +121,21 @@ pub enum BodyErrors {
     OuterJointExists,
 }
 
+// this is just needed for printing so that we don't recursively print the references
 #[derive(Clone)]
 pub struct BodyJointConnection {
-    pub component: JointRef,
-    pub transform: Transform,
+    pub joint: JointRef,
 }
 
 impl BodyJointConnection {
-    pub fn new(component: JointRef, transform: Transform) -> Self {
-        Self {
-            component,
-            transform,
-        }
+    pub fn new(joint: JointRef) -> Self {
+        Self { joint }
     }
 }
 
 impl fmt::Debug for BodyJointConnection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let joint = self.component.borrow();
+        let joint = self.joint.borrow();
 
         f.debug_struct("BodyJointConnection")
             .field("joint_name", &joint.get_name())
@@ -178,7 +150,6 @@ pub struct Body {
     mass_properties: MassProperties,
     name: String,
     outer_joints: Vec<BodyJointConnection>,
-    transforms: Vec<BodyTransforms>,
     //sensors: Vec<BodySensorConnection>,
 }
 
@@ -193,8 +164,6 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
-            transforms: Vec::new(),
-            //sensors: Vec::new(),
         }))))
     }
 
@@ -305,23 +274,15 @@ impl Body {
 }
 
 impl BodyTrait for Body {
-    fn connect_inner_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         match self.inner_joint {
             Some(_) => return Err(BodyErrors::InnerJointExists),
-            None => self.inner_joint = Some(BodyJointConnection::new(jointref, transform)),
+            None => self.inner_joint = Some(BodyJointConnection::new(jointref)),
         }
         Ok(())
     }
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         // Borrow the joint and get its name
         let joint_name = jointref.borrow().get_name().to_string();
 
@@ -329,14 +290,13 @@ impl BodyTrait for Body {
         if self
             .outer_joints
             .iter()
-            .any(|connection| connection.component.borrow().get_name() == joint_name)
+            .any(|connection| connection.joint.borrow().get_name() == joint_name)
         {
             return Err(BodyErrors::OuterJointExists);
         }
 
         // Push the new joint connection
-        self.outer_joints
-            .push(BodyJointConnection::new(jointref, transform));
+        self.outer_joints.push(BodyJointConnection::new(jointref));
         Ok(())
     }
 
@@ -348,7 +308,7 @@ impl BodyTrait for Body {
 
     fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.outer_joints
-            .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
+            .retain(|connection| !Rc::ptr_eq(&connection.joint, &jointref));
     }
 
     fn get_inner_joint(&self) -> Option<BodyJointConnection> {
@@ -359,6 +319,7 @@ impl BodyTrait for Body {
         self.outer_joints.clone()
     }
 }
+
 impl MultibodyTrait for Body {
     fn get_name(&self) -> &str {
         &self.name
@@ -367,20 +328,4 @@ impl MultibodyTrait for Body {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
-}
-
-/// base: the "body/base frame" of the base
-/// body: the "body frame" of the current body
-/// parent: the "body frame" of the parent body of the current body
-/// ijof: the "inner joint outer frame" of the current body
-#[derive(Clone, Copy, Debug)]
-struct BodyTransforms {
-    ijof_to_parent: Transform,
-    ijof_to_base: Transform,
-    parent_to_ijof: Transform,
-    base_to_ijof: Transform,
-    body_to_parent: Transform,
-    body_to_base: Transform,
-    parent_to_body: Transform,
-    base_to_body: Transform,
 }

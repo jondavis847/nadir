@@ -1,4 +1,3 @@
-use coordinate_systems::cartesian::Cartesian;
 use linear_algebra::Vector3;
 use rotations::rotation_matrix::RotationMatrix;
 use std::ops::Mul;

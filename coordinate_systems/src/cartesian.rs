@@ -1,6 +1,6 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
 use linear_algebra::Vector3;
-use std::ops::Add;
+use std::ops::{Add, Neg};
 
 /// Represents a point in Cartesian coordinates.
 #[derive(Clone, Copy, Debug, Default)]
@@ -115,6 +115,13 @@ impl From<CoordinateSystem> for Cartesian {
             CoordinateSystem::Cylindrical(cs) => cs.into(),
             CoordinateSystem::Spherical(cs) => cs.into(),
         }
+    }
+}
+
+impl Neg for Cartesian {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self::new(-self.x, -self.y, -self.z)
     }
 }
 

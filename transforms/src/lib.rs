@@ -25,6 +25,15 @@ impl Transform {
             translation,
         }
     }
+
+    pub fn inv(&self) -> Self {
+        let rotation = self.rotation.inv();
+        let translation = -self.translation;
+        Self {
+            rotation,
+            translation,
+        }
+    }
 }
 
 impl Mul<Vector3> for Transform {
@@ -159,8 +168,8 @@ mod tests {
         assert_approx_eq!(result_rotation.s, expected_rotation.s, TOL);
         assert_approx_eq!(result_rotation.x, expected_rotation.x, TOL);
         assert_approx_eq!(result_rotation.y, expected_rotation.y, TOL);
-        assert_approx_eq!(result_rotation.z, expected_rotation.z, TOL);        
-        assert_approx_eq!(result_translation.x, expected_translation.x, TOL);        
+        assert_approx_eq!(result_rotation.z, expected_rotation.z, TOL);
+        assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
         assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
         assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
         assert_approx_eq!(result_vector.e1, expected_vector.e1, TOL);

@@ -1,6 +1,6 @@
 use super::{cartesian::Cartesian, spherical::Spherical};
 use linear_algebra::Vector3;
-use std::ops::Add;
+use std::ops::{Add, Neg};
 
 /// Represents a point in cylindrical coordinates.  Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0.
@@ -89,6 +89,14 @@ impl From<Spherical> for Cylindrical {
         let radius = spherical.radius * spherical.inclination.sin(); // rho = r * sin(phi)
         let height = spherical.radius * spherical.inclination.cos(); // z = r * cos(phi)
         Cylindrical::new(radius, spherical.azimuth, height) // cylindrical (rho, azimuth, z)
+    }
+}
+
+// might be a faster way to do this than converting but we probably wont need to do this often
+impl Neg for Cylindrical {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Cylindrical::from(Cartesian::from(self).neg())
     }
 }
 

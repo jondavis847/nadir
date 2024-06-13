@@ -3,7 +3,6 @@ use super::{
     joint::JointRef,
     MultibodyTrait,
 };
-use transforms::Transform;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,19 +29,11 @@ impl Base {
 pub enum BaseErrors {}
 
 impl BodyTrait for Base {
-    fn connect_inner_joint(
-        &mut self,
-        _jointref: JointRef,
-        _transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, _jointref: JointRef) -> Result<(), BodyErrors> {
         Err(BodyErrors::NoBaseInnerConnection)
     }
 
-    fn connect_outer_joint(
-        &mut self,
-        jointref: JointRef,
-        transform: Transform,
-    ) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         // Borrow the joint and get its name
         let joint_name = jointref.borrow().get_name().to_string();
 
@@ -50,14 +41,13 @@ impl BodyTrait for Base {
         if self
             .outer_joints
             .iter()
-            .any(|connection| connection.component.borrow().get_name() == joint_name)
+            .any(|connection| connection.joint.borrow().get_name() == joint_name)
         {
             return Err(BodyErrors::OuterJointExists);
         }
 
         // Push the new joint connection
-        self.outer_joints
-            .push(BodyJointConnection::new(jointref, transform));
+        self.outer_joints.push(BodyJointConnection::new(jointref));
         Ok(())
     }
 
@@ -67,7 +57,7 @@ impl BodyTrait for Base {
 
     fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.outer_joints
-            .retain(|connection| !Rc::ptr_eq(&connection.component, &jointref));
+            .retain(|connection| !Rc::ptr_eq(&connection.joint, &jointref));
     }
 
     fn get_inner_joint(&self) -> Option<BodyJointConnection> {
