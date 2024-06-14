@@ -39,7 +39,7 @@ impl Add<Motion> for Motion {
     fn add(self, rhs: Motion) -> Motion {
         Motion::new(
             self.rotation + rhs.rotation,
-            self.translation + rhs.rotation,
+            self.translation + rhs.translation,
         )
     }
 }
@@ -63,7 +63,7 @@ impl Add<Force> for Force {
     fn add(self, rhs: Force) -> Force {
         Force::new(
             self.rotation + rhs.rotation,
-            self.translation + rhs.rotation,
+            self.translation + rhs.translation,
         )
     }
 }
