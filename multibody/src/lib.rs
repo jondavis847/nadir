@@ -6,7 +6,6 @@ pub mod mass_properties;
 use base::{Base, BaseErrors};
 use body::{Body, BodyEnum, BodyErrors, BodyRef, BodyTrait};
 use joint::{revolute::RevoluteErrors, JointEnum, JointRef, JointTrait};
-use transforms::Transform;
 
 pub enum MultibodyErrors {
     Base(BaseErrors),

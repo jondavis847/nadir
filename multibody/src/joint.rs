@@ -95,8 +95,8 @@ impl JointCommon {
     pub fn update_transforms(&mut self) {
         // transforms are multiplied like matrices from right to left.
         // i.e. if you want to express v from frame A in frame C
-        // you would use vC = C_to_B * B_to_A * vA
-        // this means that the transform outer_body_to_inner_body is actually a
+        // you would use vC = C_from_B * B_from_A * vA
+        // this means that the transform outer_body_from_inner_body is actually a
         // transform from the inner body to the outer body
         // I just like this notation better
 
@@ -105,33 +105,34 @@ impl JointCommon {
         let parent_joint_connection = parent.get_inner_joint().unwrap();
         let parent_joint = parent_joint_connection.joint.borrow();
         let parent_joint_transforms = parent_joint.get_transforms();
-        let ib_to_base = parent_joint_transforms.outer_body_to_base;
+        // this joints inner_body_from_base is the parent joints outer_body_from_base
+        let ib_from_base = parent_joint_transforms.outer_body_from_base;
 
         // get transforms for calculations
-        let jif_to_jof = self.transforms.jif_to_jof;
-        let jof_to_jif = jif_to_jof.inv();
-        let ib_to_jif = self.connection.inner_body.as_ref().unwrap().transform;
-        let jif_to_ib = ib_to_jif.inv();
-        let ob_to_jof = self.connection.outer_body.as_ref().unwrap().transform;
+        let jif_from_jof = self.transforms.jif_from_jof;
+        let jof_from_jif = jif_from_jof.inv();
+        let ib_from_jif = self.connection.inner_body.as_ref().unwrap().transform;
+        let jif_from_ib = ib_from_jif.inv();
+        let ob_from_jof = self.connection.outer_body.as_ref().unwrap().transform;
 
         // calculate the transforms
-        let jof_to_ib = jof_to_jif * jif_to_ib;
-        let ib_to_jof = jof_to_ib.inv();
-        let jof_to_base = jof_to_ib * ib_to_base;
-        let base_to_jof = jof_to_base.inv();
-        let ob_to_ib = ob_to_jof * jof_to_ib;
-        let ib_to_ob = ob_to_ib.inv();
-        let ob_to_base = ob_to_ib * ib_to_base;
-        let base_to_ob = ob_to_base.inv();
+        let jof_from_ib = jof_from_jif * jif_from_ib;
+        let ib_from_jof = jof_from_ib.inv();
+        let jof_from_base = jof_from_ib * ib_from_base;
+        let base_from_jof = jof_from_base.inv();
+        let ob_from_ib = ob_from_jof * jof_from_ib;
+        let ib_from_ob = ob_from_ib.inv();
+        let ob_from_base = ob_from_ib * ib_from_base;
+        let base_from_ob = ob_from_base.inv();
 
-        self.transforms.jof_to_inner_body = jof_to_ib;
-        self.transforms.inner_body_to_jof = ib_to_jof;
-        self.transforms.jof_to_base = jof_to_base;
-        self.transforms.base_to_jof = base_to_jof;
-        self.transforms.outer_body_to_inner_body = ob_to_ib;
-        self.transforms.inner_body_to_outer_body = ib_to_ob;
-        self.transforms.outer_body_to_base = ob_to_base;
-        self.transforms.base_to_outer_body = base_to_ob;
+        self.transforms.jof_from_inner_body = jof_from_ib;
+        self.transforms.inner_body_from_jof = ib_from_jof;
+        self.transforms.jof_from_base = jof_from_base;
+        self.transforms.base_from_jof = base_from_jof;
+        self.transforms.outer_body_from_inner_body = ob_from_ib;
+        self.transforms.inner_body_from_outer_body = ib_from_ob;
+        self.transforms.outer_body_from_base = ob_from_base;
+        self.transforms.base_from_outer_body = base_from_ob;
     }
 }
 
@@ -275,6 +276,9 @@ impl JointParameters {
     }
 }
 
+/// We use the terminology B_from_A rather than A_from_B so that notation matches matrix multiplication
+/// i.e. v_C = C_from_B * B_from_A * v_A instead of
+///      v_C = (A_from_B * B_from_C) * v_A
 /// base: the "body/base frame" of the base
 /// inner_body: the "body frame" of the body on the base side of the joint
 /// outer_body: the "body frame" of the body on the tip side of the joint
@@ -282,13 +286,13 @@ impl JointParameters {
 /// jof: the "joint outer frame"
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JointTransforms {
-    jif_to_jof: Transform,
-    jof_to_inner_body: Transform,
-    jof_to_base: Transform,
-    inner_body_to_jof: Transform,
-    base_to_jof: Transform,
-    outer_body_to_inner_body: Transform,
-    inner_body_to_outer_body: Transform,
-    outer_body_to_base: Transform,
-    base_to_outer_body: Transform,
+    jif_from_jof: Transform,
+    jof_from_inner_body: Transform,
+    jof_from_base: Transform,
+    inner_body_from_jof: Transform,
+    base_from_jof: Transform,
+    outer_body_from_inner_body: Transform,
+    inner_body_from_outer_body: Transform,
+    outer_body_from_base: Transform,
+    base_from_outer_body: Transform,
 }
