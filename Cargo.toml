@@ -6,7 +6,7 @@ edition = "2021"
 [workspace]
 members = [    
     "coordinate_systems",
-    "linear_algebra",
+    "linear_algebra", "mass_properties",
     "multibody",
     "rotations", "sim_value", "spatial_algebra",
     "transforms",    
@@ -17,3 +17,4 @@ coordinate_systems = {path = "./coordinate_systems"}
 multibody = { path = "./multibody" }
 rotations = { path = "./rotations" }
 transforms = { path = "./transforms" }
+mass_properties = {path = "./mass_properties"}

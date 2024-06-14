@@ -2,7 +2,6 @@ pub mod articulated_body_algorithm;
 pub mod base;
 pub mod body;
 pub mod joint;
-pub mod mass_properties;
 
 use base::{Base, BaseErrors};
 use body::{Body, BodyEnum, BodyErrors, BodyRef, BodyTrait};

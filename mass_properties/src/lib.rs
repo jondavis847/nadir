@@ -1,13 +1,19 @@
+use linear_algebra::{Matrix3, Vector3};
+
 #[derive(Clone, Copy, Debug, Default)]
-struct CenterOfMass {
+pub struct CenterOfMass {
     cmx: f64,
     cmy: f64,
     cmz: f64,
 }
 
 impl CenterOfMass {
-    fn new(cmx: f64, cmy: f64, cmz: f64) -> Self {
+    pub fn new(cmx: f64, cmy: f64, cmz: f64) -> Self {
         Self { cmx, cmy, cmz }
+    }
+
+    pub fn vec(&self) -> Vector3 {
+        Vector3::new(self.cmx, self.cmy, self.cmz)
     }
 
     /// Returns the x-coordinate of the center of mass.
@@ -41,14 +47,24 @@ impl CenterOfMass {
     }
 }
 
+impl From<Vector3> for CenterOfMass {
+    fn from(v: Vector3) -> CenterOfMass {
+        CenterOfMass {
+            cmx: v.e1,
+            cmy: v.e2,
+            cmz: v.e3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
-struct Inertia {
-    ixx: f64,
-    ixy: f64,
-    ixz: f64,
-    iyy: f64,
-    iyz: f64,
-    izz: f64,
+pub struct Inertia {
+    pub ixx: f64,
+    pub ixy: f64,
+    pub ixz: f64,
+    pub iyy: f64,
+    pub iyz: f64,
+    pub izz: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,7 +75,7 @@ pub enum InertiaErrors {
 }
 
 impl Inertia {
-    fn new(
+    pub fn new(
         ixx: f64,
         iyy: f64,
         izz: f64,
@@ -86,22 +102,29 @@ impl Inertia {
         })
     }
 
-    fn get_ixx(&self) -> f64 {
+    pub fn mat(&self) -> Matrix3 {
+        Matrix3::new(
+            self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
+            self.izz,
+        )
+    }
+
+    pub fn get_ixx(&self) -> f64 {
         self.ixx
     }
-    fn get_iyy(&self) -> f64 {
+    pub fn get_iyy(&self) -> f64 {
         self.iyy
     }
-    fn get_izz(&self) -> f64 {
+    pub fn get_izz(&self) -> f64 {
         self.izz
     }
-    fn get_ixy(&self) -> f64 {
+    pub fn get_ixy(&self) -> f64 {
         self.ixy
     }
-    fn get_ixz(&self) -> f64 {
+    pub fn get_ixz(&self) -> f64 {
         self.ixz
     }
-    fn get_iyz(&self) -> f64 {
+    pub fn get_iyz(&self) -> f64 {
         self.iyz
     }
 
@@ -155,13 +178,20 @@ impl Inertia {
     }
 }
 
+impl From<Matrix3> for Inertia {
+    fn from(m: Matrix3) -> Inertia {
+        //TODO add checks on the matrix
+        Inertia::new(m.e11, m.e22, m.e33, m.e12, m.e13, m.e32).unwrap()
+    }
+}
+
 /// Represents the mass properties of an object
 /// Mass, Center of Mass, Inertia
 #[derive(Debug, Clone, Copy)]
 pub struct MassProperties {
-    center_of_mass: CenterOfMass,
-    mass: f64,
-    inertia: Inertia,
+    pub center_of_mass: CenterOfMass,
+    pub mass: f64,
+    pub inertia: Inertia,
 }
 
 /// Enum representing possible errors when creating or modifying `MassProperties`.
@@ -193,31 +223,16 @@ impl MassProperties {
     /// are less than or equal to zero.
     pub fn new(
         mass: f64,
-        cmx: f64,
-        cmy: f64,
-        cmz: f64,
-        ixx: f64,
-        iyy: f64,
-        izz: f64,
-        ixy: f64,
-        ixz: f64,
-        iyz: f64,
+        center_of_mass: CenterOfMass,
+        inertia: Inertia,
     ) -> Result<Self, MassPropertiesErrors> {
         if mass <= f64::EPSILON {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
         }
-
-        let center_of_mass = CenterOfMass::new(cmx, cmy, cmz);
-
-        let inertia = match Inertia::new(ixx, iyy, izz, ixy, ixz, iyz) {
-            Ok(inertia) => inertia,
-            Err(error) => return Err(MassPropertiesErrors::Inertia(error)),
-        };
-
-        Ok(Self {
+        Ok(MassProperties {
+            mass,
             center_of_mass,
             inertia,
-            mass,
         })
     }
 

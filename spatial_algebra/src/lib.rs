@@ -1,9 +1,10 @@
 use linear_algebra::Vector3;
+use mass_properties::MassProperties;
 use rotations::rotation_matrix::RotationMatrix;
 use std::ops::{Add, Mul};
 use transforms::Transform;
 
-#[derive(Clone,Copy,Debug,Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Motion {
     pub rotation: Vector3,    //TODO should we force this as Cartesian?
     pub translation: Vector3, //TODO should we force this as Cartesian?
@@ -16,9 +17,16 @@ impl Motion {
             translation,
         }
     }
+    /// Featherstone 2.33
+    pub fn cross(self, rhs: Motion) -> Motion {
+        let rotation = self.rotation.cross(rhs.rotation);
+        let translation =
+            self.rotation.cross(rhs.translation) + self.translation.cross(rhs.rotation);
+        Motion::new(rotation, translation)
+    }
 }
 
-#[derive(Clone,Copy,Debug,Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Force {
     pub rotation: Vector3,    //TODO should we force this as Cartesian?
     pub translation: Vector3, //TODO should we force this as Cartesian?
@@ -31,13 +39,38 @@ impl Force {
             translation,
         }
     }
+
+    ///Featherstone 2.34
+    pub fn cross(self, rhs: Force) -> Force {
+        let rotation = self.rotation.cross(rhs.rotation) + self.translation.cross(rhs.translation);
+        let translation = self.rotation.cross(rhs.translation);
+        Force::new(rotation, translation)
+    }
 }
+
+// we only need this as wrapper on Transform, other wise we cant impl Mul<Motion> for Transform since it's not in this crate :(
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SpatialTransform {
     value: Transform,
 }
 
+impl SpatialTransform {
+    #[inline]
+    pub fn inv(&self) -> SpatialTransform {
+        SpatialTransform::from(self.value.inv())
+    }
+}
+
+impl From<Transform> for SpatialTransform {
+    #[inline]
+    fn from(value: Transform) -> SpatialTransform {
+        SpatialTransform { value }
+    }
+}
+
 impl Add<Motion> for Motion {
     type Output = Motion;
+    #[inline]
     fn add(self, rhs: Motion) -> Motion {
         Motion::new(
             self.rotation + rhs.rotation,
@@ -62,6 +95,7 @@ impl Mul<Motion> for SpatialTransform {
 
 impl Add<Force> for Force {
     type Output = Force;
+    #[inline]
     fn add(self, rhs: Force) -> Force {
         Force::new(
             self.rotation + rhs.rotation,
@@ -69,7 +103,6 @@ impl Add<Force> for Force {
         )
     }
 }
-
 
 impl Mul<Force> for SpatialTransform {
     type Output = Force;
@@ -82,5 +115,23 @@ impl Mul<Force> for SpatialTransform {
             rotation_matrix * force.rotation - rotation_matrix * r_skew * force.translation;
         let translation = rotation_matrix * force.translation;
         Force::new(rotation, translation)
+    }
+}
+
+impl Mul<SpatialTransform> for SpatialTransform {
+    type Output = SpatialTransform;
+    #[inline]
+    fn mul(self, rhs: SpatialTransform) -> SpatialTransform {
+        SpatialTransform::from(self.value * rhs.value)
+    }
+}
+
+struct SpatialInertia {
+    value: MassProperties,
+}
+
+impl From<MassProperties> for SpatialInertia {
+    fn from(value: MassProperties) -> SpatialInertia {
+        SpatialInertia { value }
     }
 }

@@ -52,6 +52,7 @@ name = "gdt"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
+ "mass_properties",
  "multibody",
  "rotations",
  "transforms",
@@ -83,6 +84,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mass_properties"
+version = "0.1.0"
+dependencies = [
+ "linear_algebra",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -93,6 +101,7 @@ name = "multibody"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
+ "mass_properties",
  "rotations",
  "sim_value",
  "spatial_algebra",
@@ -196,6 +205,7 @@ version = "0.1.0"
 dependencies = [
  "coordinate_systems",
  "linear_algebra",
+ "mass_properties",
  "rotations",
  "transforms",
 ]
@@ -208,6 +218,7 @@ dependencies = [
  "approx_eq",
  "coordinate_systems",
  "linear_algebra",
+ "mass_properties",
  "rotations",
  "sim_value",
 ]

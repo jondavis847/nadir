@@ -8,5 +8,6 @@ coordinate_systems = {path = "../coordinate_systems"}
 linear_algebra = {path = "../linear_algebra"}
 rotations = {path = "../rotations"}
 sim_value = {path = "../sim_value"}
+mass_properties = {path = "../mass_properties"}
 approx = "0.5.1"
 approx_eq = "0.1.8"

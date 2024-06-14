@@ -8,3 +8,4 @@ coordinate_systems = {path = "../coordinate_systems"}
 linear_algebra = {path = "../linear_algebra"}
 rotations = {path = "../rotations"}
 transforms = {path = "../transforms"}
+mass_properties = {path = "../mass_properties"}

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
+use mass_properties::{MassProperties, MassPropertiesErrors};
 
 use super::{
     base::Base,
-    joint::JointRef,
-    mass_properties::{MassProperties, MassPropertiesErrors},
+    joint::JointRef,    
     MultibodyTrait,
 };
 

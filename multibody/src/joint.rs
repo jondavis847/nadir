@@ -1,7 +1,10 @@
+use crate::articulated_body_algorithm::ArticulatedBodyAlgorithm;
+
 use super::{
     body::{BodyRef, BodyTrait},
     MultibodyTrait,
 };
+use spatial_algebra::{Force, Motion, SpatialTransform};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -90,8 +93,13 @@ impl JointCommon {
             transforms: JointTransforms::default(),
         }
     }
-}
-impl JointCommon {
+
+    pub fn get_inner_joint(&self) -> JointRef {
+        let inner_body = self.connection.inner_body.as_ref().unwrap().body.borrow();
+        let inner_joint_connection = inner_body.get_inner_joint().unwrap();
+        inner_joint_connection.joint.clone()
+    }
+
     pub fn update_transforms(&mut self) {
         // transforms are multiplied like matrices from right to left.
         // i.e. if you want to express v from frame A in frame C
@@ -101,20 +109,21 @@ impl JointCommon {
         // I just like this notation better
 
         // get relevant transforms from the parent for calculations  to the base
-        let inner_body = self.connection.inner_body.as_ref().unwrap().body.borrow();
-        let inner_joint_connection = inner_body.get_inner_joint().unwrap();
-        let inner_joint = inner_joint_connection.joint.borrow();
+        let inner_jointref = self.get_inner_joint();
+        let inner_joint = inner_jointref.borrow();
         let inner_joint_transforms = inner_joint.get_transforms();
 
         // this joints inner body is the parent joints outer body
-        let ij_jof_from_base = inner_joint_transforms.jof_from_base;
-        let ib_from_ij_jof = inner_joint_transforms.ob_from_jof;
-        let jif_from_base = self.transforms.jif_from_ib * ib_from_ij_jof * ij_jof_from_base;
-        let jof_from_base = self.transforms.jof_from_jif * jif_from_base;
+        let jof_from_ij_jof = self.transforms.jif_from_ib * inner_joint_transforms.ob_from_jof;
+        let ij_jof_from_jof = jof_from_ij_jof.inv();
 
+        let ij_jof_from_base = inner_joint_transforms.jof_from_base;
+        let jof_from_base = jof_from_ij_jof * ij_jof_from_base;
+
+        self.transforms.jof_from_ij_jof = jof_from_ij_jof;
+        self.transforms.ij_jof_from_jof = ij_jof_from_jof;
         self.transforms.jof_from_base = jof_from_base;
         self.transforms.base_from_jof = jof_from_base.inv();
-        
     }
 }
 
@@ -194,6 +203,40 @@ impl JointTrait for JointEnum {
     }
 }
 
+impl ArticulatedBodyAlgorithm for JointEnum {
+    fn first_pass(&mut self) {
+        match self {
+            JointEnum::Revolute(joint) => joint.first_pass(),
+        }
+    }
+    fn second_pass(&mut self) {
+        match self {
+            JointEnum::Revolute(joint) => joint.second_pass(),
+        }
+    }
+    fn third_pass(&mut self) {
+        match self {
+            JointEnum::Revolute(joint) => joint.third_pass(),
+        }
+    }
+    fn get_v(&self) -> Motion {
+        match self {
+            JointEnum::Revolute(joint) => joint.get_v(),
+        }
+    }
+    fn get_p_big_a(&self) -> Force {
+        match self {
+            JointEnum::Revolute(joint) => joint.get_p_big_a(),
+        }
+    }
+
+    fn get_a(&self) -> Motion {
+        match self {
+            JointEnum::Revolute(joint) => joint.get_a(),
+        }
+    }
+}
+
 // We choose to keep the transform information with the joint rather than the body.
 // This is because bodies can have multiple outer joints where as a joint only has one inner or outer body.
 // If it was in the body, and I want the the transform from parent body to this body,
@@ -269,17 +312,21 @@ impl JointParameters {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JointTransforms {
     // joint frame
-    jif_from_jof: Transform, // joint-inner-frame from joint-outer-frame
-    jof_from_jif: Transform, // joint-outer-frame from joint-inner-frame
+    jif_from_jof: SpatialTransform, // my-joint-inner-frame from my-joint-outer-frame
+    jof_from_jif: SpatialTransform, // my-joint-outer-frame from my-joint-inner-frame
 
     // body to joint frames
-    jif_from_ib: Transform, // joint-inner-frame from inner-body-frame
-    ib_from_jif: Transform, // inner-body-frame from joint-inner-frame
+    jif_from_ib: SpatialTransform, // my-joint-inner-frame from my-inner-body-frame
+    ib_from_jif: SpatialTransform, // my-inner-body-frame from my-joint-inner-frame
 
-    jof_from_ob: Transform, // joint-outer-frame from body-frame
-    ob_from_jof: Transform, // outer-body-frame from joint-outer-frame
+    jof_from_ob: SpatialTransform, // my-joint-outer-frame from my-outer-body-frame
+    ob_from_jof: SpatialTransform, // my-outer-body-frame from my-joint-outer-frame
+
+    // joint to joint frames
+    jof_from_ij_jof: SpatialTransform, // my-joint-outer-frame from inner-joint-outer-frame
+    ij_jof_from_jof: SpatialTransform, // inner-joint-outer-frame from my-joint-outer-frame
 
     // base to joint frames - only need outer really
-    jof_from_base: Transform,
-    base_from_jof: Transform,
+    jof_from_base: SpatialTransform,
+    base_from_jof: SpatialTransform,
 }

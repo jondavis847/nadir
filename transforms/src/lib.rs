@@ -2,7 +2,8 @@ use coordinate_systems::{
     cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
 };
 use linear_algebra::Vector3;
-use rotations::{Rotation, RotationTrait};
+use mass_properties::{CenterOfMass, Inertia, MassProperties};
+use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use std::ops::Mul;
 
 pub mod prelude {
@@ -83,6 +84,47 @@ impl Mul<Transform> for Transform {
         let new_translation = translation_ref_to_t2_in_ref;
 
         Transform::new(new_rotation, new_translation)
+    }
+}
+
+impl Mul<MassProperties> for Transform {
+    type Output = MassProperties;
+    fn mul(self, rhs: MassProperties) -> MassProperties {
+        let mass = rhs.mass;
+
+        let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vec());
+
+        let inertia = rhs.inertia.mat();
+        let rotation_matrix = RotationMatrix::from(self.rotation).value;
+
+        // first transform the inertia (note passive rotation matrix from passive rotation)
+        let rotated_inertia =
+            Inertia::from(rotation_matrix.transpose() * inertia * rotation_matrix);
+
+        // rotate the translation
+        let translation = Cartesian::from(self.translation).vec();
+        let rotated_translation = self.rotation.transform(translation);
+
+        // apply parallel axis theorem
+        let dx = rotated_translation.e1;
+        let dy = rotated_translation.e2;
+        let dz = rotated_translation.e3;
+
+        let dx2 = dx * dx;
+        let dy2 = dy * dy;
+        let dz2 = dz * dz;
+
+        let new_inertia = Inertia::new(
+            rotated_inertia.get_ixx() + mass * (dy2 + dz2),
+            rotated_inertia.get_ixy() - mass * dx * dy,
+            rotated_inertia.get_ixz() - mass * dx * dz,
+            rotated_inertia.get_iyy() + mass * (dx2 + dz2),
+            rotated_inertia.get_iyz() - mass * dy * dz,
+            rotated_inertia.get_izz() + mass * (dx2 + dy2),
+        )
+        .unwrap();
+
+        MassProperties::new(mass, new_center_of_mass, new_inertia).unwrap()
     }
 }
 

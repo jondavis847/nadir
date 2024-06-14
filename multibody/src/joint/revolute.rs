@@ -1,6 +1,6 @@
 use crate::{
-    articulated_body_algorithm::AbaCache,
-    body::BodyRef,
+    articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+    body::{BodyRef, BodyTrait},
     joint::{
         Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
         JointTransforms,
@@ -10,7 +10,7 @@ use crate::{
 use coordinate_systems::CoordinateSystem;
 use rotations::euler_angles::{Angles, EulerAngles};
 use spatial_algebra::{Force, Motion};
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 use transforms::Transform;
 
@@ -103,7 +103,6 @@ impl JointTrait for Revolute {
     fn get_outer_body(&self) -> Option<Connection> {
         self.common.connection.outer_body.clone()
     }
-
     fn get_transforms(&self) -> JointTransforms {
         self.common.transforms
     }
@@ -138,12 +137,32 @@ struct RevoluteAbaCache {
     q: f64,
     q_dot: f64,
     q_ddot: f64,
+    Ia: f64,
 }
 
-//impl ArticulatedBodyAlgorithm for Revolute {
-//    fn first_pass(&mut self) {
-//        self.aba.common.v = self.common.transforms.
-//    }
-//    fn second_pass(&mut self);
-//   fn third_pass(&mut self);
-//}
+impl ArticulatedBodyAlgorithm for Revolute {
+    fn first_pass(&mut self) {
+        let parent_ref = self.common.get_inner_joint();
+        let parent = parent_ref.borrow();
+        let transforms = &self.common.transforms;
+
+        let aba = &mut self.state.aba.common;
+
+        aba.v = transforms.jof_from_ij_jof * parent.get_v() + aba.vj;
+        aba.c = aba.v.cross(aba.vj); // + cj
+    }
+    fn second_pass(&mut self) {}
+    fn third_pass(&mut self) {}
+
+    fn get_v(&self) -> Motion {
+        self.state.aba.common.v
+    }
+
+    fn get_p_big_a(&self) -> Force {
+        self.state.aba.common.p_big_a
+    }
+
+    fn get_a(&self) -> Motion {
+        self.state.aba.common.a
+    }
+}
