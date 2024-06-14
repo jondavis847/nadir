@@ -95,6 +95,7 @@ dependencies = [
  "coordinate_systems",
  "rotations",
  "sim_value",
+ "spatial_algebra",
  "transforms",
 ]
 

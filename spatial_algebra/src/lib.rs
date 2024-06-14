@@ -3,6 +3,7 @@ use rotations::rotation_matrix::RotationMatrix;
 use std::ops::{Add, Mul};
 use transforms::Transform;
 
+#[derive(Clone,Copy,Debug,Default)]
 pub struct Motion {
     pub rotation: Vector3,    //TODO should we force this as Cartesian?
     pub translation: Vector3, //TODO should we force this as Cartesian?
@@ -17,6 +18,7 @@ impl Motion {
     }
 }
 
+#[derive(Clone,Copy,Debug,Default)]
 pub struct Force {
     pub rotation: Vector3,    //TODO should we force this as Cartesian?
     pub translation: Vector3, //TODO should we force this as Cartesian?

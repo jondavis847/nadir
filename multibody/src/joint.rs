@@ -109,8 +109,8 @@ impl JointCommon {
         let ib_from_base = parent_joint_transforms.outer_body_from_base;
 
         // get transforms for calculations
-        let jif_from_jof = self.transforms.jif_from_jof;
-        let jof_from_jif = jif_from_jof.inv();
+        let jof_from_jif = self.transforms.jof_from_jif;
+        let jif_from_jof = jof_from_jif.inv();
         let ib_from_jif = self.connection.inner_body.as_ref().unwrap().transform;
         let jif_from_ib = ib_from_jif.inv();
         let ob_from_jof = self.connection.outer_body.as_ref().unwrap().transform;
@@ -286,7 +286,7 @@ impl JointParameters {
 /// jof: the "joint outer frame"
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JointTransforms {
-    jif_from_jof: Transform,
+    jof_from_jif: Transform,
     jof_from_inner_body: Transform,
     jof_from_base: Transform,
     inner_body_from_jof: Transform,

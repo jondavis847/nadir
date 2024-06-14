@@ -1,12 +1,15 @@
 use crate::{
+    articulated_body_algorithm::AbaCache,
     body::BodyRef,
     joint::{
-        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait, JointTransforms,
+        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
+        JointTransforms,
     },
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
 use rotations::euler_angles::{Angles, EulerAngles};
+use spatial_algebra::{Force, Motion};
 use std::cell::RefCell;
 use std::rc::Rc;
 use transforms::Transform;
@@ -18,6 +21,7 @@ pub struct RevoluteState {
     theta: f64,
     omega: f64,
     transform: Transform,
+    aba: RevoluteAbaCache,
 }
 
 impl RevoluteState {
@@ -25,10 +29,12 @@ impl RevoluteState {
         let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, theta));
         // assume this is about Z until we add more axes
         let transform = Transform::new(rotation.into(), CoordinateSystem::default());
+        let aba = RevoluteAbaCache::default();
         Self {
             theta,
             omega,
             transform,
+            aba,
         }
     }
 }
@@ -108,7 +114,7 @@ impl JointTrait for Revolute {
         // assume this is about Z until we add more axes
         self.state.transform.rotation = rotation.into();
 
-        //update all of the transforms now that we have updated the joint transform        
+        //update all of the transforms now that we have updated the joint transform
         self.common.update_transforms();
     }
 }
@@ -122,3 +128,22 @@ impl MultibodyTrait for Revolute {
         self.common.name = name;
     }
 }
+
+#[derive(Clone, Copy, Debug, Default)]
+struct RevoluteAbaCache {
+    common: AbaCache,
+    u: f64,
+    D: f64,
+    U: f64,
+    q: f64,
+    q_dot: f64,
+    q_ddot: f64,
+}
+
+//impl ArticulatedBodyAlgorithm for Revolute {
+//    fn first_pass(&mut self) {
+//        self.aba.common.v = self.common.transforms.
+//    }
+//    fn second_pass(&mut self);
+//   fn third_pass(&mut self);
+//}

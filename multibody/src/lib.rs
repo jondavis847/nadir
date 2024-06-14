@@ -1,3 +1,4 @@
+pub mod articulated_body_algorithm;
 pub mod base;
 pub mod body;
 pub mod joint;

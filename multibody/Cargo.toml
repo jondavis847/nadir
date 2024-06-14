@@ -8,3 +8,4 @@ sim_value = {path = "../sim_value"}
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 rotations = {path = "../rotations"}
+spatial_algebra = {path = "../spatial_algebra"}
