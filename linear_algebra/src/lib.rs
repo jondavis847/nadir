@@ -1,4 +1,7 @@
+pub mod matrix6;
+pub mod vector6;
 use std::ops::{Add, Mul, Sub};
+use rand::Rng;
 
 /// A 3-dimensional vector.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -86,7 +89,6 @@ impl Vector3 {
             self.e1 * rhs.e2 - self.e2 * rhs.e1,
         )
     }
-    
 }
 
 impl Add<Vector3> for Vector3 {
@@ -189,7 +191,20 @@ impl Matrix3 {
             e33,
         }
     }
-
+    pub fn rand() -> Matrix3 {
+        let mut rng = rand::thread_rng();
+        Matrix3 {
+            e11: rng.gen(),
+            e21: rng.gen(),
+            e31: rng.gen(),
+            e12: rng.gen(),
+            e22: rng.gen(),
+            e32: rng.gen(),
+            e13: rng.gen(),
+            e23: rng.gen(),
+            e33: rng.gen(),
+        }
+    }
     pub fn transpose(&self) -> Self {
         Matrix3::new(
             self.e11, self.e12, self.e13, self.e21, self.e22, self.e23, self.e31, self.e32,
