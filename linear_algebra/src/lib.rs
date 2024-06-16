@@ -1,10 +1,12 @@
 pub mod matrix6;
 pub mod vector6;
-use std::ops::{Add, Mul, Sub};
 use rand::Rng;
+use std::fmt;
+use std::ops::{Add, Mul, Sub};
+use utilities::format_number;
 
 /// A 3-dimensional vector.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct Vector3 {
     pub e1: f64,
     pub e2: f64,
@@ -89,6 +91,15 @@ impl Vector3 {
             self.e1 * rhs.e2 - self.e2 * rhs.e1,
         )
     }
+
+    pub fn rand() -> Vector3 {
+        let mut rng = rand::thread_rng();
+        Vector3 {
+            e1: rng.gen(),
+            e2: rng.gen(),
+            e3: rng.gen(),            
+        }
+    }
 }
 
 impl Add<Vector3> for Vector3 {
@@ -105,8 +116,17 @@ impl Sub<Vector3> for Vector3 {
     }
 }
 
+impl fmt::Debug for Vector3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Vector3 ")?;
+        writeln!(f, "   {}", format_number(self.e1))?;
+        writeln!(f, "   {}", format_number(self.e2))?;
+        writeln!(f, "   {}", format_number(self.e3))
+    }
+}
+
 /// A 3x3 matrix.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Matrix3 {
     pub e11: f64,
     pub e21: f64,
@@ -257,6 +277,27 @@ impl Mul<Matrix3> for Matrix3 {
             self.e11 * rhs.e13 + self.e12 * rhs.e23 + self.e13 * rhs.e33,
             self.e21 * rhs.e13 + self.e22 * rhs.e23 + self.e23 * rhs.e33,
             self.e31 * rhs.e13 + self.e32 * rhs.e23 + self.e33 * rhs.e33,
+        )
+    }
+}
+
+impl fmt::Debug for Matrix3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Matrix3 ")?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e11, self.e12, self.e13
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e21, self.e22, self.e23
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e31, self.e32, self.e33
         )
     }
 }

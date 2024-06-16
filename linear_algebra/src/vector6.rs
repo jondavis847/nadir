@@ -51,13 +51,12 @@ impl Vector6 {
 
 impl fmt::Debug for Vector6 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Vector6 [")?;
+        writeln!(f, "Vector6 ")?;
         writeln!(f, "   {}", self.e1)?;
         writeln!(f, "   {}", self.e2)?;
         writeln!(f, "   {}", self.e3)?;
         writeln!(f, "   {}", self.e4)?;
         writeln!(f, "   {}", self.e5)?;
-        writeln!(f, "   {}", self.e6)?;
-        writeln!(f, "]")
+        writeln!(f, "   {}", self.e6)
     }
 }

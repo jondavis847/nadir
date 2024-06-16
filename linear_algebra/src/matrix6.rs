@@ -1,7 +1,9 @@
+use super::{vector6::Vector6, Matrix3};
+use rand::Rng;
+use std::fmt;
 use std::ops::Mul;
-use super::{Matrix3, vector6::Vector6};
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Matrix6 {
     e11: f64,
     e12: f64,
@@ -82,18 +84,90 @@ impl Matrix6 {
             e66: m4.e33,
         }
     }
+
+    pub fn rand() -> Matrix6 {
+        let mut rng = rand::thread_rng();
+        Matrix6 {
+            e11: rng.gen(),
+            e12: rng.gen(),
+            e13: rng.gen(),
+            e14: rng.gen(),
+            e15: rng.gen(),
+            e16: rng.gen(),
+            e21: rng.gen(),
+            e22: rng.gen(),
+            e23: rng.gen(),
+            e24: rng.gen(),
+            e25: rng.gen(),
+            e26: rng.gen(),
+            e31: rng.gen(),
+            e32: rng.gen(),
+            e33: rng.gen(),
+            e34: rng.gen(),
+            e35: rng.gen(),
+            e36: rng.gen(),
+            e41: rng.gen(),
+            e42: rng.gen(),
+            e43: rng.gen(),
+            e44: rng.gen(),
+            e45: rng.gen(),
+            e46: rng.gen(),
+            e51: rng.gen(),
+            e52: rng.gen(),
+            e53: rng.gen(),
+            e54: rng.gen(),
+            e55: rng.gen(),
+            e56: rng.gen(),
+            e61: rng.gen(),
+            e62: rng.gen(),
+            e63: rng.gen(),
+            e64: rng.gen(),
+            e65: rng.gen(),
+            e66: rng.gen(),
+        }
+    }
 }
 
 impl Mul<Vector6> for Matrix6 {
     type Output = Vector6;
     fn mul(self, rhs: Vector6) -> Vector6 {
         Vector6 {
-            e1: self.e11 * rhs.e1 + self.e12 * rhs.e2 + self.e13 * rhs.e3 + self.e14 * rhs.e4 + self.e15 * rhs.e5 + self.e16 * rhs.e6,
-            e2: self.e21 * rhs.e1 + self.e22 * rhs.e2 + self.e23 * rhs.e3 + self.e24 * rhs.e4 + self.e25 * rhs.e5 + self.e26 * rhs.e6,
-            e3: self.e31 * rhs.e1 + self.e32 * rhs.e2 + self.e33 * rhs.e3 + self.e34 * rhs.e4 + self.e35 * rhs.e5 + self.e36 * rhs.e6,
-            e4: self.e41 * rhs.e1 + self.e42 * rhs.e2 + self.e43 * rhs.e3 + self.e44 * rhs.e4 + self.e45 * rhs.e5 + self.e46 * rhs.e6,
-            e5: self.e51 * rhs.e1 + self.e52 * rhs.e2 + self.e53 * rhs.e3 + self.e54 * rhs.e4 + self.e55 * rhs.e5 + self.e56 * rhs.e6,
-            e6: self.e61 * rhs.e1 + self.e62 * rhs.e2 + self.e63 * rhs.e3 + self.e64 * rhs.e4 + self.e65 * rhs.e5 + self.e66 * rhs.e6,
+            e1: self.e11 * rhs.e1
+                + self.e12 * rhs.e2
+                + self.e13 * rhs.e3
+                + self.e14 * rhs.e4
+                + self.e15 * rhs.e5
+                + self.e16 * rhs.e6,
+            e2: self.e21 * rhs.e1
+                + self.e22 * rhs.e2
+                + self.e23 * rhs.e3
+                + self.e24 * rhs.e4
+                + self.e25 * rhs.e5
+                + self.e26 * rhs.e6,
+            e3: self.e31 * rhs.e1
+                + self.e32 * rhs.e2
+                + self.e33 * rhs.e3
+                + self.e34 * rhs.e4
+                + self.e35 * rhs.e5
+                + self.e36 * rhs.e6,
+            e4: self.e41 * rhs.e1
+                + self.e42 * rhs.e2
+                + self.e43 * rhs.e3
+                + self.e44 * rhs.e4
+                + self.e45 * rhs.e5
+                + self.e46 * rhs.e6,
+            e5: self.e51 * rhs.e1
+                + self.e52 * rhs.e2
+                + self.e53 * rhs.e3
+                + self.e54 * rhs.e4
+                + self.e55 * rhs.e5
+                + self.e56 * rhs.e6,
+            e6: self.e61 * rhs.e1
+                + self.e62 * rhs.e2
+                + self.e63 * rhs.e3
+                + self.e64 * rhs.e4
+                + self.e65 * rhs.e5
+                + self.e66 * rhs.e6,
         }
     }
 }
@@ -102,47 +176,227 @@ impl Mul<Matrix6> for Matrix6 {
     type Output = Matrix6;
     fn mul(self, rhs: Matrix6) -> Matrix6 {
         Matrix6 {
-            e11: self.e11 * rhs.e11 + self.e12 * rhs.e21 + self.e13 * rhs.e31 + self.e14 * rhs.e41 + self.e15 * rhs.e51 + self.e16 * rhs.e61,
-            e12: self.e11 * rhs.e12 + self.e12 * rhs.e22 + self.e13 * rhs.e32 + self.e14 * rhs.e42 + self.e15 * rhs.e52 + self.e16 * rhs.e62,
-            e13: self.e11 * rhs.e13 + self.e12 * rhs.e23 + self.e13 * rhs.e33 + self.e14 * rhs.e43 + self.e15 * rhs.e53 + self.e16 * rhs.e63,
-            e14: self.e11 * rhs.e14 + self.e12 * rhs.e24 + self.e13 * rhs.e34 + self.e14 * rhs.e44 + self.e15 * rhs.e54 + self.e16 * rhs.e64,
-            e15: self.e11 * rhs.e15 + self.e12 * rhs.e25 + self.e13 * rhs.e35 + self.e14 * rhs.e45 + self.e15 * rhs.e55 + self.e16 * rhs.e65,
-            e16: self.e11 * rhs.e16 + self.e12 * rhs.e26 + self.e13 * rhs.e36 + self.e14 * rhs.e46 + self.e15 * rhs.e56 + self.e16 * rhs.e66,
+            e11: self.e11 * rhs.e11
+                + self.e12 * rhs.e21
+                + self.e13 * rhs.e31
+                + self.e14 * rhs.e41
+                + self.e15 * rhs.e51
+                + self.e16 * rhs.e61,
+            e12: self.e11 * rhs.e12
+                + self.e12 * rhs.e22
+                + self.e13 * rhs.e32
+                + self.e14 * rhs.e42
+                + self.e15 * rhs.e52
+                + self.e16 * rhs.e62,
+            e13: self.e11 * rhs.e13
+                + self.e12 * rhs.e23
+                + self.e13 * rhs.e33
+                + self.e14 * rhs.e43
+                + self.e15 * rhs.e53
+                + self.e16 * rhs.e63,
+            e14: self.e11 * rhs.e14
+                + self.e12 * rhs.e24
+                + self.e13 * rhs.e34
+                + self.e14 * rhs.e44
+                + self.e15 * rhs.e54
+                + self.e16 * rhs.e64,
+            e15: self.e11 * rhs.e15
+                + self.e12 * rhs.e25
+                + self.e13 * rhs.e35
+                + self.e14 * rhs.e45
+                + self.e15 * rhs.e55
+                + self.e16 * rhs.e65,
+            e16: self.e11 * rhs.e16
+                + self.e12 * rhs.e26
+                + self.e13 * rhs.e36
+                + self.e14 * rhs.e46
+                + self.e15 * rhs.e56
+                + self.e16 * rhs.e66,
 
-            e21: self.e21 * rhs.e11 + self.e22 * rhs.e21 + self.e23 * rhs.e31 + self.e24 * rhs.e41 + self.e25 * rhs.e51 + self.e26 * rhs.e61,
-            e22: self.e21 * rhs.e12 + self.e22 * rhs.e22 + self.e23 * rhs.e32 + self.e24 * rhs.e42 + self.e25 * rhs.e52 + self.e26 * rhs.e62,
-            e23: self.e21 * rhs.e13 + self.e22 * rhs.e23 + self.e23 * rhs.e33 + self.e24 * rhs.e43 + self.e25 * rhs.e53 + self.e26 * rhs.e63,
-            e24: self.e21 * rhs.e14 + self.e22 * rhs.e24 + self.e23 * rhs.e34 + self.e24 * rhs.e44 + self.e25 * rhs.e54 + self.e26 * rhs.e64,
-            e25: self.e21 * rhs.e15 + self.e22 * rhs.e25 + self.e23 * rhs.e35 + self.e24 * rhs.e45 + self.e25 * rhs.e55 + self.e26 * rhs.e65,
-            e26: self.e21 * rhs.e16 + self.e22 * rhs.e26 + self.e23 * rhs.e36 + self.e24 * rhs.e46 + self.e25 * rhs.e56 + self.e26 * rhs.e66,
+            e21: self.e21 * rhs.e11
+                + self.e22 * rhs.e21
+                + self.e23 * rhs.e31
+                + self.e24 * rhs.e41
+                + self.e25 * rhs.e51
+                + self.e26 * rhs.e61,
+            e22: self.e21 * rhs.e12
+                + self.e22 * rhs.e22
+                + self.e23 * rhs.e32
+                + self.e24 * rhs.e42
+                + self.e25 * rhs.e52
+                + self.e26 * rhs.e62,
+            e23: self.e21 * rhs.e13
+                + self.e22 * rhs.e23
+                + self.e23 * rhs.e33
+                + self.e24 * rhs.e43
+                + self.e25 * rhs.e53
+                + self.e26 * rhs.e63,
+            e24: self.e21 * rhs.e14
+                + self.e22 * rhs.e24
+                + self.e23 * rhs.e34
+                + self.e24 * rhs.e44
+                + self.e25 * rhs.e54
+                + self.e26 * rhs.e64,
+            e25: self.e21 * rhs.e15
+                + self.e22 * rhs.e25
+                + self.e23 * rhs.e35
+                + self.e24 * rhs.e45
+                + self.e25 * rhs.e55
+                + self.e26 * rhs.e65,
+            e26: self.e21 * rhs.e16
+                + self.e22 * rhs.e26
+                + self.e23 * rhs.e36
+                + self.e24 * rhs.e46
+                + self.e25 * rhs.e56
+                + self.e26 * rhs.e66,
 
-            e31: self.e31 * rhs.e11 + self.e32 * rhs.e21 + self.e33 * rhs.e31 + self.e34 * rhs.e41 + self.e35 * rhs.e51 + self.e36 * rhs.e61,
-            e32: self.e31 * rhs.e12 + self.e32 * rhs.e22 + self.e33 * rhs.e32 + self.e34 * rhs.e42 + self.e35 * rhs.e52 + self.e36 * rhs.e62,
-            e33: self.e31 * rhs.e13 + self.e32 * rhs.e23 + self.e33 * rhs.e33 + self.e34 * rhs.e43 + self.e35 * rhs.e53 + self.e36 * rhs.e63,
-            e34: self.e31 * rhs.e14 + self.e32 * rhs.e24 + self.e33 * rhs.e34 + self.e34 * rhs.e44 + self.e35 * rhs.e54 + self.e36 * rhs.e64,
-            e35: self.e31 * rhs.e15 + self.e32 * rhs.e25 + self.e33 * rhs.e35 + self.e34 * rhs.e45 + self.e35 * rhs.e55 + self.e36 * rhs.e65,
-            e36: self.e31 * rhs.e16 + self.e32 * rhs.e26 + self.e33 * rhs.e36 + self.e34 * rhs.e46 + self.e35 * rhs.e56 + self.e36 * rhs.e66,
+            e31: self.e31 * rhs.e11
+                + self.e32 * rhs.e21
+                + self.e33 * rhs.e31
+                + self.e34 * rhs.e41
+                + self.e35 * rhs.e51
+                + self.e36 * rhs.e61,
+            e32: self.e31 * rhs.e12
+                + self.e32 * rhs.e22
+                + self.e33 * rhs.e32
+                + self.e34 * rhs.e42
+                + self.e35 * rhs.e52
+                + self.e36 * rhs.e62,
+            e33: self.e31 * rhs.e13
+                + self.e32 * rhs.e23
+                + self.e33 * rhs.e33
+                + self.e34 * rhs.e43
+                + self.e35 * rhs.e53
+                + self.e36 * rhs.e63,
+            e34: self.e31 * rhs.e14
+                + self.e32 * rhs.e24
+                + self.e33 * rhs.e34
+                + self.e34 * rhs.e44
+                + self.e35 * rhs.e54
+                + self.e36 * rhs.e64,
+            e35: self.e31 * rhs.e15
+                + self.e32 * rhs.e25
+                + self.e33 * rhs.e35
+                + self.e34 * rhs.e45
+                + self.e35 * rhs.e55
+                + self.e36 * rhs.e65,
+            e36: self.e31 * rhs.e16
+                + self.e32 * rhs.e26
+                + self.e33 * rhs.e36
+                + self.e34 * rhs.e46
+                + self.e35 * rhs.e56
+                + self.e36 * rhs.e66,
 
-            e41: self.e41 * rhs.e11 + self.e42 * rhs.e21 + self.e43 * rhs.e31 + self.e44 * rhs.e41 + self.e45 * rhs.e51 + self.e46 * rhs.e61,
-            e42: self.e41 * rhs.e12 + self.e42 * rhs.e22 + self.e43 * rhs.e32 + self.e44 * rhs.e42 + self.e45 * rhs.e52 + self.e46 * rhs.e62,
-            e43: self.e41 * rhs.e13 + self.e42 * rhs.e23 + self.e43 * rhs.e33 + self.e44 * rhs.e43 + self.e45 * rhs.e53 + self.e46 * rhs.e63,
-            e44: self.e41 * rhs.e14 + self.e42 * rhs.e24 + self.e43 * rhs.e34 + self.e44 * rhs.e44 + self.e45 * rhs.e54 + self.e46 * rhs.e64,
-            e45: self.e41 * rhs.e15 + self.e42 * rhs.e25 + self.e43 * rhs.e35 + self.e44 * rhs.e45 + self.e45 * rhs.e55 + self.e46 * rhs.e65,
-            e46: self.e41 * rhs.e16 + self.e42 * rhs.e26 + self.e43 * rhs.e36 + self.e44 * rhs.e46 + self.e45 * rhs.e56 + self.e46 * rhs.e66,
+            e41: self.e41 * rhs.e11
+                + self.e42 * rhs.e21
+                + self.e43 * rhs.e31
+                + self.e44 * rhs.e41
+                + self.e45 * rhs.e51
+                + self.e46 * rhs.e61,
+            e42: self.e41 * rhs.e12
+                + self.e42 * rhs.e22
+                + self.e43 * rhs.e32
+                + self.e44 * rhs.e42
+                + self.e45 * rhs.e52
+                + self.e46 * rhs.e62,
+            e43: self.e41 * rhs.e13
+                + self.e42 * rhs.e23
+                + self.e43 * rhs.e33
+                + self.e44 * rhs.e43
+                + self.e45 * rhs.e53
+                + self.e46 * rhs.e63,
+            e44: self.e41 * rhs.e14
+                + self.e42 * rhs.e24
+                + self.e43 * rhs.e34
+                + self.e44 * rhs.e44
+                + self.e45 * rhs.e54
+                + self.e46 * rhs.e64,
+            e45: self.e41 * rhs.e15
+                + self.e42 * rhs.e25
+                + self.e43 * rhs.e35
+                + self.e44 * rhs.e45
+                + self.e45 * rhs.e55
+                + self.e46 * rhs.e65,
+            e46: self.e41 * rhs.e16
+                + self.e42 * rhs.e26
+                + self.e43 * rhs.e36
+                + self.e44 * rhs.e46
+                + self.e45 * rhs.e56
+                + self.e46 * rhs.e66,
 
-            e51: self.e51 * rhs.e11 + self.e52 * rhs.e21 + self.e53 * rhs.e31 + self.e54 * rhs.e41 + self.e55 * rhs.e51 + self.e56 * rhs.e61,
-            e52: self.e51 * rhs.e12 + self.e52 * rhs.e22 + self.e53 * rhs.e32 + self.e54 * rhs.e42 + self.e55 * rhs.e52 + self.e56 * rhs.e62,
-            e53: self.e51 * rhs.e13 + self.e52 * rhs.e23 + self.e53 * rhs.e33 + self.e54 * rhs.e43 + self.e55 * rhs.e53 + self.e56 * rhs.e63,
-            e54: self.e51 * rhs.e14 + self.e52 * rhs.e24 + self.e53 * rhs.e34 + self.e54 * rhs.e44 + self.e55 * rhs.e54 + self.e56 * rhs.e64,
-            e55: self.e51 * rhs.e15 + self.e52 * rhs.e25 + self.e53 * rhs.e35 + self.e54 * rhs.e45 + self.e55 * rhs.e55 + self.e56 * rhs.e65,
-            e56: self.e51 * rhs.e16 + self.e52 * rhs.e26 + self.e53 * rhs.e36 + self.e54 * rhs.e46 + self.e55 * rhs.e56 + self.e56 * rhs.e66,
+            e51: self.e51 * rhs.e11
+                + self.e52 * rhs.e21
+                + self.e53 * rhs.e31
+                + self.e54 * rhs.e41
+                + self.e55 * rhs.e51
+                + self.e56 * rhs.e61,
+            e52: self.e51 * rhs.e12
+                + self.e52 * rhs.e22
+                + self.e53 * rhs.e32
+                + self.e54 * rhs.e42
+                + self.e55 * rhs.e52
+                + self.e56 * rhs.e62,
+            e53: self.e51 * rhs.e13
+                + self.e52 * rhs.e23
+                + self.e53 * rhs.e33
+                + self.e54 * rhs.e43
+                + self.e55 * rhs.e53
+                + self.e56 * rhs.e63,
+            e54: self.e51 * rhs.e14
+                + self.e52 * rhs.e24
+                + self.e53 * rhs.e34
+                + self.e54 * rhs.e44
+                + self.e55 * rhs.e54
+                + self.e56 * rhs.e64,
+            e55: self.e51 * rhs.e15
+                + self.e52 * rhs.e25
+                + self.e53 * rhs.e35
+                + self.e54 * rhs.e45
+                + self.e55 * rhs.e55
+                + self.e56 * rhs.e65,
+            e56: self.e51 * rhs.e16
+                + self.e52 * rhs.e26
+                + self.e53 * rhs.e36
+                + self.e54 * rhs.e46
+                + self.e55 * rhs.e56
+                + self.e56 * rhs.e66,
 
-            e61: self.e61 * rhs.e11 + self.e62 * rhs.e21 + self.e63 * rhs.e31 + self.e64 * rhs.e41 + self.e65 * rhs.e51 + self.e66 * rhs.e61,
-            e62: self.e61 * rhs.e12 + self.e62 * rhs.e22 + self.e63 * rhs.e32 + self.e64 * rhs.e42 + self.e65 * rhs.e52 + self.e66 * rhs.e62,
-            e63: self.e61 * rhs.e13 + self.e62 * rhs.e23 + self.e63 * rhs.e33 + self.e64 * rhs.e43 + self.e65 * rhs.e53 + self.e66 * rhs.e63,
-            e64: self.e61 * rhs.e14 + self.e62 * rhs.e24 + self.e63 * rhs.e34 + self.e64 * rhs.e44 + self.e65 * rhs.e54 + self.e66 * rhs.e64,
-            e65: self.e61 * rhs.e15 + self.e62 * rhs.e25 + self.e63 * rhs.e35 + self.e64 * rhs.e45 + self.e65 * rhs.e55 + self.e66 * rhs.e65,
-            e66: self.e61 * rhs.e16 + self.e62 * rhs.e26 + self.e63 * rhs.e36 + self.e64 * rhs.e46 + self.e65 * rhs.e56 + self.e66 * rhs.e66,
+            e61: self.e61 * rhs.e11
+                + self.e62 * rhs.e21
+                + self.e63 * rhs.e31
+                + self.e64 * rhs.e41
+                + self.e65 * rhs.e51
+                + self.e66 * rhs.e61,
+            e62: self.e61 * rhs.e12
+                + self.e62 * rhs.e22
+                + self.e63 * rhs.e32
+                + self.e64 * rhs.e42
+                + self.e65 * rhs.e52
+                + self.e66 * rhs.e62,
+            e63: self.e61 * rhs.e13
+                + self.e62 * rhs.e23
+                + self.e63 * rhs.e33
+                + self.e64 * rhs.e43
+                + self.e65 * rhs.e53
+                + self.e66 * rhs.e63,
+            e64: self.e61 * rhs.e14
+                + self.e62 * rhs.e24
+                + self.e63 * rhs.e34
+                + self.e64 * rhs.e44
+                + self.e65 * rhs.e54
+                + self.e66 * rhs.e64,
+            e65: self.e61 * rhs.e15
+                + self.e62 * rhs.e25
+                + self.e63 * rhs.e35
+                + self.e64 * rhs.e45
+                + self.e65 * rhs.e55
+                + self.e66 * rhs.e65,
+            e66: self.e61 * rhs.e16
+                + self.e62 * rhs.e26
+                + self.e63 * rhs.e36
+                + self.e64 * rhs.e46
+                + self.e65 * rhs.e56
+                + self.e66 * rhs.e66,
         }
     }
 }
@@ -237,4 +491,38 @@ impl std::ops::IndexMut<(usize, usize)> for Matrix6 {
     }
 }
 
-
+impl fmt::Debug for Matrix6 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Matrix6 ")?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e11, self.e12, self.e13, self.e14, self.e15, self.e16
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e21, self.e22, self.e23, self.e24, self.e25, self.e26
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e31, self.e32, self.e33, self.e34, self.e35, self.e36
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e41, self.e42, self.e43, self.e44, self.e45, self.e46
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e51, self.e52, self.e53, self.e54, self.e55, self.e56
+        )?;
+        writeln!(
+            f,
+            "   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}   {: >10.6}",
+            self.e61, self.e62, self.e63, self.e64, self.e65, self.e66
+        )
+    }
+}

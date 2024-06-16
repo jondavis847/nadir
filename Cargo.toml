@@ -9,7 +9,7 @@ members = [
     "linear_algebra", "mass_properties",
     "multibody",
     "rotations", "sim_value", "spatial_algebra",
-    "transforms",    
+    "transforms", "utilities",    
 ]
 
 [dependencies]
