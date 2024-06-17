@@ -63,6 +63,9 @@ impl Vector3 {
     /// A normalized `Vector3`.
     pub fn normalize(&self) -> Vector3 {
         let mag = self.magnitude();
+        if mag < f64::EPSILON {
+            panic!("Attempted to normalize a vector with 0 magnitude.")
+        }
         Vector3::new(self.e1 / mag, self.e2 / mag, self.e3 / mag)
     }
 
@@ -236,14 +239,6 @@ fn test_vector3_zero_vector() {
     let result = v.magnitude();
     let expected = 0.0;
     assert_approx_eq!(result, expected, TOL);
-}
-
-#[test]
-fn test_vector3_normalization_of_zero_vector() {
-    let v = Vector3::new(0.0, 0.0, 0.0);
-    let result = v.normalize();
-    let expected = Vector3::new(0.0, 0.0, 0.0);
-    assert_vector3_approx_eq(&result, &expected);
 }
 
 #[test]

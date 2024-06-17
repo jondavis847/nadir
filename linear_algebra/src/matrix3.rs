@@ -83,7 +83,7 @@ impl Matrix3 {
             e21: self.e23 * self.e31 - self.e21 * self.e33,
             e22: self.e11 * self.e33 - self.e13 * self.e31,
             e23: self.e13 * self.e21 - self.e11 * self.e23,
-            e31: self.e21 * self.e32 - self.e22 * self.e31,
+            e31: self.e21 * self.e32 - self.e31 * self.e22,
             e32: self.e12 * self.e31 - self.e11 * self.e32,
             e33: self.e11 * self.e22 - self.e12 * self.e21,
         }
@@ -164,13 +164,13 @@ impl Mul<Matrix3> for Matrix3 {
     fn mul(self, rhs: Self) -> Self {
         Self::new(
             self.e11 * rhs.e11 + self.e12 * rhs.e21 + self.e13 * rhs.e31,
-            self.e21 * rhs.e11 + self.e22 * rhs.e21 + self.e23 * rhs.e31,
-            self.e31 * rhs.e11 + self.e32 * rhs.e21 + self.e33 * rhs.e31,
             self.e11 * rhs.e12 + self.e12 * rhs.e22 + self.e13 * rhs.e32,
-            self.e21 * rhs.e12 + self.e22 * rhs.e22 + self.e23 * rhs.e32,
-            self.e31 * rhs.e12 + self.e32 * rhs.e22 + self.e33 * rhs.e32,
             self.e11 * rhs.e13 + self.e12 * rhs.e23 + self.e13 * rhs.e33,
+            self.e21 * rhs.e11 + self.e22 * rhs.e21 + self.e23 * rhs.e31,
+            self.e21 * rhs.e12 + self.e22 * rhs.e22 + self.e23 * rhs.e32,
             self.e21 * rhs.e13 + self.e22 * rhs.e23 + self.e23 * rhs.e33,
+            self.e31 * rhs.e11 + self.e32 * rhs.e21 + self.e33 * rhs.e31,
+            self.e31 * rhs.e12 + self.e32 * rhs.e22 + self.e33 * rhs.e32,
             self.e31 * rhs.e13 + self.e32 * rhs.e23 + self.e33 * rhs.e33,
         )
     }
@@ -367,7 +367,7 @@ mod tests {
         let m = Matrix3::new(4.0, 7.0, 2.0, 3.0, 6.0, 1.0, 2.0, 5.0, 3.0);
         let result = m.inv();
         let expected = Some(Matrix3::new(
-            0.25, -1.25, 0.75, -0.5, 1.5, -1.0, 0.25, -0.75, 0.75,
+            13.0/9.0, -11.0/9.0, -5.0/9.0, -7.0/9.0, 8.0/9.0, 2.0/9.0, 1.0/3.0, -2.0/3.0, 1.0/3.0,
         ));
         assert!(result.is_some());
         assert_matrix3_approx_eq(&result.unwrap(), &expected.unwrap());
