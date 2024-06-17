@@ -1,6 +1,6 @@
 //use super::{quaternion::Quaternion, RotationTrait};
 use super::*;
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 
 /// Enum representing different Euler angle sequences.
 #[derive(Debug, Clone, Copy, PartialEq)]

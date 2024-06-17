@@ -1,10 +1,11 @@
 use super::*;
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 use rand::prelude::*;
 use std::ops::Mul;
+use std::fmt;
 
 /// A struct representing a quaternion for 3D rotations.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,
@@ -355,7 +356,7 @@ impl From<RotationMatrix> for Quaternion {
     ///
     /// The corresponding `Quaternion`.
     fn from(matrix: RotationMatrix) -> Self {
-        let m = matrix.value;
+        let m = matrix.get_value();
         let trace = m.e11 + m.e22 + m.e33;
 
         if trace > 0.0 {
@@ -367,7 +368,7 @@ impl From<RotationMatrix> for Quaternion {
                 z: (m.e21 - m.e12) / s,
             }
         } else if (m.e11 > m.e22) && (m.e11 > m.e33) {
-            let s = (1.0 + m.e11 - m.e22 - m.e33).sqrt() * 2.0;
+            let s = (1.0_f64 + m.e11 - m.e22 - m.e33).sqrt() * 2.0;
             Quaternion {
                 s: (m.e32 - m.e23) / s,
                 x: 0.25 * s,
@@ -375,7 +376,7 @@ impl From<RotationMatrix> for Quaternion {
                 z: (m.e13 + m.e31) / s,
             }
         } else if m.e22 > m.e33 {
-            let s = (1.0 + m.e22 - m.e11 - m.e33).sqrt() * 2.0;
+            let s = (1.0_f64 + m.e22 - m.e11 - m.e33).sqrt() * 2.0;
             Quaternion {
                 s: (m.e13 - m.e31) / s,
                 x: (m.e12 + m.e21) / s,
@@ -383,7 +384,7 @@ impl From<RotationMatrix> for Quaternion {
                 z: (m.e23 + m.e32) / s,
             }
         } else {
-            let s = (1.0 + m.e33 - m.e11 - m.e22).sqrt() * 2.0;
+            let s = (1.0_f64 + m.e33 - m.e11 - m.e22).sqrt() * 2.0;
             Quaternion {
                 s: (m.e21 - m.e12) / s,
                 x: (m.e13 + m.e31) / s,
@@ -391,6 +392,32 @@ impl From<RotationMatrix> for Quaternion {
                 z: 0.25 * s,
             }
         }
+    }
+}
+
+impl fmt::Debug for Quaternion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Quaternion ")?;
+        writeln!(
+            f,
+            "   x: {: >10.6}",
+            self.x
+        )?;
+        writeln!(
+            f,
+            "   y: {: >10.6}",
+            self.y
+        )?;
+        writeln!(
+            f,
+            "   z: {: >10.6}",
+            self.z
+        )?;
+        writeln!(
+            f,
+            "   s: {: >10.6}",
+            self.s
+        )
     }
 }
 

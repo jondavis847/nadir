@@ -1,12 +1,10 @@
 use super::*;
-use linear_algebra::{Matrix3, Vector3};
+use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
 use std::ops::Mul;
 
 /// A struct representing a 3x3 rotation matrix.
 #[derive(Debug, Copy, Clone)]
-pub struct RotationMatrix {
-    pub value: Matrix3,
-}
+pub struct RotationMatrix(Matrix3);
 
 /// Errors that can occur when creating a `RotationMatrix`.
 #[derive(Debug, Copy, Clone)]
@@ -61,15 +59,19 @@ impl RotationMatrix {
         let (e13, e23, e33) = normalize(e13, e23, e33)?;
 
         // Return the new `RotationMatrix` with normalized columns.
-        Ok(Self {
-            value: Matrix3::new(e11, e21, e31, e12, e22, e32, e13, e23, e33),
-        })
+        Ok(Self(Matrix3::new(
+            e11, e21, e31, e12, e22, e32, e13, e23, e33,
+        )))
+    }
+
+    pub fn get_value(&self) -> Matrix3 {
+        self.0
     }
 }
 
 impl From<Matrix3> for RotationMatrix {
     fn from(value: Matrix3) -> Self {
-        Self { value }
+        Self(value)
     }
 }
 
@@ -184,7 +186,7 @@ impl RotationTrait for RotationMatrix {
     ///
     /// The rotated vector.
     fn rotate(&self, v: Vector3) -> Vector3 {
-        self.value * v
+        self.0 * v
     }
 
     /// Transforms a vector by the transpose of the rotation matrix.
@@ -197,11 +199,11 @@ impl RotationTrait for RotationMatrix {
     ///
     /// The transformed vector.
     fn transform(&self, v: Vector3) -> Vector3 {
-        self.value.transpose() * v
+        self.0.transpose() * v
     }
 
     fn inv(&self) -> Self {
-        RotationMatrix::from(self.value.transpose())
+        RotationMatrix::from(self.0.transpose())
     }
 
     /// Creates an identity `RotationMatrix`.
@@ -227,6 +229,6 @@ impl Mul<RotationMatrix> for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the product of the two rotation matrices.
     fn mul(self, rhs: RotationMatrix) -> RotationMatrix {
-        RotationMatrix::from(self.value * rhs.value)
+        RotationMatrix::from(self.0 * rhs.0)
     }
 }

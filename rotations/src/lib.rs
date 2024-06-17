@@ -3,7 +3,7 @@ pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
 use euler_angles::EulerAngles;
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
 
@@ -12,7 +12,7 @@ pub mod prelude {
     pub use crate::quaternion::*;
     pub use crate::rotation_matrix::*;
     pub use crate::{Rotation, RotationTrait};
-    pub use linear_algebra::Vector3;
+    pub use linear_algebra::vector3::Vector3;
 }
 
 /// Trait defining rotation and transformation operations.

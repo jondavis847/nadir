@@ -4,7 +4,7 @@ use super::{
     body::{BodyRef, BodyTrait},
     MultibodyTrait,
 };
-use spatial_algebra::{Force, Motion, SpatialTransform};
+use spatial_algebra::{Acceleration, Force, SpatialTransform, Velocity, SpatialInertia};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -82,6 +82,7 @@ pub enum JointErrors {
 pub struct JointCommon {
     pub name: String,
     pub connection: JointConnection,
+    pub mass_properties: Option<SpatialInertia>,
     pub transforms: JointTransforms,
 }
 
@@ -90,6 +91,7 @@ impl JointCommon {
         Self {
             name: name.to_string(),
             connection: JointConnection::default(),
+            mass_properties: None,
             transforms: JointTransforms::default(),
         }
     }
@@ -219,7 +221,7 @@ impl ArticulatedBodyAlgorithm for JointEnum {
             JointEnum::Revolute(joint) => joint.third_pass(),
         }
     }
-    fn get_v(&self) -> Motion {
+    fn get_v(&self) -> Velocity {
         match self {
             JointEnum::Revolute(joint) => joint.get_v(),
         }
@@ -230,7 +232,7 @@ impl ArticulatedBodyAlgorithm for JointEnum {
         }
     }
 
-    fn get_a(&self) -> Motion {
+    fn get_a(&self) -> Acceleration {
         match self {
             JointEnum::Revolute(joint) => joint.get_a(),
         }

@@ -1,4 +1,4 @@
-use linear_algebra::{Matrix3, Vector3};
+use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CenterOfMass {
@@ -12,7 +12,7 @@ impl CenterOfMass {
         Self { cmx, cmy, cmz }
     }
 
-    pub fn vec(&self) -> Vector3 {
+    pub fn vector(&self) -> Vector3 {
         Vector3::new(self.cmx, self.cmy, self.cmz)
     }
 
@@ -102,7 +102,7 @@ impl Inertia {
         })
     }
 
-    pub fn mat(&self) -> Matrix3 {
+    pub fn matrix(&self) -> Matrix3 {
         Matrix3::new(
             self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
             self.izz,
@@ -199,6 +199,19 @@ pub struct MassProperties {
 pub enum MassPropertiesErrors {
     Inertia(InertiaErrors),
     MassLessThanOrEqualToZero,
+}
+
+impl Default for MassProperties {
+    fn default() -> Self {
+        let mass = 1.0;
+        let center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
+        let inertia = Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap();
+        Self {
+            center_of_mass,
+            mass,
+            inertia,
+        }
+    }
 }
 
 impl MassProperties {

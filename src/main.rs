@@ -39,8 +39,6 @@ fn main() {
     let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
     sys.add_body(body2.clone());
 
-    dbg!(&sys);
-
     base.connect_outer_joint(joint2.clone());
     joint2.connect_inner_body(base.clone(), Transform::default());
     body2.connect_inner_joint(joint2.clone());

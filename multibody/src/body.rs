@@ -1,13 +1,12 @@
+use mass_properties::{MassProperties, MassPropertiesErrors};
+use spatial_algebra::Force;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
-use mass_properties::{MassProperties, MassPropertiesErrors};
 
-use super::{
-    base::Base,
-    joint::JointRef,    
-    MultibodyTrait,
-};
+use rotations::quaternion::Quaternion;
+use linear_algebra::vector3::Vector3;
+use super::{base::Base, joint::JointRef, MultibodyTrait};
 
 pub trait BodyTrait {
     fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
@@ -16,34 +15,53 @@ pub trait BodyTrait {
 
     fn delete_inner_joint(&mut self);
     fn delete_outer_joint(&mut self, jointref: JointRef);
+    fn get_external_force(&self) -> Force;
     fn get_inner_joint(&self) -> Option<BodyJointConnection>;
     fn get_outer_joints(&self) -> Vec<BodyJointConnection>;
+    fn get_mass_properties(&self) -> MassProperties;
 }
 
 pub type BodyRef = Rc<RefCell<BodyEnum>>;
 
 impl BodyTrait for BodyRef {
+    #[inline]
     fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         self.borrow_mut().connect_inner_joint(jointref)
     }
 
+    #[inline]
     fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
         self.borrow_mut().connect_outer_joint(jointref)
     }
 
+    #[inline]
     fn delete_inner_joint(&mut self) {
         self.borrow_mut().delete_inner_joint()
     }
+
+    #[inline]
     fn delete_outer_joint(&mut self, jointref: JointRef) {
         self.borrow_mut().delete_outer_joint(jointref)
     }
 
+    #[inline]
     fn get_inner_joint(&self) -> Option<BodyJointConnection> {
         self.borrow().get_inner_joint()
     }
 
+    #[inline]
     fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
         self.borrow().get_outer_joints()
+    }
+
+    #[inline]
+    fn get_mass_properties(&self) -> MassProperties {
+        self.borrow().get_mass_properties()
+    }
+
+    #[inline]
+    fn get_external_force(&self) -> Force {
+        self.borrow().get_external_force()
     }
 }
 
@@ -81,6 +99,13 @@ impl BodyTrait for BodyEnum {
         }
     }
 
+    fn get_external_force(&self) -> Force {
+        match self {
+            BodyEnum::Base(base) => base.get_external_force(),
+            BodyEnum::Body(body) => body.get_external_force(),
+        }
+    }
+
     fn get_inner_joint(&self) -> Option<BodyJointConnection> {
         match self {
             BodyEnum::Base(base) => base.get_inner_joint(),
@@ -92,6 +117,14 @@ impl BodyTrait for BodyEnum {
         match self {
             BodyEnum::Base(base) => base.get_outer_joints(),
             BodyEnum::Body(body) => body.get_outer_joints(),
+        }
+    }
+
+    #[inline]
+    fn get_mass_properties(&self) -> MassProperties {
+        match self {
+            BodyEnum::Base(base) => base.get_mass_properties(),
+            BodyEnum::Body(body) => body.get_mass_properties(),
         }
     }
 }
@@ -143,14 +176,25 @@ impl fmt::Debug for BodyJointConnection {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct BodyState {
+    position: Vector3,
+    velocity: Vector3,
+    acceleration: Vector3,
+    attitude: Quaternion,
+    angular_rate: Vector3,
+    external_force: Force,
+}
+
 #[derive(Debug, Clone)]
 pub struct Body {
-    //actuators: Vec<BodyActuatorConnection>,
+    //actuators: Vec<BodyActuatorConnection>,    
     inner_joint: Option<BodyJointConnection>,
     mass_properties: MassProperties,
     name: String,
     outer_joints: Vec<BodyJointConnection>,
     //sensors: Vec<BodySensorConnection>,
+    state: BodyState,
 }
 
 impl Body {
@@ -164,7 +208,12 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
+            state: BodyState::default()
         }))))
+    }
+
+    pub fn get_mass_properties(&self) -> MassProperties {
+        self.mass_properties
     }
 
     /// Returns the x-coordinate of the center of mass.
@@ -311,12 +360,20 @@ impl BodyTrait for Body {
             .retain(|connection| !Rc::ptr_eq(&connection.joint, &jointref));
     }
 
+    fn get_external_force(&self) -> Force {
+        self.state.external_force
+    }
+
     fn get_inner_joint(&self) -> Option<BodyJointConnection> {
         self.inner_joint.clone()
     }
 
     fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
         self.outer_joints.clone()
+    }
+
+    fn get_mass_properties(&self) -> MassProperties {
+        self.mass_properties
     }
 }
 

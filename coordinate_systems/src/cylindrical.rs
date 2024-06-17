@@ -1,5 +1,5 @@
 use super::{cartesian::Cartesian, spherical::Spherical};
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 use std::ops::{Add, Neg};
 
 /// Represents a point in cylindrical coordinates.  Relative to a Cartesian x-y-z coordinate system,

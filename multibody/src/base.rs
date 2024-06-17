@@ -3,7 +3,8 @@ use super::{
     joint::JointRef,
     MultibodyTrait,
 };
-
+use mass_properties::MassProperties;
+use spatial_algebra::Force;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -67,6 +68,15 @@ impl BodyTrait for Base {
     fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
         self.outer_joints.clone()
     }
+
+    fn get_external_force(&self) -> Force {
+        Force::default()
+    }
+
+    fn get_mass_properties(&self) -> MassProperties {
+        MassProperties::default() //TODO: this should never get called, can we just make base not be a body?
+    }
+
 }
 impl MultibodyTrait for Base {
     fn get_name(&self) -> &str {

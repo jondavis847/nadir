@@ -9,7 +9,7 @@ use crate::{
 };
 use coordinate_systems::CoordinateSystem;
 use rotations::euler_angles::{Angles, EulerAngles};
-use spatial_algebra::{Force, Motion};
+use spatial_algebra::{Acceleration, Force, Velocity, SpatialInertia};
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 use transforms::Transform;
@@ -80,8 +80,9 @@ impl JointTrait for Revolute {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
-        let connection = Connection::new(body, transform);
+        let connection = Connection::new(body.clone(), transform);
         self.common.connection.outer_body = Some(connection);
+        self.common.mass_properties = Some(SpatialInertia(transform * body.borrow().get_mass_properties()));
         Ok(())
     }
 
@@ -93,8 +94,9 @@ impl JointTrait for Revolute {
 
     fn delete_outer_body(&mut self) {
         if self.common.connection.outer_body.is_some() {
-            self.common.connection.outer_body = None;
+            self.common.connection.outer_body = None;            
         }
+        self.common.mass_properties = None;
     }
 
     fn get_inner_body(&self) -> Option<Connection> {
@@ -137,7 +139,6 @@ struct RevoluteAbaCache {
     q: f64,
     q_dot: f64,
     q_ddot: f64,
-    Ia: f64,
 }
 
 impl ArticulatedBodyAlgorithm for Revolute {
@@ -145,16 +146,22 @@ impl ArticulatedBodyAlgorithm for Revolute {
         let parent_ref = self.common.get_inner_joint();
         let parent = parent_ref.borrow();
         let transforms = &self.common.transforms;
+        let body = self.get_outer_body().unwrap().body;
 
         let aba = &mut self.state.aba.common;
 
         aba.v = transforms.jof_from_ij_jof * parent.get_v() + aba.vj;
-        aba.c = aba.v.cross(aba.vj); // + cj
+        aba.c = aba.v.cross_motion(aba.vj); // + cj
+        
+        let joint_mass_properties = self.common.mass_properties.unwrap();
+
+        aba.inertia_articulated = joint_mass_properties;
+        aba.p_big_a = aba.v.cross_force(joint_mass_properties * aba.v) - transforms.jof_from_ob * body.get_external_force();
     }
     fn second_pass(&mut self) {}
     fn third_pass(&mut self) {}
 
-    fn get_v(&self) -> Motion {
+    fn get_v(&self) -> Velocity {
         self.state.aba.common.v
     }
 
@@ -162,7 +169,7 @@ impl ArticulatedBodyAlgorithm for Revolute {
         self.state.aba.common.p_big_a
     }
 
-    fn get_a(&self) -> Motion {
+    fn get_a(&self) -> Acceleration {
         self.state.aba.common.a
     }
 }

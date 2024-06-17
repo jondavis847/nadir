@@ -1,4 +1,4 @@
-use super::Vector3;
+use super::vector3::Vector3;
 use rand::Rng;
 use std::fmt;
 
@@ -25,7 +25,7 @@ impl Vector6 {
     }
 
     #[inline]
-    pub fn from_2vector3(v1: &Vector3, v2: &Vector3) -> Vector6 {
+    pub fn from_2vector3(v1: Vector3, v2: Vector3) -> Vector6 {
         Vector6 {
             e1: v1.e1,
             e2: v1.e2,

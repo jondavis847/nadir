@@ -1,7 +1,7 @@
 use coordinate_systems::{
     cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
 };
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use std::ops::Mul;
@@ -92,10 +92,10 @@ impl Mul<MassProperties> for Transform {
     fn mul(self, rhs: MassProperties) -> MassProperties {
         let mass = rhs.mass;
 
-        let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vec());
+        let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vector());
 
-        let inertia = rhs.inertia.mat();
-        let rotation_matrix = RotationMatrix::from(self.rotation).value;
+        let inertia = rhs.inertia.matrix();
+        let rotation_matrix = RotationMatrix::from(self.rotation).get_value();
 
         // first transform the inertia (note passive rotation matrix from passive rotation)
         let rotated_inertia =
@@ -132,7 +132,7 @@ impl Mul<MassProperties> for Transform {
 mod tests {
     use super::*;
     use approx_eq::assert_approx_eq;
-    use linear_algebra::Vector3;
+    use linear_algebra::vector3::Vector3;
     use rotations::{
         euler_angles::{Angles, EulerAngles},
         quaternion::Quaternion,

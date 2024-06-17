@@ -4,7 +4,7 @@ pub mod spherical;
 
 use cartesian::Cartesian;
 use cylindrical::Cylindrical;
-use linear_algebra::Vector3;
+use linear_algebra::vector3::Vector3;
 use spherical::Spherical;
 use std::ops::{Add, Neg};
 
