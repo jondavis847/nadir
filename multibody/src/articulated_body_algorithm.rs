@@ -4,7 +4,7 @@ use spatial_algebra::{Acceleration,Force,Velocity, SpatialInertia};
 pub struct AbaCache {
     pub vj: Velocity,
     pub v: Velocity,
-    pub c: Velocity,
+    pub c: Acceleration,
     pub p_big_a: Force, //gah rust naming conventions warn on pA
     pub p_lil_a: Force,
     pub a: Acceleration,
@@ -21,4 +21,7 @@ pub trait ArticulatedBodyAlgorithm {
     fn get_p_big_a(&self) -> Force; //gah rust naming conventions warn on pA
 
     fn get_a(&self) -> Acceleration;
+
+    fn add_inertia_articulated(&mut self, inertia:SpatialInertia);
+    fn add_p_big_a(&mut self, force:Force);
 }

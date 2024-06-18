@@ -1,7 +1,7 @@
 use super::vector3::Vector3;
 use rand::Rng;
 use std::fmt;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 use utilities::format_number;
 
 /// A 3x3 matrix.
@@ -107,6 +107,37 @@ impl Matrix3 {
                 e33: adj.e33 / det,
             })
         }
+    }
+
+    pub fn zeros() -> Self {
+        Matrix3::new(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    }
+}
+
+impl Neg for Matrix3 {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Matrix3::new(
+            -self.e11, -self.e12, -self.e13, -self.e21, -self.e22, -self.e23, -self.e31, -self.e32,
+            -self.e33,
+        )
+    }
+}
+
+impl Div<f64> for Matrix3 {
+    type Output = Self;
+    fn div(self, f: f64) -> Self {
+        Matrix3::new(
+            self.e11 / f,
+            self.e12 / f,
+            self.e13 / f,
+            self.e21 / f,
+            self.e22 / f,
+            self.e23 / f,
+            self.e31 / f,
+            self.e32 / f,
+            self.e33 / f,
+        )
     }
 }
 
@@ -367,7 +398,15 @@ mod tests {
         let m = Matrix3::new(4.0, 7.0, 2.0, 3.0, 6.0, 1.0, 2.0, 5.0, 3.0);
         let result = m.inv();
         let expected = Some(Matrix3::new(
-            13.0/9.0, -11.0/9.0, -5.0/9.0, -7.0/9.0, 8.0/9.0, 2.0/9.0, 1.0/3.0, -2.0/3.0, 1.0/3.0,
+            13.0 / 9.0,
+            -11.0 / 9.0,
+            -5.0 / 9.0,
+            -7.0 / 9.0,
+            8.0 / 9.0,
+            2.0 / 9.0,
+            1.0 / 3.0,
+            -2.0 / 3.0,
+            1.0 / 3.0,
         ));
         assert!(result.is_some());
         assert_matrix3_approx_eq(&result.unwrap(), &expected.unwrap());

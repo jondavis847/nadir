@@ -1,46 +1,46 @@
-use super::{vector6::Vector6, matrix3::Matrix3};
+use super::{matrix1x6::Matrix1x6, matrix3::Matrix3, matrix6x1::Matrix6x1, vector6::Vector6};
 use rand::Rng;
 use std::fmt;
-use std::ops::Mul;
+use std::ops::{Add, Mul,Sub};
 
 #[derive(Clone, Copy, Default)]
 pub struct Matrix6 {
-    e11: f64,
-    e12: f64,
-    e13: f64,
-    e14: f64,
-    e15: f64,
-    e16: f64,
-    e21: f64,
-    e22: f64,
-    e23: f64,
-    e24: f64,
-    e25: f64,
-    e26: f64,
-    e31: f64,
-    e32: f64,
-    e33: f64,
-    e34: f64,
-    e35: f64,
-    e36: f64,
-    e41: f64,
-    e42: f64,
-    e43: f64,
-    e44: f64,
-    e45: f64,
-    e46: f64,
-    e51: f64,
-    e52: f64,
-    e53: f64,
-    e54: f64,
-    e55: f64,
-    e56: f64,
-    e61: f64,
-    e62: f64,
-    e63: f64,
-    e64: f64,
-    e65: f64,
-    e66: f64,
+    pub e11: f64,
+    pub e12: f64,
+    pub e13: f64,
+    pub e14: f64,
+    pub e15: f64,
+    pub e16: f64,
+    pub e21: f64,
+    pub e22: f64,
+    pub e23: f64,
+    pub e24: f64,
+    pub e25: f64,
+    pub e26: f64,
+    pub e31: f64,
+    pub e32: f64,
+    pub e33: f64,
+    pub e34: f64,
+    pub e35: f64,
+    pub e36: f64,
+    pub e41: f64,
+    pub e42: f64,
+    pub e43: f64,
+    pub e44: f64,
+    pub e45: f64,
+    pub e46: f64,
+    pub e51: f64,
+    pub e52: f64,
+    pub e53: f64,
+    pub e54: f64,
+    pub e55: f64,
+    pub e56: f64,
+    pub e61: f64,
+    pub e62: f64,
+    pub e63: f64,
+    pub e64: f64,
+    pub e65: f64,
+    pub e66: f64,
 }
 
 impl Matrix6 {
@@ -85,6 +85,30 @@ impl Matrix6 {
         }
     }
 
+    pub fn get_row(&self, row: usize) -> Option<Matrix1x6> {
+        match row {
+            1 => Some(Matrix1x6::new(self.e11, self.e12, self.e13, self.e14, self.e15, self.e16)),
+            2 => Some(Matrix1x6::new(self.e21, self.e22, self.e23, self.e24, self.e25, self.e26)),
+            3 => Some(Matrix1x6::new(self.e31, self.e32, self.e33, self.e34, self.e35, self.e36)),
+            4 => Some(Matrix1x6::new(self.e41, self.e42, self.e43, self.e44, self.e45, self.e46)),
+            5 => Some(Matrix1x6::new(self.e51, self.e52, self.e53, self.e54, self.e55, self.e56)),
+            6 => Some(Matrix1x6::new(self.e61, self.e62, self.e63, self.e64, self.e65, self.e66)),
+            _ => None,
+        }
+    }
+
+    pub fn get_column(&self, column: usize) -> Option<Matrix6x1> {
+        match column {
+            1 => Some(Matrix6x1::new(self.e11, self.e21, self.e31, self.e41, self.e51, self.e61)),
+            2 => Some(Matrix6x1::new(self.e12, self.e22, self.e32, self.e42, self.e52, self.e62)),
+            3 => Some(Matrix6x1::new(self.e13, self.e23, self.e33, self.e43, self.e53, self.e63)),
+            4 => Some(Matrix6x1::new(self.e14, self.e24, self.e34, self.e44, self.e54, self.e64)),
+            5 => Some(Matrix6x1::new(self.e15, self.e25, self.e35, self.e45, self.e55, self.e65)),
+            6 => Some(Matrix6x1::new(self.e16, self.e26, self.e36, self.e46, self.e56, self.e66)),
+            _ => None,
+        }
+    }
+
     pub fn rand() -> Matrix6 {
         let mut rng = rand::thread_rng();
         Matrix6 {
@@ -126,8 +150,137 @@ impl Matrix6 {
             e66: rng.gen(),
         }
     }
+
+    pub fn transpose(self) -> Matrix6 {
+        Matrix6 {
+            e11: self.e11,
+            e12: self.e21,
+            e13: self.e31,
+            e14: self.e41,
+            e15: self.e51,
+            e16: self.e61,
+            e21: self.e12,
+            e22: self.e22,
+            e23: self.e32,
+            e24: self.e42,
+            e25: self.e52,
+            e26: self.e62,
+            e31: self.e13,
+            e32: self.e23,
+            e33: self.e33,
+            e34: self.e43,
+            e35: self.e53,
+            e36: self.e63,
+            e41: self.e14,
+            e42: self.e24,
+            e43: self.e34,
+            e44: self.e44,
+            e45: self.e54,
+            e46: self.e64,
+            e51: self.e15,
+            e52: self.e25,
+            e53: self.e35,
+            e54: self.e45,
+            e55: self.e55,
+            e56: self.e65,
+            e61: self.e16,
+            e62: self.e26,
+            e63: self.e36,
+            e64: self.e46,
+            e65: self.e56,
+            e66: self.e66,
+        }
+    }
 }
 
+impl Add<Matrix6> for Matrix6 {
+    type Output = Matrix6;
+
+    fn add(self, rhs: Matrix6) -> Matrix6 {
+        Matrix6 {
+            e11: self.e11 + rhs.e11,
+            e12: self.e12 + rhs.e12,
+            e13: self.e13 + rhs.e13,
+            e14: self.e14 + rhs.e14,
+            e15: self.e15 + rhs.e15,
+            e16: self.e16 + rhs.e16,
+            e21: self.e21 + rhs.e21,
+            e22: self.e22 + rhs.e22,
+            e23: self.e23 + rhs.e23,
+            e24: self.e24 + rhs.e24,
+            e25: self.e25 + rhs.e25,
+            e26: self.e26 + rhs.e26,
+            e31: self.e31 + rhs.e31,
+            e32: self.e32 + rhs.e32,
+            e33: self.e33 + rhs.e33,
+            e34: self.e34 + rhs.e34,
+            e35: self.e35 + rhs.e35,
+            e36: self.e36 + rhs.e36,
+            e41: self.e41 + rhs.e41,
+            e42: self.e42 + rhs.e42,
+            e43: self.e43 + rhs.e43,
+            e44: self.e44 + rhs.e44,
+            e45: self.e45 + rhs.e45,
+            e46: self.e46 + rhs.e46,
+            e51: self.e51 + rhs.e51,
+            e52: self.e52 + rhs.e52,
+            e53: self.e53 + rhs.e53,
+            e54: self.e54 + rhs.e54,
+            e55: self.e55 + rhs.e55,
+            e56: self.e56 + rhs.e56,
+            e61: self.e61 + rhs.e61,
+            e62: self.e62 + rhs.e62,
+            e63: self.e63 + rhs.e63,
+            e64: self.e64 + rhs.e64,
+            e65: self.e65 + rhs.e65,
+            e66: self.e66 + rhs.e66,
+        }
+    }
+}
+impl Sub<Matrix6> for Matrix6 {
+    type Output = Matrix6;
+
+    fn sub(self, rhs: Matrix6) -> Matrix6 {
+        Matrix6 {
+            e11: self.e11 - rhs.e11,
+            e12: self.e12 - rhs.e12,
+            e13: self.e13 - rhs.e13,
+            e14: self.e14 - rhs.e14,
+            e15: self.e15 - rhs.e15,
+            e16: self.e16 - rhs.e16,
+            e21: self.e21 - rhs.e21,
+            e22: self.e22 - rhs.e22,
+            e23: self.e23 - rhs.e23,
+            e24: self.e24 - rhs.e24,
+            e25: self.e25 - rhs.e25,
+            e26: self.e26 - rhs.e26,
+            e31: self.e31 - rhs.e31,
+            e32: self.e32 - rhs.e32,
+            e33: self.e33 - rhs.e33,
+            e34: self.e34 - rhs.e34,
+            e35: self.e35 - rhs.e35,
+            e36: self.e36 - rhs.e36,
+            e41: self.e41 - rhs.e41,
+            e42: self.e42 - rhs.e42,
+            e43: self.e43 - rhs.e43,
+            e44: self.e44 - rhs.e44,
+            e45: self.e45 - rhs.e45,
+            e46: self.e46 - rhs.e46,
+            e51: self.e51 - rhs.e51,
+            e52: self.e52 - rhs.e52,
+            e53: self.e53 - rhs.e53,
+            e54: self.e54 - rhs.e54,
+            e55: self.e55 - rhs.e55,
+            e56: self.e56 - rhs.e56,
+            e61: self.e61 - rhs.e61,
+            e62: self.e62 - rhs.e62,
+            e63: self.e63 - rhs.e63,
+            e64: self.e64 - rhs.e64,
+            e65: self.e65 - rhs.e65,
+            e66: self.e66 - rhs.e66,
+        }
+    }
+}
 impl Mul<Vector6> for Matrix6 {
     type Output = Vector6;
     fn mul(self, rhs: Vector6) -> Vector6 {
@@ -397,6 +550,50 @@ impl Mul<Matrix6> for Matrix6 {
                 + self.e64 * rhs.e46
                 + self.e65 * rhs.e56
                 + self.e66 * rhs.e66,
+        }
+    }
+}
+
+impl Mul<Matrix6x1> for Matrix6 {
+    type Output = Matrix6x1;
+    fn mul(self, rhs: Matrix6x1) -> Matrix6x1 {
+        Matrix6x1 {
+            e11: self.e11 * rhs.e11
+                + self.e12 * rhs.e21
+                + self.e13 * rhs.e31
+                + self.e14 * rhs.e41
+                + self.e15 * rhs.e51
+                + self.e16 * rhs.e61,
+            e21: self.e21 * rhs.e11
+                + self.e22 * rhs.e21
+                + self.e23 * rhs.e31
+                + self.e24 * rhs.e41
+                + self.e25 * rhs.e51
+                + self.e26 * rhs.e61,
+            e31: self.e31 * rhs.e11
+                + self.e32 * rhs.e21
+                + self.e33 * rhs.e31
+                + self.e34 * rhs.e41
+                + self.e35 * rhs.e51
+                + self.e36 * rhs.e61,
+            e41: self.e41 * rhs.e11
+                + self.e42 * rhs.e21
+                + self.e43 * rhs.e31
+                + self.e44 * rhs.e41
+                + self.e45 * rhs.e51
+                + self.e46 * rhs.e61,
+            e51: self.e51 * rhs.e11
+                + self.e52 * rhs.e21
+                + self.e53 * rhs.e31
+                + self.e54 * rhs.e41
+                + self.e55 * rhs.e51
+                + self.e56 * rhs.e61,
+            e61: self.e61 * rhs.e11
+                + self.e62 * rhs.e21
+                + self.e63 * rhs.e31
+                + self.e64 * rhs.e41
+                + self.e65 * rhs.e51
+                + self.e66 * rhs.e61,
         }
     }
 }

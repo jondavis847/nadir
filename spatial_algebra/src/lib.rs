@@ -1,5 +1,7 @@
-use linear_algebra::{matrix3::Matrix3, matrix6::Matrix6, vector3::Vector3, vector6::Vector6};
-use mass_properties::MassProperties;
+use linear_algebra::{
+    matrix3::Matrix3, matrix6::Matrix6, matrix6x1::Matrix6x1, vector3::Vector3, vector6::Vector6,
+};
+use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use rotations::rotation_matrix::RotationMatrix;
 use std::ops::{Add, Mul, Sub};
 use transforms::Transform;
@@ -18,6 +20,19 @@ impl SpatialVector {
         }
     }
 
+    pub fn get_index(&self, index: usize) -> Option<f64> {
+        match index {
+            1 => Some(self.rotation.e1),
+            2 => Some(self.rotation.e2),
+            3 => Some(self.rotation.e3),
+            4 => Some(self.translation.e1),
+            5 => Some(self.translation.e2),
+            6 => Some(self.translation.e3),
+            _ => None,
+        }
+    }
+
+    #[inline]
     pub fn vector(&self) -> Vector6 {
         Vector6::from_2vector3(self.rotation, self.translation)
     }
@@ -48,13 +63,21 @@ impl SpatialVector {
 }
 
 impl From<Vector6> for SpatialVector {
+    #[inline]
     fn from(v: Vector6) -> SpatialVector {
         let rotation = Vector3::new(v.e1, v.e2, v.e3);
         let translation = Vector3::new(v.e4, v.e5, v.e6);
         SpatialVector::new(rotation, translation)
     }
 }
-
+impl From<Matrix6x1> for SpatialVector {
+    #[inline]
+    fn from(v: Matrix6x1) -> SpatialVector {
+        let rotation = Vector3::new(v.e11, v.e21, v.e31);
+        let translation = Vector3::new(v.e41, v.e51, v.e61);
+        SpatialVector::new(rotation, translation)
+    }
+}
 impl Add<SpatialVector> for SpatialVector {
     type Output = Self;
     #[inline]
@@ -81,16 +104,24 @@ impl Sub<SpatialVector> for SpatialVector {
 pub struct MotionVector(SpatialVector);
 
 impl MotionVector {
+    #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
     }
 
+    #[inline]
     pub fn cross_motion(self, rhs: MotionVector) -> MotionVector {
         MotionVector(self.0.cross_motion(rhs.0))
     }
 
+    #[inline]
     pub fn cross_force(self, rhs: ForceVector) -> ForceVector {
         ForceVector(self.0.cross_force(rhs.0))
+    }
+
+    #[inline]
+    pub fn get_index(&self, index: usize) -> Option<f64> {
+        self.0.get_index(index)
     }
 }
 
@@ -114,19 +145,43 @@ impl Sub<MotionVector> for MotionVector {
 pub struct Velocity(MotionVector);
 
 impl Velocity {
+    #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
     }
 
-    pub fn cross_motion(self, rhs: Velocity) -> Velocity {
-        Velocity(self.0.cross_motion(rhs.0))
+    #[inline]
+    pub fn cross_motion(self, rhs: Velocity) -> Acceleration {
+        Acceleration(self.0.cross_motion(rhs.0))
     }
 
+    #[inline]
     pub fn cross_force(self, rhs: Momentum) -> Force {
         Force(self.0.cross_force(rhs.0))
     }
+
+    #[inline]
+    pub fn get_index(&self, index: usize) -> Option<f64> {
+        self.0.get_index(index)
+    }
 }
+
+impl From<Vector6> for Velocity {
+    #[inline]
+    fn from(v: Vector6) -> Self {
+        Velocity(MotionVector(SpatialVector::from(v)))
+    }
+}
+
+impl From<Matrix6x1> for Velocity {
+    #[inline]
+    fn from(matrix: Matrix6x1) -> Self {
+        Velocity(MotionVector(SpatialVector::from(matrix)))
+    }
+}
+
 impl From<MotionVector> for Velocity {
+    #[inline]
     fn from(motion: MotionVector) -> Self {
         Self(motion)
     }
@@ -150,7 +205,38 @@ impl Sub<Velocity> for Velocity {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Acceleration(MotionVector);
+
+impl Acceleration {
+    #[inline]
+    pub fn vector(&self) -> Vector6 {
+        self.0.vector()
+    }
+}
+
+impl Add<Acceleration> for Acceleration {
+    type Output = Acceleration;
+    #[inline]
+    fn add(self, rhs: Acceleration) -> Acceleration {
+        Acceleration(self.0 + rhs.0)
+    }
+}
+
+impl From<Vector6> for Acceleration {
+    #[inline]
+    fn from(v: Vector6) -> Self {
+        Acceleration(MotionVector(SpatialVector::from(v)))
+    }
+}
+
+impl From<Matrix6x1> for Acceleration {
+    #[inline]
+    fn from(matrix: Matrix6x1) -> Self {
+        Acceleration(MotionVector(SpatialVector::from(matrix)))
+    }
+}
+
 impl From<MotionVector> for Acceleration {
+    #[inline]
     fn from(motion: MotionVector) -> Self {
         Self(motion)
     }
@@ -159,7 +245,17 @@ impl From<MotionVector> for Acceleration {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ForceVector(SpatialVector);
 
-impl ForceVector {}
+impl ForceVector {
+    #[inline]
+    pub fn get_index(&self, index: usize) -> Option<f64> {
+        self.0.get_index(index)
+    }
+
+    #[inline]
+    pub fn vector(&self) -> Vector6 {
+        self.0.vector()
+    }
+}
 
 impl Add<ForceVector> for ForceVector {
     type Output = ForceVector;
@@ -180,7 +276,29 @@ impl Sub<ForceVector> for ForceVector {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Momentum(ForceVector);
 
+impl Momentum {
+    #[inline]
+    pub fn vector(&self) -> Vector6 {
+        self.0.vector()
+    }
+}
+
+impl From<Vector6> for Momentum {
+    #[inline]
+    fn from(v: Vector6) -> Self {
+        Momentum(ForceVector(SpatialVector::from(v)))
+    }
+}
+
+impl From<Matrix6x1> for Momentum {
+    #[inline]
+    fn from(matrix: Matrix6x1) -> Self {
+        Momentum(ForceVector(SpatialVector::from(matrix)))
+    }
+}
+
 impl From<ForceVector> for Momentum {
+    #[inline]
     fn from(force: ForceVector) -> Self {
         Self(force)
     }
@@ -205,7 +323,34 @@ impl Sub<Momentum> for Momentum {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Force(ForceVector);
 
+impl Force {
+    #[inline]
+    pub fn get_index(&self, index: usize) -> Option<f64> {
+        self.0.get_index(index)
+    }
+
+    #[inline]
+    pub fn vector(&self) -> Vector6 {
+        self.0.vector()
+    }
+}
+
+impl From<Vector6> for Force {
+    #[inline]
+    fn from(v: Vector6) -> Self {
+        Force(ForceVector(SpatialVector::from(v)))
+    }
+}
+
+impl From<Matrix6x1> for Force {
+    #[inline]
+    fn from(matrix: Matrix6x1) -> Self {
+        Force(ForceVector(SpatialVector::from(matrix)))
+    }
+}
+
 impl From<ForceVector> for Force {
+    #[inline]
     fn from(force: ForceVector) -> Self {
         Self(force)
     }
@@ -235,6 +380,30 @@ impl SpatialTransform {
     #[inline]
     pub fn inv(&self) -> SpatialTransform {
         SpatialTransform::from(self.0.inv())
+    }
+
+    pub fn matrix_motion(&self) -> Matrix6 {
+        let transform = self.0;
+        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let r_skew = transform.translation.vec().skew();
+
+        let m11 = rotation_matrix;
+        let m12 = Matrix3::zeros();
+        let m21 = -rotation_matrix * r_skew;
+        let m22 = rotation_matrix;
+        Matrix6::from_4matrix3(m11, m12, m21, m22)
+    }
+
+    pub fn matrix_force(&self) -> Matrix6 {
+        let transform = self.0;
+        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let r_skew = transform.translation.vec().skew();
+
+        let m11 = rotation_matrix;
+        let m12 = -rotation_matrix * r_skew;
+        let m21 = Matrix3::zeros();
+        let m22 = rotation_matrix;
+        Matrix6::from_4matrix3(m11, m12, m21, m22)
     }
 }
 
@@ -313,6 +482,16 @@ impl Mul<SpatialTransform> for SpatialTransform {
     }
 }
 
+impl Mul<SpatialInertia> for SpatialTransform {
+    type Output = SpatialInertia;
+    fn mul(self, inertia: SpatialInertia) -> SpatialInertia {
+        let transform_motion = self.matrix_motion();
+        let transform_force = self.matrix_force();
+
+        SpatialInertia::from(transform_force * inertia.matrix() * transform_motion.transpose())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SpatialInertia(pub MassProperties);
 
@@ -334,9 +513,34 @@ impl SpatialInertia {
     }
 }
 
+impl From<Matrix6> for SpatialInertia {
+    fn from(m: Matrix6) -> Self {
+        let mass = m.e66;
+        let mc = Matrix3::new(
+            m.e14, m.e15, m.e16, m.e24, m.e25, m.e26, m.e34, m.e35, m.e36,
+        );
+        let center_of_mass = CenterOfMass::from(
+            Vector3::new(mc.e32 - mc.e23, mc.e13 - mc.e31, mc.e21 - mc.e12) * 0.5 / mass,
+        );
+        let inertia = Inertia::from(
+            Matrix3::new(
+                m.e11, m.e12, m.e13, m.e21, m.e22, m.e23, m.e31, m.e32, m.e33,
+            ) - mc * mc.transpose() / mass,
+        );
+        SpatialInertia(MassProperties::new(mass, center_of_mass, inertia).unwrap())
+    }
+}
+
 impl From<MassProperties> for SpatialInertia {
     fn from(value: MassProperties) -> SpatialInertia {
         SpatialInertia(value)
+    }
+}
+
+impl Add<SpatialInertia> for SpatialInertia {
+    type Output = SpatialInertia;
+    fn add(self, rhs: SpatialInertia) -> SpatialInertia {
+        SpatialInertia::from(self.matrix() + rhs.matrix())
     }
 }
 

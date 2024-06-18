@@ -4,7 +4,7 @@ use super::{
     body::{BodyRef, BodyTrait},
     MultibodyTrait,
 };
-use spatial_algebra::{Acceleration, Force, SpatialTransform, Velocity, SpatialInertia};
+use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -68,6 +68,7 @@ impl JointTrait for JointRef {
     fn get_transforms(&self) -> JointTransforms {
         self.borrow().get_transforms()
     }
+
     fn update_transforms(&mut self) {
         self.borrow_mut().update_transforms()
     }
@@ -100,6 +101,14 @@ impl JointCommon {
         let inner_body = self.connection.inner_body.as_ref().unwrap().body.borrow();
         let inner_joint_connection = inner_body.get_inner_joint().unwrap();
         inner_joint_connection.joint.clone()
+    }
+
+    fn get_inertia_articulated(&self) -> Option<SpatialInertia> {
+        self.mass_properties
+    }
+
+    fn set_inertia_articulated(&mut self, inertia: SpatialInertia) {
+        self.mass_properties = Some(inertia);
     }
 
     pub fn update_transforms(&mut self) {
@@ -237,6 +246,18 @@ impl ArticulatedBodyAlgorithm for JointEnum {
             JointEnum::Revolute(joint) => joint.get_a(),
         }
     }
+
+    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
+        match self {
+            JointEnum::Revolute(joint) => joint.add_inertia_articulated(inertia),
+        }
+    }
+
+    fn add_p_big_a(&mut self, force:Force) {
+        match self {
+            JointEnum::Revolute(joint) => joint.add_p_big_a(force),
+        }
+    }
 }
 
 // We choose to keep the transform information with the joint rather than the body.
@@ -262,6 +283,7 @@ impl Connection {
 
 #[derive(Default, Clone)]
 pub struct JointConnection {
+    inner_is_base: bool, // useful for ABA checks
     inner_body: Option<Connection>,
     outer_body: Option<Connection>,
 }

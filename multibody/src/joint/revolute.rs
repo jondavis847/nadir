@@ -1,6 +1,6 @@
 use crate::{
     articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{BodyRef, BodyTrait},
+    body::{BodyEnum, BodyRef, BodyTrait},
     joint::{
         Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
         JointTransforms,
@@ -8,9 +8,10 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
+use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
 use rotations::euler_angles::{Angles, EulerAngles};
-use spatial_algebra::{Acceleration, Force, Velocity, SpatialInertia};
-use std::cell::{Ref, RefCell};
+use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
+use std::cell::RefCell;
 use std::rc::Rc;
 use transforms::Transform;
 
@@ -20,6 +21,7 @@ pub enum RevoluteErrors {}
 pub struct RevoluteState {
     theta: f64,
     omega: f64,
+    q_ddot: f64,
     transform: Transform,
     aba: RevoluteAbaCache,
 }
@@ -30,9 +32,11 @@ impl RevoluteState {
         // assume this is about Z until we add more axes
         let transform = Transform::new(rotation.into(), CoordinateSystem::default());
         let aba = RevoluteAbaCache::default();
+        let q_ddot = 0.0;
         Self {
             theta,
             omega,
+            q_ddot,
             transform,
             aba,
         }
@@ -44,16 +48,20 @@ pub struct Revolute {
     common: JointCommon,
     parameters: JointParameters,
     state: RevoluteState,
+    motion_space: Matrix6x1,
 }
 
 impl Revolute {
     pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
         let common = JointCommon::new(name);
 
+        let motion_space = Matrix6x1::new(0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+
         Rc::new(RefCell::new(JointEnum::Revolute(Self {
             common,
             parameters,
             state,
+            motion_space,
         })))
     }
 }
@@ -61,14 +69,19 @@ impl Revolute {
 impl JointTrait for Revolute {
     fn connect_inner_body(
         &mut self,
-        body: BodyRef,
+        bodyref: BodyRef,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if self.common.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
-        let connection = Connection::new(body, transform);
+        let connection = Connection::new(bodyref.clone(), transform);
         self.common.connection.inner_body = Some(connection);
+        let body = bodyref.borrow();
+        match &*body {
+            BodyEnum::Base(_) => self.common.connection.inner_is_base = true,
+            BodyEnum::Body(_) => self.common.connection.inner_is_base = false,
+        }
         Ok(())
     }
 
@@ -82,7 +95,9 @@ impl JointTrait for Revolute {
         }
         let connection = Connection::new(body.clone(), transform);
         self.common.connection.outer_body = Some(connection);
-        self.common.mass_properties = Some(SpatialInertia(transform * body.borrow().get_mass_properties()));
+        self.common.mass_properties = Some(SpatialInertia(
+            transform * body.borrow().get_mass_properties(),
+        ));
         Ok(())
     }
 
@@ -94,7 +109,7 @@ impl JointTrait for Revolute {
 
     fn delete_outer_body(&mut self) {
         if self.common.connection.outer_body.is_some() {
-            self.common.connection.outer_body = None;            
+            self.common.connection.outer_body = None;
         }
         self.common.mass_properties = None;
     }
@@ -133,16 +148,18 @@ impl MultibodyTrait for Revolute {
 #[derive(Clone, Copy, Debug, Default)]
 struct RevoluteAbaCache {
     common: AbaCache,
-    u: f64,
-    D: f64,
-    U: f64,
+    lil_u: f64,
+    big_d_inv: f64,
+    big_u: Matrix6x1,
     q: f64,
     q_dot: f64,
     q_ddot: f64,
+    inertia_lil_a: f64,
 }
 
 impl ArticulatedBodyAlgorithm for Revolute {
     fn first_pass(&mut self) {
+        //TODO: this looks like its the same for every joint, make it at the joint level?
         let parent_ref = self.common.get_inner_joint();
         let parent = parent_ref.borrow();
         let transforms = &self.common.transforms;
@@ -152,14 +169,48 @@ impl ArticulatedBodyAlgorithm for Revolute {
 
         aba.v = transforms.jof_from_ij_jof * parent.get_v() + aba.vj;
         aba.c = aba.v.cross_motion(aba.vj); // + cj
-        
+
         let joint_mass_properties = self.common.mass_properties.unwrap();
 
         aba.inertia_articulated = joint_mass_properties;
-        aba.p_big_a = aba.v.cross_force(joint_mass_properties * aba.v) - transforms.jof_from_ob * body.get_external_force();
+        aba.p_big_a = aba.v.cross_force(joint_mass_properties * aba.v)
+            - transforms.jof_from_ob * body.get_external_force();
     }
-    fn second_pass(&mut self) {}
-    fn third_pass(&mut self) {}
+    fn second_pass(&mut self) {
+        let aba = &mut self.state.aba;
+        let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
+        let parent_ref = self.common.get_inner_joint();
+        let mut parent = parent_ref.borrow_mut();
+
+        // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
+        aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
+        aba.big_d_inv = 1.0 / aba.big_u.e31;
+        aba.lil_u = -(aba.common.p_big_a.get_index(3).unwrap());
+        if !self.common.connection.inner_is_base {
+            let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
+            let i_lil_a =
+                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose();
+            aba.common.p_lil_a = aba.common.p_big_a
+                + Force::from(i_lil_a * aba.common.c.vector())
+                + Force::from(big_u_times_big_d_inv * aba.lil_u);
+
+            let parent_inertia_articulated_contribution =
+                self.common.transforms.ij_jof_from_jof * SpatialInertia::from(i_lil_a);
+            parent.add_inertia_articulated(parent_inertia_articulated_contribution);
+            parent.add_p_big_a(self.common.transforms.ij_jof_from_jof * aba.common.p_big_a);
+        }
+    }
+    fn third_pass(&mut self) {
+        let parent_ref = self.common.get_inner_joint();
+        let parent = parent_ref.borrow();
+        let aba = &mut self.state.aba;
+
+        aba.common.a_prime = self.common.transforms.jof_from_ij_jof * parent.get_a() + aba.common.c;
+        self.state.q_ddot =
+            aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
+        aba.common.a = aba.common.a_prime
+            + Acceleration::from(Vector6::new(0.0, 0.0, self.state.q_ddot, 0.0, 0.0, 0.0));
+    }
 
     fn get_v(&self) -> Velocity {
         self.state.aba.common.v
@@ -171,5 +222,14 @@ impl ArticulatedBodyAlgorithm for Revolute {
 
     fn get_a(&self) -> Acceleration {
         self.state.aba.common.a
+    }
+
+    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
+        self.state.aba.common.inertia_articulated =
+            self.state.aba.common.inertia_articulated + inertia;
+    }
+
+    fn add_p_big_a(&mut self, p_big_a: Force) {
+        self.state.aba.common.p_big_a = self.state.aba.common.p_big_a + p_big_a;
     }
 }
