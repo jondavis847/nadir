@@ -1,5 +1,5 @@
 use crate::{
-    articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+    algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyEnum, BodyRef, BodyTrait},
     joint::{
         Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
@@ -23,7 +23,6 @@ pub struct RevoluteState {
     omega: f64,
     q_ddot: f64,
     transform: Transform,
-    aba: RevoluteAbaCache,
 }
 
 impl RevoluteState {
@@ -31,37 +30,41 @@ impl RevoluteState {
         let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, theta));
         // assume this is about Z until we add more axes
         let transform = Transform::new(rotation.into(), CoordinateSystem::default());
-        let aba = RevoluteAbaCache::default();
         let q_ddot = 0.0;
         Self {
             theta,
             omega,
             q_ddot,
             transform,
-            aba,
         }
     }
 }
+
+#[derive(Debug, Default, Clone, Copy)]
+
+struct RevoluteRk4Cache([RevoluteState; 4]);
 
 #[derive(Debug, Clone)]
 pub struct Revolute {
     common: JointCommon,
     parameters: JointParameters,
     state: RevoluteState,
-    motion_space: Matrix6x1,
+    aba: RevoluteAbaCache,
+    rk4: RevoluteRk4Cache,
 }
 
 impl Revolute {
     pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
         let common = JointCommon::new(name);
-
-        let motion_space = Matrix6x1::new(0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        let aba = RevoluteAbaCache::default();
+        let rk4 = RevoluteRk4Cache::default();
 
         Rc::new(RefCell::new(JointEnum::Revolute(Self {
             common,
             parameters,
             state,
-            motion_space,
+            aba,
+            rk4,
         })))
     }
 }
@@ -160,12 +163,12 @@ struct RevoluteAbaCache {
 impl ArticulatedBodyAlgorithm for Revolute {
     fn first_pass(&mut self) {
         //TODO: this looks like its the same for every joint, make it at the joint level?
-        let parent_ref = self.common.get_inner_joint();
-        let parent = parent_ref.borrow();
+        let parent = self.common.get_inner_joint(); // TODO: benchmark if it's faster to make parent the borrow rather than the Rc<RefCell<>>
+
         let transforms = &self.common.transforms;
         let body = self.get_outer_body().unwrap().body;
 
-        let aba = &mut self.state.aba.common;
+        let aba = &mut self.aba.common;
 
         aba.v = transforms.jof_from_ij_jof * parent.get_v() + aba.vj;
         aba.c = aba.v.cross_motion(aba.vj); // + cj
@@ -177,7 +180,7 @@ impl ArticulatedBodyAlgorithm for Revolute {
             - transforms.jof_from_ob * body.get_external_force();
     }
     fn second_pass(&mut self) {
-        let aba = &mut self.state.aba;
+        let aba = &mut self.aba;
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
         let parent_ref = self.common.get_inner_joint();
         let mut parent = parent_ref.borrow_mut();
@@ -203,7 +206,7 @@ impl ArticulatedBodyAlgorithm for Revolute {
     fn third_pass(&mut self) {
         let parent_ref = self.common.get_inner_joint();
         let parent = parent_ref.borrow();
-        let aba = &mut self.state.aba;
+        let aba = &mut self.aba;
 
         aba.common.a_prime = self.common.transforms.jof_from_ij_jof * parent.get_a() + aba.common.c;
         self.state.q_ddot =
@@ -213,23 +216,22 @@ impl ArticulatedBodyAlgorithm for Revolute {
     }
 
     fn get_v(&self) -> Velocity {
-        self.state.aba.common.v
+        self.aba.common.v
     }
 
     fn get_p_big_a(&self) -> Force {
-        self.state.aba.common.p_big_a
+        self.aba.common.p_big_a
     }
 
     fn get_a(&self) -> Acceleration {
-        self.state.aba.common.a
+        self.aba.common.a
     }
 
     fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        self.state.aba.common.inertia_articulated =
-            self.state.aba.common.inertia_articulated + inertia;
+        self.aba.common.inertia_articulated = self.aba.common.inertia_articulated + inertia;
     }
 
     fn add_p_big_a(&mut self, p_big_a: Force) {
-        self.state.aba.common.p_big_a = self.state.aba.common.p_big_a + p_big_a;
+        self.aba.common.p_big_a = self.aba.common.p_big_a + p_big_a;
     }
 }

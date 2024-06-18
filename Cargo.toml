@@ -5,7 +5,7 @@ edition = "2021"
 
 [workspace]
 members = [    
-    "coordinate_systems",
+    "coordinate_systems", "differential_equations",
     "linear_algebra", "mass_properties",
     "multibody",
     "rotations", "sim_value", "spatial_algebra",

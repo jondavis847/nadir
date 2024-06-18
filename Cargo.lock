@@ -48,6 +48,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "differential_equations"
+version = "0.1.0"
+
+[[package]]
 name = "gdt"
 version = "0.1.0"
 dependencies = [

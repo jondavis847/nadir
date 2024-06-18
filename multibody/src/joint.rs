@@ -1,6 +1,5 @@
-use crate::articulated_body_algorithm::ArticulatedBodyAlgorithm;
-
 use super::{
+    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
     body::{BodyRef, BodyTrait},
     MultibodyTrait,
 };
@@ -34,6 +33,7 @@ pub trait JointTrait {
 }
 
 impl JointTrait for JointRef {
+    #[inline]
     fn connect_inner_body(
         &mut self,
         bodyref: BodyRef,
@@ -42,6 +42,7 @@ impl JointTrait for JointRef {
         self.borrow_mut().connect_inner_body(bodyref, transform)
     }
 
+    #[inline]
     fn connect_outer_body(
         &mut self,
         bodyref: BodyRef,
@@ -50,27 +51,75 @@ impl JointTrait for JointRef {
         self.borrow_mut().connect_outer_body(bodyref, transform)
     }
 
+    #[inline]
     fn delete_inner_body(&mut self) {
         self.borrow_mut().delete_inner_body()
     }
+
+    #[inline]
     fn delete_outer_body(&mut self) {
         self.borrow_mut().delete_outer_body()
     }
 
+    #[inline]
     fn get_inner_body(&self) -> Option<Connection> {
         self.borrow().get_inner_body()
     }
 
+    #[inline]
     fn get_outer_body(&self) -> Option<Connection> {
         self.borrow().get_outer_body()
     }
 
+    #[inline]
     fn get_transforms(&self) -> JointTransforms {
         self.borrow().get_transforms()
     }
 
+    #[inline]
     fn update_transforms(&mut self) {
         self.borrow_mut().update_transforms()
+    }
+}
+
+impl ArticulatedBodyAlgorithm for JointRef {
+    #[inline]
+    fn first_pass(&mut self) {
+        self.borrow_mut().first_pass()
+    }
+
+    #[inline]
+    fn second_pass(&mut self) {
+        self.borrow_mut().second_pass()
+    }
+
+    #[inline]
+    fn third_pass(&mut self) {
+        self.borrow_mut().third_pass()
+    }
+
+    #[inline]
+    fn get_v(&self) -> Velocity {
+        self.borrow().get_v()
+    }
+
+    #[inline]
+    fn get_p_big_a(&self) -> Force {
+        self.borrow().get_p_big_a()
+    }
+    #[inline]
+    fn get_a(&self) -> Acceleration {
+        self.borrow().get_a()
+    }
+
+    #[inline]
+    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
+        self.borrow_mut().add_inertia_articulated(inertia)
+    }
+
+    #[inline]
+    fn add_p_big_a(&mut self, force: Force) {
+        self.borrow_mut().add_p_big_a(force)
     }
 }
 
@@ -253,7 +302,7 @@ impl ArticulatedBodyAlgorithm for JointEnum {
         }
     }
 
-    fn add_p_big_a(&mut self, force:Force) {
+    fn add_p_big_a(&mut self, force: Force) {
         match self {
             JointEnum::Revolute(joint) => joint.add_p_big_a(force),
         }
