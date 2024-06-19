@@ -1,6 +1,6 @@
 use super::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{BodyEnum, BodyRef, BodyTrait},
+    body::{body_enum::BodyEnum, body_ref::BodyRef, BodyTrait},
     joint::{JointRef, JointTrait},
     MultibodyErrors, MultibodyTrait,
 };

@@ -11,3 +11,4 @@ linear_algebra = {path = "../linear_algebra"}
 rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}
 mass_properties = {path = "../mass_properties"}
+arrayvec = "0.7.4"

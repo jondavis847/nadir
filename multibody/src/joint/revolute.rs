@@ -1,15 +1,13 @@
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{BodyEnum, BodyRef, BodyTrait},
+    body::{body_enum::BodyEnum, body_ref::BodyRef, BodyTrait},
     joint::{
         Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
         JointTransforms,
     },
     MultibodyTrait,
 };
-use coordinate_systems::CoordinateSystem;
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
-use rotations::euler_angles::{Angles, EulerAngles};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -21,21 +19,17 @@ pub enum RevoluteErrors {}
 pub struct RevoluteState {
     theta: f64,
     omega: f64,
-    q_ddot: f64,
-    transform: Transform,
+    q_ddot: f64,    
 }
 
 impl RevoluteState {
-    pub fn new(theta: f64, omega: f64) -> Self {
-        let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, theta));
-        // assume this is about Z until we add more axes
-        let transform = Transform::new(rotation.into(), CoordinateSystem::default());
+    pub fn new(theta: f64, omega: f64) -> Self {        
+        // assume this is about Z until we add more axes        
         let q_ddot = 0.0;
         Self {
             theta,
             omega,
-            q_ddot,
-            transform,
+            q_ddot,            
         }
     }
 }
@@ -127,13 +121,7 @@ impl JointTrait for Revolute {
         self.common.transforms
     }
 
-    fn update_transforms(&mut self) {
-        //update the joint transform (transform from joint inner frame(jif) to joint outer frame (jof))
-        let rotation = EulerAngles::XYZ(Angles::new(0.0, 0.0, self.state.theta));
-        // assume this is about Z until we add more axes
-        self.state.transform.rotation = rotation.into();
-
-        //update all of the transforms now that we have updated the joint transform
+    fn update_transforms(&mut self) {        
         self.common.update_transforms();
     }
 }

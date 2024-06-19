@@ -6,7 +6,7 @@ pub mod joint;
 pub mod system;
 
 use base::BaseErrors;
-use body::{BodyErrors, BodyRef};
+use body::{body_ref::BodyRef, BodyErrors};
 use joint::{revolute::RevoluteErrors, JointRef};
 
 pub enum MultibodyErrors {

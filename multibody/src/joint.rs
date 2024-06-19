@@ -1,6 +1,6 @@
 use super::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    body::{BodyRef, BodyTrait},
+    body::{body_ref::BodyRef, BodyTrait},
     MultibodyTrait,
 };
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};

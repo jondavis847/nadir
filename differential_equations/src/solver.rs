@@ -1,34 +1,19 @@
+use std::ops::{Add, Div, Mul};
+use super::Integrable;
+
 pub mod rk4;
-use super::MultibodySystem;
-
-pub trait Integrable<T> 
-
+use rk4::Rk4;
 pub enum SolverMethod {
     ClassicalRk4,
     DormandPrince45,
     Tsitouras45,
 }
 
-pub struct Solver {
-    current_time: f64,
-    last_time: f64,
-    end_time: f64,
-    delta_time: f64,
-    method: SolverMethod,
-}
-
-impl Solver {
-    pub fn new(tspan: (f64, f64), dt: f64) -> Self {
-        Self {
-            current_time: tspan.0,
-            last_time: tspan.0,
-            end_time: tspan.1,
-            delta_time: dt,
-            method: SolverMethod::ClassicalRk4,
-        }
-    }
-}
+pub struct Solver {}
 
 pub trait SolverTrait {
-    fn solve(&mut self, sys: &mut MultibodySystem);
+    fn solve_fixed<T, F>(&mut self, x0: T, func: F, tspan: (f64, f64), dt: f64) -> (Vec<f64>,Vec<T>)
+    where
+        T: Integrable,
+        F: Fn(T, f64) -> T; // (state, dt)
 }

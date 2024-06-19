@@ -1,5 +1,8 @@
 use super::{
-    body::{BodyEnum, BodyErrors, BodyJointConnection, BodyRef, BodyTrait},
+    body::{
+        body_enum::BodyEnum, body_ref::BodyRef, connection_joint::BodyJointConnection, BodyErrors,
+        BodyTrait,
+    },
     joint::JointRef,
     MultibodyTrait,
 };
@@ -76,7 +79,6 @@ impl BodyTrait for Base {
     fn get_mass_properties(&self) -> MassProperties {
         MassProperties::default() //TODO: this should never get called, can we just make base not be a body?
     }
-
 }
 impl MultibodyTrait for Base {
     fn get_name(&self) -> &str {

@@ -1,12 +1,27 @@
+use super::{base::Base, joint::JointRef, MultibodyTrait};
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use spatial_algebra::Force;
 use std::cell::RefCell;
-use std::fmt;
 use std::rc::Rc;
 
-use rotations::quaternion::Quaternion;
-use linear_algebra::vector3::Vector3;
-use super::{base::Base, joint::JointRef, MultibodyTrait};
+pub mod body_enum;
+pub mod body_ref;
+pub mod body_state;
+pub mod connection_joint;
+
+use body_enum::BodyEnum;
+use body_ref::BodyRef;
+use body_state::BodyState;
+use connection_joint::BodyJointConnection;
+
+#[derive(Clone, Copy, Debug)]
+pub enum BodyErrors {
+    EmptyName,
+    InnerJointExists,
+    MassPropertiesErrors(MassPropertiesErrors),
+    NoBaseInnerConnection,
+    OuterJointExists,
+}
 
 pub trait BodyTrait {
     fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
@@ -21,174 +36,9 @@ pub trait BodyTrait {
     fn get_mass_properties(&self) -> MassProperties;
 }
 
-pub type BodyRef = Rc<RefCell<BodyEnum>>;
-
-impl BodyTrait for BodyRef {
-    #[inline]
-    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        self.borrow_mut().connect_inner_joint(jointref)
-    }
-
-    #[inline]
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        self.borrow_mut().connect_outer_joint(jointref)
-    }
-
-    #[inline]
-    fn delete_inner_joint(&mut self) {
-        self.borrow_mut().delete_inner_joint()
-    }
-
-    #[inline]
-    fn delete_outer_joint(&mut self, jointref: JointRef) {
-        self.borrow_mut().delete_outer_joint(jointref)
-    }
-
-    #[inline]
-    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
-        self.borrow().get_inner_joint()
-    }
-
-    #[inline]
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
-        self.borrow().get_outer_joints()
-    }
-
-    #[inline]
-    fn get_mass_properties(&self) -> MassProperties {
-        self.borrow().get_mass_properties()
-    }
-
-    #[inline]
-    fn get_external_force(&self) -> Force {
-        self.borrow().get_external_force()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum BodyEnum {
-    Base(Base),
-    Body(Body),
-}
-
-impl BodyTrait for BodyEnum {
-    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        match self {
-            BodyEnum::Base(base) => base.connect_inner_joint(jointref),
-            BodyEnum::Body(body) => body.connect_inner_joint(jointref),
-        }
-    }
-
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        match self {
-            BodyEnum::Base(base) => base.connect_outer_joint(jointref),
-            BodyEnum::Body(body) => body.connect_outer_joint(jointref),
-        }
-    }
-
-    fn delete_inner_joint(&mut self) {
-        match self {
-            BodyEnum::Base(base) => base.delete_inner_joint(),
-            BodyEnum::Body(body) => body.delete_inner_joint(),
-        }
-    }
-    fn delete_outer_joint(&mut self, jointref: JointRef) {
-        match self {
-            BodyEnum::Base(base) => base.delete_outer_joint(jointref),
-            BodyEnum::Body(body) => body.delete_outer_joint(jointref),
-        }
-    }
-
-    fn get_external_force(&self) -> Force {
-        match self {
-            BodyEnum::Base(base) => base.get_external_force(),
-            BodyEnum::Body(body) => body.get_external_force(),
-        }
-    }
-
-    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
-        match self {
-            BodyEnum::Base(base) => base.get_inner_joint(),
-            BodyEnum::Body(body) => body.get_inner_joint(),
-        }
-    }
-
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
-        match self {
-            BodyEnum::Base(base) => base.get_outer_joints(),
-            BodyEnum::Body(body) => body.get_outer_joints(),
-        }
-    }
-
-    #[inline]
-    fn get_mass_properties(&self) -> MassProperties {
-        match self {
-            BodyEnum::Base(base) => base.get_mass_properties(),
-            BodyEnum::Body(body) => body.get_mass_properties(),
-        }
-    }
-}
-
-impl MultibodyTrait for BodyEnum {
-    fn get_name(&self) -> &str {
-        match self {
-            BodyEnum::Base(base) => base.get_name(),
-            BodyEnum::Body(body) => body.get_name(),
-        }
-    }
-
-    fn set_name(&mut self, name: String) {
-        match self {
-            BodyEnum::Base(base) => base.set_name(name),
-            BodyEnum::Body(body) => body.set_name(name),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum BodyErrors {
-    EmptyName,
-    InnerJointExists,
-    MassPropertiesErrors(MassPropertiesErrors),
-    NoBaseInnerConnection,
-    OuterJointExists,
-}
-
-// this is just needed for printing so that we don't recursively print the references
-#[derive(Clone)]
-pub struct BodyJointConnection {
-    pub joint: JointRef,
-}
-
-impl BodyJointConnection {
-    pub fn new(joint: JointRef) -> Self {
-        Self { joint }
-    }
-}
-
-impl fmt::Debug for BodyJointConnection {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let joint = self.joint.borrow();
-
-        f.debug_struct("BodyJointConnection")
-            .field("joint_name", &joint.get_name())
-            .finish()
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-struct BodyState {
-    position: Vector3,
-    velocity: Vector3,
-    acceleration: Vector3,
-    attitude: Quaternion,
-    angular_rate: Vector3,
-    external_force: Force,
-}
-
 #[derive(Debug, Clone)]
 pub struct Body {
-    //actuators: Vec<BodyActuatorConnection>,    
+    //actuators: Vec<BodyActuatorConnection>,
     inner_joint: Option<BodyJointConnection>,
     mass_properties: MassProperties,
     name: String,
@@ -208,117 +58,12 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
-            state: BodyState::default()
+            state: BodyState::default(),
         }))))
     }
 
     pub fn get_mass_properties(&self) -> MassProperties {
         self.mass_properties
-    }
-
-    /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> f64 {
-        self.mass_properties.get_cmx()
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> f64 {
-        self.mass_properties.get_cmy()
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> f64 {
-        self.mass_properties.get_cmz()
-    }
-
-    /// Returns the moment of inertia around the x-axis.
-    pub fn get_ixx(&self) -> f64 {
-        self.mass_properties.get_ixx()
-    }
-
-    /// Returns the product of inertia for the xy-plane.
-    pub fn get_ixy(&self) -> f64 {
-        self.mass_properties.get_ixy()
-    }
-
-    /// Returns the product of inertia for the xz-plane.
-    pub fn get_ixz(&self) -> f64 {
-        self.mass_properties.get_ixz()
-    }
-
-    /// Returns the moment of inertia around the y-axis.
-    pub fn get_iyy(&self) -> f64 {
-        self.mass_properties.get_iyy()
-    }
-
-    /// Returns the product of inertia for the yz-plane.
-    pub fn get_iyz(&self) -> f64 {
-        self.mass_properties.get_iyz()
-    }
-
-    /// Returns the moment of inertia around the z-axis.
-    pub fn get_izz(&self) -> f64 {
-        self.mass_properties.get_izz()
-    }
-
-    /// Returns the mass of the object.
-    pub fn get_mass(&self) -> f64 {
-        self.mass_properties.get_mass()
-    }
-
-    fn set_cmx(&mut self, cmx: f64) {
-        self.mass_properties.set_cmx(cmx);
-    }
-
-    fn set_cmy(&mut self, cmy: f64) {
-        self.mass_properties.set_cmy(cmy);
-    }
-
-    fn set_cmz(&mut self, cmz: f64) {
-        self.mass_properties.set_cmz(cmz);
-    }
-
-    fn set_ixx(&mut self, ixx: f64) -> Result<(), BodyErrors> {
-        match self.mass_properties.set_ixx(ixx) {
-            Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
-            Ok(_) => Ok(()),
-        }
-    }
-
-    fn set_ixy(&mut self, ixy: f64) {
-        self.mass_properties.set_ixy(ixy);
-    }
-
-    fn set_ixz(&mut self, ixz: f64) {
-        self.mass_properties.set_ixz(ixz);
-    }
-
-    fn set_iyy(&mut self, iyy: f64) -> Result<(), BodyErrors> {
-        match self.mass_properties.set_iyy(iyy) {
-            Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
-            Ok(_) => Ok(()),
-        }
-    }
-
-    fn set_iyz(&mut self, iyz: f64) -> Result<(), BodyErrors> {
-        match self.mass_properties.set_ixx(iyz) {
-            Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
-            Ok(_) => Ok(()),
-        }
-    }
-
-    fn set_izz(&mut self, izz: f64) -> Result<(), BodyErrors> {
-        match self.mass_properties.set_izz(izz) {
-            Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
-            Ok(_) => Ok(()),
-        }
-    }
-
-    fn set_mass(&mut self, mass: f64) -> Result<(), BodyErrors> {
-        match self.mass_properties.set_mass(mass) {
-            Err(error) => Err(BodyErrors::MassPropertiesErrors(error)),
-            Ok(_) => Ok(()),
-        }
     }
 }
 
