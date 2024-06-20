@@ -1,5 +1,5 @@
 use differential_equations::{
-    solver::{rk4::Rk4, SolverTrait},
+    solver::{Solver, SolverMethod},
     Integrable,
 };
 use std::ops::{Add, Div, Mul};
@@ -65,8 +65,15 @@ fn main() {
     let tspan = (0.0, 10.0); // Time span for the simulation
     let dt = 0.1; // Time step (10 Hz)
 
-    let mut solver = Rk4 {};
-    let (time, results) = solver.solve_fixed(initial_state, pendulum_dynamics, tspan, dt);
+    let solver = Solver {
+        func: |state, t| pendulum_dynamics(state, t),
+        x0: initial_state,
+        tstart: 0.0,
+        tstop: 10.0,
+        dt: 0.1,
+        solver: SolverMethod::Rk4Classical,
+    };
+    let (time, results) = solver.solve();
 
     // Print the results
     for (i, state) in results.iter().enumerate() {
