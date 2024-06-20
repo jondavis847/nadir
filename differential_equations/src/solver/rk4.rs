@@ -33,7 +33,7 @@ where
         let k3 = func(x.clone() + k2.clone() * half_dt, t + half_dt);
         let k4 = func(x.clone() + k3.clone() * *dt, t + dt);
 
-        x = x.clone() + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * *dt / 6.0;
+        x = x + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * *dt / 6.0;
         t += dt;
 
         result.push(x.clone());

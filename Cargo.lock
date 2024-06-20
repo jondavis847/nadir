@@ -214,6 +214,7 @@ name = "gdt"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
+ "differential_equations",
  "mass_properties",
  "multibody",
  "rotations",
