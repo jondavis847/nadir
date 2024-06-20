@@ -1,15 +1,15 @@
 use super::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{body_enum::BodyEnum, body_ref::BodyRef, BodyTrait},
-    joint::{JointRef, JointTrait},
+    body::{body_enum::BodyEnum, Body, BodyTrait},
+    joint::{JointEnum, JointTrait},
     MultibodyErrors, MultibodyTrait,
 };
 
 #[derive(Debug, Clone)]
 pub struct MultibodySystem {
     algorithm: MultibodyAlgorithm,
-    bodies: Vec<BodyRef>,
-    joints: Vec<JointRef>,
+    bodies: Vec<BodyEnum>,
+    joints: Vec<JointEnum>,
 }
 
 impl MultibodySystem {
@@ -21,88 +21,70 @@ impl MultibodySystem {
         }
     }
 
-    pub fn add_body(&mut self, bodyref: BodyRef) -> Result<(), MultibodyErrors> {
+    pub fn add_body(&mut self, body: BodyEnum) -> Result<(), MultibodyErrors> {
         // return if this is a Base and we already have a Base
-        if matches!(*bodyref.borrow(), BodyEnum::Base(_)) {
-            if let Some(_) = self.bodies.iter().find(|body| {
-                let body = body.borrow();
-                matches!(*body, BodyEnum::Base(_))
-            }) {
+        if matches!(body, BodyEnum::Base(_)) {
+            if let Some(_) = self
+                .bodies
+                .iter()
+                .find(|body| matches!(*body, BodyEnum::Base(_)))
+            {
                 return Err(MultibodyErrors::BaseAlreadyExists);
             }
         }
 
         // Return if a component with this name already exists
-        let name = bodyref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
+        let name = body.get_name().to_string(); // Clone the name to avoid multiple borrow
 
-        if self
-            .bodies
-            .iter()
-            .any(|body| body.borrow().get_name() == name)
-        {
+        if self.bodies.iter().any(|body| body.get_name() == name) {
             return Err(MultibodyErrors::NameTaken);
         }
 
-        if self
-            .joints
-            .iter()
-            .any(|joint| joint.borrow().get_name() == name)
-        {
+        if self.joints.iter().any(|joint| joint.get_name() == name) {
             return Err(MultibodyErrors::NameTaken);
         }
 
-        self.bodies.push(bodyref);
+        self.bodies.push(body);
         Ok(())
     }
 
-    pub fn add_joint(&mut self, jointref: JointRef) -> Result<(), MultibodyErrors> {
+    pub fn add_joint(&mut self, joint: JointEnum) -> Result<(), MultibodyErrors> {
         // Return if a component with this name already exists
-        let name = jointref.borrow().get_name().to_string(); // Clone the name to avoid multiple borrow
+        let name = joint.get_name().to_string(); // Clone the name to avoid multiple borrow
 
-        if self
-            .bodies
-            .iter()
-            .any(|body| body.borrow().get_name() == name)
-        {
+        if self.bodies.iter().any(|body| body.get_name() == name) {
             return Err(MultibodyErrors::NameTaken);
         }
 
-        if self
-            .joints
-            .iter()
-            .any(|joint| joint.borrow().get_name() == name)
-        {
+        if self.joints.iter().any(|joint| joint.get_name() == name) {
             return Err(MultibodyErrors::NameTaken);
         }
-        self.joints.push(jointref);
+        self.joints.push(joint);
         Ok(())
     }
 
-    fn find_base(&self) -> BodyRef {
+    fn find_base(&self) -> BodyEnum {
         self.bodies
             .iter()
-            .find(|bodyref| {
-                let body = bodyref.borrow();
-                match &*body {
-                    BodyEnum::Base(_) => true,
-                    BodyEnum::Body(_) => false,
-                }
+            .find(|body| match &*body {
+                BodyEnum::Base(_) => true,
+                BodyEnum::Body(_) => false,
             })
             .unwrap()
             .clone()
     }
 
-    pub fn find_body_by_name(&self, name: &str) -> Option<BodyRef> {
+    pub fn find_body_by_name(&self, name: &str) -> Option<BodyEnum> {
         self.bodies
             .iter()
-            .find(|joint| joint.borrow().get_name() == name)
+            .find(|joint| joint.get_name() == name)
             .cloned()
     }
 
-    pub fn find_joint_by_name(&self, name: &str) -> Option<JointRef> {
+    pub fn find_joint_by_name(&self, name: &str) -> Option<JointEnum> {
         self.joints
             .iter()
-            .find(|joint| joint.borrow().get_name() == name)
+            .find(|joint| joint.get_name() == name)
             .cloned()
     }
 
@@ -172,7 +154,7 @@ impl MultibodySystem {
         let num_bases = self
             .bodies
             .iter()
-            .filter(|body_ref| match &*body_ref.borrow() {
+            .filter(|body| match body {
                 BodyEnum::Base(_) => true,
                 _ => false,
             })
@@ -191,12 +173,9 @@ impl MultibodySystem {
         if self
             .bodies
             .iter()
-            .find(|bodyref| {
-                let body = bodyref.borrow();
-                match &*body {
-                    BodyEnum::Base(base) => base.get_outer_joints().is_empty(),
-                    BodyEnum::Body(_) => false,
-                }
+            .find(|body| match body {
+                BodyEnum::Base(base) => base.get_outer_joints().is_empty(),
+                BodyEnum::Body(_) => false,
             })
             .is_some()
         {
@@ -206,9 +185,8 @@ impl MultibodySystem {
         println!("Base has at least 1 outer joint.");
 
         // check that every body has an inner joint
-        if let Some(body) = self.bodies.iter().find(|bodyref| {
-            let body = bodyref.borrow();
-            match &*body {
+        if let Some(body) = self.bodies.iter().find(|body| {
+            match body {
                 BodyEnum::Base(_) => false,
                 BodyEnum::Body(body) => body.get_inner_joint().is_none(),
             }
@@ -244,18 +222,18 @@ impl MultibodySystem {
 }
 
 fn find_body_for_sort(
-    joint: JointRef,
-    new_bodies: &mut Vec<BodyRef>,
-    new_joints: &mut Vec<JointRef>,
+    joint: JointEnum,
+    new_bodies: &mut Vec<BodyEnum>,
+    new_joints: &mut Vec<JointEnum>,
 ) {
     new_joints.push(joint.clone());
     find_joints_for_sort(joint.get_outer_body().unwrap().body, new_bodies, new_joints);
 }
 
 fn find_joints_for_sort(
-    body: BodyRef,
-    new_bodies: &mut Vec<BodyRef>,
-    new_joints: &mut Vec<JointRef>,
+    body: BodyEnum,
+    new_bodies: &mut Vec<BodyEnum>,
+    new_joints: &mut Vec<JointEnum>,
 ) {
     new_bodies.push(body.clone());
     for joint_connection in body.get_outer_joints() {

@@ -1,8 +1,7 @@
 use super::{base::Base, joint::JointRef, MultibodyTrait};
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use spatial_algebra::Force;
-use std::cell::RefCell;
-use std::rc::Rc;
+use uuid::Uuid;
 
 pub mod body_enum;
 pub mod body_ref;
@@ -24,12 +23,12 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait {
-    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
+    fn connect_inner_joint(&mut self, joint_id: Uuid) -> Result<(), BodyErrors>;
 
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors>;
+    fn connect_outer_joint(&mut self, joint_id: Uuid) -> Result<(), BodyErrors>;
 
     fn delete_inner_joint(&mut self);
-    fn delete_outer_joint(&mut self, jointref: JointRef);
+    fn delete_outer_joint(&mut self, joint_id: Uuid);
     fn get_external_force(&self) -> Force;
     fn get_inner_joint(&self) -> Option<BodyJointConnection>;
     fn get_outer_joints(&self) -> Vec<BodyJointConnection>;
