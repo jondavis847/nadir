@@ -1,13 +1,13 @@
+use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,
     body::{Body, BodyTrait},
     joint::{
         revolute::{Revolute, RevoluteState},
         JointParameters, JointTrait,
-    },    
-    MultibodySystem,
+    },
+    system::MultibodySystem,
 };
-use mass_properties::{CenterOfMass,Inertia,MassProperties};
 
 use transforms::Transform;
 
@@ -31,11 +31,19 @@ fn main() {
     );
     sys.add_joint(joint2.clone());
 
-    let mp = MassProperties::new(1.0, CenterOfMass::new(0.0, 0.0, 0.0), Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap());
+    let mp = MassProperties::new(
+        1.0,
+        CenterOfMass::new(0.0, 0.0, 0.0),
+        Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap(),
+    );
     let mut body1 = Body::new("body1", mp.unwrap()).unwrap();
     sys.add_body(body1.clone());
 
-    let mp = MassProperties::new(1.0, CenterOfMass::new(0.0, 0.0, 0.0), Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap());
+    let mp = MassProperties::new(
+        1.0,
+        CenterOfMass::new(0.0, 0.0, 0.0),
+        Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap(),
+    );
     let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
     sys.add_body(body2.clone());
 
