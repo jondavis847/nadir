@@ -4,14 +4,9 @@ use spatial_algebra::Force;
 use uuid::Uuid;
 
 pub mod body_enum;
-pub mod body_ref;
 pub mod body_state;
-pub mod connection_joint;
-
 use body_enum::BodyEnum;
-use body_ref::BodyRef;
 use body_state::BodyState;
-use connection_joint::BodyJointConnection;
 
 #[derive(Clone, Copy, Debug)]
 pub enum BodyErrors {
@@ -23,73 +18,62 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait {
-    fn connect_inner_joint(&mut self, joint_id: Uuid) -> Result<(), BodyErrors>;
+    fn connect_inner_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors>;
 
-    fn connect_outer_joint(&mut self, joint_id: Uuid) -> Result<(), BodyErrors>;
+    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors>;
 
     fn delete_inner_joint(&mut self);
-    fn delete_outer_joint(&mut self, joint_id: Uuid);
-    fn get_external_force(&self) -> Force;
-    fn get_inner_joint(&self) -> Option<BodyJointConnection>;
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection>;
-    fn get_mass_properties(&self) -> MassProperties;
+    fn delete_outer_joint(&mut self, joint_id: &Uuid);
+    fn get_external_force(&self) -> &Force;
+    fn get_inner_joint(&self) -> &Option<Uuid>;
+    fn get_outer_joints(&self) -> &Vec<Uuid>;
+    fn get_mass_properties(&self) -> &MassProperties;
 }
 
 #[derive(Debug, Clone)]
 pub struct Body {
     //actuators: Vec<BodyActuatorConnection>,
-    inner_joint: Option<BodyJointConnection>,
+    inner_joint: Option<Uuid>,
     mass_properties: MassProperties,
     name: String,
-    outer_joints: Vec<BodyJointConnection>,
+    outer_joints: Vec<Uuid>,
     //sensors: Vec<BodySensorConnection>,
     state: BodyState,
 }
 
 impl Body {
-    pub fn new(name: &str, mass_properties: MassProperties) -> Result<BodyRef, BodyErrors> {
+    pub fn new(name: &str, mass_properties: MassProperties) -> Result<BodyEnum, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(Rc::new(RefCell::new(BodyEnum::Body(Self {
+        Ok(BodyEnum::Body(Self {
             //actuators: Vec::new(),
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
             state: BodyState::default(),
-        }))))
-    }
-
-    pub fn get_mass_properties(&self) -> MassProperties {
-        self.mass_properties
+        }))
     }
 }
 
 impl BodyTrait for Body {
-    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
         match self.inner_joint {
             Some(_) => return Err(BodyErrors::InnerJointExists),
-            None => self.inner_joint = Some(BodyJointConnection::new(jointref)),
+            None => self.inner_joint = Some(*joint_id),
         }
         Ok(())
     }
 
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        // Borrow the joint and get its name
-        let joint_name = jointref.borrow().get_name().to_string();
-
+    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
         // Check if the joint already exists in outer_joints
-        if self
-            .outer_joints
-            .iter()
-            .any(|connection| connection.joint.borrow().get_name() == joint_name)
-        {
+        if self.outer_joints.iter().any(|id| id == joint_id) {
             return Err(BodyErrors::OuterJointExists);
         }
 
         // Push the new joint connection
-        self.outer_joints.push(BodyJointConnection::new(jointref));
+        self.outer_joints.push(*joint_id);
         Ok(())
     }
 
@@ -99,25 +83,24 @@ impl BodyTrait for Body {
         }
     }
 
-    fn delete_outer_joint(&mut self, jointref: JointRef) {
-        self.outer_joints
-            .retain(|connection| !Rc::ptr_eq(&connection.joint, &jointref));
+    fn delete_outer_joint(&mut self, joint_id: &Uuid) {
+        self.outer_joints.retain(|id| id != joint_id);
     }
 
-    fn get_external_force(&self) -> Force {
-        self.state.external_force
+    fn get_external_force(&self) -> &Force {
+        &self.state.external_force
     }
 
-    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
-        self.inner_joint.clone()
+    fn get_inner_joint(&self) -> &Option<Uuid> {
+        &self.inner_joint
     }
 
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
-        self.outer_joints.clone()
+    fn get_outer_joints(&self) -> &Vec<Uuid> {
+        &self.outer_joints
     }
 
-    fn get_mass_properties(&self) -> MassProperties {
-        self.mass_properties
+    fn get_mass_properties(&self) -> &MassProperties {
+        &self.mass_properties
     }
 }
 

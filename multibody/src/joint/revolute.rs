@@ -1,6 +1,6 @@
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{body_enum::BodyEnum, body_ref::BodyRef, BodyTrait},
+    body::{body_enum::BodyEnum, BodyTrait},
     joint::{
         Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
         JointTransforms,

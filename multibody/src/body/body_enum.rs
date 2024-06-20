@@ -1,7 +1,8 @@
-use super::{connection_joint::BodyJointConnection, Body, BodyErrors, BodyTrait};
-use crate::{base::Base, joint::JointRef, MultibodyTrait};
+use super::{Body, BodyErrors, BodyTrait};
+use crate::{base::Base, MultibodyTrait};
 use mass_properties::MassProperties;
 use spatial_algebra::Force;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub enum BodyEnum {
@@ -10,17 +11,17 @@ pub enum BodyEnum {
 }
 
 impl BodyTrait for BodyEnum {
-    fn connect_inner_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
         match self {
-            BodyEnum::Base(base) => base.connect_inner_joint(jointref),
-            BodyEnum::Body(body) => body.connect_inner_joint(jointref),
+            BodyEnum::Base(base) => base.connect_inner_joint(joint_id),
+            BodyEnum::Body(body) => body.connect_inner_joint(joint_id),
         }
     }
 
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
         match self {
-            BodyEnum::Base(base) => base.connect_outer_joint(jointref),
-            BodyEnum::Body(body) => body.connect_outer_joint(jointref),
+            BodyEnum::Base(base) => base.connect_outer_joint(joint_id),
+            BodyEnum::Body(body) => body.connect_outer_joint(joint_id),
         }
     }
 
@@ -30,28 +31,28 @@ impl BodyTrait for BodyEnum {
             BodyEnum::Body(body) => body.delete_inner_joint(),
         }
     }
-    fn delete_outer_joint(&mut self, jointref: JointRef) {
+    fn delete_outer_joint(&mut self, joint_id: &Uuid) {
         match self {
-            BodyEnum::Base(base) => base.delete_outer_joint(jointref),
-            BodyEnum::Body(body) => body.delete_outer_joint(jointref),
+            BodyEnum::Base(base) => base.delete_outer_joint(joint_id),
+            BodyEnum::Body(body) => body.delete_outer_joint(joint_id),
         }
     }
 
-    fn get_external_force(&self) -> Force {
+    fn get_external_force(&self) -> &Force {
         match self {
             BodyEnum::Base(base) => base.get_external_force(),
             BodyEnum::Body(body) => body.get_external_force(),
         }
     }
 
-    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
+    fn get_inner_joint(&self) -> &Option<Uuid> {
         match self {
             BodyEnum::Base(base) => base.get_inner_joint(),
             BodyEnum::Body(body) => body.get_inner_joint(),
         }
     }
 
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
+    fn get_outer_joints(&self) -> &Vec<Uuid> {
         match self {
             BodyEnum::Base(base) => base.get_outer_joints(),
             BodyEnum::Body(body) => body.get_outer_joints(),
@@ -59,7 +60,7 @@ impl BodyTrait for BodyEnum {
     }
 
     #[inline]
-    fn get_mass_properties(&self) -> MassProperties {
+    fn get_mass_properties(&self) -> &MassProperties {
         match self {
             BodyEnum::Base(base) => base.get_mass_properties(),
             BodyEnum::Body(body) => body.get_mass_properties(),

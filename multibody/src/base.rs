@@ -1,57 +1,48 @@
 use super::{
-    body::{
-        body_enum::BodyEnum, body_ref::BodyRef, connection_joint::BodyJointConnection, BodyErrors,
-        BodyTrait,
-    },
-    joint::JointRef,
+    body::{body_enum::BodyEnum, BodyErrors, BodyTrait},
     MultibodyTrait,
 };
 use mass_properties::MassProperties;
 use spatial_algebra::Force;
-use std::cell::RefCell;
-use std::rc::Rc;
+use uuid::Uuid;
 
-pub type BaseRef = Rc<RefCell<Base>>;
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Base {
     name: String,
-    outer_joints: Vec<BodyJointConnection>,
+    outer_joints: Vec<Uuid>,
+    external_force: Force,
+    mass_properties: MassProperties,
 }
 
 impl Base {
-    pub fn new(name: &str) -> Result<BodyRef, BodyErrors> {
+    pub fn new(name: &str) -> Result<BodyEnum, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(Rc::new(RefCell::new(BodyEnum::Base(Self {
+        Ok(BodyEnum::Base(Self {
             name: name.to_string(),
             outer_joints: Vec::new(),
-        }))))
+            external_force: Force::default(),
+            mass_properties: MassProperties::default(),
+        }))
     }
 }
 
 pub enum BaseErrors {}
 
 impl BodyTrait for Base {
-    fn connect_inner_joint(&mut self, _jointref: JointRef) -> Result<(), BodyErrors> {
+    fn connect_inner_joint(&mut self, _joint_id: &Uuid) -> Result<(), BodyErrors> {
         Err(BodyErrors::NoBaseInnerConnection)
     }
 
-    fn connect_outer_joint(&mut self, jointref: JointRef) -> Result<(), BodyErrors> {
-        // Borrow the joint and get its name
-        let joint_name = jointref.borrow().get_name().to_string();
-
+    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
         // Check if the joint already exists in outer_joints
-        if self
-            .outer_joints
-            .iter()
-            .any(|connection| connection.joint.borrow().get_name() == joint_name)
-        {
+        if self.outer_joints.iter().any(|id| id == joint_id) {
             return Err(BodyErrors::OuterJointExists);
         }
 
         // Push the new joint connection
-        self.outer_joints.push(BodyJointConnection::new(jointref));
+        self.outer_joints.push(*joint_id);
         Ok(())
     }
 
@@ -59,25 +50,24 @@ impl BodyTrait for Base {
         //nothing to do
     }
 
-    fn delete_outer_joint(&mut self, jointref: JointRef) {
-        self.outer_joints
-            .retain(|connection| !Rc::ptr_eq(&connection.joint, &jointref));
+    fn delete_outer_joint(&mut self, joint_id: &Uuid) {
+        self.outer_joints.retain(|id| id != joint_id);
     }
 
-    fn get_inner_joint(&self) -> Option<BodyJointConnection> {
-        None
+    fn get_inner_joint(&self) -> &Option<Uuid> {
+        &None
     }
 
-    fn get_outer_joints(&self) -> Vec<BodyJointConnection> {
-        self.outer_joints.clone()
+    fn get_outer_joints(&self) -> &Vec<Uuid> {
+        &self.outer_joints
     }
 
-    fn get_external_force(&self) -> Force {
-        Force::default()
+    fn get_external_force(&self) -> &Force {
+        &self.external_force //TODO: this should never get called, can we just make base not be a body?
     }
 
-    fn get_mass_properties(&self) -> MassProperties {
-        MassProperties::default() //TODO: this should never get called, can we just make base not be a body?
+    fn get_mass_properties(&self) -> &MassProperties {
+        &self.mass_properties //TODO: this should never get called, can we just make base not be a body?
     }
 }
 impl MultibodyTrait for Base {

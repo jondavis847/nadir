@@ -1,128 +1,30 @@
 use super::{
-    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    body::{body_ref::BodyRef, BodyTrait},
+    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::BodyTrait,
     MultibodyTrait,
 };
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::cell::RefCell;
+
 use std::fmt;
-use std::rc::Rc;
+
 use transforms::Transform;
+use uuid::Uuid;
 
 pub mod revolute;
 use revolute::Revolute;
-
-pub type JointRef = Rc<RefCell<JointEnum>>;
 pub trait JointTrait {
-    fn connect_inner_body(
-        &mut self,
-        body: BodyRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors>;
+    fn connect_inner_body(&mut self, body: &Uuid, transform: Transform) -> Result<(), JointErrors>;
     fn connect_outer_body(
         &mut self,
-        body: BodyRef,
+        body_id: &Uuid,
         transform: Transform,
     ) -> Result<(), JointErrors>;
     fn delete_inner_body(&mut self);
     fn delete_outer_body(&mut self);
-    fn get_inner_body(&self) -> Option<Connection>;
-    fn get_outer_body(&self) -> Option<Connection>;
-    fn get_transforms(&self) -> JointTransforms;
+    fn get_inner_body(&self) -> &Option<Uuid>;
+    fn get_outer_body(&self) -> &Option<Uuid>;
+    fn get_transforms(&self) -> &JointTransforms;
     fn update_transforms(&mut self);
 }
-
-impl JointTrait for JointRef {
-    #[inline]
-    fn connect_inner_body(
-        &mut self,
-        bodyref: BodyRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        self.borrow_mut().connect_inner_body(bodyref, transform)
-    }
-
-    #[inline]
-    fn connect_outer_body(
-        &mut self,
-        bodyref: BodyRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        self.borrow_mut().connect_outer_body(bodyref, transform)
-    }
-
-    #[inline]
-    fn delete_inner_body(&mut self) {
-        self.borrow_mut().delete_inner_body()
-    }
-
-    #[inline]
-    fn delete_outer_body(&mut self) {
-        self.borrow_mut().delete_outer_body()
-    }
-
-    #[inline]
-    fn get_inner_body(&self) -> Option<Connection> {
-        self.borrow().get_inner_body()
-    }
-
-    #[inline]
-    fn get_outer_body(&self) -> Option<Connection> {
-        self.borrow().get_outer_body()
-    }
-
-    #[inline]
-    fn get_transforms(&self) -> JointTransforms {
-        self.borrow().get_transforms()
-    }
-
-    #[inline]
-    fn update_transforms(&mut self) {
-        self.borrow_mut().update_transforms()
-    }
-}
-
-impl ArticulatedBodyAlgorithm for JointRef {
-    #[inline]
-    fn first_pass(&mut self) {
-        self.borrow_mut().first_pass()
-    }
-
-    #[inline]
-    fn second_pass(&mut self) {
-        self.borrow_mut().second_pass()
-    }
-
-    #[inline]
-    fn third_pass(&mut self) {
-        self.borrow_mut().third_pass()
-    }
-
-    #[inline]
-    fn get_v(&self) -> Velocity {
-        self.borrow().get_v()
-    }
-
-    #[inline]
-    fn get_p_big_a(&self) -> Force {
-        self.borrow().get_p_big_a()
-    }
-    #[inline]
-    fn get_a(&self) -> Acceleration {
-        self.borrow().get_a()
-    }
-
-    #[inline]
-    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        self.borrow_mut().add_inertia_articulated(inertia)
-    }
-
-    #[inline]
-    fn add_p_big_a(&mut self, force: Force) {
-        self.borrow_mut().add_p_big_a(force)
-    }
-}
-
 pub enum JointErrors {
     InnerBodyExists,
     OuterBodyExists,
@@ -144,12 +46,6 @@ impl JointCommon {
             mass_properties: None,
             transforms: JointTransforms::default(),
         }
-    }
-
-    pub fn get_inner_joint(&self) -> JointRef {
-        let inner_body = self.connection.inner_body.as_ref().unwrap().body.borrow();
-        let inner_joint_connection = inner_body.get_inner_joint().unwrap();
-        inner_joint_connection.joint.clone()
     }
 
     fn get_inertia_articulated(&self) -> Option<SpatialInertia> {
@@ -212,7 +108,7 @@ impl MultibodyTrait for JointEnum {
 impl JointTrait for JointEnum {
     fn connect_inner_body(
         &mut self,
-        body: BodyRef,
+        body: &Uuid,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
@@ -221,7 +117,7 @@ impl JointTrait for JointEnum {
     }
     fn connect_outer_body(
         &mut self,
-        body: BodyRef,
+        body: &Uuid,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
@@ -239,18 +135,18 @@ impl JointTrait for JointEnum {
             JointEnum::Revolute(joint) => joint.delete_outer_body(),
         }
     }
-    fn get_inner_body(&self) -> Option<Connection> {
+    fn get_inner_body(&self) -> &Option<Uuid> {
         match self {
             JointEnum::Revolute(joint) => joint.get_inner_body(),
         }
     }
-    fn get_outer_body(&self) -> Option<Connection> {
+    fn get_outer_body(&self) -> &Option<Uuid> {
         match self {
             JointEnum::Revolute(joint) => joint.get_outer_body(),
         }
     }
 
-    fn get_transforms(&self) -> JointTransforms {
+    fn get_transforms(&self) -> &JointTransforms {
         match self {
             JointEnum::Revolute(joint) => joint.get_transforms(),
         }
@@ -319,42 +215,22 @@ impl ArticulatedBodyAlgorithm for JointEnum {
 // We also choose to make the transform be from the body frame to the joint frame.
 // This is because the location of things like actuators or other bodies are typically expressed in the body frame.
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Connection {
-    pub body: BodyRef,
+    pub body: Uuid,
     pub transform: Transform,
 }
 impl Connection {
-    pub fn new(body: BodyRef, transform: Transform) -> Self {
+    pub fn new(body: Uuid, transform: Transform) -> Self {
         Self { body, transform }
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct JointConnection {
     inner_is_base: bool, // useful for ABA checks
     inner_body: Option<Connection>,
     outer_body: Option<Connection>,
-}
-
-// Better printing so we dont recurse with bodyref and jointref
-impl fmt::Debug for JointConnection {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner_body = match &self.inner_body {
-            None => None,
-            Some(connection) => Some(connection.body.borrow().get_name().to_string()),
-        };
-
-        let outer_body = match &self.outer_body {
-            None => None,
-            Some(connection) => Some(connection.body.borrow().get_name().to_string()),
-        };
-
-        f.debug_struct("JointConnection")
-            .field("inner_body", &inner_body)
-            .field("outer_body", &outer_body)
-            .finish()
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
