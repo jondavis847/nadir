@@ -5,7 +5,7 @@ use multibody::{
         revolute::{Revolute, RevoluteState},
         JointParameters, JointTrait,
     },    
-    MultibodySystem,
+    system::MultibodySystem,
 };
 use mass_properties::{CenterOfMass,Inertia,MassProperties};
 
