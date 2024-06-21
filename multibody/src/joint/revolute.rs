@@ -2,16 +2,15 @@ use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{body_enum::BodyEnum, BodyTrait},
     joint::{
-        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointRef, JointTrait,
+        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointTrait,
         JointTransforms,
     },
     MultibodyTrait,
 };
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
-use std::cell::RefCell;
-use std::rc::Rc;
 use transforms::Transform;
+use uuid::Uuid;
 
 pub enum RevoluteErrors {}
 
@@ -19,17 +18,17 @@ pub enum RevoluteErrors {}
 pub struct RevoluteState {
     theta: f64,
     omega: f64,
-    q_ddot: f64,    
+    q_ddot: f64,
 }
 
 impl RevoluteState {
-    pub fn new(theta: f64, omega: f64) -> Self {        
-        // assume this is about Z until we add more axes        
+    pub fn new(theta: f64, omega: f64) -> Self {
+        // assume this is about Z until we add more axes
         let q_ddot = 0.0;
         Self {
             theta,
             omega,
-            q_ddot,            
+            q_ddot,
         }
     }
 }
@@ -48,85 +47,86 @@ pub struct Revolute {
 }
 
 impl Revolute {
-    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> JointRef {
+    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> Revolute {
         let common = JointCommon::new(name);
         let aba = RevoluteAbaCache::default();
         let rk4 = RevoluteRk4Cache::default();
 
-        Rc::new(RefCell::new(JointEnum::Revolute(Self {
+        Self {
             common,
             parameters,
             state,
             aba,
             rk4,
-        })))
+        }
     }
 }
 
 impl JointTrait for Revolute {
     fn connect_inner_body(
         &mut self,
-        bodyref: BodyRef,
+        body: &BodyEnum,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if self.common.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
-        let connection = Connection::new(bodyref.clone(), transform);
+        let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.inner_body = Some(connection);
-        let body = bodyref.borrow();
-        match &*body {
-            BodyEnum::Base(_) => self.common.connection.inner_is_base = true,
-            BodyEnum::Body(_) => self.common.connection.inner_is_base = false,
-        }
         Ok(())
     }
 
     fn connect_outer_body(
         &mut self,
-        body: BodyRef,
+        body: &BodyEnum,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
-        let connection = Connection::new(body.clone(), transform);
+        let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
-        self.common.mass_properties = Some(SpatialInertia(
-            transform * body.borrow().get_mass_properties(),
-        ));
         Ok(())
     }
 
-    fn delete_inner_body(&mut self) {
+    fn delete_inner_body_id(&mut self) {
         if self.common.connection.inner_body.is_some() {
             self.common.connection.inner_body = None;
         }
     }
 
-    fn delete_outer_body(&mut self) {
+    fn delete_outer_body_id(&mut self) {
         if self.common.connection.outer_body.is_some() {
             self.common.connection.outer_body = None;
         }
-        self.common.mass_properties = None;
+        self.parameters.mass_properties = None;
     }
 
-    fn get_inner_body(&self) -> Option<Connection> {
-        self.common.connection.inner_body.clone()
+    fn get_inner_body_id(&self) -> Option<&Uuid> {
+        match &self.common.connection.inner_body {
+            Some(connection) => Some(&connection.body_id),
+            None => None,
+        }
     }
-    fn get_outer_body(&self) -> Option<Connection> {
-        self.common.connection.outer_body.clone()
+    fn get_outer_body_id(&self) -> Option<&Uuid> {
+        match &self.common.connection.outer_body {
+            Some(connection) => Some(&connection.body_id),
+            None => None,
+        }
     }
-    fn get_transforms(&self) -> JointTransforms {
-        self.common.transforms
+    fn get_transforms(&self) -> &JointTransforms {
+        &self.common.transforms
     }
 
-    fn update_transforms(&mut self) {        
-        self.common.update_transforms();
+    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
+        self.common.update_transforms(inner_joint);
     }
 }
 
 impl MultibodyTrait for Revolute {
+    fn get_id(&self) -> &Uuid {
+        &self.common.id
+    }
     fn get_name(&self) -> &str {
         &self.common.name
     }
@@ -148,78 +148,28 @@ struct RevoluteAbaCache {
     inertia_lil_a: f64,
 }
 
-impl ArticulatedBodyAlgorithm for Revolute {
-    fn first_pass(&mut self) {
-        //TODO: this looks like its the same for every joint, make it at the joint level?
-        let parent = self.common.get_inner_joint(); // TODO: benchmark if it's faster to make parent the borrow rather than the Rc<RefCell<>>
+pub struct RevoluteSim {
+    parameters: JointParameters,
+    state: RevoluteState,
+    transforms: JointTransforms,
+}
 
-        let transforms = &self.common.transforms;
-        let body = self.get_outer_body().unwrap().body;
-
-        let aba = &mut self.aba.common;
-
-        aba.v = transforms.jof_from_ij_jof * parent.get_v() + aba.vj;
-        aba.c = aba.v.cross_motion(aba.vj); // + cj
-
-        let joint_mass_properties = self.common.mass_properties.unwrap();
-
-        aba.inertia_articulated = joint_mass_properties;
-        aba.p_big_a = aba.v.cross_force(joint_mass_properties * aba.v)
-            - transforms.jof_from_ob * body.get_external_force();
+impl RevoluteSim {
+    pub fn set_state(&mut self, state: &RevoluteState) {
+        self.state = *state;
     }
-    fn second_pass(&mut self) {
-        let aba = &mut self.aba;
-        let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
-        let parent_ref = self.common.get_inner_joint();
-        let mut parent = parent_ref.borrow_mut();
 
-        // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
-        aba.big_d_inv = 1.0 / aba.big_u.e31;
-        aba.lil_u = -(aba.common.p_big_a.get_index(3).unwrap());
-        if !self.common.connection.inner_is_base {
-            let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
-            let i_lil_a =
-                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose();
-            aba.common.p_lil_a = aba.common.p_big_a
-                + Force::from(i_lil_a * aba.common.c.vector())
-                + Force::from(big_u_times_big_d_inv * aba.lil_u);
+    pub fn get_state(&self) -> &RevoluteState {
+        &self.state
+    }
+}
 
-            let parent_inertia_articulated_contribution =
-                self.common.transforms.ij_jof_from_jof * SpatialInertia::from(i_lil_a);
-            parent.add_inertia_articulated(parent_inertia_articulated_contribution);
-            parent.add_p_big_a(self.common.transforms.ij_jof_from_jof * aba.common.p_big_a);
+impl From<Revolute> for RevoluteSim {
+    fn from(revolute: Revolute) -> Self {
+        RevoluteSim {
+            parameters: revolute.parameters,
+            state: revolute.state,
+            transforms: JointTransforms::default(),
         }
-    }
-    fn third_pass(&mut self) {
-        let parent_ref = self.common.get_inner_joint();
-        let parent = parent_ref.borrow();
-        let aba = &mut self.aba;
-
-        aba.common.a_prime = self.common.transforms.jof_from_ij_jof * parent.get_a() + aba.common.c;
-        self.state.q_ddot =
-            aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
-        aba.common.a = aba.common.a_prime
-            + Acceleration::from(Vector6::new(0.0, 0.0, self.state.q_ddot, 0.0, 0.0, 0.0));
-    }
-
-    fn get_v(&self) -> Velocity {
-        self.aba.common.v
-    }
-
-    fn get_p_big_a(&self) -> Force {
-        self.aba.common.p_big_a
-    }
-
-    fn get_a(&self) -> Acceleration {
-        self.aba.common.a
-    }
-
-    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        self.aba.common.inertia_articulated = self.aba.common.inertia_articulated + inertia;
-    }
-
-    fn add_p_big_a(&mut self, p_big_a: Force) {
-        self.aba.common.p_big_a = self.aba.common.p_big_a + p_big_a;
     }
 }

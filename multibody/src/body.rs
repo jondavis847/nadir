@@ -1,10 +1,11 @@
-use super::{base::Base, joint::JointRef, MultibodyTrait};
+use super::MultibodyTrait;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use spatial_algebra::Force;
 use uuid::Uuid;
 
 pub mod body_enum;
 pub mod body_state;
+use super::joint::{JointEnum, JointTrait};
 use body_enum::BodyEnum;
 use body_state::BodyState;
 
@@ -18,21 +19,15 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait {
-    fn connect_inner_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors>;
-
-    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors>;
-
-    fn delete_inner_joint(&mut self);
+    fn connect_outer_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors>;
     fn delete_outer_joint(&mut self, joint_id: &Uuid);
-    fn get_external_force(&self) -> &Force;
-    fn get_inner_joint(&self) -> &Option<Uuid>;
     fn get_outer_joints(&self) -> &Vec<Uuid>;
-    fn get_mass_properties(&self) -> &MassProperties;
 }
 
 #[derive(Debug, Clone)]
 pub struct Body {
     //actuators: Vec<BodyActuatorConnection>,
+    id: Uuid,
     inner_joint: Option<Uuid>,
     mass_properties: MassProperties,
     name: String,
@@ -42,12 +37,38 @@ pub struct Body {
 }
 
 impl Body {
+    pub fn connect_inner_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors> {
+        match self.inner_joint {
+            Some(_) => return Err(BodyErrors::InnerJointExists),
+            None => self.inner_joint = Some(*joint.get_id()),
+        }
+        Ok(())
+    }
+    pub fn delete_inner_joint(&mut self) {
+        if self.inner_joint.is_some() {
+            self.inner_joint = None;
+        }
+    }
+
+    pub fn get_external_force(&self) -> &Force {
+        &self.state.external_force
+    }
+
+    pub fn get_inner_joint_id(&self) -> &Option<Uuid> {
+        &self.inner_joint
+    }
+
+    pub fn get_mass_properties(&self) -> &MassProperties {
+        &self.mass_properties
+    }
+
     pub fn new(name: &str, mass_properties: MassProperties) -> Result<BodyEnum, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
         Ok(BodyEnum::Body(Self {
             //actuators: Vec::new(),
+            id: Uuid::new_v4(),
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
@@ -58,58 +79,71 @@ impl Body {
 }
 
 impl BodyTrait for Body {
-    fn connect_inner_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
-        match self.inner_joint {
-            Some(_) => return Err(BodyErrors::InnerJointExists),
-            None => self.inner_joint = Some(*joint_id),
-        }
-        Ok(())
-    }
-
-    fn connect_outer_joint(&mut self, joint_id: &Uuid) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors> {
+        let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints
         if self.outer_joints.iter().any(|id| id == joint_id) {
             return Err(BodyErrors::OuterJointExists);
         }
-
         // Push the new joint connection
         self.outer_joints.push(*joint_id);
         Ok(())
-    }
-
-    fn delete_inner_joint(&mut self) {
-        if self.inner_joint.is_some() {
-            self.inner_joint = None;
-        }
     }
 
     fn delete_outer_joint(&mut self, joint_id: &Uuid) {
         self.outer_joints.retain(|id| id != joint_id);
     }
 
-    fn get_external_force(&self) -> &Force {
-        &self.state.external_force
-    }
-
-    fn get_inner_joint(&self) -> &Option<Uuid> {
-        &self.inner_joint
-    }
-
     fn get_outer_joints(&self) -> &Vec<Uuid> {
         &self.outer_joints
-    }
-
-    fn get_mass_properties(&self) -> &MassProperties {
-        &self.mass_properties
     }
 }
 
 impl MultibodyTrait for Body {
+    fn get_id(&self) -> &Uuid {
+        &self.id
+    }
+
     fn get_name(&self) -> &str {
         &self.name
     }
 
     fn set_name(&mut self, name: String) {
         self.name = name;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BodyParameters {
+    mass_properties: MassProperties,
+}
+
+/// It is not expected that you would create this directly
+/// Instead, create a Body and call BodySim::from(Body), or
+/// Body.into() if appropriate
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct BodySim {
+    parameters: BodyParameters,
+    state: BodyState,
+}
+
+impl From<Body> for BodySim {
+    fn from(body: Body) -> Self {
+        let parameters = BodyParameters {
+            mass_properties: body.mass_properties,
+        };
+        let state = BodyState::default();
+        Self { parameters, state }
+    }    
+}
+
+impl Body {
+    fn set_state(&mut self, state: &BodyState) {
+        self.state = *state;
+    }
+
+    fn get_state(&self) -> &BodyState {
+        &self.state
     }
 }

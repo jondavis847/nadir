@@ -2,28 +2,33 @@ use super::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::BodyTrait,
     MultibodyTrait,
 };
+use mass_properties::MassProperties;
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 
+use super::body::body_enum::BodyEnum;
 use std::fmt;
-
 use transforms::Transform;
 use uuid::Uuid;
 
 pub mod revolute;
-use revolute::Revolute;
+use revolute::{Revolute, RevoluteSim};
 pub trait JointTrait {
-    fn connect_inner_body(&mut self, body: &Uuid, transform: Transform) -> Result<(), JointErrors>;
-    fn connect_outer_body(
+    fn connect_inner_body(
         &mut self,
-        body_id: &Uuid,
+        body: &BodyEnum,
         transform: Transform,
     ) -> Result<(), JointErrors>;
-    fn delete_inner_body(&mut self);
-    fn delete_outer_body(&mut self);
-    fn get_inner_body(&self) -> &Option<Uuid>;
-    fn get_outer_body(&self) -> &Option<Uuid>;
+    fn connect_outer_body(
+        &mut self,
+        body: &BodyEnum,
+        transform: Transform,
+    ) -> Result<(), JointErrors>;
+    fn delete_inner_body_id(&mut self);
+    fn delete_outer_body_id(&mut self);
+    fn get_inner_body_id(&self) -> Option<&Uuid>;
+    fn get_outer_body_id(&self) -> Option<&Uuid>;
     fn get_transforms(&self) -> &JointTransforms;
-    fn update_transforms(&mut self);
+    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>);
 }
 pub enum JointErrors {
     InnerBodyExists,
@@ -32,50 +37,50 @@ pub enum JointErrors {
 
 #[derive(Debug, Clone)]
 pub struct JointCommon {
+    pub id: Uuid,
     pub name: String,
-    pub connection: JointConnection,
-    pub mass_properties: Option<SpatialInertia>,
+    pub connection: JointConnection,    
     pub transforms: JointTransforms,
 }
 
 impl JointCommon {
     pub fn new(name: &str) -> Self {
         Self {
+            id: Uuid::new_v4(),
             name: name.to_string(),
-            connection: JointConnection::default(),
-            mass_properties: None,
+            connection: JointConnection::default(),            
             transforms: JointTransforms::default(),
         }
     }
 
-    fn get_inertia_articulated(&self) -> Option<SpatialInertia> {
-        self.mass_properties
-    }
-
-    fn set_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        self.mass_properties = Some(inertia);
-    }
-
-    pub fn update_transforms(&mut self) {
+    pub fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
         // transforms are multiplied like matrices from right to left.
         // i.e. if you want to express v from frame A in frame C
         // you would use vC = C_to_B * B_to_A * vA
         // this means that the transform outer_body_to_inner_body is actually a
         // transform from the inner body to the outer body
         // I just like this notation better
+        
+        let jof_from_ij_jof;
+        let ij_jof_from_jof;
+        let jof_from_base;
 
-        // get relevant transforms from the parent for calculations  to the base
-        let inner_jointref = self.get_inner_joint();
-        let inner_joint = inner_jointref.borrow();
-        let inner_joint_transforms = inner_joint.get_transforms();
+        // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
+        if let Some(inner_joint) = inner_joint {
+            let inner_joint_transforms = inner_joint.get_transforms();
+            // this joints inner body is the parent joints outer body
+            jof_from_ij_jof = self.transforms.jif_from_ib * inner_joint_transforms.ob_from_jof;
+            ij_jof_from_jof = jof_from_ij_jof.inv();
 
-        // this joints inner body is the parent joints outer body
-        let jof_from_ij_jof = self.transforms.jif_from_ib * inner_joint_transforms.ob_from_jof;
-        let ij_jof_from_jof = jof_from_ij_jof.inv();
-
-        let ij_jof_from_base = inner_joint_transforms.jof_from_base;
-        let jof_from_base = jof_from_ij_jof * ij_jof_from_base;
-
+            let ij_jof_from_base = inner_joint_transforms.jof_from_base;
+            jof_from_base = jof_from_ij_jof * ij_jof_from_base;
+        } else {
+            // inner joint is the base, so base transform is the inner joint transform
+            // note that the base to outer joint transform is still accounted for
+            jof_from_ij_jof = self.transforms.jif_from_ib;
+            ij_jof_from_jof = jof_from_ij_jof.inv();
+            jof_from_base = jof_from_ij_jof;
+        }
         self.transforms.jof_from_ij_jof = jof_from_ij_jof;
         self.transforms.ij_jof_from_jof = ij_jof_from_jof;
         self.transforms.jof_from_base = jof_from_base;
@@ -92,6 +97,11 @@ pub enum JointEnum {
 }
 
 impl MultibodyTrait for JointEnum {
+    fn get_id(&self) -> &Uuid {
+        match self {
+            JointEnum::Revolute(joint) => joint.get_id(),
+        }
+    }
     fn get_name(&self) -> &str {
         match self {
             JointEnum::Revolute(revolute) => revolute.get_name(),
@@ -108,7 +118,7 @@ impl MultibodyTrait for JointEnum {
 impl JointTrait for JointEnum {
     fn connect_inner_body(
         &mut self,
-        body: &Uuid,
+        body: &BodyEnum,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
@@ -117,7 +127,7 @@ impl JointTrait for JointEnum {
     }
     fn connect_outer_body(
         &mut self,
-        body: &Uuid,
+        body: &BodyEnum,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
@@ -125,24 +135,25 @@ impl JointTrait for JointEnum {
         }
     }
 
-    fn delete_inner_body(&mut self) {
+    fn delete_inner_body_id(&mut self) {
         match self {
-            JointEnum::Revolute(joint) => joint.delete_inner_body(),
+            JointEnum::Revolute(joint) => joint.delete_inner_body_id(),
         }
     }
-    fn delete_outer_body(&mut self) {
+    fn delete_outer_body_id(&mut self) {
         match self {
-            JointEnum::Revolute(joint) => joint.delete_outer_body(),
+            JointEnum::Revolute(joint) => joint.delete_outer_body_id(),
         }
     }
-    fn get_inner_body(&self) -> &Option<Uuid> {
+
+    fn get_inner_body_id(&self) -> Option<&Uuid> {
         match self {
-            JointEnum::Revolute(joint) => joint.get_inner_body(),
+            JointEnum::Revolute(joint) => joint.get_inner_body_id(),
         }
     }
-    fn get_outer_body(&self) -> &Option<Uuid> {
+    fn get_outer_body_id(&self) -> Option<&Uuid> {
         match self {
-            JointEnum::Revolute(joint) => joint.get_outer_body(),
+            JointEnum::Revolute(joint) => joint.get_outer_body_id(),
         }
     }
 
@@ -152,9 +163,9 @@ impl JointTrait for JointEnum {
         }
     }
 
-    fn update_transforms(&mut self) {
+    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
         match self {
-            JointEnum::Revolute(joint) => joint.update_transforms(),
+            JointEnum::Revolute(joint) => joint.update_transforms(inner_joint),
         }
     }
 }
@@ -213,22 +224,21 @@ impl ArticulatedBodyAlgorithm for JointEnum {
 // outer joints for this inner joint and apply that transform.
 // If the transform is already in the joint, then no searching.
 // We also choose to make the transform be from the body frame to the joint frame.
-// This is because the location of things like actuators or other bodies are typically expressed in the body frame.
+// This is because the location of things like actuators or other components are typically expressed in the body frame.
 
 #[derive(Debug, Clone)]
 pub struct Connection {
-    pub body: Uuid,
+    pub body_id: Uuid,
     pub transform: Transform,
 }
 impl Connection {
-    pub fn new(body: Uuid, transform: Transform) -> Self {
-        Self { body, transform }
+    pub fn new(body_id: Uuid, transform: Transform) -> Self {
+        Self { body_id, transform }
     }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct JointConnection {
-    inner_is_base: bool, // useful for ABA checks
     inner_body: Option<Connection>,
     outer_body: Option<Connection>,
 }
@@ -237,14 +247,17 @@ pub struct JointConnection {
 pub struct JointParameters {
     constant_force: f64,
     dampening: f64,
+    mass_properties: Option<SpatialInertia>,
     spring_constant: f64,
 }
 
 impl JointParameters {
-    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {
+    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {        
+        let mass_properties = None;
         Self {
             constant_force,
             dampening,
+            mass_properties,
             spring_constant,
         }
     }
@@ -253,7 +266,7 @@ impl JointParameters {
 /// We use the terminology B_from_A rather than A_to_B so that notation matches matrix multiplication
 /// i.e. v_C = C_from_B * B_from_A * v_A instead of
 ///      v_C = (A_to_B * B_to_C) * v_A
-/// base: the "body/base frame" of the base
+/// base: the reference frame that is the base
 /// inner_body: the "body frame" of the body on the base side of the joint
 /// outer_body: the "body frame" of the body on the tip side of the joint
 /// jif: the "joint inner frame"
@@ -278,4 +291,16 @@ pub struct JointTransforms {
     // base to joint frames - only need outer really
     jof_from_base: SpatialTransform,
     base_from_jof: SpatialTransform,
+}
+
+pub enum JointSim {
+    Revolute(RevoluteSim)
+}
+
+impl From<JointEnum> for JointSim {
+    fn from(joint: JointEnum) -> Self {
+        match joint {
+            JointEnum::Revolute(revolute) => JointSim::Revolute(revolute.into())
+        }
+    }
 }
