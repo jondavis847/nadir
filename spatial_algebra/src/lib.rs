@@ -164,6 +164,11 @@ impl Velocity {
     pub fn get_index(&self, index: usize) -> Option<f64> {
         self.0.get_index(index)
     }
+
+    #[inline]
+    pub fn zeros() -> Self {
+        Self(MotionVector(SpatialVector::new(Vector3::zeros(), Vector3::zeros())))
+    }
 }
 
 impl From<Vector6> for Velocity {
@@ -210,6 +215,11 @@ impl Acceleration {
     #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
+    }
+
+    #[inline]
+    pub fn zeros() -> Self {
+        Self(MotionVector(SpatialVector::new(Vector3::zeros(), Vector3::zeros())))
     }
 }
 

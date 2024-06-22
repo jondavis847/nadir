@@ -50,10 +50,6 @@ impl Body {
         }
     }
 
-    pub fn get_external_force(&self) -> &Force {
-        &self.state.external_force
-    }
-
     pub fn get_inner_joint_id(&self) -> &Option<Uuid> {
         &self.inner_joint
     }
@@ -138,12 +134,16 @@ impl From<Body> for BodySim {
     }    
 }
 
-impl Body {
+impl BodySim {
     fn set_state(&mut self, state: &BodyState) {
         self.state = *state;
     }
 
     fn get_state(&self) -> &BodyState {
         &self.state
+    }
+
+    pub fn get_external_force(&self) -> &Force {
+        &self.state.external_force
     }
 }

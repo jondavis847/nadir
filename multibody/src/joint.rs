@@ -1,12 +1,11 @@
 use super::{
-    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::BodyTrait,
-    MultibodyTrait,
+    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::BodySim, MultibodyTrait,
 };
-use mass_properties::MassProperties;
+
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 
 use super::body::body_enum::BodyEnum;
-use std::fmt;
+
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -39,7 +38,7 @@ pub enum JointErrors {
 pub struct JointCommon {
     pub id: Uuid,
     pub name: String,
-    pub connection: JointConnection,    
+    pub connection: JointConnection,
     pub transforms: JointTransforms,
 }
 
@@ -48,7 +47,7 @@ impl JointCommon {
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
-            connection: JointConnection::default(),            
+            connection: JointConnection::default(),
             transforms: JointTransforms::default(),
         }
     }
@@ -60,7 +59,7 @@ impl JointCommon {
         // this means that the transform outer_body_to_inner_body is actually a
         // transform from the inner body to the outer body
         // I just like this notation better
-        
+
         let jof_from_ij_jof;
         let ij_jof_from_jof;
         let jof_from_base;
@@ -170,48 +169,48 @@ impl JointTrait for JointEnum {
     }
 }
 
-impl ArticulatedBodyAlgorithm for JointEnum {
-    fn first_pass(&mut self) {
+impl ArticulatedBodyAlgorithm for JointSim {
+    fn first_pass(&mut self, inner_joint: Option<&JointSim>, outer_body: &BodySim) {
         match self {
-            JointEnum::Revolute(joint) => joint.first_pass(),
+            JointSim::Revolute(joint) => joint.first_pass(inner_joint, outer_body),
         }
     }
-    fn second_pass(&mut self) {
+    fn second_pass(&mut self, inner_joint: Option<&mut JointSim>) {
         match self {
-            JointEnum::Revolute(joint) => joint.second_pass(),
+            JointSim::Revolute(joint) => joint.second_pass(inner_joint),
         }
     }
-    fn third_pass(&mut self) {
+    fn third_pass(&mut self, inner_joint: Option<&JointSim>) {
         match self {
-            JointEnum::Revolute(joint) => joint.third_pass(),
+            JointSim::Revolute(joint) => joint.third_pass(inner_joint),
         }
     }
-    fn get_v(&self) -> Velocity {
+    fn get_v(&self) -> &Velocity {
         match self {
-            JointEnum::Revolute(joint) => joint.get_v(),
+            JointSim::Revolute(joint) => joint.get_v(),
         }
     }
-    fn get_p_big_a(&self) -> Force {
+    fn get_p_big_a(&self) -> &Force {
         match self {
-            JointEnum::Revolute(joint) => joint.get_p_big_a(),
+            JointSim::Revolute(joint) => joint.get_p_big_a(),
         }
     }
 
-    fn get_a(&self) -> Acceleration {
+    fn get_a(&self) -> &Acceleration {
         match self {
-            JointEnum::Revolute(joint) => joint.get_a(),
+            JointSim::Revolute(joint) => joint.get_a(),
         }
     }
 
     fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
         match self {
-            JointEnum::Revolute(joint) => joint.add_inertia_articulated(inertia),
+            JointSim::Revolute(joint) => joint.add_inertia_articulated(inertia),
         }
     }
 
     fn add_p_big_a(&mut self, force: Force) {
         match self {
-            JointEnum::Revolute(joint) => joint.add_p_big_a(force),
+            JointSim::Revolute(joint) => joint.add_p_big_a(force),
         }
     }
 }
@@ -252,7 +251,7 @@ pub struct JointParameters {
 }
 
 impl JointParameters {
-    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {        
+    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {
         let mass_properties = None;
         Self {
             constant_force,
@@ -294,13 +293,13 @@ pub struct JointTransforms {
 }
 
 pub enum JointSim {
-    Revolute(RevoluteSim)
+    Revolute(RevoluteSim),
 }
 
 impl From<JointEnum> for JointSim {
     fn from(joint: JointEnum) -> Self {
         match joint {
-            JointEnum::Revolute(revolute) => JointSim::Revolute(revolute.into())
+            JointEnum::Revolute(revolute) => JointSim::Revolute(revolute.into()),
         }
     }
 }

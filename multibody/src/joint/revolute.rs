@@ -1,8 +1,8 @@
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{body_enum::BodyEnum, BodyTrait},
+    body::{body_enum::BodyEnum, BodySim, BodyTrait},
     joint::{
-        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointTrait,
+        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointSim, JointTrait,
         JointTransforms,
     },
     MultibodyTrait,
@@ -148,7 +148,9 @@ struct RevoluteAbaCache {
     inertia_lil_a: f64,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
+    aba: RevoluteAbaCache,
     parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
@@ -167,9 +169,83 @@ impl RevoluteSim {
 impl From<Revolute> for RevoluteSim {
     fn from(revolute: Revolute) -> Self {
         RevoluteSim {
+            aba: RevoluteAbaCache::default(),
             parameters: revolute.parameters,
             state: revolute.state,
             transforms: JointTransforms::default(),
         }
+    }
+}
+
+impl ArticulatedBodyAlgorithm for RevoluteSim {
+    fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+        let transforms = &self.transforms;
+        let aba = &mut self.aba;
+
+        aba.common.v = transforms.jof_from_ij_jof * v_ij + aba.common.vj;
+        aba.common.c = aba.common.v.cross_motion(aba.common.vj); // + cj
+        aba.common.p_big_a = aba
+            .common
+            .v
+            .cross_force(aba.common.inertia_articulated * aba.common.v)
+            - transforms.jof_from_ob * *f_ob;
+    }
+
+    fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
+        let aba = &mut self.aba;
+        let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
+
+        // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
+        aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
+        aba.big_d_inv = 1.0 / aba.big_u.e31;
+        aba.lil_u = -(aba.common.p_big_a.get_index(3).unwrap());
+
+        // this is basically the same as if the inner body is not the base
+        if !inner_is_base {
+            let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
+            let i_lil_a =
+                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose();
+            aba.common.p_lil_a = aba.common.p_big_a
+                + Force::from(i_lil_a * aba.common.c.vector())
+                + Force::from(big_u_times_big_d_inv * aba.lil_u);
+
+            let parent_inertia_articulated_contribution =
+                self.transforms.ij_jof_from_jof * SpatialInertia::from(i_lil_a);
+
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_big_a;
+            Some((parent_inertia_articulated_contribution, parent_p_big_a))
+        } else {
+            None
+        }
+    }
+
+    fn third_pass(&mut self, a_ij: Acceleration) {
+        let aba = &mut self.aba;
+
+        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
+        self.state.q_ddot =
+            aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
+        aba.common.a = aba.common.a_prime
+            + Acceleration::from(Vector6::new(0.0, 0.0, self.state.q_ddot, 0.0, 0.0, 0.0));
+    }
+
+    fn get_v(&self) -> &Velocity {
+        &self.aba.common.v
+    }
+
+    fn get_p_big_a(&self) -> &Force {
+        &self.aba.common.p_big_a
+    }
+
+    fn get_a(&self) -> &Acceleration {
+        &self.aba.common.a
+    }
+
+    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
+        self.aba.common.inertia_articulated = self.aba.common.inertia_articulated + inertia;
+    }
+
+    fn add_p_big_a(&mut self, p_big_a: Force) {
+        self.aba.common.p_big_a = self.aba.common.p_big_a + p_big_a;
     }
 }

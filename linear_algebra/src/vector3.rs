@@ -105,6 +105,14 @@ impl Vector3 {
             e3: rng.gen(),
         }
     }
+
+    pub fn zeros() -> Self {
+        Self {
+            e1: 0.0,
+            e2: 0.0,
+            e3: 0.0,
+        }
+    }
 }
 impl Neg for Vector3 {
     type Output = Self;
@@ -234,46 +242,46 @@ mod tests {
     }
 
     #[test]
-fn test_vector3_zero_vector() {
-    let v = Vector3::new(0.0, 0.0, 0.0);
-    let result = v.magnitude();
-    let expected = 0.0;
-    assert_approx_eq!(result, expected, TOL);
-}
+    fn test_vector3_zero_vector() {
+        let v = Vector3::new(0.0, 0.0, 0.0);
+        let result = v.magnitude();
+        let expected = 0.0;
+        assert_approx_eq!(result, expected, TOL);
+    }
 
-#[test]
-fn test_vector3_negation() {
-    let v = Vector3::new(1.0, -2.0, 3.0);
-    let result = -v;
-    let expected = Vector3::new(-1.0, 2.0, -3.0);
-    assert_vector3_approx_eq(&result, &expected);
-}
+    #[test]
+    fn test_vector3_negation() {
+        let v = Vector3::new(1.0, -2.0, 3.0);
+        let result = -v;
+        let expected = Vector3::new(-1.0, 2.0, -3.0);
+        assert_vector3_approx_eq(&result, &expected);
+    }
 
-#[test]
-fn test_vector3_scalar_division() {
-    let v = Vector3::new(4.0, 8.0, 12.0);
-    let scalar = 2.0;
-    let result = v / scalar;
-    let expected = Vector3::new(2.0, 4.0, 6.0);
-    assert_vector3_approx_eq(&result, &expected);
-}
+    #[test]
+    fn test_vector3_scalar_division() {
+        let v = Vector3::new(4.0, 8.0, 12.0);
+        let scalar = 2.0;
+        let result = v / scalar;
+        let expected = Vector3::new(2.0, 4.0, 6.0);
+        assert_vector3_approx_eq(&result, &expected);
+    }
 
-#[test]
-fn test_vector3_unit_vectors() {
-    let x_unit = Vector3::new(1.0, 0.0, 0.0);
-    let y_unit = Vector3::new(0.0, 1.0, 0.0);
-    let z_unit = Vector3::new(0.0, 0.0, 1.0);
-    
-    assert_approx_eq!(x_unit.magnitude(), 1.0, TOL);
-    assert_approx_eq!(y_unit.magnitude(), 1.0, TOL);
-    assert_approx_eq!(z_unit.magnitude(), 1.0, TOL);
-    
-    let cross_xy = x_unit.cross(y_unit);
-    let expected_cross_xy = Vector3::new(0.0, 0.0, 1.0);
-    assert_vector3_approx_eq(&cross_xy, &expected_cross_xy);
+    #[test]
+    fn test_vector3_unit_vectors() {
+        let x_unit = Vector3::new(1.0, 0.0, 0.0);
+        let y_unit = Vector3::new(0.0, 1.0, 0.0);
+        let z_unit = Vector3::new(0.0, 0.0, 1.0);
 
-    let cross_yz = y_unit.cross(z_unit);
-    let expected_cross_yz = Vector3::new(1.0, 0.0, 0.0);
-    assert_vector3_approx_eq(&cross_yz, &expected_cross_yz);
-}
+        assert_approx_eq!(x_unit.magnitude(), 1.0, TOL);
+        assert_approx_eq!(y_unit.magnitude(), 1.0, TOL);
+        assert_approx_eq!(z_unit.magnitude(), 1.0, TOL);
+
+        let cross_xy = x_unit.cross(y_unit);
+        let expected_cross_xy = Vector3::new(0.0, 0.0, 1.0);
+        assert_vector3_approx_eq(&cross_xy, &expected_cross_xy);
+
+        let cross_yz = y_unit.cross(z_unit);
+        let expected_cross_yz = Vector3::new(1.0, 0.0, 0.0);
+        assert_vector3_approx_eq(&cross_yz, &expected_cross_yz);
+    }
 }
