@@ -1,14 +1,14 @@
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{body_enum::BodyEnum, BodySim, BodyTrait},
+    body::body_enum::BodyEnum,
     joint::{
-        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointSim, JointTrait,
-        JointTransforms,
+        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointSimTrait,
+        JointTrait, JointTransforms,
     },
     MultibodyTrait,
 };
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
-use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
+use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -113,13 +113,6 @@ impl JointTrait for Revolute {
             Some(connection) => Some(&connection.body_id),
             None => None,
         }
-    }
-    fn get_transforms(&self) -> &JointTransforms {
-        &self.common.transforms
-    }
-
-    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
-        self.common.update_transforms(inner_joint);
     }
 }
 
@@ -247,5 +240,18 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 
     fn add_p_big_a(&mut self, p_big_a: Force) {
         self.aba.common.p_big_a = self.aba.common.p_big_a + p_big_a;
+    }
+}
+
+impl JointSimTrait for RevoluteSim {
+    fn get_transforms(&self) -> &JointTransforms {
+        &self.transforms
+    }
+
+    fn get_transforms_mut(&mut self) -> &mut JointTransforms {
+        &mut self.transforms
+    }
+    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+        self.transforms.update(ij_transforms)
     }
 }

@@ -25,9 +25,7 @@ pub trait JointTrait {
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;
-    fn get_transforms(&self) -> &JointTransforms;
-    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>);
+    fn get_outer_body_id(&self) -> Option<&Uuid>;    
 }
 pub enum JointErrors {
     InnerBodyExists,
@@ -50,40 +48,6 @@ impl JointCommon {
             connection: JointConnection::default(),
             transforms: JointTransforms::default(),
         }
-    }
-
-    pub fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
-        // transforms are multiplied like matrices from right to left.
-        // i.e. if you want to express v from frame A in frame C
-        // you would use vC = C_to_B * B_to_A * vA
-        // this means that the transform outer_body_to_inner_body is actually a
-        // transform from the inner body to the outer body
-        // I just like this notation better
-
-        let jof_from_ij_jof;
-        let ij_jof_from_jof;
-        let jof_from_base;
-
-        // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
-        if let Some(inner_joint) = inner_joint {
-            let inner_joint_transforms = inner_joint.get_transforms();
-            // this joints inner body is the parent joints outer body
-            jof_from_ij_jof = self.transforms.jif_from_ib * inner_joint_transforms.ob_from_jof;
-            ij_jof_from_jof = jof_from_ij_jof.inv();
-
-            let ij_jof_from_base = inner_joint_transforms.jof_from_base;
-            jof_from_base = jof_from_ij_jof * ij_jof_from_base;
-        } else {
-            // inner joint is the base, so base transform is the inner joint transform
-            // note that the base to outer joint transform is still accounted for
-            jof_from_ij_jof = self.transforms.jif_from_ib;
-            ij_jof_from_jof = jof_from_ij_jof.inv();
-            jof_from_base = jof_from_ij_jof;
-        }
-        self.transforms.jof_from_ij_jof = jof_from_ij_jof;
-        self.transforms.ij_jof_from_jof = ij_jof_from_jof;
-        self.transforms.jof_from_base = jof_from_base;
-        self.transforms.base_from_jof = jof_from_base.inv();
     }
 }
 
@@ -155,34 +119,22 @@ impl JointTrait for JointEnum {
             JointEnum::Revolute(joint) => joint.get_outer_body_id(),
         }
     }
-
-    fn get_transforms(&self) -> &JointTransforms {
-        match self {
-            JointEnum::Revolute(joint) => joint.get_transforms(),
-        }
-    }
-
-    fn update_transforms(&mut self, inner_joint: Option<&JointEnum>) {
-        match self {
-            JointEnum::Revolute(joint) => joint.update_transforms(inner_joint),
-        }
-    }
 }
 
 impl ArticulatedBodyAlgorithm for JointSim {
-    fn first_pass(&mut self, inner_joint: Option<&JointSim>, outer_body: &BodySim) {
+    fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         match self {
-            JointSim::Revolute(joint) => joint.first_pass(inner_joint, outer_body),
+            JointSim::Revolute(joint) => joint.first_pass(v_ij, f_ob),
         }
     }
-    fn second_pass(&mut self, inner_joint: Option<&mut JointSim>) {
+    fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
         match self {
-            JointSim::Revolute(joint) => joint.second_pass(inner_joint),
+            JointSim::Revolute(joint) => joint.second_pass(inner_is_base),
         }
     }
-    fn third_pass(&mut self, inner_joint: Option<&JointSim>) {
+    fn third_pass(&mut self, a_ij: Acceleration) {
         match self {
-            JointSim::Revolute(joint) => joint.third_pass(inner_joint),
+            JointSim::Revolute(joint) => joint.third_pass(a_ij),
         }
     }
     fn get_v(&self) -> &Velocity {
@@ -273,23 +225,56 @@ impl JointParameters {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JointTransforms {
     // joint frame
-    jif_from_jof: SpatialTransform, // my-joint-inner-frame from my-joint-outer-frame
-    jof_from_jif: SpatialTransform, // my-joint-outer-frame from my-joint-inner-frame
+    pub jif_from_jof: SpatialTransform, // my-joint-inner-frame from my-joint-outer-frame
+    pub jof_from_jif: SpatialTransform, // my-joint-outer-frame from my-joint-inner-frame
 
     // body to joint frames
-    jif_from_ib: SpatialTransform, // my-joint-inner-frame from my-inner-body-frame
-    ib_from_jif: SpatialTransform, // my-inner-body-frame from my-joint-inner-frame
+    pub jif_from_ib: SpatialTransform, // my-joint-inner-frame from my-inner-body-frame
+    pub ib_from_jif: SpatialTransform, // my-inner-body-frame from my-joint-inner-frame
 
-    jof_from_ob: SpatialTransform, // my-joint-outer-frame from my-outer-body-frame
-    ob_from_jof: SpatialTransform, // my-outer-body-frame from my-joint-outer-frame
+    pub jof_from_ob: SpatialTransform, // my-joint-outer-frame from my-outer-body-frame
+    pub ob_from_jof: SpatialTransform, // my-outer-body-frame from my-joint-outer-frame
 
     // joint to joint frames
-    jof_from_ij_jof: SpatialTransform, // my-joint-outer-frame from inner-joint-outer-frame
-    ij_jof_from_jof: SpatialTransform, // inner-joint-outer-frame from my-joint-outer-frame
+    pub jof_from_ij_jof: SpatialTransform, // my-joint-outer-frame from inner-joint-outer-frame
+    pub ij_jof_from_jof: SpatialTransform, // inner-joint-outer-frame from my-joint-outer-frame
 
     // base to joint frames - only need outer really
-    jof_from_base: SpatialTransform,
-    base_from_jof: SpatialTransform,
+    pub jof_from_base: SpatialTransform,
+    pub base_from_jof: SpatialTransform,
+}
+
+impl JointTransforms {
+    pub fn update(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+        // transforms are multiplied like matrices from right to left.
+        // i.e. if you want to express v from frame A in frame C
+        // you would use vC = C_to_B * B_to_A * vA
+        // this means that the transform outer_body_to_inner_body is actually a
+        // transform from the inner body to the outer body
+        // I just like this notation better
+
+        let jof_from_ij_jof;
+        let ij_jof_from_jof;
+        let jof_from_base;
+
+        // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
+        if let Some((ij_ob_from_ij_jof, ij_jof_from_base)) = ij_transforms {
+            // this joints inner body is the parent joints outer body
+            jof_from_ij_jof = self.jif_from_ib * ij_ob_from_ij_jof;
+            ij_jof_from_jof = jof_from_ij_jof.inv();
+            jof_from_base = jof_from_ij_jof * ij_jof_from_base;
+        } else {
+            // inner joint is the base, so base transform is the inner joint transform
+            // note that the base to outer joint transform is still accounted for
+            jof_from_ij_jof = self.jif_from_ib;
+            ij_jof_from_jof = jof_from_ij_jof.inv();
+            jof_from_base = jof_from_ij_jof;
+        }
+        self.jof_from_ij_jof = jof_from_ij_jof;
+        self.ij_jof_from_jof = ij_jof_from_jof;
+        self.jof_from_base = jof_from_base;
+        self.base_from_jof = jof_from_base.inv();
+    }
 }
 
 pub enum JointSim {
@@ -302,4 +287,33 @@ impl From<JointEnum> for JointSim {
             JointEnum::Revolute(revolute) => JointSim::Revolute(revolute.into()),
         }
     }
+}
+
+impl JointSimTrait for JointSim {
+    #[inline]
+    fn get_transforms(&self) -> &JointTransforms {
+        match self {
+            JointSim::Revolute(joint) => joint.get_transforms(),
+        }
+    }
+
+    #[inline]
+    fn get_transforms_mut(&mut self) -> &mut JointTransforms {
+        match self {
+            JointSim::Revolute(joint) => joint.get_transforms_mut(),
+        }
+    }
+
+    #[inline]
+    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+        match self {
+            JointSim::Revolute(joint) => joint.update_transforms(ij_transforms),
+        }
+    }
+}
+
+pub trait JointSimTrait {
+    fn get_transforms(&self) -> &JointTransforms;
+    fn get_transforms_mut(&mut self) -> &mut JointTransforms;
+    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>);
 }

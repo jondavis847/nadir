@@ -1,7 +1,7 @@
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{BodySim, BodyTrait},
-    joint::JointTrait,
+    joint::{JointSimTrait, JointTrait},
 };
 use spatial_algebra::{Acceleration, Velocity};
 use std::collections::HashMap;
@@ -58,7 +58,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
 }
 
 impl MultibodySystemSim {
-    fn run(&mut self) {
+    pub fn run(&mut self) {
         self.update_transforms();
         self.update_bodies();
         match self.algorithm {
@@ -111,14 +111,15 @@ impl MultibodySystemSim {
 
     // The main update_transforms function
     pub fn update_transforms(&mut self) {
-        if let Some(base) = &self.base {
-            let outer_joints = base.get_outer_joints();
-            for joint_id in outer_joints {
-                let joint = self.joints.get_mut(joint_id).unwrap();
-                joint.update_transforms(None);
-
-                let outer_body_id = joint.get_outer_body_id().unwrap();
-                update_transforms_recursive(*outer_body_id, &self.bodies, &mut self.joints);
+        for i in 0..self.joints.len() {
+            match i {
+                0 => self.joints[i].update_transforms(None),
+                _ => {
+                    let ij_transforms = self.joints[self.parent_joint_indeces[i]].get_transforms();
+                    let ij_ob_from_ij_jof = ij_transforms.ob_from_jof;
+                    let ij_jof_from_base = ij_transforms.jof_from_base;
+                    self.joints[i].update_transforms(Some((ij_ob_from_ij_jof, ij_jof_from_base)));
+                }
             }
         }
     }
