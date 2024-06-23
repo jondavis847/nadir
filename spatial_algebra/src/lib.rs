@@ -164,6 +164,14 @@ impl Velocity {
     pub fn get_index(&self, index: usize) -> Option<f64> {
         self.0.get_index(index)
     }
+
+    #[inline]
+    pub fn zeros() -> Self {
+        Self(MotionVector(SpatialVector::new(
+            Vector3::zeros(),
+            Vector3::zeros(),
+        )))
+    }
 }
 
 impl From<Vector6> for Velocity {
@@ -210,6 +218,14 @@ impl Acceleration {
     #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
+    }
+
+    #[inline]
+    pub fn zeros() -> Self {
+        Self(MotionVector(SpatialVector::new(
+            Vector3::zeros(),
+            Vector3::zeros(),
+        )))
     }
 }
 
@@ -493,28 +509,15 @@ impl Mul<SpatialInertia> for SpatialTransform {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct SpatialInertia(pub MassProperties);
+pub struct SpatialInertia(pub Matrix6);
 
 impl SpatialInertia {
     pub fn matrix(&self) -> Matrix6 {
-        let mp = self.0;
-        let inertia = mp.inertia;
-        let mass = mp.mass;
-        let com = mp.center_of_mass.vector();
-        let cx = com.skew();
-        let cxt = cx.transpose();
-
-        let quad11 = inertia.matrix() + cx * cxt * mass;
-        let quad12 = cx * mass;
-        let quad21 = cxt * mass;
-        let quad22 = Matrix3::identity() * mass;
-
-        Matrix6::from_4matrix3(quad11, quad12, quad21, quad22)
+        self.0
     }
-}
 
-impl From<Matrix6> for SpatialInertia {
-    fn from(m: Matrix6) -> Self {
+    pub fn to_mass_properties(&self) -> MassProperties {
+        let m = self.0;
         let mass = m.e66;
         let mc = Matrix3::new(
             m.e14, m.e15, m.e16, m.e24, m.e25, m.e26, m.e34, m.e35, m.e36,
@@ -527,13 +530,30 @@ impl From<Matrix6> for SpatialInertia {
                 m.e11, m.e12, m.e13, m.e21, m.e22, m.e23, m.e31, m.e32, m.e33,
             ) - mc * mc.transpose() / mass,
         );
-        SpatialInertia(MassProperties::new(mass, center_of_mass, inertia).unwrap())
+        MassProperties::new(mass, center_of_mass, inertia).unwrap()
+    }
+}
+
+impl From<Matrix6> for SpatialInertia {
+    fn from(m: Matrix6) -> Self {
+        SpatialInertia(m)
     }
 }
 
 impl From<MassProperties> for SpatialInertia {
-    fn from(value: MassProperties) -> SpatialInertia {
-        SpatialInertia(value)
+    fn from(mp: MassProperties) -> Self {
+        let inertia = mp.inertia;
+        let mass = mp.mass;
+        let com = mp.center_of_mass.vector();
+        let cx = com.skew();
+        let cxt = cx.transpose();
+
+        let quad11 = inertia.matrix() + cx * cxt * mass;
+        let quad12 = cx * mass;
+        let quad21 = cxt * mass;
+        let quad22 = Matrix3::identity() * mass;
+
+        Self(Matrix6::from_4matrix3(quad11, quad12, quad21, quad22))
     }
 }
 

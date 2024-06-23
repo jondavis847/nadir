@@ -12,3 +12,4 @@ rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}
 mass_properties = {path = "../mass_properties"}
 arrayvec = "0.7.4"
+uuid = { version = "1.8.0", features = ["v4"] }

@@ -1,22 +1,23 @@
 pub mod algorithms;
 pub mod base;
 pub mod body;
-pub mod component;
 pub mod joint;
 pub mod system;
+pub mod system_sim;
 
-use base::BaseErrors;
-use body::{body_ref::BodyRef, BodyErrors};
-use joint::{revolute::RevoluteErrors, JointRef};
+use uuid::Uuid;
+use body::BodyErrors;
+use joint::revolute::RevoluteErrors;
 
-pub enum MultibodyErrors {
-    Base(BaseErrors),
+
+pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,
     Body(BodyErrors),
-    BodyMissingInnerJoint(BodyRef),
-    JointMissingInnerBody(JointRef),
-    JointMissingOuterBody(JointRef),
+    BodyMissingInnerJoint(Uuid),
+    JointMissingInnerBody(Uuid),
+    JointMissingOuterBody(Uuid),
+    JointNotFound,
     NameTaken,
     NoBaseFound,
     Revolute(RevoluteErrors),
@@ -24,6 +25,7 @@ pub enum MultibodyErrors {
 }
 
 pub trait MultibodyTrait {
+    fn get_id(&self) -> &Uuid;
     fn get_name(&self) -> &str;
     fn set_name(&mut self, name: String);
 }
