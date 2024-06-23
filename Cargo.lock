@@ -208,6 +208,15 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "differential_equations"
 version = "0.1.0"
+dependencies = [
+ "criterion",
+]
+
+[[package]]
+name = "either"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3dca9240753cf90908d7e4aac30f630662b02aebaa1b58a3cadabdb23385b58b"
 
 [[package]]
 name = "either"
@@ -220,6 +229,7 @@ name = "gdt"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
+ "differential_equations",
  "mass_properties",
  "multibody",
  "rotations",

@@ -14,6 +14,7 @@ members = [ "benchmarks",
 
 [dependencies]
 coordinate_systems = {path = "./coordinate_systems"}
+differential_equations = {path = "./differential_equations"}
 multibody = { path = "./multibody" }
 rotations = { path = "./rotations" }
 transforms = { path = "./transforms" }
