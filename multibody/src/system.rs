@@ -2,7 +2,7 @@ use super::{
     algorithms::MultibodyAlgorithm,
     base::Base,
     body::{Body, BodyTrait},
-    joint::{JointEnum, JointTrait},
+    joint::{Joint, JointTrait},
     MultibodyErrors, MultibodyTrait,
 };
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
-    pub joints: HashMap<Uuid, JointEnum>,
+    pub joints: HashMap<Uuid, Joint>,
 }
 
 impl MultibodySystem {
@@ -46,7 +46,7 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn add_joint(&mut self, joint: JointEnum) -> Result<(), MultibodyErrors> {
+    pub fn add_joint(&mut self, joint: Joint) -> Result<(), MultibodyErrors> {
         // Return if a component with this name already exists
         if self.check_name_taken(joint.get_name()) {
             return Err(MultibodyErrors::NameTaken);
@@ -142,10 +142,14 @@ impl MultibodySystem {
         for (joint_id, joint) in &self.joints {
             if let Some(body_id) = joint.get_inner_body_id() {
                 if !self.bodies.contains_key(body_id) {
-                    panic!(
-                        "Invalid inner body ID ({}) for joint ({}).",
-                        body_id, joint_id
-                    );
+                    if let Some(base) = &self.base {
+                        if base.get_id() != body_id {
+                            panic!(
+                                "Invalid inner body ID ({}) for joint ({}).",
+                                body_id, joint_id
+                            );
+                        }
+                    }
                 }
             }
             if let Some(body_id) = joint.get_outer_body_id() {
@@ -161,5 +165,3 @@ impl MultibodySystem {
         println!("System validation complete!");
     }
 }
-
-

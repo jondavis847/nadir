@@ -180,7 +180,7 @@ impl Inertia {
 
 impl From<Matrix3> for Inertia {
     fn from(m: Matrix3) -> Inertia {
-        //TODO add checks on the matrix
+        //TODO add checks on the matrix        
         Inertia::new(m.e11, m.e22, m.e33, m.e12, m.e13, m.e32).unwrap()
     }
 }

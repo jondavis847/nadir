@@ -1,9 +1,9 @@
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::body_enum::BodyEnum,
+    body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointEnum, JointErrors, JointParameters, JointSimTrait,
-        JointTrait, JointTransforms,
+        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointTrait,
+        JointTransforms,
     },
     MultibodyTrait,
 };
@@ -33,44 +33,38 @@ impl RevoluteState {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-
-struct RevoluteRk4Cache([RevoluteState; 4]);
-
 #[derive(Debug, Clone)]
 pub struct Revolute {
     common: JointCommon,
     parameters: JointParameters,
     state: RevoluteState,
     aba: RevoluteAbaCache,
-    rk4: RevoluteRk4Cache,
 }
 
 impl Revolute {
-    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> Revolute {
+    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> Self {
         let common = JointCommon::new(name);
         let aba = RevoluteAbaCache::default();
-        let rk4 = RevoluteRk4Cache::default();
 
         Self {
             common,
             parameters,
             state,
             aba,
-            rk4,
         }
     }
 }
 
 impl JointTrait for Revolute {
-    fn connect_inner_body(
+    fn connect_inner_body<T: BodyTrait>(
         &mut self,
-        body: &BodyEnum,
+        body: &mut T,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if self.common.connection.inner_body.is_some() {
             return Err(JointErrors::InnerBodyExists);
         }
+        body.connect_outer_joint(self).unwrap();
         let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.inner_body = Some(connection);
         Ok(())
@@ -78,12 +72,18 @@ impl JointTrait for Revolute {
 
     fn connect_outer_body(
         &mut self,
-        body: &BodyEnum,
+        body: &mut Body,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
+        let body_mass_properties = body.get_mass_properties();
+        let spatial_transform = SpatialTransform::from(transform);
+        let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+        let joint_mass_properties = spatial_transform * spatial_inertia;
+        self.parameters.mass_properties = Some(joint_mass_properties);
+        body.connect_inner_joint(self).unwrap();
         let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
         Ok(())
@@ -174,14 +174,13 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         let transforms = &self.transforms;
         let aba = &mut self.aba;
+        let joint_inertia = self.parameters.mass_properties.unwrap();
 
         aba.common.v = transforms.jof_from_ij_jof * v_ij + aba.common.vj;
         aba.common.c = aba.common.v.cross_motion(aba.common.vj); // + cj
-        aba.common.p_big_a = aba
-            .common
-            .v
-            .cross_force(aba.common.inertia_articulated * aba.common.v)
-            - transforms.jof_from_ob * *f_ob;
+        aba.common.inertia_articulated = joint_inertia;
+        aba.common.p_big_a =
+            aba.common.v.cross_force(joint_inertia * aba.common.v) - transforms.jof_from_ob * *f_ob;
     }
 
     fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -193,17 +192,16 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.big_d_inv = 1.0 / aba.big_u.e31;
         aba.lil_u = -(aba.common.p_big_a.get_index(3).unwrap());
 
-        // this is basically the same as if the inner body is not the base
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
-            let i_lil_a =
-                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose();
+            let i_lil_a = SpatialInertia(
+                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
+            );            
             aba.common.p_lil_a = aba.common.p_big_a
-                + Force::from(i_lil_a * aba.common.c.vector())
+                + Force::from(i_lil_a * aba.common.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            let parent_inertia_articulated_contribution =
-                self.transforms.ij_jof_from_jof * SpatialInertia::from(i_lil_a);
+            let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
 
             let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_big_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))

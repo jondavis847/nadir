@@ -9,10 +9,11 @@ use uuid::Uuid;
 
 use super::{
     body::Body,
-    joint::{JointEnum, JointSim},
+    joint::{Joint, JointSim},
     system::MultibodySystem,
 };
 
+#[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     bodies: Vec<BodySim>,
@@ -38,8 +39,10 @@ impl From<MultibodySystem> for MultibodySystemSim {
 
             let joint_index = jointsims.len() - 1; //-1 since 0 based indexing
             let next_body_id = joint.get_outer_body_id().unwrap();
+            let next_body = sys.bodies.get(next_body_id).unwrap();
+            bodysims.push(BodySim::from(next_body.clone()));
             recursive_sys_creation(
-                next_body_id,
+                next_body,
                 &joint_index,
                 &sys.bodies,
                 &sys.joints,
@@ -70,8 +73,7 @@ impl MultibodySystemSim {
                     let v_ij = match i {
                         0 => Velocity::zeros(),
                         _ => *self.joints[self.parent_joint_indeces[i]].get_v(),
-                    };
-
+                    };                    
                     let f_ob = self.bodies[i].get_external_force();
                     self.joints[i].first_pass(v_ij, f_ob);
                 }
@@ -126,28 +128,28 @@ impl MultibodySystemSim {
 }
 
 fn recursive_sys_creation(
-    body_id: &Uuid,
+    body: &Body,
     parent_joint_index: &usize,
     bodies: &HashMap<Uuid, Body>,
-    joints: &HashMap<Uuid, JointEnum>,
+    joints: &HashMap<Uuid, Joint>,
     bodysims: &mut Vec<BodySim>,
     jointsims: &mut Vec<JointSim>,
     parent_joint_indeces: &mut Vec<usize>,
 ) {
-    let body = bodies.get(body_id).unwrap();
     let outer_joint_ids = body.get_outer_joints();
     for id in outer_joint_ids {
         let joint = joints.get(id).unwrap();
         let joint_sim = JointSim::from(joint.clone());
 
         jointsims.push(joint_sim);
-        bodysims.push(BodySim::from(body.clone()));
         parent_joint_indeces.push(*parent_joint_index);
 
         let joint_index = jointsims.len() - 1; //-1 since zero based indexing
         let next_body_id = joint.get_outer_body_id().unwrap();
+        let next_body = bodies.get(next_body_id).unwrap();
+        bodysims.push(BodySim::from(next_body.clone()));
         recursive_sys_creation(
-            next_body_id,
+            next_body,
             &joint_index,
             bodies,
             joints,

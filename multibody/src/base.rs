@@ -1,41 +1,33 @@
 use super::{
-    body::{body_enum::BodyEnum, BodyErrors, BodyTrait},
-    joint::{JointEnum, JointTrait},
+    body::{BodyErrors, BodyTrait},
+    joint::JointTrait,
     MultibodyTrait,
 };
-use mass_properties::MassProperties;
-use spatial_algebra::Force;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct Base {
     id: Uuid,
     name: String,
-    outer_joints: Vec<Uuid>,
-    external_force: Force,
-    mass_properties: MassProperties,
+    outer_joints: Vec<Uuid>,    
 }
 
 impl Base {
-    pub fn new(name: &str) -> Result<Base, BaseErrors> {
+    pub fn new(name: &str) -> Self {
         let mut name = name;
         if name.is_empty() {
             name = "base";
         }
-        Ok(Self {
+        Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
-            outer_joints: Vec::new(),
-            external_force: Force::default(),
-            mass_properties: MassProperties::default(),
-        })
+            outer_joints: Vec::new(),            
+        }
     }
 }
 
-pub enum BaseErrors {}
-
 impl BodyTrait for Base {
-    fn connect_outer_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors> {
+    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints
         if self.outer_joints.iter().any(|id| id == joint_id) {

@@ -5,8 +5,7 @@ use uuid::Uuid;
 
 pub mod body_enum;
 pub mod body_state;
-use super::joint::{JointEnum, JointTrait};
-use body_enum::BodyEnum;
+use super::joint::JointTrait;
 use body_state::BodyState;
 
 #[derive(Clone, Copy, Debug)]
@@ -18,8 +17,8 @@ pub enum BodyErrors {
     OuterJointExists,
 }
 
-pub trait BodyTrait {
-    fn connect_outer_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors>;
+pub trait BodyTrait: MultibodyTrait {
+    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
     fn delete_outer_joint(&mut self, joint_id: &Uuid);
     fn get_outer_joints(&self) -> &Vec<Uuid>;
 }
@@ -37,7 +36,7 @@ pub struct Body {
 }
 
 impl Body {
-    pub fn connect_inner_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors> {
+    pub fn connect_inner_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         match self.inner_joint {
             Some(_) => return Err(BodyErrors::InnerJointExists),
             None => self.inner_joint = Some(*joint.get_id()),
@@ -58,11 +57,11 @@ impl Body {
         &self.mass_properties
     }
 
-    pub fn new(name: &str, mass_properties: MassProperties) -> Result<BodyEnum, BodyErrors> {
+    pub fn new(name: &str, mass_properties: MassProperties) -> Result<Self, BodyErrors> {
         if name.is_empty() {
             return Err(BodyErrors::EmptyName);
         }
-        Ok(BodyEnum::Body(Self {
+        Ok(Self {
             //actuators: Vec::new(),
             id: Uuid::new_v4(),
             inner_joint: None,
@@ -70,12 +69,12 @@ impl Body {
             name: name.to_string(),
             outer_joints: Vec::new(),
             state: BodyState::default(),
-        }))
+        })
     }
 }
 
 impl BodyTrait for Body {
-    fn connect_outer_joint(&mut self, joint: &JointEnum) -> Result<(), BodyErrors> {
+    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints
         if self.outer_joints.iter().any(|id| id == joint_id) {
@@ -131,7 +130,7 @@ impl From<Body> for BodySim {
         };
         let state = BodyState::default();
         Self { parameters, state }
-    }    
+    }
 }
 
 impl BodySim {

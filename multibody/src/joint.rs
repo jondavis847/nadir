@@ -1,31 +1,33 @@
 use super::{
-    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::BodySim, MultibodyTrait,
+    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::Body, MultibodyTrait,
 };
 
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 
-use super::body::body_enum::BodyEnum;
+use super::body::{body_enum::BaseOrBody, BodyTrait};
 
 use transforms::Transform;
 use uuid::Uuid;
 
 pub mod revolute;
 use revolute::{Revolute, RevoluteSim};
-pub trait JointTrait {
-    fn connect_inner_body(
+pub trait JointTrait: MultibodyTrait {
+    fn connect_inner_body<T: BodyTrait> (
         &mut self,
-        body: &BodyEnum,
+        body: &mut T,
         transform: Transform,
-    ) -> Result<(), JointErrors>;
+    ) -> Result<(), JointErrors>;    
+
     fn connect_outer_body(
         &mut self,
-        body: &BodyEnum,
+        body: &mut Body,
         transform: Transform,
     ) -> Result<(), JointErrors>;
+    
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;    
+    fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
 pub enum JointErrors {
     InnerBodyExists,
@@ -52,71 +54,80 @@ impl JointCommon {
 }
 
 #[derive(Debug, Clone)]
-pub enum JointEnum {
+pub enum Joint {
     //Floating,
     //Prismatic,
     Revolute(Revolute),
     //Spherical,
 }
 
-impl MultibodyTrait for JointEnum {
+impl From<Revolute> for Joint {
+    fn from (revolute: Revolute) -> Self {
+        Joint::Revolute(revolute)
+    }
+}
+
+impl MultibodyTrait for Joint {
     fn get_id(&self) -> &Uuid {
         match self {
-            JointEnum::Revolute(joint) => joint.get_id(),
+            Joint::Revolute(joint) => joint.get_id(),
         }
     }
     fn get_name(&self) -> &str {
         match self {
-            JointEnum::Revolute(revolute) => revolute.get_name(),
+            Joint::Revolute(revolute) => revolute.get_name(),
         }
     }
 
     fn set_name(&mut self, name: String) {
         match self {
-            JointEnum::Revolute(revolute) => revolute.set_name(name),
+            Joint::Revolute(revolute) => revolute.set_name(name),
         }
     }
 }
 
-impl JointTrait for JointEnum {
-    fn connect_inner_body(
+impl JointTrait for Joint {    
+    fn connect_inner_body<T:BodyTrait>(
         &mut self,
-        body: &BodyEnum,
+        body: &mut T,
         transform: Transform,
-    ) -> Result<(), JointErrors> {
+    ) -> Result<(), JointErrors> {        
         match self {
-            JointEnum::Revolute(joint) => joint.connect_inner_body(body, transform),
+            Joint::Revolute(joint) => {                
+                joint.connect_inner_body(body, transform)
+            }
         }
     }
+
     fn connect_outer_body(
         &mut self,
-        body: &BodyEnum,
+        body: &mut Body,
         transform: Transform,
-    ) -> Result<(), JointErrors> {
+    ) -> Result<(), JointErrors> {        
         match self {
-            JointEnum::Revolute(joint) => joint.connect_outer_body(body, transform),
+            Joint::Revolute(joint) => joint.connect_outer_body(body, transform),
         }
     }
 
     fn delete_inner_body_id(&mut self) {
         match self {
-            JointEnum::Revolute(joint) => joint.delete_inner_body_id(),
+            Joint::Revolute(joint) => joint.delete_inner_body_id(),
         }
     }
     fn delete_outer_body_id(&mut self) {
         match self {
-            JointEnum::Revolute(joint) => joint.delete_outer_body_id(),
+            Joint::Revolute(joint) => joint.delete_outer_body_id(),
         }
     }
 
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match self {
-            JointEnum::Revolute(joint) => joint.get_inner_body_id(),
+            Joint::Revolute(joint) => joint.get_inner_body_id(),
         }
     }
     fn get_outer_body_id(&self) -> Option<&Uuid> {
         match self {
-            JointEnum::Revolute(joint) => joint.get_outer_body_id(),
+            Joint::Revolute(joint) => joint.get_outer_body_id(),
         }
     }
 }
@@ -277,14 +288,15 @@ impl JointTransforms {
     }
 }
 
+#[derive(Debug,Copy,Clone)]
 pub enum JointSim {
     Revolute(RevoluteSim),
 }
 
-impl From<JointEnum> for JointSim {
-    fn from(joint: JointEnum) -> Self {
+impl From<Joint> for JointSim {
+    fn from(joint: Joint) -> Self {
         match joint {
-            JointEnum::Revolute(revolute) => JointSim::Revolute(revolute.into()),
+            Joint::Revolute(revolute) => JointSim::Revolute(revolute.into()),
         }
     }
 }

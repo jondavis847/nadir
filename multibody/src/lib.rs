@@ -6,13 +6,11 @@ pub mod system;
 pub mod system_sim;
 
 use uuid::Uuid;
-use base::BaseErrors;
 use body::BodyErrors;
 use joint::revolute::RevoluteErrors;
 
 
-pub enum MultibodyErrors {
-    Base(BaseErrors),
+pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,
     Body(BodyErrors),
