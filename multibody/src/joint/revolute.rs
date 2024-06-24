@@ -1,8 +1,9 @@
+use std::ops::{Add,AddAssign,Div,Mul};
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointTrait,
+        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState, JointTrait,
         JointTransforms,
     },
     MultibodyTrait,
@@ -17,18 +18,15 @@ pub enum RevoluteErrors {}
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
     theta: f64,
-    omega: f64,
-    q_ddot: f64,
+    omega: f64,    
 }
 
 impl RevoluteState {
     pub fn new(theta: f64, omega: f64) -> Self {
-        // assume this is about Z until we add more axes
-        let q_ddot = 0.0;
+        // assume this is about Z until we add more axes        
         Self {
             theta,
-            omega,
-            q_ddot,
+            omega,            
         }
     }
 }
@@ -134,7 +132,8 @@ struct RevoluteAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
-    big_u: Matrix6x1,    
+    big_u: Matrix6x1, 
+    q_ddot: f64,   
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -143,16 +142,6 @@ pub struct RevoluteSim {
     parameters: JointParameters,    
     state: RevoluteState,
     transforms: JointTransforms,
-}
-
-impl RevoluteSim {
-    pub fn set_state(&mut self, state: &RevoluteState) {
-        self.state = *state;
-    }
-
-    pub fn get_state(&self) -> &RevoluteState {
-        &self.state
-    }
 }
 
 impl From<Revolute> for RevoluteSim {
@@ -210,10 +199,10 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let aba = &mut self.aba;
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
-        self.state.q_ddot =
+        aba.q_ddot =
             aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
         aba.common.a = aba.common.a_prime
-            + Acceleration::from(Vector6::new(0.0, 0.0, self.state.q_ddot, 0.0, 0.0, 0.0));
+            + Acceleration::from(Vector6::new(0.0, 0.0, aba.q_ddot, 0.0, 0.0, 0.0));
     }
 
     fn get_v(&self) -> &Velocity {
@@ -238,6 +227,14 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 }
 
 impl JointSimTrait for RevoluteSim {
+    fn get_state(&self) -> JointState {
+        JointState::Revolute(self.state)
+    }
+    fn set_state(&mut self, state: JointState) {        
+        match state {
+            JointState::Revolute(revolute_state) => self.state = revolute_state
+        }        
+    }
     fn get_transforms(&self) -> &JointTransforms {
         &self.transforms
     }
@@ -247,5 +244,23 @@ impl JointSimTrait for RevoluteSim {
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
         self.transforms.update(ij_transforms)
+    }
+}
+
+impl Add for RevoluteState {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        RevoluteState {
+            theta: self.theta + rhs.theta,
+            omega: self.omega + rhs.omega, 
+        }
+    }
+}
+
+impl AddAssign for RevoluteState {
+    fn add_assign(&mut self, rhs: Self) {
+        self.theta += rhs.theta;
+        self.omega += rhs.omega;        
     }
 }
