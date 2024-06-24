@@ -63,14 +63,13 @@ fn run_simulation() {
         theta: 1.0,
         omega: 0.0,
     }; // Initial state of the pendulum
-    let tspan = (0.0, 10.0); // Time span for the simulation
-    let dt = 0.1; // Time step (10 Hz)
+    
 
     let solver = Solver {
         func: |state, t| pendulum_dynamics(state, t),
         x0: initial_state,
         tstart: 0.0,
-        tstop: 10.0,
+        tstop: 1000.0,
         dt: 0.1,
         solver: SolverMethod::Rk4Classical,
     };
@@ -78,7 +77,7 @@ fn run_simulation() {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("pendulum_simulation", |b| b.iter(|| run_simulation()));
+    c.bench_function("pendulum_simulation", |b| b.iter(|| black_box(run_simulation())));
 }
 
 criterion_group!(benches, criterion_benchmark);
