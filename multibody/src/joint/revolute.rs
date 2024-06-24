@@ -134,17 +134,13 @@ struct RevoluteAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
-    big_u: Matrix6x1,
-    q: f64,
-    q_dot: f64,
-    q_ddot: f64,
-    inertia_lil_a: f64,
+    big_u: Matrix6x1,    
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
     aba: RevoluteAbaCache,
-    parameters: JointParameters,
+    parameters: JointParameters,    
     state: RevoluteState,
     transforms: JointTransforms,
 }
