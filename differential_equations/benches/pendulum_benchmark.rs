@@ -59,7 +59,7 @@ fn run_simulation() {
         x0: initial_state,
         parameters: Some(p),
         tstart: 0.0,
-        tstop: 10.0,
+        tstop: 1000.0,
         dt: 0.1,
         solver: SolverMethod::Rk4Classical,
     };
