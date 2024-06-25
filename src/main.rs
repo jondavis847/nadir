@@ -1,10 +1,13 @@
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base, body::{Body, BodyTrait}, joint::{
+    base::Base,
+    body::Body,
+    joint::{
         revolute::{Revolute, RevoluteState},
-        Joint, JointParameters, JointTrait,
-    }, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
-
+        JointParameters, JointTrait,
+    },
+    system::MultibodySystem,
+    system_sim::MultibodySystemSim,
 };
 
 use transforms::Transform;
@@ -39,11 +42,18 @@ fn main() {
     );
     let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
 
-    
-    joint2.connect_inner_body(&mut base, Transform::default()).unwrap();    
-    joint2.connect_outer_body(&mut body2, Transform::default()).unwrap();    
-    joint1.connect_inner_body(&mut body2, Transform::default()).unwrap();    
-    joint1.connect_outer_body(&mut body1, Transform::default()).unwrap();
+    joint2
+        .connect_inner_body(&mut base, Transform::default())
+        .unwrap();
+    joint2
+        .connect_outer_body(&mut body2, Transform::default())
+        .unwrap();
+    joint1
+        .connect_inner_body(&mut body2, Transform::default())
+        .unwrap();
+    joint1
+        .connect_outer_body(&mut body1, Transform::default())
+        .unwrap();
 
     sys.add_base(base).unwrap();
     sys.add_joint(joint1.into()).unwrap();
@@ -53,9 +63,7 @@ fn main() {
 
     let mut sim = MultibodySystemSim::from(sys);
 
-    
-    let result = sim.simulate(0.0,10.0,1.0);
+    let result = sim.simulate(0.0, 10.0, 1.0);
 
     dbg!(result);
-
 }
