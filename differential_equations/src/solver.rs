@@ -30,7 +30,7 @@ where
     T: Integrable,
 {
     // Method to run the solver
-    pub fn solve(&self) -> (Vec<f64>, Vec<T>) {
+    pub fn solve(&mut self) -> (Vec<f64>, Vec<T>) {
         match self.solver {
             SolverMethod::Rk4Classical => solve_fixed_rk4(self),
         }

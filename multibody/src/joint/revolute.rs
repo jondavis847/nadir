@@ -1,33 +1,31 @@
-use std::ops::{Add,AddAssign,Div,Mul};
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState, JointTrait,
-        JointTransforms,
+        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState,
+        JointTrait, JointTransforms,
     },
     MultibodyTrait,
 };
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
+use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
     theta: f64,
-    omega: f64,    
+    omega: f64,
 }
 
 impl RevoluteState {
     pub fn new(theta: f64, omega: f64) -> Self {
-        // assume this is about Z until we add more axes        
-        Self {
-            theta,
-            omega,            
-        }
+        // assume this is about Z until we add more axes
+        Self { theta, omega }
     }
 }
 
@@ -132,14 +130,14 @@ struct RevoluteAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
-    big_u: Matrix6x1, 
-    q_ddot: f64,   
+    big_u: Matrix6x1,
+    q_ddot: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
     aba: RevoluteAbaCache,
-    parameters: JointParameters,    
+    parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
 }
@@ -181,7 +179,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
-            );            
+            );
             aba.common.p_lil_a = aba.common.p_big_a
                 + Force::from(i_lil_a * aba.common.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
@@ -230,10 +228,10 @@ impl JointSimTrait for RevoluteSim {
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
-    fn set_state(&mut self, state: JointState) {        
+    fn set_state(&mut self, state: JointState) {
         match state {
-            JointState::Revolute(revolute_state) => self.state = revolute_state
-        }        
+            JointState::Revolute(revolute_state) => self.state = revolute_state,
+        }
     }
     fn get_transforms(&self) -> &JointTransforms {
         &self.transforms
@@ -253,7 +251,7 @@ impl Add for RevoluteState {
     fn add(self, rhs: Self) -> Self {
         RevoluteState {
             theta: self.theta + rhs.theta,
-            omega: self.omega + rhs.omega, 
+            omega: self.omega + rhs.omega,
         }
     }
 }
@@ -261,6 +259,28 @@ impl Add for RevoluteState {
 impl AddAssign for RevoluteState {
     fn add_assign(&mut self, rhs: Self) {
         self.theta += rhs.theta;
-        self.omega += rhs.omega;        
+        self.omega += rhs.omega;
+    }
+}
+
+impl Mul<f64> for RevoluteState {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        RevoluteState {
+            theta: self.theta * rhs,
+            omega: self.omega * rhs,
+        }
+    }
+}
+
+impl Div<f64> for RevoluteState {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self {
+        RevoluteState {
+            theta: self.theta / rhs,
+            omega: self.omega / rhs,
+        }
     }
 }

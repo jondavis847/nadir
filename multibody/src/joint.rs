@@ -30,6 +30,8 @@ pub trait JointTrait: MultibodyTrait {
     fn get_inner_body_id(&self) -> Option<&Uuid>;
     fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
+
+#[derive(Debug)]
 pub enum JointErrors {
     InnerBodyExists,
     OuterBodyExists,
@@ -371,6 +373,28 @@ impl AddAssign for JointState {
             // Handle other variants here if they are added
             // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
             _ => panic!("Cannot add different JointState variants"),
+        }
+    }
+}
+
+impl Mul<f64> for JointState {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        
+        match self {
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state * rhs)
+        }
+    }
+}
+
+impl Div<f64> for JointState {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self {
+        
+        match self {
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs)
         }
     }
 }

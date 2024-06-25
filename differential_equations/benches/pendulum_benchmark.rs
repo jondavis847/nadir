@@ -1,35 +1,41 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use differential_equations::{
-    solver::{Solver, SolverMethod},
-    Integrable,
-};
-use std::ops::{AddAssign, DivAssign, MulAssign};
+use differential_equations::solver::{Solver, SolverMethod};
+use std::ops::{Add, Div, Mul};
 
 // PendulumState represents the state of the pendulum with angle `theta` and angular velocity `omega`.
 #[derive(Debug, Clone, Copy)]
 struct PendulumState {
-    theta: f64,
-    omega: f64,
+    pub theta: f64,
+    pub omega: f64,
 }
 
-impl AddAssign<&mut Self> for PendulumState {
-    fn add_assign(&mut self, other: &mut Self) {
-        self.theta += other.theta;
-        self.omega += other.omega;
+impl Add<Self> for PendulumState {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        PendulumState {
+            theta: self.theta + other.theta,
+            omega: self.omega + other.omega,
+        }
     }
 }
 
-impl MulAssign<f64> for PendulumState {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.theta *= rhs;
-        self.omega *= rhs;
+impl Mul<f64> for PendulumState {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self {
+        Self {
+            theta: self.theta * rhs,
+            omega: self.omega * rhs,
+        }
     }
 }
 
-impl DivAssign<f64> for PendulumState {
-    fn div_assign(&mut self, rhs: f64) {
-        self.theta /= rhs;
-        self.omega /= rhs;
+impl Div<f64> for PendulumState {
+    type Output = Self;
+    fn div(self, rhs: f64) -> Self {
+        Self {
+            theta: self.theta / rhs,
+            omega: self.omega / rhs,
+        }
     }
 }
 
@@ -39,11 +45,13 @@ struct PendulumParameters {
 }
 
 // Define the equations of motion for the pendulum.
-fn pendulum_dynamics(dx: &mut PendulumState, x: &PendulumState, p: &Option<PendulumParameters>, _t: f64) {
-    let p = p.as_ref().unwrap();    
+fn pendulum_dynamics(x: &PendulumState, p: &Option<PendulumParameters>, _t: f64) -> PendulumState {
+    let p = p.as_ref().unwrap();
 
-    dx.theta.clone_from(&x.omega);    
-    dx.omega = -(p.g/p.l) * x.theta.sin();
+    PendulumState {
+        theta: x.omega,
+        omega: -(p.g / p.l) * x.theta.sin(),
+    }
 }
 
 fn run_simulation() {
@@ -52,10 +60,10 @@ fn run_simulation() {
         omega: 0.0,
     }; // Initial state of the pendulum
 
-    let p = PendulumParameters {g: 9.81, l: 1.0};
-    
-    let solver = Solver {
-        func: |dx,x,p,t| pendulum_dynamics(dx,x,p,t),
+    let p = PendulumParameters { g: 9.81, l: 1.0 };
+
+    let mut solver = Solver {
+        func: |x, p, t| pendulum_dynamics(x, p, t),
         x0: initial_state,
         parameters: Some(p),
         tstart: 0.0,
@@ -65,12 +73,12 @@ fn run_simulation() {
     };
 
     let (time, results) = solver.solve();
-
 }
 
-
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("pendulum_simulation", |b| b.iter(|| black_box(run_simulation())));
+    c.bench_function("pendulum_simulation", |b| {
+        b.iter(|| black_box(run_simulation()))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

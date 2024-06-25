@@ -40,19 +40,22 @@ fn main() {
     let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
 
     
-    joint2.connect_inner_body(&mut base, Transform::default());    
-    joint2.connect_outer_body(&mut body2, Transform::default());    
-    joint1.connect_inner_body(&mut body2, Transform::default());    
-    joint1.connect_outer_body(&mut body1, Transform::default());
+    joint2.connect_inner_body(&mut base, Transform::default()).unwrap();    
+    joint2.connect_outer_body(&mut body2, Transform::default()).unwrap();    
+    joint1.connect_inner_body(&mut body2, Transform::default()).unwrap();    
+    joint1.connect_outer_body(&mut body1, Transform::default()).unwrap();
 
-    sys.add_base(base);
-    sys.add_joint(joint1.into());
-    sys.add_joint(joint2.into());
-    sys.add_body(body1);
-    sys.add_body(body2);
+    sys.add_base(base).unwrap();
+    sys.add_joint(joint1.into()).unwrap();
+    sys.add_joint(joint2.into()).unwrap();
+    sys.add_body(body1).unwrap();
+    sys.add_body(body2).unwrap();
 
     let mut sim = MultibodySystemSim::from(sys);
+
     
-    sim.run();
+    let result = sim.simulate(0.0,10.0,1.0);
+
+    dbg!(result);
 
 }
