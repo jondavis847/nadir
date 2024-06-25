@@ -1,12 +1,9 @@
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{BodySim, BodyState, BodyTrait},
+    body::{BodySim, BodyTrait},
     joint::{JointSimTrait, JointState, JointTrait},
 };
-use differential_equations::{
-    solver::{Solver, SolverMethod},
-    Integrable,
-};
+use differential_equations::solver::{Solver, SolverMethod};
 use spatial_algebra::{Acceleration, Velocity};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
@@ -18,7 +15,7 @@ use super::{
     system::MultibodySystem,
 };
 
-struct MultibodyParameters;
+pub struct MultibodyParameters;
 
 #[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
@@ -78,7 +75,7 @@ impl MultibodySystemSim {
         &mut self,
         x: &MultibodyState,
         _p: &Option<MultibodyParameters>,
-        t: f64,
+        _t: f64,
     ) -> MultibodyState {
         self.set_state(x.clone());
         self.update_transforms();
@@ -132,7 +129,12 @@ impl MultibodySystemSim {
             self.joints[i].set_state(state.joints[i]);
         }
     }
-    pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> (Vec<f64>, Vec<MultibodyState>) {
+    pub fn simulate(
+        &mut self,
+        tstart: f64,
+        tstop: f64,
+        dt: f64,
+    ) -> (Vec<f64>, Vec<MultibodyState>) {
         // create a vec of JointStates
         let mut joint_states = Vec::<JointState>::new();
         for joint in &self.joints {

@@ -72,7 +72,7 @@ fn run_simulation() {
         solver: SolverMethod::Rk4Classical,
     };
 
-    let (time, results) = solver.solve();
+    solver.solve();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

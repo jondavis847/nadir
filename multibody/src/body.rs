@@ -32,7 +32,6 @@ pub struct Body {
     name: String,
     outer_joints: Vec<Uuid>,
     //sensors: Vec<BodySensorConnection>,
-    state: BodyState,
 }
 
 impl Body {
@@ -68,7 +67,6 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
-            state: BodyState::default(),
         })
     }
 }
@@ -108,28 +106,19 @@ impl MultibodyTrait for Body {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct BodyParameters {
-    mass_properties: MassProperties,
-}
-
 /// It is not expected that you would create this directly
 /// Instead, create a Body and call BodySim::from(Body), or
 /// Body.into() if appropriate
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BodySim {
-    parameters: BodyParameters,
     state: BodyState,
 }
 
 impl From<Body> for BodySim {
     fn from(body: Body) -> Self {
-        let parameters = BodyParameters {
-            mass_properties: body.mass_properties,
-        };
         let state = BodyState::default();
-        Self { parameters, state }
+        Self { state }
     }
 }
 

@@ -34,19 +34,16 @@ pub struct Revolute {
     common: JointCommon,
     parameters: JointParameters,
     state: RevoluteState,
-    aba: RevoluteAbaCache,
 }
 
 impl Revolute {
     pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> Self {
         let common = JointCommon::new(name);
-        let aba = RevoluteAbaCache::default();
 
         Self {
             common,
             parameters,
             state,
-            aba,
         }
     }
 }

@@ -5,7 +5,7 @@ use std::ops::{Add, AddAssign, Div, Mul};
 
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 
-use super::body::{body_enum::BaseOrBody, BodyTrait};
+use super::body::BodyTrait;
 
 use transforms::Transform;
 use uuid::Uuid;
@@ -361,7 +361,7 @@ impl Add for JointState {
             }
             // Handle other variants here if they are added
             // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
-            _ => panic!("Cannot add different JointState variants"),
+            //_ => panic!("Cannot add different JointState variants"),
         }
     }
 }
@@ -372,7 +372,7 @@ impl AddAssign for JointState {
             (JointState::Revolute(lhs), JointState::Revolute(rhs)) => *lhs += rhs,
             // Handle other variants here if they are added
             // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
-            _ => panic!("Cannot add different JointState variants"),
+            //_ => panic!("Cannot add different JointState variants"),
         }
     }
 }

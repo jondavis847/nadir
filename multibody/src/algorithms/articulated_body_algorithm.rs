@@ -1,4 +1,3 @@
-use crate::{body::BodySim, joint::JointSim};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
 
 #[derive(Clone, Copy, Debug, Default)]
