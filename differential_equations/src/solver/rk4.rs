@@ -17,18 +17,23 @@ where
 
     assert!(dt.abs() > f64::EPSILON, "0.0 dt not allowed!");
 
-    let half_dt = *dt / 2.0;
+    let mut half_dt = *dt / 2.0;
     let mut x = x0.clone();
     let mut t = *tstart;
 
-    let result_length = ((*tstop - *tstart) / *dt).ceil() as usize + 1;
+    let result_length = ((*tstop - *tstart) / *dt).ceil() as usize;
     let mut result = Vec::with_capacity(result_length);
     let mut time = Vec::with_capacity(result_length);
 
     result.push(x.clone());
     time.push(t);
 
-    while t <= *tstop {
+    while t < *tstop {
+        if (*tstop - t) < *dt {
+            *dt = *tstop - t;
+            half_dt = *dt / 2.0;
+        }
+
         let k1 = func(&x, parameters, t);
         let k2 = func(&(x.clone() + k1.clone() * half_dt), parameters, t + half_dt);
         let k3 = func(&(x.clone() + k2.clone() * half_dt), parameters, t + half_dt);
@@ -43,4 +48,3 @@ where
 
     (time, result)
 }
-

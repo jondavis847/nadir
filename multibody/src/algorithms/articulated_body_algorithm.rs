@@ -1,5 +1,5 @@
 use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
-
+use crate::joint::JointState;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AbaCache {
     pub vj: Velocity,
@@ -15,7 +15,7 @@ pub trait ArticulatedBodyAlgorithm {
     fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force);
     fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)>;    
     fn third_pass(&mut self, a_ij: Acceleration);
-
+    fn get_aba_derivative(&self) -> JointState ;
     fn get_v(&self) -> &Velocity;
 
     fn get_p_big_a(&self) -> &Force; //gah rust naming conventions warn on pA

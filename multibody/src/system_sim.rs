@@ -67,7 +67,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
 impl MultibodySystemSim {
     fn collect_state(&self) -> MultibodyState {
         let new_joints: Vec<JointState> =
-            self.joints.iter().map(|joint| joint.get_state()).collect();
+            self.joints.iter().map(|joint| joint.get_aba_derivative()).collect();
         MultibodyState { joints: new_joints }
     }
 
@@ -78,7 +78,7 @@ impl MultibodySystemSim {
         _t: f64,
     ) -> MultibodyState {
         self.set_state(x.clone());
-        self.update_transforms();
+        self.update_joints();
         self.update_bodies();
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
@@ -117,11 +117,10 @@ impl MultibodySystemSim {
                     };
                     self.joints[i].third_pass(a_ij);
                 }
-            }
-            _ => {} //TODO: nothing for now
-        }
 
-        self.collect_state()
+                self.collect_state()
+            }            
+        }
     }
 
     fn set_state(&mut self, state: MultibodyState) {
@@ -158,13 +157,22 @@ impl MultibodySystemSim {
         solver.solve()
     }
 
-    pub fn update_bodies(&mut self) {
+    fn update_bodies(&mut self) {
         //TODO update body states based on joint states
         //calculate external forces
     }
 
+    fn update_joints(&mut self) {
+        self.update_transforms();
+
+        //calculate tau for each joint
+        for joint in &mut self.joints {
+            joint.calculate_tau();
+        }
+    }
+
     // The main update_transforms function
-    pub fn update_transforms(&mut self) {
+    fn update_transforms(&mut self) {
         for i in 0..self.joints.len() {
             match i {
                 0 => self.joints[i].update_transforms(None),
