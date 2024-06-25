@@ -9,7 +9,7 @@ use uuid::Uuid;
 use body::BodyErrors;
 use joint::revolute::RevoluteErrors;
 
-
+#[derive(Debug)]
 pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,

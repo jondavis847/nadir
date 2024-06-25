@@ -25,4 +25,5 @@ pub trait ArticulatedBodyAlgorithm {
 
     fn add_inertia_articulated(&mut self, inertia: SpatialInertia);
     fn add_p_big_a(&mut self, force: Force);
+
 }
