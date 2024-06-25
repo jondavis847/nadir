@@ -1,6 +1,7 @@
 use super::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::Body, MultibodyTrait,
 };
+use std::ops::{Add, AddAssign, Div, Mul};
 
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 
@@ -10,25 +11,27 @@ use transforms::Transform;
 use uuid::Uuid;
 
 pub mod revolute;
-use revolute::{Revolute, RevoluteSim};
+use revolute::{Revolute, RevoluteSim, RevoluteState};
 pub trait JointTrait: MultibodyTrait {
-    fn connect_inner_body<T: BodyTrait> (
+    fn connect_inner_body<T: BodyTrait>(
         &mut self,
         body: &mut T,
         transform: Transform,
-    ) -> Result<(), JointErrors>;    
+    ) -> Result<(), JointErrors>;
 
     fn connect_outer_body(
         &mut self,
         body: &mut Body,
         transform: Transform,
     ) -> Result<(), JointErrors>;
-    
+
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_inner_body_id(&self) -> Option<&Uuid>;
     fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
+
+#[derive(Debug)]
 pub enum JointErrors {
     InnerBodyExists,
     OuterBodyExists,
@@ -62,7 +65,7 @@ pub enum Joint {
 }
 
 impl From<Revolute> for Joint {
-    fn from (revolute: Revolute) -> Self {
+    fn from(revolute: Revolute) -> Self {
         Joint::Revolute(revolute)
     }
 }
@@ -86,16 +89,14 @@ impl MultibodyTrait for Joint {
     }
 }
 
-impl JointTrait for Joint {    
-    fn connect_inner_body<T:BodyTrait>(
+impl JointTrait for Joint {
+    fn connect_inner_body<T: BodyTrait>(
         &mut self,
         body: &mut T,
         transform: Transform,
-    ) -> Result<(), JointErrors> {        
+    ) -> Result<(), JointErrors> {
         match self {
-            Joint::Revolute(joint) => {                
-                joint.connect_inner_body(body, transform)
-            }
+            Joint::Revolute(joint) => joint.connect_inner_body(body, transform),
         }
     }
 
@@ -103,7 +104,7 @@ impl JointTrait for Joint {
         &mut self,
         body: &mut Body,
         transform: Transform,
-    ) -> Result<(), JointErrors> {        
+    ) -> Result<(), JointErrors> {
         match self {
             Joint::Revolute(joint) => joint.connect_outer_body(body, transform),
         }
@@ -288,7 +289,7 @@ impl JointTransforms {
     }
 }
 
-#[derive(Debug,Copy,Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum JointSim {
     Revolute(RevoluteSim),
 }
@@ -302,6 +303,19 @@ impl From<Joint> for JointSim {
 }
 
 impl JointSimTrait for JointSim {
+    #[inline]
+    fn get_state(&self) -> JointState {
+        match self {
+            JointSim::Revolute(joint) => joint.get_state(),
+        }
+    }
+    #[inline]
+    fn set_state(&mut self, state: JointState) {
+        match self {
+            JointSim::Revolute(joint) => joint.set_state(state),
+        }
+    }
+
     #[inline]
     fn get_transforms(&self) -> &JointTransforms {
         match self {
@@ -325,7 +339,62 @@ impl JointSimTrait for JointSim {
 }
 
 pub trait JointSimTrait {
+    fn get_state(&self) -> JointState;
+    fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>);
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum JointState {
+    Revolute(RevoluteState), // Spherical(SphericalState)
+}
+
+impl Add for JointState {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (JointState::Revolute(lhs), JointState::Revolute(rhs)) => {
+                JointState::Revolute(lhs + rhs)
+            }
+            // Handle other variants here if they are added
+            // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
+            _ => panic!("Cannot add different JointState variants"),
+        }
+    }
+}
+
+impl AddAssign for JointState {
+    fn add_assign(&mut self, rhs: Self) {
+        match (self, rhs) {
+            (JointState::Revolute(lhs), JointState::Revolute(rhs)) => *lhs += rhs,
+            // Handle other variants here if they are added
+            // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
+            _ => panic!("Cannot add different JointState variants"),
+        }
+    }
+}
+
+impl Mul<f64> for JointState {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        
+        match self {
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state * rhs)
+        }
+    }
+}
+
+impl Div<f64> for JointState {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self {
+        
+        match self {
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs)
+        }
+    }
 }

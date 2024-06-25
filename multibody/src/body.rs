@@ -1,12 +1,12 @@
 use super::MultibodyTrait;
+use linear_algebra::vector3::Vector3;
 use mass_properties::{MassProperties, MassPropertiesErrors};
+use rotations::quaternion::Quaternion;
 use spatial_algebra::Force;
 use uuid::Uuid;
 
 pub mod body_enum;
-pub mod body_state;
 use super::joint::JointTrait;
-use body_state::BodyState;
 
 #[derive(Clone, Copy, Debug)]
 pub enum BodyErrors {
@@ -18,7 +18,7 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait: MultibodyTrait {
-    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
+    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
     fn delete_outer_joint(&mut self, joint_id: &Uuid);
     fn get_outer_joints(&self) -> &Vec<Uuid>;
 }
@@ -74,7 +74,7 @@ impl Body {
 }
 
 impl BodyTrait for Body {
-    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
+    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints
         if self.outer_joints.iter().any(|id| id == joint_id) {
@@ -145,4 +145,14 @@ impl BodySim {
     pub fn get_external_force(&self) -> &Force {
         &self.state.external_force
     }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BodyState {
+    pub position: Vector3,
+    pub velocity: Vector3,
+    pub acceleration: Vector3,
+    pub attitude: Quaternion,
+    pub angular_rate: Vector3,
+    pub external_force: Force,
 }

@@ -1,4 +1,4 @@
-use super::Integrable;
+use super::{Integrable, OdeFunction};
 
 pub mod rk4;
 
@@ -10,28 +10,29 @@ pub enum SolverMethod {
     //Tsitouras54,
 }
 
-pub struct Solver<F, T>
+pub struct Solver<F, P, T>
 where
-    F: Fn(T, f64) -> T,    
+    F: OdeFunction<P,T>,
     T: Integrable,
 {
     pub func: F,
     pub x0: T,
+    pub parameters: Option<P>,
     pub tstart: f64,
     pub tstop: f64,
     pub dt: f64,
     pub solver: SolverMethod,
 }
 
-impl<F, T> Solver<F, T>
+impl<F, P, T> Solver<F, P, T>
 where
-    F: Fn(T, f64) -> T,    
+    F: OdeFunction<P,T>,
     T: Integrable,
 {
     // Method to run the solver
-    pub fn solve(&self) -> (Vec<f64>, Vec<T>) {
+    pub fn solve(&mut self) -> (Vec<f64>, Vec<T>) {
         match self.solver {
-            SolverMethod::Rk4Classical => solve_fixed_rk4(self)
-        }        
+            SolverMethod::Rk4Classical => solve_fixed_rk4(self),
+        }
     }
 }

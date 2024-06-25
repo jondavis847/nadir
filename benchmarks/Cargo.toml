@@ -9,5 +9,5 @@ criterion = "0.5.1"
 mass_properties = {path = "../mass_properties"}
 
 [[bench]]
-name = "arrayvec_vs_vec"
+name = "array_vs_vec_copy_clone"
 harness = false

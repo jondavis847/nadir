@@ -1,22 +1,18 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use differential_equations::{
-    solver::{Solver, SolverMethod},
-    Integrable,
-};
+use differential_equations::solver::{Solver, SolverMethod};
 use std::ops::{Add, Div, Mul};
 
 // PendulumState represents the state of the pendulum with angle `theta` and angular velocity `omega`.
 #[derive(Debug, Clone, Copy)]
 struct PendulumState {
-    theta: f64,
-    omega: f64,
+    pub theta: f64,
+    pub omega: f64,
 }
 
-impl Add for PendulumState {
+impl Add<Self> for PendulumState {
     type Output = Self;
-
     fn add(self, other: Self) -> Self {
-        Self {
+        PendulumState {
             theta: self.theta + other.theta,
             omega: self.omega + other.omega,
         }
@@ -25,7 +21,6 @@ impl Add for PendulumState {
 
 impl Mul<f64> for PendulumState {
     type Output = Self;
-
     fn mul(self, rhs: f64) -> Self {
         Self {
             theta: self.theta * rhs,
@@ -36,7 +31,6 @@ impl Mul<f64> for PendulumState {
 
 impl Div<f64> for PendulumState {
     type Output = Self;
-
     fn div(self, rhs: f64) -> Self {
         Self {
             theta: self.theta / rhs,
@@ -45,16 +39,18 @@ impl Div<f64> for PendulumState {
     }
 }
 
-impl Integrable for PendulumState {}
+struct PendulumParameters {
+    pub g: f64,
+    pub l: f64,
+}
 
 // Define the equations of motion for the pendulum.
-fn pendulum_dynamics(state: PendulumState, _t: f64) -> PendulumState {
-    let g = 9.81; // Acceleration due to gravity (m/s^2)
-    let l = 1.0; // Length of the pendulum (m)
+fn pendulum_dynamics(x: &PendulumState, p: &Option<PendulumParameters>, _t: f64) -> PendulumState {
+    let p = p.as_ref().unwrap();
 
     PendulumState {
-        theta: state.omega,
-        omega: -(g / l) * state.theta.sin(),
+        theta: x.omega,
+        omega: -(p.g / p.l) * x.theta.sin(),
     }
 }
 
@@ -63,21 +59,26 @@ fn run_simulation() {
         theta: 1.0,
         omega: 0.0,
     }; // Initial state of the pendulum
-    
 
-    let solver = Solver {
-        func: |state, t| pendulum_dynamics(state, t),
+    let p = PendulumParameters { g: 9.81, l: 1.0 };
+
+    let mut solver = Solver {
+        func: |x, p, t| pendulum_dynamics(x, p, t),
         x0: initial_state,
+        parameters: Some(p),
         tstart: 0.0,
         tstop: 1000.0,
         dt: 0.1,
         solver: SolverMethod::Rk4Classical,
     };
+
     let (time, results) = solver.solve();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("pendulum_simulation", |b| b.iter(|| black_box(run_simulation())));
+    c.bench_function("pendulum_simulation", |b| {
+        b.iter(|| black_box(run_simulation()))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
