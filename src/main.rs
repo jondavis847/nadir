@@ -16,10 +16,19 @@ fn main() {
     let mut sys = MultibodySystem::new();
 
     let mut base = Base::new("base");
+    let jp1 = JointParameters {
+        constant_force: 0.0,
+        spring_constant: 1.0,
+        dampening: 0.0,
+        mass_properties: None,
+    };
+
+    let js1 = RevoluteState::new(0.0,1.0);
+
     let mut joint1 = Revolute::new(
         "joint1",
-        JointParameters::default(),
-        RevoluteState::default(),
+        jp1,
+        js1,
     );
 
     let mut joint2 = Revolute::new(
@@ -63,7 +72,7 @@ fn main() {
 
     let mut sim = MultibodySystemSim::from(sys);
 
-    let result = sim.simulate(0.0, 10.0, 1.0);
+    let result = sim.simulate(0.0, 10.0, 0.1);
 
     dbg!(result);
 }

@@ -149,6 +149,13 @@ impl ArticulatedBodyAlgorithm for JointSim {
             JointSim::Revolute(joint) => joint.third_pass(a_ij),
         }
     }
+
+    fn get_aba_derivative(&self) -> JointState {
+        match self {
+            JointSim::Revolute(joint) => joint.get_aba_derivative(),
+        }
+    }
+
     fn get_v(&self) -> &Velocity {
         match self {
             JointSim::Revolute(joint) => joint.get_v(),
@@ -208,10 +215,10 @@ pub struct JointConnection {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct JointParameters {
-    constant_force: f64,
-    dampening: f64,
-    mass_properties: Option<SpatialInertia>,
-    spring_constant: f64,
+    pub constant_force: f64,
+    pub dampening: f64,
+    pub mass_properties: Option<SpatialInertia>,
+    pub spring_constant: f64,
 }
 
 impl JointParameters {
@@ -303,6 +310,12 @@ impl From<Joint> for JointSim {
 }
 
 impl JointSimTrait for JointSim {
+    fn calculate_tau(&mut self) {
+        match self {
+            JointSim::Revolute(joint) => joint.calculate_tau(),
+        }
+    }
+
     #[inline]
     fn get_state(&self) -> JointState {
         match self {
@@ -339,6 +352,7 @@ impl JointSimTrait for JointSim {
 }
 
 pub trait JointSimTrait {
+    fn calculate_tau(&mut self);
     fn get_state(&self) -> JointState;
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
@@ -358,10 +372,9 @@ impl Add for JointState {
         match (self, rhs) {
             (JointState::Revolute(lhs), JointState::Revolute(rhs)) => {
                 JointState::Revolute(lhs + rhs)
-            }
-            // Handle other variants here if they are added
-            // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
-            //_ => panic!("Cannot add different JointState variants"),
+            } // Handle other variants here if they are added
+              // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
+              //_ => panic!("Cannot add different JointState variants"),
         }
     }
 }
@@ -381,9 +394,8 @@ impl Mul<f64> for JointState {
     type Output = Self;
 
     fn mul(self, rhs: f64) -> Self {
-        
         match self {
-            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state * rhs)
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state * rhs),
         }
     }
 }
@@ -392,9 +404,8 @@ impl Div<f64> for JointState {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self {
-        
         match self {
-            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs)
+            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs),
         }
     }
 }

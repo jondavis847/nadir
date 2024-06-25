@@ -129,6 +129,7 @@ struct RevoluteAbaCache {
     big_d_inv: f64,
     big_u: Matrix6x1,
     q_ddot: f64,
+    tau: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -170,8 +171,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
         aba.big_d_inv = 1.0 / aba.big_u.e31;
-        aba.lil_u = -(aba.common.p_big_a.get_index(3).unwrap());
-
+        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(3).unwrap());
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -200,6 +200,11 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
             + Acceleration::from(Vector6::new(0.0, 0.0, aba.q_ddot, 0.0, 0.0, 0.0));
     }
 
+    fn get_aba_derivative(&self) -> JointState {
+        let derivative = RevoluteState::new(self.state.omega, self.aba.q_ddot);
+        JointState::Revolute(derivative)
+    }
+
     fn get_v(&self) -> &Velocity {
         &self.aba.common.v
     }
@@ -222,6 +227,17 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 }
 
 impl JointSimTrait for RevoluteSim {
+    fn calculate_tau(&mut self) {
+        let JointParameters {
+            constant_force,
+            dampening,
+            spring_constant,
+            ..
+        } = self.parameters;
+        self.aba.tau =
+            constant_force - spring_constant * self.state.theta - dampening * self.state.omega;
+    }
+
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
