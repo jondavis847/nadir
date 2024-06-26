@@ -1,19 +1,18 @@
-use crate::{
-    algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{BodySim, BodyTrait},
-    joint::{JointSimTrait, JointState, JointTrait},
-};
-use differential_equations::solver::{Solver, SolverMethod};
-use spatial_algebra::{Acceleration, Velocity};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
 use uuid::Uuid;
 
-use super::{
-    body::Body,
-    joint::{Joint, JointSim},
+use crate::{
+    algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
+    body::{Body, BodySim, BodyTrait},
+    joint::{
+        revolute::RevoluteResult, Joint, JointResult, JointSim, JointSimTrait, JointState,
+        JointTrait,
+    },
     system::MultibodySystem,
 };
+use differential_equations::solver::{Solver, SolverMethod};
+use spatial_algebra::{Acceleration, Velocity};
 
 pub struct MultibodyParameters;
 
@@ -66,8 +65,11 @@ impl From<MultibodySystem> for MultibodySystemSim {
 
 impl MultibodySystemSim {
     fn collect_state(&self) -> MultibodyState {
-        let new_joints: Vec<JointState> =
-            self.joints.iter().map(|joint| joint.get_aba_derivative()).collect();
+        let new_joints: Vec<JointState> = self
+            .joints
+            .iter()
+            .map(|joint| joint.get_aba_derivative())
+            .collect();
         MultibodyState { joints: new_joints }
     }
 
@@ -119,7 +121,7 @@ impl MultibodySystemSim {
                 }
 
                 self.collect_state()
-            }            
+            }
         }
     }
 
@@ -128,17 +130,15 @@ impl MultibodySystemSim {
             self.joints[i].set_state(state.joints[i]);
         }
     }
-    pub fn simulate(
-        &mut self,
-        tstart: f64,
-        tstop: f64,
-        dt: f64,
-    ) -> (Vec<f64>, Vec<MultibodyState>) {
-        // create a vec of JointStates
-        let mut joint_states = Vec::<JointState>::new();
-        for joint in &self.joints {
-            joint_states.push(joint.get_state());
-        }
+    pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+        // Get the ids of the joints first
+        let joint_ids: Vec<Uuid> = self.joints.iter().map(|joint| *joint.get_id()).collect();
+
+        // TODO: Do the same for bodies
+
+        // Create a vec of JointStates
+        let joint_states: Vec<JointState> =
+            self.joints.iter().map(|joint| joint.get_state()).collect();
 
         let initial_multibody_state = MultibodyState {
             joints: joint_states,
@@ -148,13 +148,35 @@ impl MultibodySystemSim {
             func: |x, p, t| self.run(x, p, t),
             x0: initial_multibody_state,
             parameters: None,
-            tstart: tstart,
-            tstop: tstop,
-            dt: dt,
+            tstart,
+            tstop,
+            dt,
             solver: SolverMethod::Rk4Classical,
         };
 
-        solver.solve()
+        let (t, states) = solver.solve();
+
+        // Convert to a multibody result
+        let mut result_hm = HashMap::<Uuid, ResultEntry>::new();
+        result_hm.insert(Uuid::nil(), ResultEntry::VecF64(t));
+
+        for state in states {
+            for (i, joint) in state.joints.iter().enumerate() {
+                let joint_id = joint_ids[i];
+                if let JointState::Revolute(revolute) = joint {
+                    let entry = result_hm.entry(joint_id).or_insert_with(|| {
+                        ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
+                    });
+
+                    if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
+                        revolute_result.theta.push(revolute.theta);
+                        revolute_result.omega.push(revolute.omega);
+                    }
+                }
+            }
+        }
+
+        MultibodyResult(result_hm)
     }
 
     fn update_bodies(&mut self) {
@@ -289,3 +311,13 @@ impl Div<f64> for MultibodyState {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct MultibodyResult(HashMap<Uuid, ResultEntry>);
+
+#[derive(Debug)]
+enum ResultEntry {
+    VecF64(Vec<f64>),
+    Joint(JointResult),
+}
+

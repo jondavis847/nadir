@@ -1,0 +1,152 @@
+//mine
+pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+        // get the ids of the joints first
+        let mut joint_ids = Vec::new();
+        for joint in &self.joints {
+            joint_ids.push(*joint.get_id());
+        }
+
+        //TODO: Do the same for bodies
+
+        // create a vec of JointStates
+        let mut joint_states = Vec::<JointState>::new();
+        for joint in &self.joints {
+            joint_states.push(joint.get_state());
+        }
+
+        let initial_multibody_state = MultibodyState {
+            joints: joint_states,
+        };
+
+        let mut solver = Solver {
+            func: |x, p, t| self.run(x, p, t),
+            x0: initial_multibody_state,
+            parameters: None,
+            tstart: tstart,
+            tstop: tstop,
+            dt: dt,
+            solver: SolverMethod::Rk4Classical,
+        };
+
+        let result = solver.solve();
+
+        // Convert to a multibody result
+        let t = result.0;
+        let states = result.1;
+
+        let mut result_hm = HashMap::<Uuid, ResultEntry>::new();
+        result_hm.insert(Uuid::nil(), ResultEntry::VecF64(t));
+
+        for state in states {
+            for i in 0..state.joints.len() {
+                let joint = state.joints[i];
+                let joint_id = joint_ids[i];
+                match joint {
+                    JointState::Revolute(revolute) => {
+                        if !result_hm.contains_key(&joint_id) {
+                            result_hm.insert(
+                                joint_id,
+                                ResultEntry::Joint(
+                                    JointResult::Revolute(RevoluteResult::default()),
+                                ),
+                            );
+                        }
+                        let entry = result_hm.get_mut(&joint_id).unwrap();
+                        match entry {
+                            ResultEntry::Joint(joint_result) => match joint_result {
+                                JointResult::Revolute(revolute_result) => {
+                                    revolute_result.theta.push(revolute.theta);
+                                    revolute_result.omega.push(revolute.omega);
+                                }
+                            },
+                            _ => {} // shouldnt be possible
+                        }
+                    }
+                }
+            }
+        }
+        MultibodyResult(result_hm)
+    }
+
+    // gpts
+    pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+        // Get the ids of the joints first
+        let joint_ids: Vec<Uuid> = self.joints.iter().map(|joint| *joint.get_id()).collect();
+    
+        // TODO: Do the same for bodies
+    
+        // Create a vec of JointStates
+        let joint_states: Vec<JointState> = self.joints.iter().map(|joint| joint.get_state()).collect();
+    
+        let initial_multibody_state = MultibodyState {
+            joints: joint_states,
+        };
+    
+        let mut solver = Solver {
+            func: |x, p, t| self.run(x, p, t),
+            x0: initial_multibody_state,
+            parameters: None,
+            tstart,
+            tstop,
+            dt,
+            solver: SolverMethod::Rk4Classical,
+        };
+    
+        let (t, states) = solver.solve();
+    
+        // Convert to a multibody result
+        let mut result_hm = HashMap::<Uuid, ResultEntry>::new();
+        result_hm.insert(Uuid::nil(), ResultEntry::VecF64(t));
+    
+        for state in states {
+            for (i, joint) in state.joints.iter().enumerate() {
+                let joint_id = joint_ids[i];
+                if let JointState::Revolute(revolute) = joint {
+                    let entry = result_hm.entry(joint_id).or_insert_with(|| {
+                        ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
+                    });
+    
+                    if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
+                        revolute_result.theta.push(revolute.theta);
+                        revolute_result.omega.push(revolute.omega);
+                    }
+                }
+            }
+        }
+    
+        MultibodyResult(result_hm)
+    }
+
+q: how can i write the result gatherin part of this function better?
+
+a: 
+You can improve the readability and efficiency of the simulate function by using iterators and more idiomatic Rust constructs.
+Here's the refactored version of the function:
+
+Use iterators for collecting joint IDs and states.
+Use entry to simplify the insertion and updating of entries in the HashMap.
+Here's the improved version of the function:
+Explanation of Changes
+Use Iterators for Collecting Data: The joint IDs and states are collected using iterators, making the code more concise and readable.
+
+
+let joint_ids: Vec<Uuid> = self.joints.iter().map(|joint| *joint.get_id()).collect();
+let joint_states: Vec<JointState> = self.joints.iter().map(|joint| joint.get_state()).collect();
+
+Simplify HashMap Insertion and Updating: Use the entry API to simplify the insertion and updating of the HashMap.
+
+for (i, joint) in state.joints.iter().enumerate() {
+    let joint_id = joint_ids[i];
+    if let JointState::Revolute(revolute) = joint {
+        let entry = result_hm.entry(joint_id).or_insert_with(|| {
+            ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
+        });
+
+        if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
+            revolute_result.theta.push(revolute.theta);
+            revolute_result.omega.push(revolute.omega);
+        }
+    }
+}
+These changes result in more idiomatic and concise Rust code while maintaining the same functionality.
+The use of iterators and the entry API reduces boilerplate and potential errors.
