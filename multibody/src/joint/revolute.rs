@@ -18,8 +18,8 @@ pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
-    theta: f64,
-    omega: f64,
+    pub theta: f64,
+    pub omega: f64,
 }
 
 impl RevoluteState {
@@ -135,6 +135,7 @@ struct RevoluteAbaCache {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
     aba: RevoluteAbaCache,
+    id: Uuid,
     parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
@@ -144,6 +145,7 @@ impl From<Revolute> for RevoluteSim {
     fn from(revolute: Revolute) -> Self {
         RevoluteSim {
             aba: RevoluteAbaCache::default(),
+            id: *revolute.get_id(),
             parameters: revolute.parameters,
             state: revolute.state,
             transforms: JointTransforms::default(),
@@ -237,7 +239,9 @@ impl JointSimTrait for RevoluteSim {
         self.aba.tau =
             constant_force - spring_constant * self.state.theta - dampening * self.state.omega;
     }
-
+    fn get_id(&self) -> &Uuid {
+        &self.id
+    }
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
@@ -296,4 +300,11 @@ impl Div<f64> for RevoluteState {
             omega: self.omega / rhs,
         }
     }
+}
+
+
+#[derive(Debug,Clone,Default)]
+pub struct RevoluteResult {
+    pub theta: Vec<f64>,
+    pub omega: Vec<f64>,
 }

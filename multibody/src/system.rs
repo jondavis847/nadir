@@ -4,7 +4,9 @@ use super::{
     body::{Body, BodyTrait},
     joint::{Joint, JointTrait},
     MultibodyErrors, MultibodyTrait,
+    system_sim::{MultibodySystemSim,MultibodyResult}
 };
+
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -76,6 +78,11 @@ impl MultibodySystem {
         }
 
         false
+    }
+
+    pub fn simulate(&self,tstart:f64,tstop:f64,dt:f64) -> MultibodyResult {
+        let mut sim = MultibodySystemSim::from(self.clone());
+        sim.simulate(tstart,tstop,dt)
     }
 
     pub fn validate(&self) {
@@ -165,3 +172,4 @@ impl MultibodySystem {
         println!("System validation complete!");
     }
 }
+

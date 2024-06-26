@@ -11,7 +11,7 @@ use transforms::Transform;
 use uuid::Uuid;
 
 pub mod revolute;
-use revolute::{Revolute, RevoluteSim, RevoluteState};
+use revolute::{Revolute, RevoluteSim, RevoluteResult, RevoluteState};
 pub trait JointTrait: MultibodyTrait {
     fn connect_inner_body<T: BodyTrait>(
         &mut self,
@@ -317,6 +317,13 @@ impl JointSimTrait for JointSim {
     }
 
     #[inline]
+    fn get_id(&self) -> &Uuid {
+        match self {
+            JointSim::Revolute(joint) => joint.get_id(),
+        }
+    }
+
+    #[inline]
     fn get_state(&self) -> JointState {
         match self {
             JointSim::Revolute(joint) => joint.get_state(),
@@ -353,6 +360,7 @@ impl JointSimTrait for JointSim {
 
 pub trait JointSimTrait {
     fn calculate_tau(&mut self);
+    fn get_id(&self) -> &Uuid;
     fn get_state(&self) -> JointState;
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
@@ -408,4 +416,9 @@ impl Div<f64> for JointState {
             JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs),
         }
     }
+}
+
+#[derive(Debug,Clone)]
+pub enum JointResult {
+    Revolute(RevoluteResult)
 }
