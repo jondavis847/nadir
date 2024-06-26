@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
 use uuid::Uuid;
 
@@ -10,6 +11,7 @@ use crate::{
         JointTrait,
     },
     system::MultibodySystem,
+    MultibodyTrait,
 };
 use differential_equations::solver::{Solver, SolverMethod};
 use spatial_algebra::{Acceleration, Velocity};
@@ -21,6 +23,7 @@ pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     bodies: Vec<BodySim>,
     joints: Vec<JointSim>,
+    joint_names: Vec<String>,
     parent_joint_indeces: Vec<usize>,
 }
 
@@ -30,6 +33,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
 
         let mut bodysims = Vec::new();
         let mut jointsims = Vec::new();
+        let mut jointnames = Vec::new();
         let mut parent_joint_indeces = Vec::new();
 
         let base = sys.base.unwrap();
@@ -37,7 +41,10 @@ impl From<MultibodySystem> for MultibodySystemSim {
         for id in outer_joint_ids {
             let joint = sys.joints.get(id).unwrap();
             let joint_sim = JointSim::from(joint.clone());
+
             jointsims.push(joint_sim);
+            jointnames.push(joint.get_name().to_string());
+
             parent_joint_indeces.push(0); // just make it something for the base
 
             let joint_index = jointsims.len() - 1; //-1 since 0 based indexing
@@ -51,6 +58,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
                 &sys.joints,
                 &mut bodysims,
                 &mut jointsims,
+                &mut jointnames,
                 &mut parent_joint_indeces,
             );
         }
@@ -58,6 +66,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             joints: jointsims,
+            joint_names: jointnames,
             parent_joint_indeces: parent_joint_indeces,
         }
     }
@@ -131,9 +140,6 @@ impl MultibodySystemSim {
         }
     }
     pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
-        // Get the ids of the joints first
-        let joint_ids: Vec<Uuid> = self.joints.iter().map(|joint| *joint.get_id()).collect();
-
         // TODO: Do the same for bodies
 
         // Create a vec of JointStates
@@ -157,14 +163,15 @@ impl MultibodySystemSim {
         let (t, states) = solver.solve();
 
         // Convert to a multibody result
-        let mut result_hm = HashMap::<Uuid, ResultEntry>::new();
-        result_hm.insert(Uuid::nil(), ResultEntry::VecF64(t));
+        let mut result_hm = HashMap::<String, ResultEntry>::new();
+        result_hm.insert("t".to_string(), ResultEntry::VecF64(t));
 
         for state in states {
             for (i, joint) in state.joints.iter().enumerate() {
-                let joint_id = joint_ids[i];
+                //let joint_id = joint_ids[i];
+                let joint_name = self.joint_names[i].clone();
                 if let JointState::Revolute(revolute) = joint {
-                    let entry = result_hm.entry(joint_id).or_insert_with(|| {
+                    let entry = result_hm.entry(joint_name).or_insert_with(|| {
                         ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
                     });
 
@@ -216,6 +223,7 @@ fn recursive_sys_creation(
     joints: &HashMap<Uuid, Joint>,
     bodysims: &mut Vec<BodySim>,
     jointsims: &mut Vec<JointSim>,
+    jointnames: &mut Vec<String>,
     parent_joint_indeces: &mut Vec<usize>,
 ) {
     let outer_joint_ids = body.get_outer_joints();
@@ -224,6 +232,7 @@ fn recursive_sys_creation(
         let joint_sim = JointSim::from(joint.clone());
 
         jointsims.push(joint_sim);
+        jointnames.push(joint.get_name().to_string());
         parent_joint_indeces.push(*parent_joint_index);
 
         let joint_index = jointsims.len() - 1; //-1 since zero based indexing
@@ -237,6 +246,7 @@ fn recursive_sys_creation(
             joints,
             bodysims,
             jointsims,
+            jointnames,
             parent_joint_indeces,
         );
     }
@@ -312,8 +322,7 @@ impl Div<f64> for MultibodyState {
     }
 }
 
-#[derive(Debug)]
-pub struct MultibodyResult(HashMap<Uuid, ResultEntry>);
+pub struct MultibodyResult(HashMap<String, ResultEntry>);
 
 #[derive(Debug)]
 enum ResultEntry {
@@ -321,3 +330,83 @@ enum ResultEntry {
     Joint(JointResult),
 }
 
+impl fmt::Debug for MultibodyResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Define the column width
+        const COL_WIDTH: usize = 10;
+
+        // Function to format numbers without trailing zeros and fit in column width
+        fn format_number(num: f64, width: usize) -> String {
+            let mut s = format!("{:.5}", num).trim_end_matches('0').trim_end_matches('.').to_string();
+            if s.len() > width {
+                s.truncate(width);
+            }
+            format!("{:<width$}", s, width = width)
+        }
+
+        // Collect headers with "t" as the first column
+        let mut headers: Vec<&String> = self.0.keys().collect();
+        headers.sort();
+        if let Some(pos) = headers.iter().position(|&header| header == "t") {
+            headers.remove(pos);
+        }
+        let t_title = "t".to_string();
+        headers.insert(0, &t_title);
+
+        // Assuming all Vec<f64> are of the same length
+        let row_count = self.0.values().next().map_or(0, |entry| match entry {
+            ResultEntry::VecF64(vec) => vec.len(),
+            ResultEntry::Joint(JointResult::Revolute(revolute_result)) => revolute_result.theta.len(),
+        });
+
+        let rows: Vec<String> = (0..row_count)
+            .map(|i| {
+                headers.iter().flat_map(|header| match self.0.get(*header).unwrap() {
+                    ResultEntry::VecF64(vec) => vec![format_number(vec[i], COL_WIDTH)],
+                    ResultEntry::Joint(JointResult::Revolute(revolute_result)) => vec![
+                        format_number(revolute_result.theta[i], COL_WIDTH),
+                        format_number(revolute_result.omega[i], COL_WIDTH),
+                    ],
+                }).collect::<Vec<String>>().join(" | ")
+            })
+            .collect();
+
+        // Write the headers
+        writeln!(f)?;
+        let col_headers: Vec<String> = headers.iter().flat_map(|header| {
+            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                vec![format!("{:^width$}", header, width = COL_WIDTH * 2 + 3)]
+            } else {
+                vec![format!("{:^width$}", header, width = COL_WIDTH)]
+            }
+        }).collect();
+        writeln!(f, "{}", col_headers.join(" | "))?;
+
+        // Add horizontal line
+        let header_line: String = col_headers.iter().map(|header| "-".repeat(header.len())).collect::<Vec<String>>().join("-+-");
+        writeln!(f, "{}", header_line)?;
+
+        let sub_headers: Vec<String> = headers.iter().flat_map(|header| {
+            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                vec![
+                    format!("{:<width$}", "theta", width = COL_WIDTH),
+                    format!("{:<width$}", "omega", width = COL_WIDTH)
+                ]
+            } else {
+                vec![format!("{:<width$}", "", width = COL_WIDTH)]
+            }
+        }).collect();
+        writeln!(f, "{}", sub_headers.join(" | "))?;
+
+        // Add another horizontal line
+        let sub_header_line: String = sub_headers.iter().map(|sub_header| "-".repeat(sub_header.len())).collect::<Vec<String>>().join("-+-");
+        writeln!(f, "{}", sub_header_line)?;
+
+        // Write the rows
+        for row in rows {
+            writeln!(f, "{}", row)?;
+        }
+
+        Ok(())
+    }
+}
