@@ -1,3 +1,4 @@
+use rotations::quaternion::Quaternion;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
@@ -5,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{Body, BodySim, BodyTrait},
+    body::{Body, BodySim, BodyState, BodyTrait},
     joint::{
         revolute::RevoluteResult, Joint, JointResult, JointSim, JointSimTrait, JointState,
         JointTrait,
@@ -90,7 +91,7 @@ impl MultibodySystemSim {
     ) -> MultibodyState {
         self.set_state(x.clone());
         self.update_joints();
-        self.update_bodies();
+        self.update_body_forces();
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 let n = self.joints.len();
@@ -128,7 +129,7 @@ impl MultibodySystemSim {
                     };
                     self.joints[i].third_pass(a_ij);
                 }
-
+                self.update_body_states();
                 self.collect_state()
             }
         }
@@ -186,9 +187,37 @@ impl MultibodySystemSim {
         MultibodyResult(result_hm)
     }
 
-    fn update_bodies(&mut self) {
-        //TODO update body states based on joint states
-        //calculate external forces
+    fn update_body_forces(&mut self) {
+        //pub external_force: Force, //used for calculations
+        //pub external_force_body: Vector3, //use for reporting
+        //pub external_torque_body: Vector3, //use for reporting
+    }
+    fn update_body_states(&mut self) {
+        for i in 0..self.bodies.len() {
+            let body = &mut self.bodies[i];
+            let inner_joint = &self.joints[i];
+            let transforms = inner_joint.get_transforms();
+            let body_from_joint = transforms.ob_from_jof;
+            let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+
+            let joint_a = inner_joint.get_a();
+            let body_a = body_from_joint * *joint_a;
+            let body_a_in_base = base_from_body * body_a;
+
+            let joint_v = inner_joint.get_v();
+            let body_v = body_from_joint * *joint_v;
+            let body_v_in_base = base_from_body * body_from_joint * *joint_v;
+
+            body.state.acceleration_body = *body_a.translation();
+            body.state.acceleration_base = *body_a_in_base.translation();
+            body.state.angular_accel_body = *body_a.rotation();
+            body.state.velocity_base = *body_v_in_base.translation();
+            body.state.angular_rate_body = *body_v.rotation();
+
+            let body_from_base = base_from_body.0.inv();
+            body.state.position_base = body_from_base.translation.vec();
+            body.state.attitude_base = Quaternion::from(body_from_base.rotation);
+        }
     }
 
     fn update_joints(&mut self) {
@@ -255,7 +284,6 @@ fn recursive_sys_creation(
 #[derive(Clone, Debug)]
 pub struct MultibodyState {
     joints: Vec<JointState>,
-    //bodies: Vec<BodyState>,
 }
 
 impl Add for MultibodyState {
@@ -275,8 +303,6 @@ impl Add for MultibodyState {
             .zip(rhs.joints)
             .map(|(a, b)| a + b)
             .collect();
-        //let bodies = self.bodies.into_iter().zip(rhs.bodies).map(|(a, b)| a + b).collect();
-
         MultibodyState { joints } //, bodies }
     }
 }
@@ -301,10 +327,7 @@ impl Mul<f64> for MultibodyState {
         // Create a new vector for joints with each joint multiplied by rhs
         let new_joints = self.joints.into_iter().map(|joint| joint * rhs).collect();
 
-        MultibodyState {
-            joints: new_joints,
-            // bodies: new_bodies, // Uncomment and adjust if you have bodies
-        }
+        MultibodyState { joints: new_joints }
     }
 }
 
@@ -337,7 +360,10 @@ impl fmt::Debug for MultibodyResult {
 
         // Function to format numbers without trailing zeros and fit in column width
         fn format_number(num: f64, width: usize) -> String {
-            let mut s = format!("{:.5}", num).trim_end_matches('0').trim_end_matches('.').to_string();
+            let mut s = format!("{:.5}", num)
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_string();
             if s.len() > width {
                 s.truncate(width);
             }
@@ -356,50 +382,70 @@ impl fmt::Debug for MultibodyResult {
         // Assuming all Vec<f64> are of the same length
         let row_count = self.0.values().next().map_or(0, |entry| match entry {
             ResultEntry::VecF64(vec) => vec.len(),
-            ResultEntry::Joint(JointResult::Revolute(revolute_result)) => revolute_result.theta.len(),
+            ResultEntry::Joint(JointResult::Revolute(revolute_result)) => {
+                revolute_result.theta.len()
+            }
         });
 
         let rows: Vec<String> = (0..row_count)
             .map(|i| {
-                headers.iter().flat_map(|header| match self.0.get(*header).unwrap() {
-                    ResultEntry::VecF64(vec) => vec![format_number(vec[i], COL_WIDTH)],
-                    ResultEntry::Joint(JointResult::Revolute(revolute_result)) => vec![
-                        format_number(revolute_result.theta[i], COL_WIDTH),
-                        format_number(revolute_result.omega[i], COL_WIDTH),
-                    ],
-                }).collect::<Vec<String>>().join(" | ")
+                headers
+                    .iter()
+                    .flat_map(|header| match self.0.get(*header).unwrap() {
+                        ResultEntry::VecF64(vec) => vec![format_number(vec[i], COL_WIDTH)],
+                        ResultEntry::Joint(JointResult::Revolute(revolute_result)) => vec![
+                            format_number(revolute_result.theta[i], COL_WIDTH),
+                            format_number(revolute_result.omega[i], COL_WIDTH),
+                        ],
+                    })
+                    .collect::<Vec<String>>()
+                    .join(" | ")
             })
             .collect();
 
         // Write the headers
         writeln!(f)?;
-        let col_headers: Vec<String> = headers.iter().flat_map(|header| {
-            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
-                vec![format!("{:^width$}", header, width = COL_WIDTH * 2 + 3)]
-            } else {
-                vec![format!("{:^width$}", header, width = COL_WIDTH)]
-            }
-        }).collect();
+        let col_headers: Vec<String> = headers
+            .iter()
+            .flat_map(|header| {
+                if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                    vec![format!("{:^width$}", header, width = COL_WIDTH * 2 + 3)]
+                } else {
+                    vec![format!("{:^width$}", header, width = COL_WIDTH)]
+                }
+            })
+            .collect();
         writeln!(f, "{}", col_headers.join(" | "))?;
 
         // Add horizontal line
-        let header_line: String = col_headers.iter().map(|header| "-".repeat(header.len())).collect::<Vec<String>>().join("-+-");
+        let header_line: String = col_headers
+            .iter()
+            .map(|header| "-".repeat(header.len()))
+            .collect::<Vec<String>>()
+            .join("-+-");
         writeln!(f, "{}", header_line)?;
 
-        let sub_headers: Vec<String> = headers.iter().flat_map(|header| {
-            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
-                vec![
-                    format!("{:<width$}", "theta", width = COL_WIDTH),
-                    format!("{:<width$}", "omega", width = COL_WIDTH)
-                ]
-            } else {
-                vec![format!("{:<width$}", "", width = COL_WIDTH)]
-            }
-        }).collect();
+        let sub_headers: Vec<String> = headers
+            .iter()
+            .flat_map(|header| {
+                if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                    vec![
+                        format!("{:<width$}", "theta", width = COL_WIDTH),
+                        format!("{:<width$}", "omega", width = COL_WIDTH),
+                    ]
+                } else {
+                    vec![format!("{:<width$}", "", width = COL_WIDTH)]
+                }
+            })
+            .collect();
         writeln!(f, "{}", sub_headers.join(" | "))?;
 
         // Add another horizontal line
-        let sub_header_line: String = sub_headers.iter().map(|sub_header| "-".repeat(sub_header.len())).collect::<Vec<String>>().join("-+-");
+        let sub_header_line: String = sub_headers
+            .iter()
+            .map(|sub_header| "-".repeat(sub_header.len()))
+            .collect::<Vec<String>>()
+            .join("-+-");
         writeln!(f, "{}", sub_header_line)?;
 
         // Write the rows
