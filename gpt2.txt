@@ -1,0 +1,1931 @@
+[src\main.rs:77:5] result = (
+    [
+        0.0,
+        0.1,
+        0.2,
+        0.30000000000000004,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.7999999999999999,
+        0.8999999999999999,
+        0.9999999999999999,
+        1.0999999999999999,
+        1.2,
+        1.3,
+        1.4000000000000001,
+        1.5000000000000002,
+        1.6000000000000003,
+        1.7000000000000004,
+        1.8000000000000005,
+        1.9000000000000006,
+        2.0000000000000004,
+        2.1000000000000005,
+        2.2000000000000006,
+        2.3000000000000007,
+        2.400000000000001,
+        2.500000000000001,
+        2.600000000000001,
+        2.700000000000001,
+        2.800000000000001,
+        2.9000000000000012,
+        3.0000000000000013,
+        3.1000000000000014,
+        3.2000000000000015,
+        3.3000000000000016,
+        3.4000000000000017,
+        3.5000000000000018,
+        3.600000000000002,
+        3.700000000000002,
+        3.800000000000002,
+        3.900000000000002,
+        4.000000000000002,
+        4.100000000000001,
+        4.200000000000001,
+        4.300000000000001,
+        4.4,
+        4.5,
+        4.6,
+        4.699999999999999,
+        4.799999999999999,
+        4.899999999999999,
+        4.999999999999998,
+        5.099999999999998,
+        5.1999999999999975,
+        5.299999999999997,
+        5.399999999999997,
+        5.4999999999999964,
+        5.599999999999996,
+        5.699999999999996,
+        5.799999999999995,
+        5.899999999999995,
+        5.999999999999995,
+        6.099999999999994,
+        6.199999999999994,
+        6.299999999999994,
+        6.399999999999993,
+        6.499999999999993,
+        6.5999999999999925,
+        6.699999999999992,
+        6.799999999999992,
+        6.8999999999999915,
+        6.999999999999991,
+        7.099999999999991,
+        7.19999999999999,
+        7.29999999999999,
+        7.39999999999999,
+        7.499999999999989,
+        7.599999999999989,
+        7.699999999999989,
+        7.799999999999988,
+        7.899999999999988,
+        7.999999999999988,
+        8.099999999999987,
+        8.199999999999987,
+        8.299999999999986,
+        8.399999999999986,
+        8.499999999999986,
+        8.599999999999985,
+        8.699999999999985,
+        8.799999999999985,
+        8.899999999999984,
+        8.999999999999984,
+        9.099999999999984,
+        9.199999999999983,
+        9.299999999999983,
+        9.399999999999983,
+        9.499999999999982,
+        9.599999999999982,
+        9.699999999999982,
+        9.799999999999981,
+        9.89999999999998,
+        9.99999999999998,
+        10.0,
+    ],
+    [
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 1.0,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.09983333333333334,
+                        omega: 0.9950041666666667,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.19866916527777778,
+                        omega: 0.9800665972395833,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.29551996253066265,
+                        omega: 0.9553365428639757,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.38941802558044014,
+                        omega: 0.9210610977926066,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.4794251576239398,
+                        omega: 0.877582730504437,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5646420387026698,
+                        omega: 0.8253358618771686,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.6442172113950551,
+                        omega: 0.7648425246033906,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7173555882826991,
+                        omega: 0.6967071472199532,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7833263961870287,
+                        omega: 0.621610514866744,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8414704778002743,
+                        omega: 0.5403029671168839,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8912068777554326,
+                        omega: 0.45359690084326837,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.932038647329499,
+                        omega: 0.3623586530302215,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9635578097813992,
+                        omega: 0.2674998446343964,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9854494367127001,
+                        omega: 0.1699682719840674,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9974947947215324,
+                        omega: 0.07073843672679575,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9995735309094611,
+                        omega: -0.029198191053051534,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9916648754044963,
+                        omega: -0.12884307925937688,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9738478488850603,
+                        omega: -0.2272006107704591,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9463004730314212,
+                        omega: -0.3232880312995102,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9092979917935006,
+                        omega: -0.41614526873411334,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8632101212475433,
+                        omega: -0.5048445258431137,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8084973555201399,
+                        omega: -0.5884995505039688,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.745706365689541,
+                        omega: -0.66627449082567,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.6754645376368542,
+                        omega: -0.737392246689926,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5984737034230325,
+                        omega: -0.8011422342649168,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5155031288255674,
+                        omega: -0.856887485911301,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.4273818271009981,
+                        omega: -0.9040710145406883,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.3349902757714606,
+                        omega: -0.9422213788361284,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.23925161919827886,
+                        omega: -0.9709573937288771,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.14112244484343456,
+                        omega: -0.9899919390660015,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.04158322537931508,
+                        omega: -0.9991348284139537,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.058371477854135476,
+                        omega: -0.9982947093340373,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.15774295216120393,
+                        omega: -0.9874799761428849,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.25553831228096324,
+                        omega: -0.9667986860379775,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.35078042095198436,
+                        omega: -0.9364574794262632,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.442517652128367,
+                        omega: -0.8967595152435898,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.5298333992964275,
+                        omega: -0.8481014418945367,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.611855233888247,
+                        omega: -0.7909694340779786,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.6877636222843986,
+                        omega: -0.7259343350970541,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.7568001143085921,
+                        omega: -0.6536459531899059,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.818274921397651,
+                        omega: -0.5748265688702869,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.8715738087283855,
+                        omega: -0.4902637181504403,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9161642324376322,
+                        omega: -0.40080232375379654,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9516006606144999,
+                        omega: -0.30733625293968625,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9775290248993252,
+                        omega: -0.21079938629136086,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9936902582105199,
+                        omega: -0.11215628670489763,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9999228832515822,
+                        omega: -0.012392561811217506,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9961646259348244,
+                        omega: 0.08749498387344733,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9824530376010592,
+                        omega: 0.18650830867233953,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9589251198182553,
+                        omega: 0.28365810583410306,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.9258159555080587,
+                        omega: 0.37797368834222933,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.8834563600775005,
+                        omega: 0.4685126876824408,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.832269576024983,
+                        omega: 0.5543704696612978,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.7727670440469052,
+                        omega: 0.6346891731964424,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.7055432928985761,
+                        omega: 0.7086662817660312,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.6312699990681615,
+                        omega: 0.7755626418744163,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.5506892756173543,
+                        omega: 0.8347098484163568,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.4646062572443496,
+                        omega: 0.885516923147776,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.3738810556566134,
+                        omega: 0.9274762195341111,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.2794201656325735,
+                        omega: 0.9601684949770738,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.18216740763988953,
+                        omega: 0.9832670997399028,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.08309449750852162,
+                        omega: 0.9965412407168345,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.016808662616845327,
+                        omega: 0.9998582874363541,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.11654387503558471,
+                        omega: 0.9931850972574549,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.2151146201360887,
+                        omega: 0.9765883465180203,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.31153601327370783,
+                        omega: 0.9502338643266212,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.4048446453960023,
+                        omega: 0.9143849756542642,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.49410820909119546,
+                        omega: 0.8693998702813572,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5784348138796995,
+                        omega: 0.8157280238884723,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.656981897673558,
+                        omega: 0.7539057070501395,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7289646453636027,
+                        omega: 0.684550627004258,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7936638304187321,
+                        omega: 0.6083557557347161,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.850433001146781,
+                        omega: 0.526082406034888,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8987049398143682,
+                        omega: 0.43855262473358503,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9379973300884484,
+                        omega: 0.34664097908771907,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9679175761724722,
+                        omega: 0.2512658184091966,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9881667254860287,
+                        omega: 0.15338009823684218,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9985424556939329,
+                        omega: 0.05396185873504543,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9989410962394106,
+                        omega: -0.04599554754432936,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.989358664182939,
+                        omega: -0.14549338089595698,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.969890903997012,
+                        omega: -0.24353749352149434,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9407323309192311,
+                        omega: -0.3391482627091449,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.9021742874222175,
+                        omega: -0.4313703788834637,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.8546020322194382,
+                        omega: -0.5192823907266098,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7984908908926021,
+                        omega: -0.602005911999512,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.7344015066022331,
+                        omega: -0.6787143980715926,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.6629742383346855,
+                        omega: -0.7486414044670162,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5849227626563813,
+                        omega: -0.8110882449109459,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.5010269429043344,
+                        omega: -0.8654309723592737,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.41212503706154063,
+                        omega: -0.9111266132598115,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.3191053221734495,
+                        omega: -0.9477185927543782,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.22289721899144588,
+                        omega: -0.9748412966150588,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.12446200552283106,
+                        omega: -0.9922237243333654,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: 0.02478321227429227,
+                        omega: -0.9996921968619126,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.07514320484374232,
+                        omega: -0.9971720919538067,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.17431881576293218,
+                        omega: -0.9846885897608539,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.2717526922236418,
+                        omega: -0.9623664212408409,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.3664713087859518,
+                        omega: -0.9304286218877317,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.45752826995760054,
+                        omega: -0.8891943032370867,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.5440137662487732,
+                        omega: -0.8390754644130642,
+                    },
+                ),
+            ],
+        },
+        MultibodyState {
+            joints: [
+                Revolute(
+                    RevoluteState {
+                        theta: 0.0,
+                        omega: 0.0,
+                    },
+                ),
+                Revolute(
+                    RevoluteState {
+                        theta: -0.5440137662487896,
+                        omega: -0.8390754644130536,
+                    },
+                ),
+            ],
+        },
+    ],
+)
+
+
+[src\main.rs:77:5] result =
+    t      |         joint1          |         joint2
+-----------+-------------------------+------------------------
+           | theta      | omega      | theta      | omega
+-----------+------------+------------+------------+-----------
+0          | 0          | 1          | 0          | 0
+0.1        | 0.09983    | 0.995      | 0          | 0
+0.2        | 0.19867    | 0.98007    | 0          | 0
+0.3        | 0.29552    | 0.95534    | 0          | 0
+0.4        | 0.38942    | 0.92106    | 0          | 0
+0.5        | 0.47943    | 0.87758    | 0          | 0
+0.6        | 0.56464    | 0.82534    | 0          | 0
+0.7        | 0.64422    | 0.76484    | 0          | 0
+0.8        | 0.71736    | 0.69671    | 0          | 0
+0.9        | 0.78333    | 0.62161    | 0          | 0
+1          | 0.84147    | 0.5403     | 0          | 0
+1.1        | 0.89121    | 0.4536     | 0          | 0
+1.2        | 0.93204    | 0.36236    | 0          | 0
+1.3        | 0.96356    | 0.2675     | 0          | 0
+1.4        | 0.98545    | 0.16997    | 0          | 0
+1.5        | 0.99749    | 0.07074    | 0          | 0
+1.6        | 0.99957    | -0.0292    | 0          | 0
+1.7        | 0.99166    | -0.12884   | 0          | 0
+1.8        | 0.97385    | -0.2272    | 0          | 0
+1.9        | 0.9463     | -0.32329   | 0          | 0
+2          | 0.9093     | -0.41615   | 0          | 0
+2.1        | 0.86321    | -0.50484   | 0          | 0
+2.2        | 0.8085     | -0.5885    | 0          | 0
+2.3        | 0.74571    | -0.66627   | 0          | 0
+2.4        | 0.67546    | -0.73739   | 0          | 0
+2.5        | 0.59847    | -0.80114   | 0          | 0
+2.6        | 0.5155     | -0.85689   | 0          | 0
+2.7        | 0.42738    | -0.90407   | 0          | 0
+2.8        | 0.33499    | -0.94222   | 0          | 0
+2.9        | 0.23925    | -0.97096   | 0          | 0
+3          | 0.14112    | -0.98999   | 0          | 0
+3.1        | 0.04158    | -0.99913   | 0          | 0
+3.2        | -0.05837   | -0.99829   | 0          | 0
+3.3        | -0.15774   | -0.98748   | 0          | 0
+3.4        | -0.25554   | -0.9668    | 0          | 0
+3.5        | -0.35078   | -0.93646   | 0          | 0
+3.6        | -0.44252   | -0.89676   | 0          | 0
+3.7        | -0.52983   | -0.8481    | 0          | 0
+3.8        | -0.61186   | -0.79097   | 0          | 0
+3.9        | -0.68776   | -0.72593   | 0          | 0
+4          | -0.7568    | -0.65365   | 0          | 0
+4.1        | -0.81827   | -0.57483   | 0          | 0
+4.2        | -0.87157   | -0.49026   | 0          | 0
+4.3        | -0.91616   | -0.4008    | 0          | 0
+4.4        | -0.9516    | -0.30734   | 0          | 0
+4.5        | -0.97753   | -0.2108    | 0          | 0
+4.6        | -0.99369   | -0.11216   | 0          | 0
+4.7        | -0.99992   | -0.01239   | 0          | 0
+4.8        | -0.99616   | 0.08749    | 0          | 0
+4.9        | -0.98245   | 0.18651    | 0          | 0
+5          | -0.95893   | 0.28366    | 0          | 0
+5.1        | -0.92582   | 0.37797    | 0          | 0
+5.2        | -0.88346   | 0.46851    | 0          | 0
+5.3        | -0.83227   | 0.55437    | 0          | 0
+5.4        | -0.77277   | 0.63469    | 0          | 0
+5.5        | -0.70554   | 0.70867    | 0          | 0
+5.6        | -0.63127   | 0.77556    | 0          | 0
+5.7        | -0.55069   | 0.83471    | 0          | 0
+5.8        | -0.46461   | 0.88552    | 0          | 0
+5.9        | -0.37388   | 0.92748    | 0          | 0
+6          | -0.27942   | 0.96017    | 0          | 0
+6.1        | -0.18217   | 0.98327    | 0          | 0
+6.2        | -0.08309   | 0.99654    | 0          | 0
+6.3        | 0.01681    | 0.99986    | 0          | 0
+6.4        | 0.11654    | 0.99319    | 0          | 0
+6.5        | 0.21511    | 0.97659    | 0          | 0
+6.6        | 0.31154    | 0.95023    | 0          | 0
+6.7        | 0.40484    | 0.91438    | 0          | 0
+6.8        | 0.49411    | 0.8694     | 0          | 0
+6.9        | 0.57843    | 0.81573    | 0          | 0
+7          | 0.65698    | 0.75391    | 0          | 0
+7.1        | 0.72896    | 0.68455    | 0          | 0
+7.2        | 0.79366    | 0.60836    | 0          | 0
+7.3        | 0.85043    | 0.52608    | 0          | 0
+7.4        | 0.8987     | 0.43855    | 0          | 0
+7.5        | 0.938      | 0.34664    | 0          | 0
+7.6        | 0.96792    | 0.25127    | 0          | 0
+7.7        | 0.98817    | 0.15338    | 0          | 0
+7.8        | 0.99854    | 0.05396    | 0          | 0
+7.9        | 0.99894    | -0.046     | 0          | 0
+8          | 0.98936    | -0.14549   | 0          | 0
+8.1        | 0.96989    | -0.24354   | 0          | 0
+8.2        | 0.94073    | -0.33915   | 0          | 0
+8.3        | 0.90217    | -0.43137   | 0          | 0
+8.4        | 0.8546     | -0.51928   | 0          | 0
+8.5        | 0.79849    | -0.60201   | 0          | 0
+8.6        | 0.7344     | -0.67871   | 0          | 0
+8.7        | 0.66297    | -0.74864   | 0          | 0
+8.8        | 0.58492    | -0.81109   | 0          | 0
+8.9        | 0.50103    | -0.86543   | 0          | 0
+9          | 0.41213    | -0.91113   | 0          | 0
+9.1        | 0.31911    | -0.94772   | 0          | 0
+9.2        | 0.2229     | -0.97484   | 0          | 0
+9.3        | 0.12446    | -0.99222   | 0          | 0
+9.4        | 0.02478    | -0.99969   | 0          | 0
+9.5        | -0.07514   | -0.99717   | 0          | 0
+9.6        | -0.17432   | -0.98469   | 0          | 0
+9.7        | -0.27175   | -0.96237   | 0          | 0
+9.8        | -0.36647   | -0.93043   | 0          | 0
+9.9        | -0.45753   | -0.88919   | 0          | 0
+10         | -0.54401   | -0.83908   | 0          | 0
+10         | -0.54401   | -0.83908   | 0          | 0
+
+
+impl fmt::Debug for MultibodyResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Define the column width
+        const COL_WIDTH: usize = 10;
+
+        // Function to format numbers without trailing zeros and fit in column width
+        fn format_number(num: f64, width: usize) -> String {
+            let mut s = format!("{:.5}", num).trim_end_matches('0').trim_end_matches('.').to_string();
+            if s.len() > width {
+                s.truncate(width);
+            }
+            format!("{:<width$}", s, width = width)
+        }
+
+        // Collect headers with "t" as the first column
+        let mut headers: Vec<&String> = self.0.keys().collect();
+        headers.sort();
+        if let Some(pos) = headers.iter().position(|&header| header == "t") {
+            headers.remove(pos);
+        }
+        let t_title = "t".to_string();
+        headers.insert(0, &t_title);
+
+        // Assuming all Vec<f64> are of the same length
+        let row_count = self.0.values().next().map_or(0, |entry| match entry {
+            ResultEntry::VecF64(vec) => vec.len(),
+            ResultEntry::Joint(JointResult::Revolute(revolute_result)) => revolute_result.theta.len(),
+        });
+
+        let rows: Vec<String> = (0..row_count)
+            .map(|i| {
+                headers.iter().flat_map(|header| match self.0.get(*header).unwrap() {
+                    ResultEntry::VecF64(vec) => vec![format_number(vec[i], COL_WIDTH)],
+                    ResultEntry::Joint(JointResult::Revolute(revolute_result)) => vec![
+                        format_number(revolute_result.theta[i], COL_WIDTH),
+                        format_number(revolute_result.omega[i], COL_WIDTH),
+                    ],
+                }).collect::<Vec<String>>().join(" | ")
+            })
+            .collect();
+
+        // Write the headers
+        writeln!(f)?;
+        let col_headers: Vec<String> = headers.iter().flat_map(|header| {
+            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                vec![format!("{:^width$}", header, width = COL_WIDTH * 2 + 3)]
+            } else {
+                vec![format!("{:^width$}", header, width = COL_WIDTH)]
+            }
+        }).collect();
+        writeln!(f, "{}", col_headers.join(" | "))?;
+
+        // Add horizontal line
+        let header_line: String = col_headers.iter().map(|header| "-".repeat(header.len())).collect::<Vec<String>>().join("-+-");
+        writeln!(f, "{}", header_line)?;
+
+        let sub_headers: Vec<String> = headers.iter().flat_map(|header| {
+            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
+                vec![
+                    format!("{:<width$}", "theta", width = COL_WIDTH),
+                    format!("{:<width$}", "omega", width = COL_WIDTH)
+                ]
+            } else {
+                vec![format!("{:<width$}", "", width = COL_WIDTH)]
+            }
+        }).collect();
+        writeln!(f, "{}", sub_headers.join(" | "))?;
+
+        // Add another horizontal line
+        let sub_header_line: String = sub_headers.iter().map(|sub_header| "-".repeat(sub_header.len())).collect::<Vec<String>>().join("-+-");
+        writeln!(f, "{}", sub_header_line)?;
+
+        // Write the rows
+        for row in rows {
+            writeln!(f, "{}", row)?;
+        }
+
+        Ok(())
+    }
+}
