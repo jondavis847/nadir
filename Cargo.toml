@@ -7,7 +7,7 @@ edition = "2021"
 members = [ "benchmarks",    
     "coordinate_systems", "differential_equations",
     "linear_algebra", "mass_properties",
-    "multibody",
+    "multibody", "plotting",
     "rotations", "sim_value", "spatial_algebra",
     "transforms", "utilities",    
 ]
@@ -15,7 +15,9 @@ members = [ "benchmarks",
 [dependencies]
 coordinate_systems = {path = "./coordinate_systems"}
 differential_equations = {path = "./differential_equations"}
+mass_properties = {path = "./mass_properties"}
 multibody = { path = "./multibody" }
+plotting = {path = "./plotting"}
 rotations = { path = "./rotations" }
 transforms = { path = "./transforms" }
-mass_properties = {path = "./mass_properties"}
+
