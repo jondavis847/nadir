@@ -145,7 +145,20 @@ pub struct BodyState {
     pub attitude_base: Quaternion,
     pub angular_rate_body: Vector3,
     pub angular_accel_body: Vector3,
-    pub external_force: Force, //used for calculations
-    pub external_force_body: Vector3, //use for reporting
+    pub external_force: Force,         //used for calculations
+    pub external_force_body: Vector3,  //use for reporting
     pub external_torque_body: Vector3, //use for reporting
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BodyResult {
+    pub position_base: Vec<Vector3>,
+    pub velocity_base: Vec<Vector3>,
+    pub acceleration_base: Vec<Vector3>,
+    pub acceleration_body: Vec<Vector3>,
+    pub attitude_base: Vec<Quaternion>,
+    pub angular_rate_body: Vec<Vector3>,
+    pub angular_accel_body: Vec<Vector3>,
+    pub external_force_body: Vec<Vector3>,
+    pub external_torque_body: Vec<Vector3>,
 }

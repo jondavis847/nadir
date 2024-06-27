@@ -74,5 +74,6 @@ fn main() {
 
     let result = sim.simulate(0.0, 10.0, 0.1);
 
-    dbg!(result);
+    let body2 = result.get_component_state("body1","angular_rate_body_z");
+    dbg!(body2);
 }

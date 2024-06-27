@@ -1,4 +1,4 @@
-use super::{Integrable, OdeFunction};
+use super::{CallbackFunction, Integrable, OdeFunction};
 
 pub mod rk4;
 
@@ -11,8 +11,8 @@ pub enum SolverMethod {
 }
 
 pub struct Solver<F, P, T>
-where
-    F: OdeFunction<P,T>,
+where    
+    F: OdeFunction<P, T>,
     T: Integrable,
 {
     pub func: F,
@@ -22,11 +22,12 @@ where
     pub tstop: f64,
     pub dt: f64,
     pub solver: SolverMethod,
+    pub callbacks: Vec<Box<dyn FnMut(&mut T, &mut Option<P>, &mut f64)>>,
 }
 
 impl<F, P, T> Solver<F, P, T>
-where
-    F: OdeFunction<P,T>,
+where    
+    F: OdeFunction<P, T>,
     T: Integrable,
 {
     // Method to run the solver
