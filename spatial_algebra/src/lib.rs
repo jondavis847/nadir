@@ -123,6 +123,16 @@ impl MotionVector {
     pub fn get_index(&self, index: usize) -> Option<f64> {
         self.0.get_index(index)
     }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation
+    }
 }
 
 impl Add<MotionVector> for MotionVector {
@@ -163,6 +173,16 @@ impl Velocity {
     #[inline]
     pub fn get_index(&self, index: usize) -> Option<f64> {
         self.0.get_index(index)
+    }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation()
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation()
     }
 
     #[inline]
@@ -227,6 +247,16 @@ impl Acceleration {
             Vector3::zeros(),
         )))
     }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation()
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation()
+    }
 }
 
 impl Add<Acceleration> for Acceleration {
@@ -271,6 +301,16 @@ impl ForceVector {
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
     }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation
+    }
 }
 
 impl Add<ForceVector> for ForceVector {
@@ -296,6 +336,16 @@ impl Momentum {
     #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
+    }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation()
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation()
     }
 }
 
@@ -349,6 +399,16 @@ impl Force {
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
     }
+
+    #[inline]
+    pub fn rotation(&self) -> &Vector3 {
+        &self.0.rotation()
+    }
+
+    #[inline]
+    pub fn translation(&self) -> &Vector3 {
+        &self.0.translation()
+    }
 }
 
 impl From<Vector6> for Force {
@@ -390,7 +450,7 @@ impl Sub<Force> for Force {
 
 // we only need this as wrapper on Transform, other wise we cant impl Mul<Motion> for Transform since it's not in this crate :(
 #[derive(Clone, Copy, Debug, Default)]
-pub struct SpatialTransform(Transform);
+pub struct SpatialTransform(pub Transform);
 
 impl SpatialTransform {
     #[inline]

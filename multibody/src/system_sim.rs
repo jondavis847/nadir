@@ -1,11 +1,14 @@
+use rotations::quaternion::Quaternion;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
 use uuid::Uuid;
 
+use polars::prelude::*;
+
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{Body, BodySim, BodyTrait},
+    body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
     joint::{
         revolute::RevoluteResult, Joint, JointResult, JointSim, JointSimTrait, JointState,
         JointTrait,
@@ -16,12 +19,14 @@ use crate::{
 use differential_equations::solver::{Solver, SolverMethod};
 use spatial_algebra::{Acceleration, Velocity};
 
+#[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
 #[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     bodies: Vec<BodySim>,
+    body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
     parent_joint_indeces: Vec<usize>,
@@ -32,6 +37,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
         sys.validate();
 
         let mut bodysims = Vec::new();
+        let mut bodynames = Vec::new();
         let mut jointsims = Vec::new();
         let mut jointnames = Vec::new();
         let mut parent_joint_indeces = Vec::new();
@@ -50,6 +56,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             let joint_index = jointsims.len() - 1; //-1 since 0 based indexing
             let next_body_id = joint.get_outer_body_id().unwrap();
             let next_body = sys.bodies.get(next_body_id).unwrap();
+            bodynames.push(next_body.get_name().to_string());
             bodysims.push(BodySim::from(next_body.clone()));
             recursive_sys_creation(
                 next_body,
@@ -57,6 +64,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
                 &sys.bodies,
                 &sys.joints,
                 &mut bodysims,
+                &mut bodynames,
                 &mut jointsims,
                 &mut jointnames,
                 &mut parent_joint_indeces,
@@ -65,6 +73,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
         MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
+            body_names: bodynames,
             joints: jointsims,
             joint_names: jointnames,
             parent_joint_indeces: parent_joint_indeces,
@@ -73,24 +82,24 @@ impl From<MultibodySystem> for MultibodySystemSim {
 }
 
 impl MultibodySystemSim {
-    fn collect_state(&self) -> MultibodyState {
+    fn collect_state(&self) -> JointStates {
         let new_joints: Vec<JointState> = self
             .joints
             .iter()
             .map(|joint| joint.get_aba_derivative())
             .collect();
-        MultibodyState { joints: new_joints }
+        JointStates(new_joints)
     }
 
     pub fn run(
         &mut self,
-        x: &MultibodyState,
+        x: &JointStates,
         _p: &Option<MultibodyParameters>,
         _t: f64,
-    ) -> MultibodyState {
+    ) -> JointStates {
         self.set_state(x.clone());
         self.update_joints();
-        self.update_bodies();
+        self.update_body_forces();
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 let n = self.joints.len();
@@ -128,46 +137,59 @@ impl MultibodySystemSim {
                     };
                     self.joints[i].third_pass(a_ij);
                 }
-
+                update_body_states(&mut self.bodies, &self.joints);
                 self.collect_state()
             }
         }
     }
 
-    fn set_state(&mut self, state: MultibodyState) {
-        for i in 0..state.joints.len() {
-            self.joints[i].set_state(state.joints[i]);
+    fn set_state(&mut self, states: JointStates) {
+        for i in 0..states.0.len() {
+            self.joints[i].set_state(states.0[i]);
         }
     }
     pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
-        // TODO: Do the same for bodies
-
         // Create a vec of JointStates
-        let joint_states: Vec<JointState> =
-            self.joints.iter().map(|joint| joint.get_state()).collect();
+        let initial_joint_states =
+            JointStates(self.joints.iter().map(|joint| joint.get_state()).collect());
 
-        let initial_multibody_state = MultibodyState {
-            joints: joint_states,
-        };
+        // since we only need to integrate joints to get the state, and don't want to impl math operators
+        // for the body states, we just push to them as they are kinematically calculated
+
+        let body_states: &mut Vec<Vec<BodyState>> = &mut Vec::new();
 
         let mut solver = Solver {
             func: |x, p, t| self.run(x, p, t),
-            x0: initial_multibody_state,
+            x0: initial_joint_states,
             parameters: None,
             tstart,
             tstop,
             dt,
             solver: SolverMethod::Rk4Classical,
+            callbacks: Vec::new(),
         };
 
-        let (t, states) = solver.solve();
+        let (t, joint_states) = solver.solve();
+
+        // For now we post process the body states until we figure out how to do callbacks the right way
+        for i in 0..t.len() {
+            let ti = t[i];
+            let js = &joint_states[i];
+            self.run(js, &None, ti);
+            update_body_states(&mut self.bodies, &self.joints);
+            let mut new_row = Vec::new();
+            for body in &self.bodies {
+                new_row.push(body.state);
+            }
+            body_states.push(new_row);
+        }
 
         // Convert to a multibody result
         let mut result_hm = HashMap::<String, ResultEntry>::new();
         result_hm.insert("t".to_string(), ResultEntry::VecF64(t));
 
-        for state in states {
-            for (i, joint) in state.joints.iter().enumerate() {
+        for joint_state in joint_states {
+            for (i, joint) in joint_state.0.iter().enumerate() {
                 //let joint_id = joint_ids[i];
                 let joint_name = self.joint_names[i].clone();
                 if let JointState::Revolute(revolute) = joint {
@@ -182,27 +204,45 @@ impl MultibodySystemSim {
                 }
             }
         }
+        for body_state in body_states {
+            for i in 0..body_state.len() {
+                let body = body_state[i];
+                let body_name = self.body_names[i].clone();
+                let entry = result_hm
+                    .entry(body_name)
+                    .or_insert_with(|| ResultEntry::Body(BodyResult::default()));
+                if let ResultEntry::Body(body_result) = entry {
+                    body_result.position_base.push(body.position_base);
+                    body_result.velocity_base.push(body.velocity_base);
+                    body_result.acceleration_base.push(body.acceleration_base);
+                    body_result.acceleration_body.push(body.acceleration_body);
+                    body_result.angular_accel_body.push(body.angular_accel_body);
+                    body_result.angular_rate_body.push(body.angular_rate_body);
+                    body_result.attitude_base.push(body.attitude_base);
+                    body_result
+                        .external_force_body
+                        .push(body.external_force_body);
+                    body_result
+                        .external_torque_body
+                        .push(body.external_torque_body);
+                }
+            }
+        }
 
         MultibodyResult(result_hm)
     }
 
-    fn update_bodies(&mut self) {
-        //TODO update body states based on joint states
-        //calculate external forces
+    fn update_body_forces(&mut self) {
+        //pub external_force: Force, //used for calculations
+        //pub external_force_body: Vector3, //use for reporting
+        //pub external_torque_body: Vector3, //use for reporting
     }
-
+    
     fn update_joints(&mut self) {
-        self.update_transforms();
 
-        //calculate tau for each joint
-        for joint in &mut self.joints {
-            joint.calculate_tau();
-        }
-    }
-
-    // The main update_transforms function
-    fn update_transforms(&mut self) {
+        // update joint transforms        
         for i in 0..self.joints.len() {
+            // if i is 0, parent body is the base, ij_transforms to base are just transforms to inner body
             match i {
                 0 => self.joints[i].update_transforms(None),
                 _ => {
@@ -213,7 +253,14 @@ impl MultibodySystemSim {
                 }
             }
         }
+
+        //calculate tau and vj for each joint
+        for joint in &mut self.joints {
+            joint.calculate_vj();
+            joint.calculate_tau();
+        }
     }
+
 }
 
 fn recursive_sys_creation(
@@ -222,6 +269,7 @@ fn recursive_sys_creation(
     bodies: &HashMap<Uuid, Body>,
     joints: &HashMap<Uuid, Joint>,
     bodysims: &mut Vec<BodySim>,
+    bodynames: &mut Vec<String>,
     jointsims: &mut Vec<JointSim>,
     jointnames: &mut Vec<String>,
     parent_joint_indeces: &mut Vec<usize>,
@@ -238,6 +286,7 @@ fn recursive_sys_creation(
         let joint_index = jointsims.len() - 1; //-1 since zero based indexing
         let next_body_id = joint.get_outer_body_id().unwrap();
         let next_body = bodies.get(next_body_id).unwrap();
+        bodynames.push(next_body.get_name().to_string());
         bodysims.push(BodySim::from(next_body.clone()));
         recursive_sys_creation(
             next_body,
@@ -245,6 +294,7 @@ fn recursive_sys_creation(
             bodies,
             joints,
             bodysims,
+            bodynames,
             jointsims,
             jointnames,
             parent_joint_indeces,
@@ -255,7 +305,54 @@ fn recursive_sys_creation(
 #[derive(Clone, Debug)]
 pub struct MultibodyState {
     joints: Vec<JointState>,
-    //bodies: Vec<BodyState>,
+}
+
+//thought about making this a type JointStates = Vec<Joints> but it needs to be integrable
+#[derive(Clone, Debug)]
+pub struct JointStates(Vec<JointState>);
+
+impl Add for JointStates {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        assert_eq!(
+            self.0.len(),
+            rhs.0.len(),
+            "Joint vectors must have the same length"
+        );
+
+        let joints = self.0.into_iter().zip(rhs.0).map(|(a, b)| a + b).collect();
+        JointStates(joints)
+    }
+}
+
+impl AddAssign for JointStates {
+    fn add_assign(&mut self, rhs: Self) {
+        assert_eq!(
+            self.0.len(),
+            rhs.0.len(),
+            "Joint vectors must have the same length"
+        );
+        for (a, b) in self.0.iter_mut().zip(rhs.0.into_iter()) {
+            *a += b;
+        }
+    }
+}
+
+impl Mul<f64> for JointStates {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        JointStates(self.0.into_iter().map(|joint| joint * rhs).collect())
+    }
+}
+
+impl Div<f64> for JointStates {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self {
+        JointStates(self.0.into_iter().map(|joint| joint / rhs).collect())
+    }
 }
 
 impl Add for MultibodyState {
@@ -275,8 +372,6 @@ impl Add for MultibodyState {
             .zip(rhs.joints)
             .map(|(a, b)| a + b)
             .collect();
-        //let bodies = self.bodies.into_iter().zip(rhs.bodies).map(|(a, b)| a + b).collect();
-
         MultibodyState { joints } //, bodies }
     }
 }
@@ -301,10 +396,7 @@ impl Mul<f64> for MultibodyState {
         // Create a new vector for joints with each joint multiplied by rhs
         let new_joints = self.joints.into_iter().map(|joint| joint * rhs).collect();
 
-        MultibodyState {
-            joints: new_joints,
-            // bodies: new_bodies, // Uncomment and adjust if you have bodies
-        }
+        MultibodyState { joints: new_joints }
     }
 }
 
@@ -324,89 +416,295 @@ impl Div<f64> for MultibodyState {
 
 pub struct MultibodyResult(HashMap<String, ResultEntry>);
 
+impl MultibodyResult {
+    pub fn get_component(&self, component_name: &str) -> DataFrame {
+        let component = self.0.get(component_name).unwrap();
+        let mut df = DataFrame::default();
+
+        let t = match self.0.get("t") {
+            Some(ResultEntry::VecF64(vec)) => Series::new("t", vec.clone()),
+            _ => panic!("Could not find `t`, this should not be possible"),
+        };
+        df.with_column(t).unwrap();
+
+        match component {
+            ResultEntry::Joint(joint) => match joint {
+                JointResult::Revolute(revolute) => {
+                    let theta = Series::new("theta", revolute.theta.clone());
+                    let omega = Series::new("omega", revolute.omega.clone());
+                    df.with_column(theta).unwrap();
+                    df.with_column(omega).unwrap();
+                } //_ => panic!("Invalid joint type"),
+            },
+            ResultEntry::Body(body) => {
+                let position_base_x = Series::new(
+                    "position_base_x",
+                    body.position_base
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<f64>>(),
+                );
+                let position_base_y = Series::new(
+                    "position_base_y",
+                    body.position_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                );
+                let position_base_z = Series::new(
+                    "position_base_z",
+                    body.position_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                );
+
+                let velocity_base_x = Series::new(
+                    "velocity_base_x",
+                    body.velocity_base.iter().map(|v| v.e1).collect::<Vec<_>>(),
+                );
+                let velocity_base_y = Series::new(
+                    "velocity_base_y",
+                    body.velocity_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                );
+                let velocity_base_z = Series::new(
+                    "velocity_base_z",
+                    body.velocity_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                );
+
+                let acceleration_base_x = Series::new(
+                    "acceleration_base_x",
+                    body.acceleration_base
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let acceleration_base_y = Series::new(
+                    "acceleration_base_y",
+                    body.acceleration_base
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let acceleration_base_z = Series::new(
+                    "acceleration_base_z",
+                    body.acceleration_base
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                let acceleration_body_x = Series::new(
+                    "acceleration_body_x",
+                    body.acceleration_body
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let acceleration_body_y = Series::new(
+                    "acceleration_body_y",
+                    body.acceleration_body
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let acceleration_body_z = Series::new(
+                    "acceleration_body_z",
+                    body.acceleration_body
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                let angular_accel_body_x = Series::new(
+                    "angular_accel_body_x",
+                    body.angular_accel_body
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let angular_accel_body_y = Series::new(
+                    "angular_accel_body_y",
+                    body.angular_accel_body
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let angular_accel_body_z = Series::new(
+                    "angular_accel_body_z",
+                    body.angular_accel_body
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                let angular_rate_body_x = Series::new(
+                    "angular_rate_body_x",
+                    body.angular_rate_body
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let angular_rate_body_y = Series::new(
+                    "angular_rate_body_y",
+                    body.angular_rate_body
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let angular_rate_body_z = Series::new(
+                    "angular_rate_body_z",
+                    body.angular_rate_body
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                let attitude_base_s = Series::new(
+                    "attitude_base_s",
+                    body.attitude_base.iter().map(|q| q.s).collect::<Vec<_>>(),
+                );
+                let attitude_base_x = Series::new(
+                    "attitude_base_x",
+                    body.attitude_base.iter().map(|q| q.x).collect::<Vec<_>>(),
+                );
+                let attitude_base_y = Series::new(
+                    "attitude_base_y",
+                    body.attitude_base.iter().map(|q| q.y).collect::<Vec<_>>(),
+                );
+                let attitude_base_z = Series::new(
+                    "attitude_base_z",
+                    body.attitude_base.iter().map(|q| q.z).collect::<Vec<_>>(),
+                );
+
+                let external_force_body_x = Series::new(
+                    "external_force_body_x",
+                    body.external_force_body
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let external_force_body_y = Series::new(
+                    "external_force_body_y",
+                    body.external_force_body
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let external_force_body_z = Series::new(
+                    "external_force_body_z",
+                    body.external_force_body
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                let external_torque_body_x = Series::new(
+                    "external_torque_body_x",
+                    body.external_torque_body
+                        .iter()
+                        .map(|v| v.e1)
+                        .collect::<Vec<_>>(),
+                );
+                let external_torque_body_y = Series::new(
+                    "external_torque_body_y",
+                    body.external_torque_body
+                        .iter()
+                        .map(|v| v.e2)
+                        .collect::<Vec<_>>(),
+                );
+                let external_torque_body_z = Series::new(
+                    "external_torque_body_z",
+                    body.external_torque_body
+                        .iter()
+                        .map(|v| v.e3)
+                        .collect::<Vec<_>>(),
+                );
+
+                df.with_column(position_base_x).unwrap();
+                df.with_column(position_base_y).unwrap();
+                df.with_column(position_base_z).unwrap();
+                df.with_column(velocity_base_x).unwrap();
+                df.with_column(velocity_base_y).unwrap();
+                df.with_column(velocity_base_z).unwrap();
+                df.with_column(acceleration_base_x).unwrap();
+                df.with_column(acceleration_base_y).unwrap();
+                df.with_column(acceleration_base_z).unwrap();
+                df.with_column(acceleration_body_x).unwrap();
+                df.with_column(acceleration_body_y).unwrap();
+                df.with_column(acceleration_body_z).unwrap();
+                df.with_column(angular_accel_body_x).unwrap();
+                df.with_column(angular_accel_body_y).unwrap();
+                df.with_column(angular_accel_body_z).unwrap();
+                df.with_column(angular_rate_body_x).unwrap();
+                df.with_column(angular_rate_body_y).unwrap();
+                df.with_column(angular_rate_body_z).unwrap();
+                df.with_column(attitude_base_s).unwrap();
+                df.with_column(attitude_base_x).unwrap();
+                df.with_column(attitude_base_y).unwrap();
+                df.with_column(attitude_base_z).unwrap();
+                df.with_column(external_force_body_x).unwrap();
+                df.with_column(external_force_body_y).unwrap();
+                df.with_column(external_force_body_z).unwrap();
+                df.with_column(external_torque_body_x).unwrap();
+                df.with_column(external_torque_body_y).unwrap();
+                df.with_column(external_torque_body_z).unwrap();
+            }
+            _ => panic!("Invalid component type"),
+        }
+        df
+    }
+
+    pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> DataFrame {
+        let df = self.get_component(component_name);
+        let mut columns: Vec<&str> = Vec::with_capacity(state_name.len() + 1);
+        columns.push("t");
+        columns.extend(state_name);
+
+        df.select(columns).unwrap()
+    }
+}
+
 #[derive(Debug)]
-enum ResultEntry {
-    VecF64(Vec<f64>),
+pub enum ResultEntry {
+    Body(BodyResult),
     Joint(JointResult),
+    VecF64(Vec<f64>),
 }
 
 impl fmt::Debug for MultibodyResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Define the column width
-        const COL_WIDTH: usize = 10;
-
-        // Function to format numbers without trailing zeros and fit in column width
-        fn format_number(num: f64, width: usize) -> String {
-            let mut s = format!("{:.5}", num).trim_end_matches('0').trim_end_matches('.').to_string();
-            if s.len() > width {
-                s.truncate(width);
-            }
-            format!("{:<width$}", s, width = width)
-        }
-
-        // Collect headers with "t" as the first column
+        // Collect headers (keys) and sort them
         let mut headers: Vec<&String> = self.0.keys().collect();
         headers.sort();
-        if let Some(pos) = headers.iter().position(|&header| header == "t") {
-            headers.remove(pos);
-        }
-        let t_title = "t".to_string();
-        headers.insert(0, &t_title);
 
-        // Assuming all Vec<f64> are of the same length
-        let row_count = self.0.values().next().map_or(0, |entry| match entry {
-            ResultEntry::VecF64(vec) => vec.len(),
-            ResultEntry::Joint(JointResult::Revolute(revolute_result)) => revolute_result.theta.len(),
-        });
-
-        let rows: Vec<String> = (0..row_count)
-            .map(|i| {
-                headers.iter().flat_map(|header| match self.0.get(*header).unwrap() {
-                    ResultEntry::VecF64(vec) => vec![format_number(vec[i], COL_WIDTH)],
-                    ResultEntry::Joint(JointResult::Revolute(revolute_result)) => vec![
-                        format_number(revolute_result.theta[i], COL_WIDTH),
-                        format_number(revolute_result.omega[i], COL_WIDTH),
-                    ],
-                }).collect::<Vec<String>>().join(" | ")
-            })
-            .collect();
-
-        // Write the headers
-        writeln!(f)?;
-        let col_headers: Vec<String> = headers.iter().flat_map(|header| {
-            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
-                vec![format!("{:^width$}", header, width = COL_WIDTH * 2 + 3)]
-            } else {
-                vec![format!("{:^width$}", header, width = COL_WIDTH)]
-            }
-        }).collect();
-        writeln!(f, "{}", col_headers.join(" | "))?;
-
-        // Add horizontal line
-        let header_line: String = col_headers.iter().map(|header| "-".repeat(header.len())).collect::<Vec<String>>().join("-+-");
-        writeln!(f, "{}", header_line)?;
-
-        let sub_headers: Vec<String> = headers.iter().flat_map(|header| {
-            if let ResultEntry::Joint(_) = self.0.get(*header).unwrap() {
-                vec![
-                    format!("{:<width$}", "theta", width = COL_WIDTH),
-                    format!("{:<width$}", "omega", width = COL_WIDTH)
-                ]
-            } else {
-                vec![format!("{:<width$}", "", width = COL_WIDTH)]
-            }
-        }).collect();
-        writeln!(f, "{}", sub_headers.join(" | "))?;
-
-        // Add another horizontal line
-        let sub_header_line: String = sub_headers.iter().map(|sub_header| "-".repeat(sub_header.len())).collect::<Vec<String>>().join("-+-");
-        writeln!(f, "{}", sub_header_line)?;
-
-        // Write the rows
-        for row in rows {
-            writeln!(f, "{}", row)?;
+        // Print each header as an individual row
+        for header in headers {
+            writeln!(f, "{}", header)?;
         }
 
         Ok(())
+    }
+}
+
+fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
+    for i in 0..bodies.len() {
+        let body = &mut bodies[i];
+        let inner_joint = &joints[i];
+        let transforms = inner_joint.get_transforms();
+        let body_from_joint = transforms.ob_from_jof;
+        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+
+        let joint_a = inner_joint.get_a();
+        let body_a = body_from_joint * *joint_a;
+        let body_a_in_base = base_from_body * body_a;
+
+        let joint_v = inner_joint.get_v();
+        let body_v = body_from_joint * *joint_v;
+        let body_v_in_base = base_from_body * body_from_joint * *joint_v;
+
+        body.state.acceleration_body = *body_a.translation();
+        body.state.acceleration_base = *body_a_in_base.translation();
+        body.state.angular_accel_body = *body_a.rotation();
+        body.state.velocity_base = *body_v_in_base.translation();
+        body.state.angular_rate_body = *body_v.rotation();
+
+        let body_from_base = base_from_body.0.inv();
+        body.state.position_base = body_from_base.translation.vec();
+        body.state.attitude_base = Quaternion::from(body_from_base.rotation);
     }
 }

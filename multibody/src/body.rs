@@ -112,7 +112,7 @@ impl MultibodyTrait for Body {
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BodySim {
-    state: BodyState,
+    pub state: BodyState,
 }
 
 impl From<Body> for BodySim {
@@ -138,10 +138,27 @@ impl BodySim {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BodyState {
-    pub position: Vector3,
-    pub velocity: Vector3,
-    pub acceleration: Vector3,
-    pub attitude: Quaternion,
-    pub angular_rate: Vector3,
-    pub external_force: Force,
+    pub position_base: Vector3,
+    pub velocity_base: Vector3,
+    pub acceleration_base: Vector3,
+    pub acceleration_body: Vector3,
+    pub attitude_base: Quaternion,
+    pub angular_rate_body: Vector3,
+    pub angular_accel_body: Vector3,
+    pub external_force: Force,         //used for calculations
+    pub external_force_body: Vector3,  //use for reporting
+    pub external_torque_body: Vector3, //use for reporting
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BodyResult {
+    pub position_base: Vec<Vector3>,
+    pub velocity_base: Vec<Vector3>,
+    pub acceleration_base: Vec<Vector3>,
+    pub acceleration_body: Vec<Vector3>,
+    pub attitude_base: Vec<Quaternion>,
+    pub angular_rate_body: Vec<Vector3>,
+    pub angular_accel_body: Vec<Vector3>,
+    pub external_force_body: Vec<Vector3>,
+    pub external_torque_body: Vec<Vector3>,
 }

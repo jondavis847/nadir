@@ -11,7 +11,7 @@ use transforms::Transform;
 use uuid::Uuid;
 
 pub mod revolute;
-use revolute::{Revolute, RevoluteSim, RevoluteResult, RevoluteState};
+use revolute::{Revolute, RevoluteResult, RevoluteSim, RevoluteState};
 pub trait JointTrait: MultibodyTrait {
     fn connect_inner_body<T: BodyTrait>(
         &mut self,
@@ -279,13 +279,13 @@ impl JointTransforms {
         // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
         if let Some((ij_ob_from_ij_jof, ij_jof_from_base)) = ij_transforms {
             // this joints inner body is the parent joints outer body
-            jof_from_ij_jof = self.jif_from_ib * ij_ob_from_ij_jof;
+            jof_from_ij_jof = self.jof_from_jif * self.jif_from_ib * ij_ob_from_ij_jof;
             ij_jof_from_jof = jof_from_ij_jof.inv();
             jof_from_base = jof_from_ij_jof * ij_jof_from_base;
         } else {
             // inner joint is the base, so base transform is the inner joint transform
             // note that the base to outer joint transform is still accounted for
-            jof_from_ij_jof = self.jif_from_ib;
+            jof_from_ij_jof = self.jof_from_jif * self.jif_from_ib;
             ij_jof_from_jof = jof_from_ij_jof.inv();
             jof_from_base = jof_from_ij_jof;
         }
@@ -313,6 +313,12 @@ impl JointSimTrait for JointSim {
     fn calculate_tau(&mut self) {
         match self {
             JointSim::Revolute(joint) => joint.calculate_tau(),
+        }
+    }
+
+    fn calculate_vj(&mut self) {
+        match self {
+            JointSim::Revolute(joint) => joint.calculate_vj(),
         }
     }
 
@@ -360,6 +366,7 @@ impl JointSimTrait for JointSim {
 
 pub trait JointSimTrait {
     fn calculate_tau(&mut self);
+    fn calculate_vj(&mut self);
     fn get_id(&self) -> &Uuid;
     fn get_state(&self) -> JointState;
     fn set_state(&mut self, state: JointState);
@@ -418,7 +425,7 @@ impl Div<f64> for JointState {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum JointResult {
-    Revolute(RevoluteResult)
+    Revolute(RevoluteResult),
 }

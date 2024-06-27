@@ -46,3 +46,8 @@ impl<P, T, F> OdeFunctionIP<P, T> for F where F: Fn(&mut T, &T, &Option<P>, f64)
 pub trait OdeFunction<P, T>: FnMut(&T, &Option<P>, f64) -> T {}
 
 impl<P, T, F> OdeFunction<P, T> for F where F: FnMut(&T, &Option<P>, f64) -> T {}
+
+pub trait CallbackFunction<P, T>: FnMut(&T, &Option<P>, f64) -> (T,Option<P>,f64) {}
+
+impl<P, T, F> CallbackFunction<P, T> for F where F: FnMut(&T, &Option<P>, f64) -> (T,Option<P>,f64) {}
+
