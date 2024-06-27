@@ -153,7 +153,7 @@ impl MultibodySystemSim {
         let initial_joint_states =
             JointStates(self.joints.iter().map(|joint| joint.get_state()).collect());
 
-        // since we only need to integrate joints to get the state, and don't want to both impl math operators
+        // since we only need to integrate joints to get the state, and don't want to impl math operators
         // for the body states, we just push to them as they are kinematically calculated
 
         let body_states: &mut Vec<Vec<BodyState>> = &mut Vec::new();
@@ -180,8 +180,8 @@ impl MultibodySystemSim {
             let mut new_row = Vec::new();
             for body in &self.bodies {
                 new_row.push(body.state);
-            }            
-            body_states.push(new_row);            
+            }
+            body_states.push(new_row);
         }
 
         // Convert to a multibody result
@@ -237,46 +237,12 @@ impl MultibodySystemSim {
         //pub external_force_body: Vector3, //use for reporting
         //pub external_torque_body: Vector3, //use for reporting
     }
-    //fn update_body_states(&mut self) {
-    //for i in 0..self.bodies.len() {
-    //let body = &mut self.bodies[i];
-    //let inner_joint = &self.joints[i];
-    //let transforms = inner_joint.get_transforms();
-    //let body_from_joint = transforms.ob_from_jof;
-    //let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
-
-    //            let joint_a = inner_joint.get_a();
-    //          let body_a = body_from_joint * *joint_a;
-    //        let body_a_in_base = base_from_body * body_a;
-
-    //      let joint_v = inner_joint.get_v();
-    //    let body_v = body_from_joint * *joint_v;
-    //  let body_v_in_base = base_from_body * body_from_joint * *joint_v;
-
-    //  body.state.acceleration_body = *body_a.translation();
-    //body.state.acceleration_base = *body_a_in_base.translation();
-    //body.state.angular_accel_body = *body_a.rotation();
-    //body.state.velocity_base = *body_v_in_base.translation();
-    //body.state.angular_rate_body = *body_v.rotation();
-
-    //let body_from_base = base_from_body.0.inv();
-    //body.state.position_base = body_from_base.translation.vec();
-    //body.state.attitude_base = Quaternion::from(body_from_base.rotation);
-    //}
-    //}
-
+    
     fn update_joints(&mut self) {
-        self.update_transforms();
 
-        //calculate tau for each joint
-        for joint in &mut self.joints {
-            joint.calculate_tau();
-        }
-    }
-
-    // The main update_transforms function
-    fn update_transforms(&mut self) {
+        // update joint transforms        
         for i in 0..self.joints.len() {
+            // if i is 0, parent body is the base, ij_transforms to base are just transforms to inner body
             match i {
                 0 => self.joints[i].update_transforms(None),
                 _ => {
@@ -287,7 +253,14 @@ impl MultibodySystemSim {
                 }
             }
         }
+
+        //calculate tau and vj for each joint
+        for joint in &mut self.joints {
+            joint.calculate_vj();
+            joint.calculate_tau();
+        }
     }
+
 }
 
 fn recursive_sys_creation(
@@ -470,7 +443,7 @@ impl MultibodyResult {
                         .iter()
                         .map(|v| v.e1)
                         .collect::<Vec<f64>>(),
-                );                
+                );
                 let position_base_y = Series::new(
                     "position_base_y",
                     body.position_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
@@ -676,9 +649,13 @@ impl MultibodyResult {
         df
     }
 
-    pub fn get_component_state(&self, component_name: &str, state_name: &str) -> DataFrame {
+    pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> DataFrame {
         let df = self.get_component(component_name);
-        df.select(["t", state_name]).unwrap()
+        let mut columns: Vec<&str> = Vec::with_capacity(state_name.len() + 1);
+        columns.push("t");
+        columns.extend(state_name);
+
+        df.select(columns).unwrap()
     }
 }
 
@@ -717,7 +694,6 @@ fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
         let body_a_in_base = base_from_body * body_a;
 
         let joint_v = inner_joint.get_v();
-        dbg!(&joint_v);
         let body_v = body_from_joint * *joint_v;
         let body_v_in_base = base_from_body * body_from_joint * *joint_v;
 

@@ -7,7 +7,12 @@ use crate::{
     },
     MultibodyTrait,
 };
+use coordinate_systems::CoordinateSystem;
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
+use rotations::{
+    euler_angles::{Angles, EulerAngles},
+    Rotation,
+};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
@@ -239,6 +244,11 @@ impl JointSimTrait for RevoluteSim {
         self.aba.tau =
             constant_force - spring_constant * self.state.theta - dampening * self.state.omega;
     }
+
+    fn calculate_vj(&mut self) {
+        self.aba.common.vj =
+            Velocity::from(Vector6::new(0.0, 0.0, self.state.omega, 0.0, 0.0, 0.0));
+    }
     fn get_id(&self) -> &Uuid {
         &self.id
     }
@@ -258,6 +268,14 @@ impl JointSimTrait for RevoluteSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+        let angles = Angles::new(self.state.theta, 0.0, 0.0);
+        let euler_angles = EulerAngles::ZYX(angles);
+        let rotation = Rotation::EulerAngles(euler_angles);
+        let translation = CoordinateSystem::default();
+        let transform = Transform::new(rotation, translation);
+
+        self.transforms.jof_from_jif = SpatialTransform(transform);
+        self.transforms.jif_from_jof = self.transforms.jof_from_jif.inv();
         self.transforms.update(ij_transforms)
     }
 }
@@ -302,8 +320,7 @@ impl Div<f64> for RevoluteState {
     }
 }
 
-
-#[derive(Debug,Clone,Default)]
+#[derive(Debug, Clone, Default)]
 pub struct RevoluteResult {
     pub theta: Vec<f64>,
     pub omega: Vec<f64>,

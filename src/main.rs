@@ -23,19 +23,9 @@ fn main() {
         mass_properties: None,
     };
 
-    let js1 = RevoluteState::new(0.0,1.0);
+    let js1 = RevoluteState::new(0.0, 1.0);
 
-    let mut joint1 = Revolute::new(
-        "joint1",
-        jp1,
-        js1,
-    );
-
-    let mut joint2 = Revolute::new(
-        "joint2",
-        JointParameters::default(),
-        RevoluteState::default(),
-    );
+    let mut joint1 = Revolute::new("joint1", jp1, js1);
 
     let mp = MassProperties::new(
         1.0,
@@ -44,21 +34,8 @@ fn main() {
     );
     let mut body1 = Body::new("body1", mp.unwrap()).unwrap();
 
-    let mp = MassProperties::new(
-        1.0,
-        CenterOfMass::new(0.0, 0.0, 0.0),
-        Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap(),
-    );
-    let mut body2 = Body::new("body2", mp.unwrap()).unwrap();
-
-    joint2
-        .connect_inner_body(&mut base, Transform::default())
-        .unwrap();
-    joint2
-        .connect_outer_body(&mut body2, Transform::default())
-        .unwrap();
     joint1
-        .connect_inner_body(&mut body2, Transform::default())
+        .connect_inner_body(&mut base, Transform::default())
         .unwrap();
     joint1
         .connect_outer_body(&mut body1, Transform::default())
@@ -66,14 +43,33 @@ fn main() {
 
     sys.add_base(base).unwrap();
     sys.add_joint(joint1.into()).unwrap();
-    sys.add_joint(joint2.into()).unwrap();
     sys.add_body(body1).unwrap();
-    sys.add_body(body2).unwrap();
 
     let mut sim = MultibodySystemSim::from(sys);
 
     let result = sim.simulate(0.0, 10.0, 0.1);
 
-    let body2 = result.get_component_state("body1","angular_rate_body_z");
-    dbg!(body2);
+    let joint1 = result.get_component("joint1");
+    dbg!(joint1);
+    let body1_rate = result.get_component_state(
+        "body1",
+        vec![
+            "angular_rate_body_x",
+            "angular_rate_body_y",
+            "angular_rate_body_z",
+        ],
+    );
+
+    let body1_quat = result.get_component_state(
+        "body1",
+        vec![
+            "attitude_base_s",
+            "attitude_base_x",
+            "attitude_base_y",
+            "attitude_base_z"
+        ],
+    );
+
+    dbg!(body1_rate);    
+    dbg!(body1_quat);    
 }
