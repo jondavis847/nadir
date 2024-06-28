@@ -36,9 +36,9 @@ impl RevoluteState {
 
 #[derive(Debug, Clone)]
 pub struct Revolute {
-    common: JointCommon,
-    parameters: JointParameters,
-    state: RevoluteState,
+    pub common: JointCommon,
+    pub parameters: JointParameters,
+    pub state: RevoluteState,
 }
 
 impl Revolute {
