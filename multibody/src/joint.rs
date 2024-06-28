@@ -216,17 +216,17 @@ pub struct JointConnection {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct JointParameters {
     pub constant_force: f64,
-    pub dampening: f64,
+    pub damping: f64,
     pub mass_properties: Option<SpatialInertia>,
     pub spring_constant: f64,
 }
 
 impl JointParameters {
-    pub fn new(constant_force: f64, dampening: f64, spring_constant: f64) -> Self {
+    pub fn new(constant_force: f64, damping: f64, spring_constant: f64) -> Self {
         let mass_properties = None;
         Self {
             constant_force,
-            dampening,
+            damping,
             mass_properties,
             spring_constant,
         }

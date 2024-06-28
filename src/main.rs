@@ -19,7 +19,7 @@ fn main() {
     let jp1 = JointParameters {
         constant_force: 0.0,
         spring_constant: 1.0,
-        dampening: 0.0,
+        damping: 0.0,
         mass_properties: None,
     };
 

@@ -2,8 +2,9 @@ use iced::{mouse::Cursor, Point, Rectangle, Size};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::multibody_ui::MultibodyComponent;
 use crate::ui::canvas::node::Node;
-use crate::ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
+use crate::ui::dummies::{Dummies, DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use crate::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum NodebarMessage {
@@ -12,18 +13,16 @@ pub enum NodebarMessage {
 
 #[derive(Debug, Clone)]
 pub struct NodebarNode {
-    pub component_id: Uuid,
-    pub home: Point,
-    pub label: String, //TODO: make this an enum with function calls to get the labels?
+    pub component_type: DummyComponent,
+    pub home: Point,    
     pub node: Node,
 }
 
 impl NodebarNode {
-    pub fn new(component_id: Uuid, home: Point, label: String, node: Node) -> Self {
+    pub fn new(component_type: DummyComponent, home: Point, node: Node) -> Self {
         Self {
-            component_id,
-            home,
-            label,
+            component_type,
+            home,            
             node,
         }
     }
@@ -44,61 +43,43 @@ pub struct NodebarMap {
     pub revolute: Uuid,
 }
 
+
+
 #[derive(Debug, Clone)]
 pub struct Nodebar {
     pub bounds: Rectangle,
-    pub components: HashMap<Uuid, DummyComponent>,
-    pub left_clicked_node: Option<Uuid>,
-    pub map: NodebarMap,
+    pub dummies: Dummies,
+    pub left_clicked_node: Option<Uuid>,    
     pub nodes: HashMap<Uuid, NodebarNode>,
 }
 
 impl Default for Nodebar {
     fn default() -> Self {
-        let mut components = HashMap::new();
+        
         let mut nodes = HashMap::new();
-
         let bounds = Rectangle::new(Point::new(0.0, 0.0), Size::new(130.0, 1000.0));
         let mut count: f32 = 1.0;
 
-        let base_component_id = Uuid::new_v4();
-        let base_component = DummyComponent::Base(DummyBase::new(base_component_id));
-        components.insert(base_component_id, base_component);
-
-        let base_node = create_default_node("+base", &mut count, base_component_id);
+        let base_node = create_default_node("+base", &mut count, DummyComponent::Base);
         let base_node_id = Uuid::new_v4();
         nodes.insert(base_node_id, base_node);
 
-        let body_component_id = Uuid::new_v4();
-        let body_component = DummyComponent::Body(DummyBody::new(body_component_id));
-        components.insert(body_component_id, body_component);
-
-        let body_node = create_default_node("+body", &mut count, body_component_id);
+        let body_node = create_default_node("+body", &mut count, DummyComponent::Body);
         let body_node_id = uuid::Uuid::new_v4();
         nodes.insert(body_node_id, body_node);
 
-        let revolute_component_id = Uuid::new_v4();
-        let revolute_component =
-            DummyComponent::Revolute(DummyRevolute::new(revolute_component_id));
-        components.insert(revolute_component_id, revolute_component);
-
-        let revolute_node = create_default_node("+revolute", &mut count, revolute_component_id);
+        let revolute_node = create_default_node("+revolute", &mut count, DummyComponent::Revolute);
         let revolute_node_id = Uuid::new_v4();
         nodes.insert(revolute_node_id, revolute_node);
 
         let left_clicked_node = None;
-
-        let map = NodebarMap {
-            base: base_component_id,
-            body: body_component_id,
-            revolute: revolute_component_id,
-        };
+        
+        let dummies = Dummies::default();
 
         Self {
             bounds,
-            components,
-            left_clicked_node,
-            map,
+            dummies,
+            left_clicked_node,            
             nodes,
         }
     }
@@ -188,14 +169,14 @@ impl Nodebar {
     }
 }
 
-fn create_default_node(label: &str, count: &mut f32, component_id: Uuid) -> NodebarNode {
+fn create_default_node(label: &str, count: &mut f32, component_type: DummyComponent) -> NodebarNode {
     let padding = 15.0;
     let height = 50.0;
     let node_size = Size::new(100.0, height);
     let home = Point::new(padding, *count * padding + (*count - 1.0) * height);
 
-    let node = Node::new(Rectangle::new(home, node_size)); //, label.to_string());
+    let node = Node::new(label.to_string(),Rectangle::new(home, node_size)); //, label.to_string());
 
     *count += 1.0;
-    NodebarNode::new(component_id, home, label.to_string(), node)
+    NodebarNode::new(component_type, home, node)
 }

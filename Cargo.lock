@@ -1401,7 +1401,9 @@ dependencies = [
  "iced_aw",
  "lyon_geom",
  "lyon_path",
+ "mass_properties",
  "multibody",
+ "transforms",
  "uuid",
 ]
 

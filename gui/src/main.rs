@@ -13,7 +13,11 @@ use iced::{
 };
 
 use iced_aw::{card, modal};
-use std::time::{Duration, Instant};
+use multibody::joint::Joint;
+use std::{
+    ops::Mul,
+    time::{Duration, Instant},
+};
 
 mod multibody_ui;
 mod ui;
@@ -46,7 +50,7 @@ enum Message {
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
     RevoluteConstantForceInputChanged(String),
-    RevoluteDampeningInputChanged(String),
+    RevolutedampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
@@ -203,20 +207,8 @@ impl AppState {
 
                         match component {
                             &DummyComponent::Base(_) => {
-                                if !self.graph.components.is_empty() {
-                                    let mut has_base = false;
-                                    for (_, other_component) in &self.graph.components {
-                                        if matches!(other_component, MultibodyComponent::Base(_)) {
-                                            has_base = true;
-                                            break;
-                                        }
-                                    }
-
-                                    if has_base {
-                                        self.active_error = Some(Errors::TooManyBases);
-                                    } else {
-                                        set_modal = true;
-                                    }
+                                if self.graph.system.base.is_some() {
+                                    self.active_error = Some(Errors::TooManyBases);
                                 } else {
                                     set_modal = true;
                                 }
@@ -234,25 +226,58 @@ impl AppState {
                 }
             }
         }
-        if let Some(GraphMessage::EditComponent(id)) =
+        if let Some(GraphMessage::EditComponent((component_type, component_id))) =
             self.graph.left_button_released(&release_event, cursor)
         {
-            if let Some(component) = self.graph.components.get(&id) {
-                let active_modal = ActiveModal::new(component.get_dummy_id(), Some(id));
-
-                if let Some(dummy) = self
-                    .nodebar
-                    .components
-                    .get_mut(&active_modal.dummy_component_id)
-                {
-                    if let Some(component_id) = active_modal.graph_component_id {
-                        // Editing an existing component, populate values
-                        dummy.inherit_from(&component_id, &self.graph);
+            match component_type {
+                MultibodyComponent::Base => {
+                    let base = &self.graph.system.base.unwrap();
+                    let dummy = self
+                        .nodebar
+                        .components
+                        .get_mut(&self.nodebar.map.base)
+                        .unwrap();
+                    match dummy {
+                        DummyComponent::Base(dummy_base) => {
+                            dummy_base.get_values_from(base);
+                        }
+                        _ => {} //TODO error, should not be possible
                     }
-
-                    self.modal = Some(active_modal);
+                }
+                MultibodyComponent::Body => {
+                    let body = self.graph.system.bodies.get(&component_id).unwrap();
+                    let dummy = self
+                        .nodebar
+                        .components
+                        .get_mut(&self.nodebar.map.body)
+                        .unwrap();
+                    match dummy {
+                        DummyComponent::Body(dummy_body) => {
+                            dummy_body.get_values_from(body);
+                        }
+                        _ => {} //TODO error, should not be possible
+                    }
+                }
+                MultibodyComponent::Joint => {
+                    let joint = self.graph.system.joints.get(&component_id).unwrap();
+                    match joint {
+                        Joint::Revolute(revolute) => {
+                            let dummy = self
+                                .nodebar
+                                .components
+                                .get_mut(&self.nodebar.map.revolute)
+                                .unwrap();
+                            match dummy {
+                                DummyComponent::Revolute(dummy_rev) => {
+                                    dummy_rev.get_values_from(revolute);
+                                }
+                                _ => {} //TODO error, should not be possible
+                            }
+                        }
+                    }
                 }
             }
+            self.modal = Some(ActiveModal(component_type));
         }
 
         self.cache.clear();
@@ -260,13 +285,13 @@ impl AppState {
     }
 
     pub fn middle_button_pressed(&mut self, _cursor: Cursor) -> Command<Message> {
-        match self.graph.create_multibody_system() {
-            Ok(system) => dbg!(system),
-            Err(error) => {
+        //match self.graph.create_multibody_system() {
+        //    Ok(system) => dbg!(system),
+        //    Err(error) => {
                 // TODO: handle error
-                return Command::none();
-            }
-        };
+        //        return Command::none();
+        //    }
+       // };
         Command::none()
     }
 
@@ -291,10 +316,24 @@ impl AppState {
         };
 
         // early return
-        let dummy_component = match self.nodebar.components.get_mut(&modal.dummy_component_id) {
-            Some(component) => component,
-            None => return Command::none(),
-        };
+        match modal.0 {
+            MultibodyComponent::Base => {
+                if self.nodebar.dummies.base.name.is_empty() {
+                    self.nodebar.dummies.base.name = "base".to_string();
+                }
+                let base = self.nodebar.dummies.base.to_base();
+                self.graph.system.base = Some(base);
+            },
+            MultibodyComponent::Body => {
+                if self.nodebar.dummies.body.name.is_empty() {
+                    self.counter_body += 1;
+                    self.nodebar.dummies.body.name = format!("body{}",self.counter_body).to_string();
+                }
+                let base = self.nodebar.dummies.base.to_base();
+                self.graph.system.base = Some(base);
+            }
+        }
+        
 
         // Ensure the body has a unique name if it's empty
         if dummy_component.get_name().is_empty() {
@@ -369,7 +408,7 @@ impl AppState {
                     RevoluteField::ConstantForce => {
                         dummy_revolute.constant_force = value.to_string()
                     }
-                    RevoluteField::Dampening => dummy_revolute.dampening = value.to_string(),
+                    RevoluteField::damping => dummy_revolute.damping = value.to_string(),
                     RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
                     RevoluteField::SpringConstant => {
                         dummy_revolute.spring_constant = value.to_string()
@@ -468,8 +507,8 @@ impl Application for IcedTest {
                 Message::RevoluteConstantForceInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::ConstantForce, &value)
                 }
-                Message::RevoluteDampeningInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Dampening, &value)
+                Message::RevolutedampingInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::damping, &value)
                 }
                 Message::RevoluteNameInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::Name, &value)
@@ -727,9 +766,9 @@ fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, crate::ui::t
             Message::RevoluteConstantForceInputChanged,
         ))
         .push(create_text_input(
-            "dampening",
-            &joint.dampening,
-            Message::RevoluteDampeningInputChanged,
+            "damping",
+            &joint.damping,
+            Message::RevolutedampingInputChanged,
         ))
         .push(create_text_input(
             "spring constant",

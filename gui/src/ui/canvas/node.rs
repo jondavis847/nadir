@@ -8,23 +8,25 @@ use iced::{
 };
 
 //TODO: Think about using MultibodyMeta instead of the individual Uuid fields
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Node {
+    pub label: String,
     pub bounds: Rectangle,
     pub is_left_clicked: bool,
     pub is_middle_clicked: bool,
     pub is_right_clicked: bool,
-    pub is_selected: bool,    
+    pub is_selected: bool,
     //pub label: String,
 }
 
-impl Node {    
-
+impl Node {
     pub fn new(
-        bounds: Rectangle,        
-        //label: String,        
+        label: String,
+        bounds: Rectangle,
+        //label: String,
     ) -> Self {
         Self {
+            label: label,
             bounds: bounds,
             is_left_clicked: false,
             is_middle_clicked: false,
@@ -81,7 +83,7 @@ impl Node {
         path
     }
 
-    pub fn draw(&self, frame: &mut Frame, theme: &Theme, label: &str) {
+    pub fn draw(&self, frame: &mut Frame, theme: &Theme) {
         let background = self.calculate_path();
 
         let node_border_color;
@@ -104,7 +106,7 @@ impl Node {
             );
             frame.fill(&background, node_background_color);
             frame.fill_text(Text {
-                content: label.to_string(),
+                content: self.label.clone(),
                 color: Color::WHITE, //theme.edge_multibody,
                 font: Font::MONOSPACE,
                 horizontal_alignment: Horizontal::Center,
@@ -132,6 +134,6 @@ impl Node {
             crate::MouseButton::Left => self.is_left_clicked = is_inside,
             crate::MouseButton::Right => self.is_right_clicked = is_inside,
             crate::MouseButton::Middle => self.is_middle_clicked = is_inside,
-        }       
-    }    
+        }
+    }
 }

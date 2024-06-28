@@ -1,5 +1,7 @@
 use iced::{mouse::Cursor, Point, Rectangle, Size};
+use multibody::joint::JointTrait;
 use std::collections::HashMap;
+use transforms::Transform;
 use uuid::Uuid;
 
 use super::edge::{Edge, EdgeConnection};
@@ -11,7 +13,7 @@ use crate::ui::dummies::{DummyComponent, DummyTrait};
 use crate::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum GraphMessage {
-    EditComponent(Uuid),
+    EditComponent((MultibodyComponent,Uuid)),
 }
 
 pub enum GraphErrors {
@@ -29,15 +31,17 @@ pub enum GraphErrors {
 #[derive(Debug, Clone)]
 pub struct GraphNode {
     pub component_id: Uuid,
+    pub component_type: MultibodyComponent,
     pub edges: Vec<Uuid>,
     pub node: Node,
 }
 
 impl GraphNode {
-    fn new(component_id: Uuid, node: Node) -> Self {
+    fn new(component_id: Uuid, component_type: MultibodyComponent, node: Node) -> Self {
         let edges = Vec::new();
         Self {
             component_id,
+            component_type,
             edges,
             node,
         }
@@ -47,7 +51,7 @@ impl GraphNode {
 #[derive(Debug)]
 pub struct Graph {
     pub bounds: Rectangle,
-    pub components: HashMap<Uuid, MultibodyComponent>,
+    pub system: MultibodySystem,
     current_edge: Option<Uuid>,
     pub edges: HashMap<Uuid, Edge>,
     pub is_clicked: bool,
@@ -63,7 +67,7 @@ impl Default for Graph {
     fn default() -> Self {
         Self {
             bounds: Rectangle::new(Point::new(130.0, 0.0), Size::new(870.0, 1000.0)),
-            components: HashMap::new(),
+            system: MultibodySystem::new(),
             current_edge: None,
             edges: HashMap::new(),
             is_clicked: false,
@@ -78,83 +82,6 @@ impl Default for Graph {
 }
 
 impl Graph {
-    pub fn create_multibody_system(&mut self) -> Result<MultibodySystem, GraphErrors> {
-        let mut body_counter: usize = 0;
-        let mut joint_counter: usize = 0;
-
-        let mut base = None;
-        let mut base_joints = Vec::new();
-        let mut joints = Vec::<Joint>::new();
-        let mut bodies = Vec::<MultibodyComponent>::new(); //Multibody component so it can be base and body
-
-        // verify at least 1 base
-        for (_, component) in &self.components {
-            match component {
-                MultibodyComponent::Base(_) => base = Some(component),
-                _ => {}
-            }
-        }
-
-        let base = match base {
-            Some(base) => base,
-            None => return Err(GraphErrors::NoBase),
-        };
-
-        let base_id = base.get_component_id();
-
-        for (id, component) in &self.components {
-            match component {
-                MultibodyComponent::Joint(joint) => {
-                    // ensure all joints have a from id
-                    let from_id = match joint.get_from_id() {
-                        Some(id) => id,
-                        None => return Err(GraphErrors::JointMissingFrom(*id)),
-                    };
-
-                    // ensure all joints have a to id
-                    if joint.get_to_id().is_empty() {
-                        return Err(GraphErrors::JointMissingTo(*id));
-                    };
-
-                    // if the from id equals the base id, the joint is connected to the base
-                    if from_id == base_id {
-                        base_joints.push(*id);
-                    }
-                }
-                MultibodyComponent::Body(body) => {
-                    // ensure all bodies have a from id
-                    match body.get_from_id() {
-                        Some(_) => {}
-                        None => return Err(GraphErrors::BodyMissingFrom(*id)),
-                    };
-                }
-                _ => {}
-            }
-        }
-
-        // verify something is connected to the base
-        if base_joints.is_empty() {
-            return Err(GraphErrors::NoBaseConnections);
-        }
-
-        // recursively clone, identify, and push the components to make the multibody tree
-        let result = self.traverse_component(
-            base,
-            &mut bodies,
-            &mut joints,
-            &mut body_counter,
-            &mut joint_counter,
-        );
-
-        match result {
-            Ok(_) => {
-                let system = MultibodySystem::new(bodies, joints);
-                return Ok(system);
-            }
-            Err(error) => return Err(error),
-        }
-    }
-
     pub fn cursor_moved(&mut self, cursor: Cursor) -> bool {
         let mut redraw = false;
         let cursor_position = cursor.position_in(self.bounds);
@@ -212,7 +139,7 @@ impl Graph {
     }
 
     pub fn delete_pressed(&mut self) {
-        if let Some(selected_node_id) = self.selected_node.take() {
+        if let Some(selected_node_id) = self.selected_node {
             if let Some(selected_node) = self.nodes.remove(&selected_node_id) {
                 // Remove edges from all nodes and edges collection
                 for edge_id in selected_node.edges {
@@ -222,28 +149,37 @@ impl Graph {
                     self.edges.remove(&edge_id);
                 }
 
-                if let Some(component) = self.components.get(&selected_node.component_id) {
-                    // Remove the component from components
-                    self.components.remove(&selected_node.component_id);
-                }
+                match selected_node.component_type {
+                    MultibodyComponent::Base => self.system.base = None,
+                    MultibodyComponent::Body => {
+                        self.system.bodies.remove(&selected_node.component_id);
+                    }
+                    MultibodyComponent::Joint => {
+                        self.system.joints.remove(&selected_node.component_id);
+                    }
+                };
             }
         }
     }
 
-    pub fn edit_component(
-        &mut self,
-        dummy: &DummyComponent,
-        component_id: Uuid,
-    ) -> Result<(), GraphErrors> {
-        let component = match self.components.get(&component_id) {
-            Some(component) => component,
-            None => return Err(GraphErrors::IdNotFound(component_id)),
-        };
-
-        if let Some(component) = self.components.get_mut(&component_id) {
-            component.inherit_from(dummy);
+    pub fn edit_component(&mut self, dummy: &DummyComponent, component_id: Uuid) {
+        match dummy {
+            DummyComponent::Base(dummy_base) => {
+                dummy_base.set_values_for(self.system.base.as_mut().unwrap())
+            }
+            DummyComponent::Body(dummy_body) => {
+                let body = self.system.bodies.get_mut(&component_id).unwrap();
+                dummy_body.set_values_for(body);
+            }
+            DummyComponent::Revolute(dummy_revolute) => {
+                let joint = self.system.joints.get_mut(&component_id).unwrap();
+                match joint {
+                    Joint::Revolute(revolute) => {
+                        dummy_revolute.set_values_for(revolute);
+                    } //_ => {} //TODO: Error
+                }
+            }
         }
-        Ok(())
     }
 
     /// Finds a node within snapping distance of the cursor on the graph, if any.
@@ -282,31 +218,18 @@ impl Graph {
         None
     }
 
-    fn is_valid_connection(&self, from_component_id: &Uuid, to_component_id: &Uuid) -> bool {
-        if let Some(from_component) = self.components.get(from_component_id) {
-            if let Some(to_component) = self.components.get(to_component_id) {
-                matches!(
-                    (from_component, to_component),
-                    (
-                        MultibodyComponent::Base(_),
-                        MultibodyComponent::Joint(Joint::Revolute(_))
-                    ) | (
-                        MultibodyComponent::Body(_),
-                        MultibodyComponent::Joint(Joint::Revolute(_))
-                    ) | (
-                        MultibodyComponent::Joint(Joint::Revolute(_)),
-                        MultibodyComponent::Base(_)
-                    ) | (
-                        MultibodyComponent::Joint(Joint::Revolute(_)),
-                        MultibodyComponent::Body(_)
-                    )
-                )
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+    fn is_valid_connection(
+        &self,
+        from_type: &MultibodyComponent,
+        to_type: &MultibodyComponent,
+    ) -> bool {
+        matches!(
+            (from_type, to_type),
+            (MultibodyComponent::Base, MultibodyComponent::Joint)
+                | (MultibodyComponent::Body, MultibodyComponent::Joint)
+                | (MultibodyComponent::Joint, MultibodyComponent::Base)
+                | (MultibodyComponent::Joint, MultibodyComponent::Body)
+        )
     }
 
     pub fn left_button_pressed(&mut self, cursor: Cursor) {
@@ -356,7 +279,7 @@ impl Graph {
                 match release_event {
                     MouseButtonReleaseEvents::DoubleClick => {
                         clicked_node.is_selected = true;
-                        message = Some(GraphMessage::EditComponent(graphnode.component_id));
+                        message = Some(GraphMessage::EditComponent((graphnode.component_type,graphnode.component_id)));
                     }
                     MouseButtonReleaseEvents::SingleClick => {
                         clicked_node.is_selected = true;
@@ -435,7 +358,7 @@ impl Graph {
         };
 
         // Get the component ID of the from node, return if it does not exist
-        let from_component_id = match self.nodes.get(&from_node_id).map(|node| node.component_id) {
+        let from_node = match self.nodes.get(&from_node_id) {
             Some(id) => id,
             None => {
                 graceful_exit(self);
@@ -453,7 +376,7 @@ impl Graph {
         };
 
         // Get the component ID of the to node, return if it does not exist
-        let to_component_id = match self.nodes.get(&to_node_id).map(|node| node.component_id) {
+        let to_node = match self.nodes.get(&to_node_id) {
             Some(id) => id,
             None => {
                 graceful_exit(self);
@@ -461,51 +384,49 @@ impl Graph {
             }
         };
 
-        // Check if the connection is valid between the from and to components
-        let valid_connection = self.is_valid_connection(&from_component_id, &to_component_id);
-
-        // Connect the components if the connection is valid
-        if valid_connection {
-            // Get the from component, return if it does not exist
-            let from_component = match self.components.get_mut(&from_component_id) {
-                Some(component) => component,
-                None => {
-                    graceful_exit(self);
-                    return;
-                }
-            };
-            from_component.connect_to(to_component_id);
-
-            // Get the to component, return if it does not exist
-            let to_component = match self.components.get_mut(&to_component_id) {
-                Some(component) => component,
-                None => {
-                    graceful_exit(self);
-                    return;
-                }
-            };
-            to_component.connect_from(from_component_id);
-
-            // Get the to node, return if it does not exist
-            let to_node = match self.nodes.get_mut(&to_node_id) {
-                Some(node) => node,
-                None => {
-                    graceful_exit(self);
-                    return;
-                }
-            };
-            to_node.edges.push(edge_id);
-
-            // Update the edge to connect to the to_node, return if the edge does not exist
-            let edge = match self.edges.get_mut(&edge_id) {
-                Some(edge) => edge,
-                None => {
-                    graceful_exit(self);
-                    return;
-                }
-            };
-            edge.to = EdgeConnection::Node(to_node_id);
+        // match valid conections and connect, other wise exit
+        match (&from_node.component_type, &to_node.component_type) {
+            (MultibodyComponent::Base, MultibodyComponent::Joint) => {
+                let base = self.system.base.as_mut().unwrap();
+                let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
+                joint.connect_inner_body(base, Transform::default());
+            }
+            (MultibodyComponent::Body, MultibodyComponent::Joint) => {
+                let body = self.system.bodies.get_mut(&from_node.component_id).unwrap();
+                let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
+                joint.connect_inner_body(body, Transform::default());
+            }
+            (MultibodyComponent::Joint, MultibodyComponent::Body) => {
+                let joint = self.system.joints.get_mut(&from_node.component_id).unwrap();
+                let body = self.system.bodies.get_mut(&to_node.component_id).unwrap();
+                joint.connect_outer_body(body, Transform::default());
+            }
+            _ => {
+                graceful_exit(self);
+                return;
+            }
         }
+
+        // now borrow mutably to push edges to to_node
+        // from_node already has the edge at this point
+        let to_node = match self.nodes.get_mut(&to_node_id) {
+            Some(id) => id,
+            None => {
+                graceful_exit(self);
+                return;
+            }
+        };
+        to_node.edges.push(edge_id);
+
+        // Update the edge to connect to the to_node, return if the edge does not exist
+        let edge = match self.edges.get_mut(&edge_id) {
+            Some(edge) => edge,
+            None => {
+                graceful_exit(self);
+                return;
+            }
+        };
+        edge.to = EdgeConnection::Node(to_node_id);
 
         // Clear the current edge and right-clicked node state
         self.current_edge = None;
@@ -515,16 +436,8 @@ impl Graph {
     pub fn save_component(&mut self, dummy: &DummyComponent) -> Result<(), GraphErrors> {
         // only do this if we can save the node
         if let Some(last_cursor_position) = self.last_cursor_position {
-            // Generate unique IDs for component, node, and name
-            let component_id = Uuid::new_v4();
+            // Generate unique IDs for node
             let node_id = Uuid::new_v4();
-            let name_id = Uuid::new_v4();
-
-            // Create the new component from it's dummy
-            let new_component = match MultibodyComponent::from_dummy(component_id, dummy, node_id) {
-                Ok(component) => component,
-                Err(error) => return Err(GraphErrors::Multibody(error)),
-            };
 
             // Calculate the bounds for the new node
             let size = Size::new(100.0, 50.0); // TODO: make width dynamic based on name length
@@ -534,79 +447,38 @@ impl Graph {
             );
             let bounds = Rectangle::new(top_left, size);
 
-            // Create the new node
-            let name = dummy.get_name().to_string();
-            let new_node = Node::new(bounds);
-            let graph_node = GraphNode::new(component_id, new_node);
+            // Create the new component from it's 'dummy'
+            // also set the component_type
+            let (component_id, component_type) = match dummy {
+                DummyComponent::Base(dummy_base) => {
+                    // add base should have caught more than one base errors
+                    let new_base = dummy_base.to_base();
+                    let out = (*new_base.get_id(), MultibodyComponent::Base);
+                    self.system.add_base(new_base);
+                    out
+                }
+                DummyComponent::Body(dummy_body) => {
+                    let new_body = dummy_body.to_body();
+                    let out = (*new_body.get_id(), MultibodyComponent::Body);
+                    self.system.add_body(new_body);
+                    out
+                }
+                DummyComponent::Revolute(dummy_joint) => {
+                    let new_joint = dummy_joint.to_joint();
+                    let out = (*new_joint.get_id(), MultibodyComponent::Joint);
+                    self.system.add_joint(new_joint);
+                    out
+                }
+            };
 
-            // Insert the new component and node into their respective collections
-            self.components.insert(component_id, new_component);
+            // Create the new node
+            let name = dummy.get_name();
+            let new_node = Node::new(name, bounds);
+            let graph_node = GraphNode::new(component_id, component_type, new_node);
+
             self.nodes.insert(node_id, graph_node);
         }
         Ok(())
-    }
-
-    // Recursive function to traverse the components
-    fn traverse_component(
-        &self,
-        component: &MultibodyComponent,
-        bodies: &mut Vec<MultibodyComponent>,
-        joints: &mut Vec<Joint>,
-        body_counter: &mut usize,
-        joint_counter: &mut usize,
-    ) -> Result<(), GraphErrors> {
-        let mut result = Ok(());
-        match component {
-            MultibodyComponent::Body(body) => {
-                println!("Traversing Body: {:?}", body);
-                let mut body_clone = component.clone();
-                body_clone.set_system_id(*body_counter);
-                bodies.push(body_clone);
-                *body_counter += 1;
-                // Traverse the joints connected to this body
-                for joint_id in body.get_to_id() {
-                    let joint = match self.components.get(joint_id) {
-                        Some(joint) => joint,
-                        None => return Err(GraphErrors::IdNotFound(*joint_id)),
-                    };
-                    result =
-                        self.traverse_component(joint, bodies, joints, body_counter, joint_counter);
-                }
-            }
-
-            MultibodyComponent::Base(base) => {
-                println!("Traversing Base: {:?}", base);
-                let mut base_clone = component.clone();
-                base_clone.set_system_id(*body_counter);
-                bodies.push(base_clone);
-                *body_counter += 1;
-                // Traverse the joints connected to this body
-                for joint_id in base.get_to_id() {
-                    let joint = match self.components.get(joint_id) {
-                        Some(joint) => joint,
-                        None => return Err(GraphErrors::IdNotFound(*joint_id)),
-                    };
-                    result =
-                        self.traverse_component(joint, bodies, joints, body_counter, joint_counter);
-                }
-            }
-            MultibodyComponent::Joint(joint) => {
-                println!("Traversing Joint: {:?}", joint);
-                let mut joint_clone = joint.clone();
-                joint_clone.set_system_id(*joint_counter);
-                *joint_counter += 1;
-                joints.push(joint_clone);
-                for outer_body_id in joint.get_to_id() {
-                    let body = match self.components.get(outer_body_id) {
-                        Some(body) => body,
-                        None => return Err(GraphErrors::IdNotFound(*outer_body_id)),
-                    };
-                    result =
-                        self.traverse_component(body, bodies, joints, body_counter, joint_counter);
-                }
-            }
-        }
-        result
     }
 
     pub fn window_resized(&mut self, size: Size) {

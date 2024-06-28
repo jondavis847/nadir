@@ -1,23 +1,11 @@
 // see the dependency multibody for actual multibody dynamics
 // this is just the ui part of multibody
 
-use multibody::{base::Base, body::Body, joint::Joint, MultibodyTrait};
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum MultibodyComponent {
-    Base(Base),
-    Body(Body),
-    Joint(Joint),
-}
-
-impl MultibodyComponent {
-    pub fn get_name(&self) -> &str {
-        match self {
-            MultibodyComponent::Base(base) => base.get_name(),
-            MultibodyComponent::Body(body) => body.get_name(),
-            MultibodyComponent::Joint(joint) => joint.get_name(),
-        }
-    }
+    Base,
+    Body,
+    Joint,
 }
 
 pub enum BodyField {
@@ -37,7 +25,7 @@ pub enum BodyField {
 pub enum RevoluteField {
     Name,
     ConstantForce,
-    Dampening,
+    damping,
     SpringConstant,
     Omega,
     Theta,

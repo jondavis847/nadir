@@ -237,12 +237,12 @@ impl JointSimTrait for RevoluteSim {
     fn calculate_tau(&mut self) {
         let JointParameters {
             constant_force,
-            dampening,
+            damping,
             spring_constant,
             ..
         } = self.parameters;
         self.aba.tau =
-            constant_force - spring_constant * self.state.theta - dampening * self.state.omega;
+            constant_force - spring_constant * self.state.theta - damping * self.state.omega;
     }
 
     fn calculate_vj(&mut self) {

@@ -26,11 +26,11 @@ pub trait BodyTrait: MultibodyTrait {
 #[derive(Debug, Clone)]
 pub struct Body {
     //actuators: Vec<BodyActuatorConnection>,
-    id: Uuid,
-    inner_joint: Option<Uuid>,
-    mass_properties: MassProperties,
-    name: String,
-    outer_joints: Vec<Uuid>,
+    pub id: Uuid,
+    pub inner_joint: Option<Uuid>,
+    pub mass_properties: MassProperties,
+    pub name: String,
+    pub outer_joints: Vec<Uuid>,
     //sensors: Vec<BodySensorConnection>,
 }
 
