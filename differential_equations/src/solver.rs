@@ -1,4 +1,4 @@
-use super::{CallbackFunction, Integrable, OdeFunction};
+use super::{Integrable, OdeFunction};
 
 pub mod rk4;
 

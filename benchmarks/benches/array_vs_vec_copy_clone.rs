@@ -2,9 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
-    theta: f64,
-    omega: f64,
-    q_ddot: f64,
+    pub theta: f64,
+    pub omega: f64,
+    pub q_ddot: f64,
 }
 
 fn copy_array() {

@@ -116,20 +116,13 @@ pub struct BodySim {
 }
 
 impl From<Body> for BodySim {
-    fn from(body: Body) -> Self {
+    fn from(_body: Body) -> Self {
         let state = BodyState::default();
         Self { state }
     }
 }
 
-impl BodySim {
-    fn set_state(&mut self, state: &BodyState) {
-        self.state = *state;
-    }
-
-    fn get_state(&self) -> &BodyState {
-        &self.state
-    }
+impl BodySim {    
 
     pub fn get_external_force(&self) -> &Force {
         &self.state.external_force

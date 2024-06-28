@@ -152,16 +152,16 @@ impl MultibodySystemSim {
             self.joints[i].set_state(states.0[i]);
         }
     }
+
     pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
         // Create a vec of JointStates
         let initial_joint_states =
             JointStates(self.joints.iter().map(|joint| joint.get_state()).collect());
 
-        // since we only need to integrate joints to get the state, and don't want to impl math operators
-        // for the body states, we just push to them as they are kinematically calculated
+        // Use Vec to store body states
+        let mut body_states: Vec<Vec<BodyState>> = Vec::new();
 
-        let body_states: &mut Vec<Vec<BodyState>> = &mut Vec::new();
-
+        // Initialize the solver
         let mut solver = Solver {
             func: |x, p, t| self.run(x, p, t),
             x0: initial_joint_states,
@@ -173,47 +173,43 @@ impl MultibodySystemSim {
             callbacks: Vec::new(),
         };
 
-        let (t, joint_states) = solver.solve();
+        // Solve for joint states over time
+        let (times, joint_states) = solver.solve();
 
-        // For now we post process the body states until we figure out how to do callbacks the right way
-        for i in 0..t.len() {
-            let ti = t[i];
-            let js = &joint_states[i];
-            self.run(js, &None, ti);
+        // Post-process body states
+        for (ti, js) in times.iter().zip(joint_states.iter()) {
+            self.run(js, &None, *ti);
             update_body_states(&mut self.bodies, &self.joints);
-            let mut new_row = Vec::new();
-            for body in &self.bodies {
-                new_row.push(body.state);
-            }
-            body_states.push(new_row);
+            body_states.push(self.bodies.iter().map(|body| body.state.clone()).collect());
         }
 
         // Convert to a multibody result
         let mut result_hm = HashMap::<String, ResultEntry>::new();
-        result_hm.insert("t".to_string(), ResultEntry::VecF64(t));
+        result_hm.insert("t".to_string(), ResultEntry::VecF64(times));
 
-        for joint_state in joint_states {
+        for joint_state in &joint_states {
             for (i, joint) in joint_state.0.iter().enumerate() {
-                //let joint_id = joint_ids[i];
                 let joint_name = self.joint_names[i].clone();
-                if let JointState::Revolute(revolute) = joint {
-                    let entry = result_hm.entry(joint_name).or_insert_with(|| {
-                        ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
-                    });
+                match joint {
+                    JointState::Revolute(revolute) => {
+                        let entry = result_hm.entry(joint_name.clone()).or_insert_with(|| {
+                            ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
+                        });
 
-                    if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
-                        revolute_result.theta.push(revolute.theta);
-                        revolute_result.omega.push(revolute.omega);
+                        if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
+                            revolute_result.theta.push(revolute.theta);
+                            revolute_result.omega.push(revolute.omega);
+                        }
                     }
                 }
             }
         }
+
         for body_state in body_states {
-            for i in 0..body_state.len() {
-                let body = body_state[i];
+            for (i, body) in body_state.iter().enumerate() {
                 let body_name = self.body_names[i].clone();
                 let entry = result_hm
-                    .entry(body_name)
+                    .entry(body_name.clone())
                     .or_insert_with(|| ResultEntry::Body(BodyResult::default()));
                 if let ResultEntry::Body(body_result) = entry {
                     body_result.position_base.push(body.position_base);
