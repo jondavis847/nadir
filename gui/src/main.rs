@@ -14,18 +14,15 @@ use iced::{
 
 use iced_aw::{card, modal};
 use multibody::{joint::Joint, MultibodyTrait};
-use std::{
-    ops::Mul,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 mod multibody_ui;
 mod ui;
-use multibody_ui::{BodyField, MultibodyComponent, RevoluteField};
+use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::graph::{Graph, GraphMessage};
 use ui::canvas::nodebar::{Nodebar, NodebarMessage};
 use ui::canvas::GraphCanvas;
-use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute, DummyTrait};
+use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
 use ui::modals::ActiveModal;
 
@@ -213,8 +210,7 @@ impl AppState {
                     }
                     DummyComponent::Revolute => {
                         self.modal = Some(active_modal);
-                    }
-                    _ => self.modal = None,
+                    }                    
                 }
             }
         }
@@ -297,8 +293,8 @@ impl AppState {
                         let base = self.nodebar.dummies.base.to_base();
                         let id = *base.get_id();
                         let label = base.get_name().to_string();
-                        self.graph.system.add_base(base);
-                        self.graph.save_component(&modal.dummy_type, id, label);
+                        self.graph.system.add_base(base).unwrap();
+                        self.graph.save_component(&modal.dummy_type, id, label).unwrap();
                     }
                 }
                 self.nodebar.dummies.base.clear();
@@ -320,8 +316,8 @@ impl AppState {
                         let body = self.nodebar.dummies.body.to_body();
                         let id = *body.get_id();
                         let label = body.get_name().to_string();
-                        self.graph.system.add_body(body);
-                        self.graph.save_component(&modal.dummy_type, id, label);
+                        self.graph.system.add_body(body).unwrap();
+                        self.graph.save_component(&modal.dummy_type, id, label).unwrap();
                     }
                 }
                 self.nodebar.dummies.body.clear();
@@ -347,8 +343,8 @@ impl AppState {
                         let joint = self.nodebar.dummies.revolute.to_joint();
                         let id = *joint.get_id();
                         let label = joint.get_name().to_string();
-                        self.graph.system.add_joint(joint);
-                        self.graph.save_component(&modal.dummy_type, id, label);
+                        self.graph.system.add_joint(joint).unwrap();
+                        self.graph.save_component(&modal.dummy_type, id, label).unwrap();
                     }
                 }
 

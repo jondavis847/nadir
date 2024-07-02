@@ -2,9 +2,8 @@ use iced::{mouse::Cursor, Point, Rectangle, Size};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::multibody_ui::MultibodyComponent;
 use crate::ui::canvas::node::Node;
-use crate::ui::dummies::{Dummies, DummyBase, DummyBody, DummyComponent, DummyRevolute};
+use crate::ui::dummies::{Dummies, DummyComponent};
 use crate::ui::modals::ActiveModal;
 use crate::{MouseButton, MouseButtonReleaseEvents};
 
@@ -35,13 +34,6 @@ impl NodebarNode {
         self.node.is_left_clicked = false;
         self.node.is_selected = false;
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct NodebarMap {
-    pub base: Uuid,
-    pub body: Uuid,
-    pub revolute: Uuid,
 }
 
 #[derive(Debug, Clone)]

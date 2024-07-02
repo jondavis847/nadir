@@ -18,7 +18,7 @@ use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
