@@ -131,17 +131,17 @@ impl DummyBody {
     }
 
     pub fn to_body(&self) -> Body {
-        let cmx = self.cmx.parse::<f64>().unwrap();
-        let cmy = self.cmy.parse::<f64>().unwrap();
-        let cmz = self.cmz.parse::<f64>().unwrap();
-        let ixx = self.ixx.parse::<f64>().unwrap();
-        let iyy = self.iyy.parse::<f64>().unwrap();
-        let izz = self.izz.parse::<f64>().unwrap();
-        let ixy = self.ixy.parse::<f64>().unwrap();
-        let ixz = self.ixz.parse::<f64>().unwrap();
-        let iyz = self.iyz.parse::<f64>().unwrap();
+        let cmx = self.cmx.parse::<f64>().unwrap_or(0.0);
+        let cmy = self.cmy.parse::<f64>().unwrap_or(0.0);
+        let cmz = self.cmz.parse::<f64>().unwrap_or(0.0);
+        let ixx = self.ixx.parse::<f64>().unwrap_or(1.0);
+        let iyy = self.iyy.parse::<f64>().unwrap_or(1.0);
+        let izz = self.izz.parse::<f64>().unwrap_or(1.0);
+        let ixy = self.ixy.parse::<f64>().unwrap_or(0.0);
+        let ixz = self.ixz.parse::<f64>().unwrap_or(0.0);
+        let iyz = self.iyz.parse::<f64>().unwrap_or(0.0);
 
-        let mass = self.mass.parse::<f64>().unwrap();
+        let mass = self.mass.parse::<f64>().unwrap_or(1.0);
         let cm = CenterOfMass::new(cmx, cmy, cmz);
         let inertia = Inertia::new(ixx, iyy, izz, ixy, ixz, iyz).unwrap();
         let mp = MassProperties::new(mass, cm, inertia).unwrap();
@@ -179,22 +179,22 @@ impl DummyRevolute {
 
     pub fn set_values_for(&self, rev: &mut Revolute) {
         rev.set_name(self.name.clone());
-        rev.state.theta = self.theta.parse::<f64>().unwrap();
-        rev.state.omega = self.omega.parse::<f64>().unwrap();
-        rev.parameters.spring_constant = self.spring_constant.parse::<f64>().unwrap();
-        rev.parameters.damping = self.damping.parse::<f64>().unwrap();
-        rev.parameters.constant_force = self.constant_force.parse::<f64>().unwrap();
+        rev.state.theta = self.theta.parse::<f64>().unwrap_or(0.0);
+        rev.state.omega = self.omega.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.spring_constant = self.spring_constant.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.damping = self.damping.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.constant_force = self.constant_force.parse::<f64>().unwrap_or(0.0);
     }
 
     pub fn to_joint(&self) -> Joint {
         let state = RevoluteState::new(
-            self.theta.parse::<f64>().unwrap(),
-            self.omega.parse::<f64>().unwrap(),
+            self.theta.parse::<f64>().unwrap_or(0.0),
+            self.omega.parse::<f64>().unwrap_or(0.0),
         );
         let parameters = JointParameters::new(
-            self.constant_force.parse::<f64>().unwrap(),
-            self.damping.parse::<f64>().unwrap(),
-            self.spring_constant.parse::<f64>().unwrap(),
+            self.constant_force.parse::<f64>().unwrap_or(0.0),
+            self.damping.parse::<f64>().unwrap_or(0.0),
+            self.spring_constant.parse::<f64>().unwrap_or(0.0),
         );
         let revolute = Revolute::new(self.name.as_str(), parameters, state);
         Joint::Revolute(revolute)
