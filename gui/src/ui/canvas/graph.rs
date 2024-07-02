@@ -164,7 +164,7 @@ impl Graph {
 
     pub fn edit_component(&mut self, dummy: &DummyComponent, component_id: Uuid) {
         match dummy {
-            DummyComponent::Base(dummy_base) => {
+            DummyComponent::Base => {
                 dummy_base.set_values_for(self.system.base.as_mut().unwrap())
             }
             DummyComponent::Body(dummy_body) => {
