@@ -13,7 +13,7 @@ use iced::{
 };
 
 use iced_aw::{card, modal};
-use multibody::joint::Joint;
+use multibody::{joint::Joint, MultibodyTrait};
 use std::{
     ops::Mul,
     time::{Duration, Instant},
@@ -195,89 +195,55 @@ impl AppState {
             }
             _ => MouseButtonReleaseEvents::Nothing,
         };
-        if let Some(NodebarMessage::NewComponent(id)) =
+        if let Some(NodebarMessage::NewComponent(active_modal)) =
             self.nodebar.left_button_released(&release_event)
         {
             // Only create a new component if the mouse is over the graph
             if cursor.is_over(self.graph.bounds) {
-                if self.nodebar.components.contains_key(&id) {
-                    if let Some(component) = self.nodebar.components.get(&id) {
-                        // Don't allow more than one base
-                        let mut set_modal = false;
-
-                        match component {
-                            &DummyComponent::Base(_) => {
-                                if self.graph.system.base.is_some() {
-                                    self.active_error = Some(Errors::TooManyBases);
-                                } else {
-                                    set_modal = true;
-                                }
-                            }
-                            _ => {
-                                // Not a base, all good
-                                set_modal = true;
-                            }
-                        }
-
-                        if set_modal {
-                            self.modal = Some(ActiveModal::new(id, None));
+                match active_modal.dummy_type {
+                    DummyComponent::Base => {
+                        if self.graph.system.base.is_some() {
+                            self.active_error = Some(Errors::TooManyBases);
+                        } else {
+                            self.modal = Some(active_modal);
                         }
                     }
+                    DummyComponent::Body => {
+                        self.modal = Some(active_modal);
+                    }
+                    DummyComponent::Revolute => {
+                        self.modal = Some(active_modal);
+                    }
+                    _ => self.modal = None,
                 }
             }
         }
         if let Some(GraphMessage::EditComponent((component_type, component_id))) =
             self.graph.left_button_released(&release_event, cursor)
         {
+            let dummy_type;
             match component_type {
-                MultibodyComponent::Base => {
-                    let base = &self.graph.system.base.unwrap();
-                    let dummy = self
-                        .nodebar
-                        .components
-                        .get_mut(&self.nodebar.map.base)
-                        .unwrap();
-                    match dummy {
-                        DummyComponent::Base(dummy_base) => {
-                            dummy_base.get_values_from(base);
-                        }
-                        _ => {} //TODO error, should not be possible
-                    }
+                DummyComponent::Base => {
+                    let base = self.graph.system.base.as_ref().unwrap();
+                    self.nodebar.dummies.base.get_values_from(base);
+                    dummy_type = DummyComponent::Base;
                 }
-                MultibodyComponent::Body => {
+                DummyComponent::Body => {
                     let body = self.graph.system.bodies.get(&component_id).unwrap();
-                    let dummy = self
-                        .nodebar
-                        .components
-                        .get_mut(&self.nodebar.map.body)
-                        .unwrap();
-                    match dummy {
-                        DummyComponent::Body(dummy_body) => {
-                            dummy_body.get_values_from(body);
-                        }
-                        _ => {} //TODO error, should not be possible
-                    }
+                    self.nodebar.dummies.body.get_values_from(body);
+                    dummy_type = DummyComponent::Body;
                 }
-                MultibodyComponent::Joint => {
+                DummyComponent::Revolute => {
                     let joint = self.graph.system.joints.get(&component_id).unwrap();
                     match joint {
                         Joint::Revolute(revolute) => {
-                            let dummy = self
-                                .nodebar
-                                .components
-                                .get_mut(&self.nodebar.map.revolute)
-                                .unwrap();
-                            match dummy {
-                                DummyComponent::Revolute(dummy_rev) => {
-                                    dummy_rev.get_values_from(revolute);
-                                }
-                                _ => {} //TODO error, should not be possible
-                            }
+                            self.nodebar.dummies.revolute.get_values_from(revolute);
+                            dummy_type = DummyComponent::Revolute;
                         }
                     }
                 }
             }
-            self.modal = Some(ActiveModal(component_type));
+            self.modal = Some(ActiveModal::new(dummy_type, Some(component_id)));
         }
 
         self.cache.clear();
@@ -288,10 +254,10 @@ impl AppState {
         //match self.graph.create_multibody_system() {
         //    Ok(system) => dbg!(system),
         //    Err(error) => {
-                // TODO: handle error
+        // TODO: handle error
         //        return Command::none();
         //    }
-       // };
+        // };
         Command::none()
     }
 
@@ -315,45 +281,80 @@ impl AppState {
             None => return Command::none(),
         };
 
-        // early return
-        match modal.0 {
-            MultibodyComponent::Base => {
+        match modal.dummy_type {
+            DummyComponent::Base => {
                 if self.nodebar.dummies.base.name.is_empty() {
                     self.nodebar.dummies.base.name = "base".to_string();
                 }
-                let base = self.nodebar.dummies.base.to_base();
-                self.graph.system.base = Some(base);
-            },
-            MultibodyComponent::Body => {
+                match modal.component_id {
+                    Some(_) => {
+                        let base = self.graph.system.base.as_mut().unwrap();
+                        //editing existing component
+                        self.nodebar.dummies.base.set_values_for(base);
+                    }
+                    None => {
+                        // saving a new base - hopefully error was caught somewhere that cant have too many bases
+                        let base = self.nodebar.dummies.base.to_base();
+                        let id = *base.get_id();
+                        let label = base.get_name().to_string();
+                        self.graph.system.add_base(base);
+                        self.graph.save_component(&modal.dummy_type, id, label);
+                    }
+                }
+                self.nodebar.dummies.base.clear();
+            }
+            DummyComponent::Body => {
                 if self.nodebar.dummies.body.name.is_empty() {
                     self.counter_body += 1;
-                    self.nodebar.dummies.body.name = format!("body{}",self.counter_body).to_string();
+                    self.nodebar.dummies.body.name =
+                        format!("body{}", self.counter_body).to_string();
                 }
-                let base = self.nodebar.dummies.base.to_base();
-                self.graph.system.base = Some(base);
+                match modal.component_id {
+                    Some(id) => {
+                        //editing existing body
+                        let body = self.graph.system.bodies.get_mut(&id).unwrap();
+                        self.nodebar.dummies.body.set_values_for(body);
+                    }
+                    None => {
+                        //creating new body
+                        let body = self.nodebar.dummies.body.to_body();
+                        let id = *body.get_id();
+                        let label = body.get_name().to_string();
+                        self.graph.system.add_body(body);
+                        self.graph.save_component(&modal.dummy_type, id, label);
+                    }
+                }
+                self.nodebar.dummies.body.clear();
+            }
+            DummyComponent::Revolute => {
+                if self.nodebar.dummies.revolute.name.is_empty() {
+                    self.counter_revolute += 1;
+                    self.nodebar.dummies.revolute.name =
+                        format!("revolute{}", self.counter_revolute).to_string();
+                }
+                match modal.component_id {
+                    Some(id) => {
+                        //editing existing joint
+                        let joint = self.graph.system.joints.get_mut(&id).unwrap();
+                        match joint {
+                            Joint::Revolute(revolute) => {
+                                self.nodebar.dummies.revolute.set_values_for(revolute)
+                            }
+                        }
+                    }
+                    None => {
+                        //create new joint
+                        let joint = self.nodebar.dummies.revolute.to_joint();
+                        let id = *joint.get_id();
+                        let label = joint.get_name().to_string();
+                        self.graph.system.add_joint(joint);
+                        self.graph.save_component(&modal.dummy_type, id, label);
+                    }
+                }
+
+                self.nodebar.dummies.revolute.clear();
             }
         }
-        
-
-        // Ensure the body has a unique name if it's empty
-        if dummy_component.get_name().is_empty() {
-            let name = match dummy_component {
-                DummyComponent::Base(_) => "base".to_string(),
-                DummyComponent::Body(_) => {
-                    self.counter_body += 1;
-                    format!("body{}", self.counter_body)
-                }
-                DummyComponent::Revolute(_) => {
-                    self.counter_revolute += 1;
-                    format!("revolute{}", self.counter_revolute)
-                }
-            };
-            dummy_component.set_name(&name);
-        }
-        match modal.graph_component_id {
-            Some(id) => self.graph.edit_component(&dummy_component, id),
-            None => self.graph.save_component(&dummy_component),
-        };
 
         //TODO: actually do something with the error/message
         //match graph_message {
@@ -361,7 +362,6 @@ impl AppState {
         //}
 
         // Clear the modal and cache
-        dummy_component.clear();
         self.modal = None;
         self.cache.clear();
         Command::none()
@@ -377,49 +377,36 @@ impl AppState {
     }
 
     pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {
-        if let Some(dummy_component) = self.nodebar.components.get_mut(&self.nodebar.map.body) {
-            if let DummyComponent::Body(dummy_body) = dummy_component {
-                match field {
-                    BodyField::Name => dummy_body.set_name(value),
-                    BodyField::Mass => dummy_body.mass = value.to_string(),
-                    BodyField::Cmx => dummy_body.cmx = value.to_string(),
-                    BodyField::Cmy => dummy_body.cmy = value.to_string(),
-                    BodyField::Cmz => dummy_body.cmz = value.to_string(),
-                    BodyField::Ixx => dummy_body.ixx = value.to_string(),
-                    BodyField::Iyy => dummy_body.iyy = value.to_string(),
-                    BodyField::Izz => dummy_body.izz = value.to_string(),
-                    BodyField::Ixy => dummy_body.ixy = value.to_string(),
-                    BodyField::Ixz => dummy_body.ixz = value.to_string(),
-                    BodyField::Iyz => dummy_body.iyz = value.to_string(),
-                }
-            } else {
-                // Handle error: must be the dummy body
-                eprintln!("Error: Component is not a DummyBody");
-            }
+        let dummy_body = &mut self.nodebar.dummies.body;
+
+        match field {
+            BodyField::Name => dummy_body.name = value.to_string(),
+            BodyField::Mass => dummy_body.mass = value.to_string(),
+            BodyField::Cmx => dummy_body.cmx = value.to_string(),
+            BodyField::Cmy => dummy_body.cmy = value.to_string(),
+            BodyField::Cmz => dummy_body.cmz = value.to_string(),
+            BodyField::Ixx => dummy_body.ixx = value.to_string(),
+            BodyField::Iyy => dummy_body.iyy = value.to_string(),
+            BodyField::Izz => dummy_body.izz = value.to_string(),
+            BodyField::Ixy => dummy_body.ixy = value.to_string(),
+            BodyField::Ixz => dummy_body.ixz = value.to_string(),
+            BodyField::Iyz => dummy_body.iyz = value.to_string(),
         }
+
         Command::none()
     }
 
     pub fn update_revolute_field(&mut self, field: RevoluteField, value: &str) -> Command<Message> {
-        if let Some(dummy_component) = self.nodebar.components.get_mut(&self.nodebar.map.revolute) {
-            if let DummyComponent::Revolute(dummy_revolute) = dummy_component {
-                match field {
-                    RevoluteField::Name => dummy_revolute.set_name(value),
-                    RevoluteField::ConstantForce => {
-                        dummy_revolute.constant_force = value.to_string()
-                    }
-                    RevoluteField::damping => dummy_revolute.damping = value.to_string(),
-                    RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
-                    RevoluteField::SpringConstant => {
-                        dummy_revolute.spring_constant = value.to_string()
-                    }
-                    RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
-                }
-            } else {
-                // Handle error: must be the dummy revolute
-                eprintln!("Error: Component is not a DummyRevolute");
-            }
+        let dummy_revolute = &mut self.nodebar.dummies.revolute;
+        match field {
+            RevoluteField::Name => dummy_revolute.name = value.to_string(),
+            RevoluteField::ConstantForce => dummy_revolute.constant_force = value.to_string(),
+            RevoluteField::damping => dummy_revolute.damping = value.to_string(),
+            RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
+            RevoluteField::SpringConstant => dummy_revolute.spring_constant = value.to_string(),
+            RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
         }
+
         Command::none()
     }
 
@@ -591,19 +578,12 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
     let overlay = if let Some(active_error) = state.active_error {
         Some(create_error_modal(active_error))
     } else if let Some(active_modal) = state.modal {
-        // and there's a DummyComponent for that ActiveModal
-        if let Some(dummy) = state
-            .nodebar
-            .components
-            .get(&active_modal.dummy_component_id)
-        {
-            match dummy {
-                DummyComponent::Base(base) => Some(create_base_modal(base)),
-                DummyComponent::Body(body) => Some(create_body_modal(body)),
-                DummyComponent::Revolute(joint) => Some(create_revolute_modal(joint)),
+        match active_modal.dummy_type {
+            DummyComponent::Base => Some(create_base_modal(&state.nodebar.dummies.base)),
+            DummyComponent::Body => Some(create_body_modal(&state.nodebar.dummies.body)),
+            DummyComponent::Revolute => {
+                Some(create_revolute_modal(&state.nodebar.dummies.revolute))
             }
-        } else {
-            None
         }
     } else {
         None
@@ -655,7 +635,7 @@ fn create_body_modal(body: &DummyBody) -> Element<Message, crate::ui::theme::The
     let content = Column::new()
         .push(create_text_input(
             "name",
-            &body.get_name(),
+            &body.name,
             Message::BodyNameInputChanged,
         ))
         .push(create_text_input(

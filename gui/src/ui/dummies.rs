@@ -23,7 +23,7 @@ pub struct Dummies {
 
 /// DummyComponents are like MultibodyComponents but with String fields
 /// for editing in the text inputs rather than numeric values
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum DummyComponent {
     Base,
     Body,
@@ -36,13 +36,15 @@ pub trait DummyTrait {
     fn set_name(&mut self, name: &str);
 }
 
-
 #[derive(Debug, Default, Clone)]
 pub struct DummyBase {
     pub name: String,
 }
 
 impl DummyBase {
+    pub fn clear(&mut self) {
+        self.name = "".to_string();
+    }
     pub fn new() -> Self {
         Self {
             ..Default::default()
@@ -62,7 +64,6 @@ impl DummyBase {
     }
 }
 
-
 #[derive(Default, Debug, Clone)]
 pub struct DummyBody {
     pub name: String,
@@ -79,7 +80,7 @@ pub struct DummyBody {
 }
 
 impl DummyBody {
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.name = String::new();
         self.mass = String::new();
         self.cmx = String::new();
@@ -92,7 +93,6 @@ impl DummyBody {
         self.ixz = String::new();
         self.iyz = String::new();
     }
-
 
     pub fn get_values_from(&mut self, body: &Body) {
         let mp = body.mass_properties;
@@ -148,7 +148,6 @@ impl DummyBody {
         Body::new(self.name.as_str(), mp).unwrap()
     }
 }
-
 
 #[derive(Default, Debug, Clone)]
 pub struct DummyRevolute {

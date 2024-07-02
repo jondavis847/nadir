@@ -5,16 +5,17 @@ use uuid::Uuid;
 use crate::multibody_ui::MultibodyComponent;
 use crate::ui::canvas::node::Node;
 use crate::ui::dummies::{Dummies, DummyBase, DummyBody, DummyComponent, DummyRevolute};
+use crate::ui::modals::ActiveModal;
 use crate::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum NodebarMessage {
-    NewComponent(Uuid),
+    NewComponent(ActiveModal),
 }
 
 #[derive(Debug, Clone)]
 pub struct NodebarNode {
     pub component_type: DummyComponent,
-    pub home: Point,    
+    pub home: Point,
     pub node: Node,
 }
 
@@ -22,7 +23,7 @@ impl NodebarNode {
     pub fn new(component_type: DummyComponent, home: Point, node: Node) -> Self {
         Self {
             component_type,
-            home,            
+            home,
             node,
         }
     }
@@ -43,19 +44,16 @@ pub struct NodebarMap {
     pub revolute: Uuid,
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct Nodebar {
     pub bounds: Rectangle,
     pub dummies: Dummies,
-    pub left_clicked_node: Option<Uuid>,    
+    pub left_clicked_node: Option<Uuid>,
     pub nodes: HashMap<Uuid, NodebarNode>,
 }
 
 impl Default for Nodebar {
     fn default() -> Self {
-        
         let mut nodes = HashMap::new();
         let bounds = Rectangle::new(Point::new(0.0, 0.0), Size::new(130.0, 1000.0));
         let mut count: f32 = 1.0;
@@ -73,13 +71,13 @@ impl Default for Nodebar {
         nodes.insert(revolute_node_id, revolute_node);
 
         let left_clicked_node = None;
-        
+
         let dummies = Dummies::default();
 
         Self {
             bounds,
             dummies,
-            left_clicked_node,            
+            left_clicked_node,
             nodes,
         }
     }
@@ -126,20 +124,22 @@ impl Nodebar {
         let mut message = None;
 
         if let Some(clicked_node_id) = self.left_clicked_node {
-            if let Some(nodebarnode) = self.nodes.get_mut(&clicked_node_id) {                
+            if let Some(nodebarnode) = self.nodes.get_mut(&clicked_node_id) {
                 match release_event {
                     MouseButtonReleaseEvents::DoubleClick => {}
-                    MouseButtonReleaseEvents::SingleClick => {                        
+                    MouseButtonReleaseEvents::SingleClick => {
                         // SingleClick is < 200 ms, which you can move and drop fast enough technically
-                        if self.components.contains_key(&nodebarnode.component_id) {
-                            message = Some(NodebarMessage::NewComponent(nodebarnode.component_id));
-                        }
+                        message = Some(NodebarMessage::NewComponent(ActiveModal::new(
+                            nodebarnode.component_type,
+                            None,
+                        )));
                         nodebarnode.go_home();
                     }
                     MouseButtonReleaseEvents::Held => {
-                        if self.components.contains_key(&nodebarnode.component_id) {
-                            message = Some(NodebarMessage::NewComponent(nodebarnode.component_id));
-                        }
+                        message = Some(NodebarMessage::NewComponent(ActiveModal::new(
+                            nodebarnode.component_type,
+                            None,
+                        )));
                         nodebarnode.go_home();
                     }
                     MouseButtonReleaseEvents::Nothing => {}
@@ -169,13 +169,17 @@ impl Nodebar {
     }
 }
 
-fn create_default_node(label: &str, count: &mut f32, component_type: DummyComponent) -> NodebarNode {
+fn create_default_node(
+    label: &str,
+    count: &mut f32,
+    component_type: DummyComponent,
+) -> NodebarNode {
     let padding = 15.0;
     let height = 50.0;
     let node_size = Size::new(100.0, height);
     let home = Point::new(padding, *count * padding + (*count - 1.0) * height);
 
-    let node = Node::new(label.to_string(),Rectangle::new(home, node_size)); //, label.to_string());
+    let node = Node::new(label.to_string(), Rectangle::new(home, node_size)); //, label.to_string());
 
     *count += 1.0;
     NodebarNode::new(component_type, home, node)

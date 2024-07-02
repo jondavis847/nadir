@@ -10,10 +10,11 @@ use multibody::{joint::Joint, system::MultibodySystem, MultibodyErrors, Multibod
 
 use crate::multibody_ui::MultibodyComponent;
 use crate::ui::dummies::{DummyComponent, DummyTrait};
+use crate::ui::modals::ActiveModal;
 use crate::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum GraphMessage {
-    EditComponent((MultibodyComponent,Uuid)),
+    EditComponent((DummyComponent, Uuid)),
 }
 
 pub enum GraphErrors {
@@ -31,17 +32,17 @@ pub enum GraphErrors {
 #[derive(Debug, Clone)]
 pub struct GraphNode {
     pub component_id: Uuid,
-    pub component_type: MultibodyComponent,
+    pub dummy_type: DummyComponent,
     pub edges: Vec<Uuid>,
     pub node: Node,
 }
 
 impl GraphNode {
-    fn new(component_id: Uuid, component_type: MultibodyComponent, node: Node) -> Self {
+    fn new(component_id: Uuid, dummy_type: DummyComponent, node: Node) -> Self {
         let edges = Vec::new();
         Self {
             component_id,
-            component_type,
+            dummy_type,
             edges,
             node,
         }
@@ -149,35 +150,15 @@ impl Graph {
                     self.edges.remove(&edge_id);
                 }
 
-                match selected_node.component_type {
-                    MultibodyComponent::Base => self.system.base = None,
-                    MultibodyComponent::Body => {
+                match selected_node.dummy_type {
+                    DummyComponent::Base => self.system.base = None,
+                    DummyComponent::Body => {
                         self.system.bodies.remove(&selected_node.component_id);
                     }
-                    MultibodyComponent::Joint => {
+                    DummyComponent::Revolute => {
                         self.system.joints.remove(&selected_node.component_id);
                     }
                 };
-            }
-        }
-    }
-
-    pub fn edit_component(&mut self, dummy: &DummyComponent, component_id: Uuid) {
-        match dummy {
-            DummyComponent::Base(dummy_base) => {
-                dummy_base.set_values_for(self.system.base.as_mut().unwrap())
-            }
-            DummyComponent::Body(dummy_body) => {
-                let body = self.system.bodies.get_mut(&component_id).unwrap();
-                dummy_body.set_values_for(body);
-            }
-            DummyComponent::Revolute(dummy_revolute) => {
-                let joint = self.system.joints.get_mut(&component_id).unwrap();
-                match joint {
-                    Joint::Revolute(revolute) => {
-                        dummy_revolute.set_values_for(revolute);
-                    } //_ => {} //TODO: Error
-                }
             }
         }
     }
@@ -279,7 +260,13 @@ impl Graph {
                 match release_event {
                     MouseButtonReleaseEvents::DoubleClick => {
                         clicked_node.is_selected = true;
-                        message = Some(GraphMessage::EditComponent((graphnode.component_type,graphnode.component_id)));
+
+                        let active_modal =
+                            ActiveModal::new(graphnode.dummy_type, Some(graphnode.component_id));
+                        message = Some(GraphMessage::EditComponent((
+                            graphnode.dummy_type,
+                            graphnode.component_id,
+                        )));
                     }
                     MouseButtonReleaseEvents::SingleClick => {
                         clicked_node.is_selected = true;
@@ -385,18 +372,18 @@ impl Graph {
         };
 
         // match valid conections and connect, other wise exit
-        match (&from_node.component_type, &to_node.component_type) {
-            (MultibodyComponent::Base, MultibodyComponent::Joint) => {
+        match (&from_node.dummy_type, &to_node.dummy_type) {
+            (DummyComponent::Base, DummyComponent::Revolute) => {
                 let base = self.system.base.as_mut().unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
                 joint.connect_inner_body(base, Transform::default());
             }
-            (MultibodyComponent::Body, MultibodyComponent::Joint) => {
+            (DummyComponent::Body, DummyComponent::Revolute) => {
                 let body = self.system.bodies.get_mut(&from_node.component_id).unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
                 joint.connect_inner_body(body, Transform::default());
             }
-            (MultibodyComponent::Joint, MultibodyComponent::Body) => {
+            (DummyComponent::Revolute, DummyComponent::Body) => {
                 let joint = self.system.joints.get_mut(&from_node.component_id).unwrap();
                 let body = self.system.bodies.get_mut(&to_node.component_id).unwrap();
                 joint.connect_outer_body(body, Transform::default());
@@ -433,7 +420,12 @@ impl Graph {
         self.right_clicked_node = None;
     }
 
-    pub fn save_component(&mut self, dummy: &DummyComponent) -> Result<(), GraphErrors> {
+    pub fn save_component(
+        &mut self,
+        dummy_type: &DummyComponent,
+        component_id: Uuid,
+        label: String,
+    ) -> Result<(), GraphErrors> {
         // only do this if we can save the node
         if let Some(last_cursor_position) = self.last_cursor_position {
             // Generate unique IDs for node
@@ -447,34 +439,10 @@ impl Graph {
             );
             let bounds = Rectangle::new(top_left, size);
 
-            // Create the new component from it's 'dummy'
-            // also set the component_type
-            let (component_id, component_type) = match dummy {
-                DummyComponent::Base(dummy_base) => {
-                    // add base should have caught more than one base errors
-                    let new_base = dummy_base.to_base();
-                    let out = (*new_base.get_id(), MultibodyComponent::Base);
-                    self.system.add_base(new_base);
-                    out
-                }
-                DummyComponent::Body(dummy_body) => {
-                    let new_body = dummy_body.to_body();
-                    let out = (*new_body.get_id(), MultibodyComponent::Body);
-                    self.system.add_body(new_body);
-                    out
-                }
-                DummyComponent::Revolute(dummy_joint) => {
-                    let new_joint = dummy_joint.to_joint();
-                    let out = (*new_joint.get_id(), MultibodyComponent::Joint);
-                    self.system.add_joint(new_joint);
-                    out
-                }
-            };
-
             // Create the new node
-            let name = dummy.get_name();
+            let name = label;
             let new_node = Node::new(name, bounds);
-            let graph_node = GraphNode::new(component_id, component_type, new_node);
+            let graph_node = GraphNode::new(component_id, *dummy_type, new_node);
 
             self.nodes.insert(node_id, graph_node);
         }
