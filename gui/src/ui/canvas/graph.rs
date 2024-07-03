@@ -55,8 +55,7 @@ pub struct Graph {
     current_edge: Option<Uuid>,
     pub edges: HashMap<Uuid, Edge>,
     pub is_clicked: bool,
-    cursor_position_previous: Option<Point>,
-    cursor_position: Option<Point>,
+    cursor_position_previous: Option<Point>,    
     left_clicked_node: Option<Uuid>,
     pub nodes: HashMap<Uuid, GraphNode>,
     right_clicked_node: Option<Uuid>,
@@ -72,8 +71,7 @@ impl Default for Graph {
             current_edge: None,
             edges: HashMap::new(),
             is_clicked: false,
-            cursor_position_previous: None,
-            cursor_position: None,
+            cursor_position_previous: None,            
             left_clicked_node: None,
             nodes: HashMap::new(),
             right_clicked_node: None,
@@ -416,7 +414,8 @@ impl Graph {
         // only do this if we can save the node
         if let Some(cursor_position_previous) = self.cursor_position_previous {
             // Generate unique IDs for node
-            let node_id = Uuid::new_v4();
+            // actually lets juts use the component id since it's a different hashmap
+            // let node_id = Uuid::new_v4();
 
             // Calculate the bounds for the new node
             let size = Size::new(100.0, 50.0); // TODO: make width dynamic based on name length
@@ -431,7 +430,7 @@ impl Graph {
             let new_node = Node::new(name, bounds);
             let graph_node = GraphNode::new(component_id, *dummy_type, new_node);
 
-            self.nodes.insert(node_id, graph_node);
+            self.nodes.insert(component_id, graph_node);
         }
         Ok(())
     }

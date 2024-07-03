@@ -11,7 +11,7 @@ use crate::{
         },
         dummies::DummyComponent,
         modals::ActiveModal,
-        simdiv::SimDiv,
+        simdiv::{SimDiv, SimDivState},
     },
     Message,
 };
@@ -91,8 +91,8 @@ impl AppState {
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         self.left_clicked_time_1 = self.left_clicked_time_2;
         self.left_clicked_time_2 = Some(Instant::now());
-        
-        self.nodebar.left_button_pressed(canvas_cursor_position);        
+
+        self.nodebar.left_button_pressed(canvas_cursor_position);
         self.graph.left_button_pressed(canvas_cursor_position);
         self.cache.clear();
         Command::none()
@@ -144,8 +144,9 @@ impl AppState {
                 }
             }
         }
-        if let Some(GraphMessage::EditComponent((component_type, component_id))) =
-            self.graph.left_button_released(&release_event, canvas_cursor_position)
+        if let Some(GraphMessage::EditComponent((component_type, component_id))) = self
+            .graph
+            .left_button_released(&release_event, canvas_cursor_position)
         {
             let dummy_type;
             match component_type {
@@ -213,10 +214,13 @@ impl AppState {
                     self.nodebar.dummies.base.name = "base".to_string();
                 }
                 match modal.component_id {
-                    Some(_) => {
+                    Some(id) => {
                         let base = self.graph.system.base.as_mut().unwrap();
                         //editing existing component
                         self.nodebar.dummies.base.set_values_for(base);
+                        // set the label for the node
+                        let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                        graph_node.node.label = base.get_name().to_string();
                     }
                     None => {
                         // saving a new base - hopefully error was caught somewhere that cant have too many bases
@@ -242,6 +246,8 @@ impl AppState {
                         //editing existing body
                         let body = self.graph.system.bodies.get_mut(&id).unwrap();
                         self.nodebar.dummies.body.set_values_for(body);
+                        let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                        graph_node.node.label = body.get_name().to_string();
                     }
                     None => {
                         //creating new body
@@ -268,7 +274,9 @@ impl AppState {
                         let joint = self.graph.system.joints.get_mut(&id).unwrap();
                         match joint {
                             Joint::Revolute(revolute) => {
-                                self.nodebar.dummies.revolute.set_values_for(revolute)
+                                self.nodebar.dummies.revolute.set_values_for(revolute);
+                                let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                                graph_node.node.label = revolute.get_name().to_string();
                             }
                         }
                     }
@@ -296,6 +304,21 @@ impl AppState {
         // Clear the modal and cache
         self.modal = None;
         self.cache.clear();
+        Command::none()
+    }
+
+    pub fn simulate(&self) -> Command<Message> {
+        let sys = &self.graph.system;
+
+        let SimDivState {
+            start_time,
+            stop_time,
+            dt,
+        } = self.simdiv.state;
+
+        let result = sys.simulate(start_time, stop_time, dt);
+        let joint1 = result.get_component("joint1");
+        dbg!(joint1);
         Command::none()
     }
 

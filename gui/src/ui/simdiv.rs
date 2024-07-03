@@ -1,6 +1,6 @@
 use crate::Message;
 use iced::{
-    widget::{text, text_input, Column, Row},
+    widget::{button, text, text::Text, text_input, Column, Row},
     Command, Element, Length, Point, Rectangle, Size,
 };
 
@@ -47,23 +47,38 @@ impl SimDiv {
                 .width(Length::Fill)
                 .padding(5.0)
         };
-
         Column::new()
-            .push(create_text_input(
-                "start time",
-                &self.state.start_time.to_string(),
-                Message::SimStartTimeChanged,
-            ))
-            .push(create_text_input(
-                "stop time",
-                &self.state.stop_time.to_string(),
-                Message::SimStopTimeChanged,
-            ))
-            .push(create_text_input(
-                "dt",
-                &self.state.dt.to_string(),
-                Message::SimDtChanged,
-            ))
+            .push(
+                Column::new()
+                    .push(create_text_input(
+                        "start time",
+                        &self.state.start_time.to_string(),
+                        Message::SimStartTimeChanged,
+                    ))
+                    .push(create_text_input(
+                        "stop time",
+                        &self.state.stop_time.to_string(),
+                        Message::SimStopTimeChanged,
+                    ))
+                    .push(create_text_input(
+                        "dt",
+                        &self.state.dt.to_string(),
+                        Message::SimDtChanged,
+                    ))
+                    .height(Length::FillPortion(19)),
+            )
+            .push(
+                button(
+                    Text::new("Simulate")
+                        .height(Length::Fill)
+                        .width(Length::Fill)
+                        .horizontal_alignment(iced::alignment::Horizontal::Center)
+                        .vertical_alignment(iced::alignment::Vertical::Center),
+                )
+                .on_press(Message::Simulate)
+                .height(Length::FillPortion(1))
+                .width(Length::Fill),
+            )
             .into()
     }
 

@@ -2,7 +2,7 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    alignment, font, keyboard,    
+    alignment, font, keyboard,
     widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
@@ -48,6 +48,7 @@ enum Message {
     SimDtChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
+    Simulate,
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -173,6 +174,7 @@ impl Application for IcedTest {
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
+                Message::Simulate => state.simulate(),
             },
         }
     }
@@ -250,7 +252,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
         .into()
 }
 
-fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::theme::Theme> {    
+fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::theme::Theme> {
     let content = Column::new();
     let footer = Row::new()
         .spacing(10)
