@@ -36,8 +36,11 @@ impl Node {
         }
     }
 
-    pub fn calculate_path(&self) -> Path {
-        let bounds = self.bounds;
+    pub fn calculate_path(&self, x_offset: f32) -> Path {
+        let mut bounds = self.bounds;
+        // because we create a new frame_with_clip, we need the canvas 
+        // to subtract off the nodebar width and create the node referenced to the graph
+        bounds.x -= x_offset; 
         let corner_radius = 3.0;
 
         let path = Path::new(|p| {
@@ -83,8 +86,8 @@ impl Node {
         path
     }
 
-    pub fn draw(&self, frame: &mut Frame, theme: &Theme) {
-        let background = self.calculate_path();
+    pub fn draw(&self, frame: &mut Frame, theme: &Theme, x_offset: f32) {
+        let background = self.calculate_path(x_offset);
 
         let node_border_color;
         if self.is_selected {
@@ -105,12 +108,15 @@ impl Node {
                 },
             );
             frame.fill(&background, node_background_color);
+            let mut text_center = self.bounds.center(); 
+            text_center.x -= x_offset;
+            
             frame.fill_text(Text {
                 content: self.label.clone(),
                 color: Color::WHITE, //theme.edge_multibody,
                 font: Font::MONOSPACE,
                 horizontal_alignment: Horizontal::Center,
-                position: self.bounds.center(),
+                position: text_center,
                 vertical_alignment: Vertical::Center,
                 ..Text::default()
             });
@@ -127,8 +133,8 @@ impl Node {
         self.bounds.y = position.y - self.bounds.height / 2.0;
     }
 
-    pub fn is_clicked(&mut self, cursor_position: Point, mouse_button: &crate::ui::mouse::MouseButton) {
-        let is_inside = self.bounds.contains(cursor_position);
+    pub fn is_clicked(&mut self, canvas_cursor_position: Point, mouse_button: &crate::ui::mouse::MouseButton) {
+        let is_inside = self.bounds.contains(canvas_cursor_position);
 
         match mouse_button {
             crate::ui::mouse::MouseButton::Left => self.is_left_clicked = is_inside,

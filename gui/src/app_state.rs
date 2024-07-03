@@ -1,4 +1,4 @@
-use iced::{mouse::Cursor, widget::canvas::Cache, Command, Size};
+use iced::{mouse::Cursor, widget::canvas::Cache, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
@@ -61,9 +61,9 @@ impl AppState {
         Command::none()
     }
 
-    pub fn cursor_moved(&mut self, cursor: Cursor) -> Command<Message> {
-        let nodebar_redraw = self.nodebar.cursor_moved(cursor);
-        let graph_redraw = self.graph.cursor_moved(cursor);
+    pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> Command<Message> {
+        let nodebar_redraw = self.nodebar.cursor_moved(canvas_cursor_position);
+        let graph_redraw = self.graph.cursor_moved(canvas_cursor_position);
 
         // don't need to redraw just because mouse is moving
         if nodebar_redraw || graph_redraw {
@@ -88,17 +88,17 @@ impl AppState {
         self.save_component()
     }
 
-    pub fn left_button_pressed(&mut self, cursor: Cursor) -> Command<Message> {
+    pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         self.left_clicked_time_1 = self.left_clicked_time_2;
         self.left_clicked_time_2 = Some(Instant::now());
-
-        self.nodebar.left_button_pressed(cursor);
-        self.graph.left_button_pressed(cursor);
+        
+        self.nodebar.left_button_pressed(canvas_cursor_position);        
+        self.graph.left_button_pressed(canvas_cursor_position);
         self.cache.clear();
         Command::none()
     }
 
-    pub fn left_button_released(&mut self, cursor: Cursor) -> Command<Message> {
+    pub fn left_button_released(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         // Determine the type of mouse button release event
         let release_event = match (self.left_clicked_time_1, self.left_clicked_time_2) {
             (Some(clicked_time_1), Some(clicked_time_2)) => {
@@ -126,7 +126,7 @@ impl AppState {
             self.nodebar.left_button_released(&release_event)
         {
             // Only create a new component if the mouse is over the graph
-            if cursor.is_over(self.graph.bounds) {
+            if self.graph.bounds.contains(canvas_cursor_position) {
                 match active_modal.dummy_type {
                     DummyComponent::Base => {
                         if self.graph.system.base.is_some() {
@@ -145,7 +145,7 @@ impl AppState {
             }
         }
         if let Some(GraphMessage::EditComponent((component_type, component_id))) =
-            self.graph.left_button_released(&release_event, cursor)
+            self.graph.left_button_released(&release_event, canvas_cursor_position)
         {
             let dummy_type;
             match component_type {
@@ -176,7 +176,7 @@ impl AppState {
         Command::none()
     }
 
-    pub fn middle_button_pressed(&mut self, _cursor: Cursor) -> Command<Message> {
+    pub fn middle_button_pressed(&mut self, _canvas_cursor_position: Point) -> Command<Message> {
         //match self.graph.create_multibody_system() {
         //    Ok(system) => dbg!(system),
         //    Err(error) => {
@@ -187,15 +187,15 @@ impl AppState {
         Command::none()
     }
 
-    pub fn right_button_pressed(&mut self, cursor: Cursor) -> Command<Message> {
-        self.nodebar.right_button_pressed(cursor);
-        self.graph.right_button_pressed(cursor);
+    pub fn right_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
+        self.nodebar.right_button_pressed(canvas_cursor_position);
+        self.graph.right_button_pressed(canvas_cursor_position);
         Command::none()
     }
 
-    pub fn right_button_released(&mut self, cursor: Cursor) -> Command<Message> {
-        self.graph.right_button_released(cursor);
-        self.nodebar.right_button_released(cursor);
+    pub fn right_button_released(&mut self, canvas_cursor_position: Point) -> Command<Message> {
+        self.graph.right_button_released(canvas_cursor_position);
+        self.nodebar.right_button_released(canvas_cursor_position);
         self.cache.clear();
         Command::none()
     }

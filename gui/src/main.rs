@@ -2,10 +2,9 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    alignment, font, keyboard,
-    mouse::Cursor,
+    alignment, font, keyboard,    
     widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
-    window, Application, Command, Element, Length, Settings, Size, Subscription,
+    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
 
 use iced_aw::{card, modal};
@@ -18,13 +17,11 @@ use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
-use ui::simdiv::SimDiv;
 
-fn main() -> iced::Result {   
-
+fn main() -> iced::Result {
     let mut settings = Settings::default();
     settings.antialiasing = true;
-    settings.window.size = Size::new(1280.0,720.0);    
+    settings.window.size = Size::new(1280.0, 720.0);
     IcedTest::run(settings)
 }
 
@@ -51,12 +48,12 @@ enum Message {
     SimDtChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
-    LeftButtonPressed(Cursor),
-    LeftButtonReleased(Cursor),
-    MiddleButtonPressed(Cursor),
-    RightButtonPressed(Cursor),
-    RightButtonReleased(Cursor),
-    CursorMoved(Cursor),
+    LeftButtonPressed(Point),
+    LeftButtonReleased(Point),
+    MiddleButtonPressed(Point),
+    RightButtonPressed(Point),
+    RightButtonReleased(Point),
+    CursorMoved(Point),
     CloseError,
     CloseModal,
     DeletePressed,
@@ -253,7 +250,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
         .into()
 }
 
-fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::theme::Theme> {
+fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::theme::Theme> {    
     let content = Column::new();
     let footer = Row::new()
         .spacing(10)

@@ -1,4 +1,4 @@
-use iced::Point;
+use iced::{Point,Vector};
 use iced::widget::canvas::{Path,stroke::{self,Stroke}};
 use uuid::Uuid;
 use std::collections::HashMap;
@@ -29,20 +29,21 @@ impl Edge {
         }
     }
 
-    pub fn draw(&self, frame: &mut iced::widget::canvas::Frame, nodes: &HashMap<Uuid,GraphNode>, theme: &Theme) {
+    pub fn draw(&self, frame: &mut iced::widget::canvas::Frame, nodes: &HashMap<Uuid,GraphNode>, theme: &Theme, x_offset:f32) {
+        let offset = Vector::new(x_offset,0.0);        
         let from_point = match self.from {
-            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.bounds.center(),
-            EdgeConnection::Point(point) => point,
+            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.bounds.center() - offset,
+            EdgeConnection::Point(point) => point - offset,
         };
         
         let to_point = match self.to {
             EdgeConnection::Node(id) => {
                 let graphnode = nodes.get(&id).unwrap();
-                let node_path = graphnode.node.calculate_path();
+                let node_path = graphnode.node.calculate_path(x_offset);
 
-                find_intersection(from_point,graphnode.node.bounds.center(), &node_path)
+                find_intersection(from_point,graphnode.node.bounds.center()-offset, &node_path)
             }
-            EdgeConnection::Point(point) => point,
+            EdgeConnection::Point(point) => point - offset,
         };
 
         let control_point = Point::new((from_point.x + to_point.x)/2.0,(from_point.y + to_point.y)/2.0 );

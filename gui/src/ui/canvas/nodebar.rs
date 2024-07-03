@@ -56,11 +56,12 @@ impl Default for Nodebar {
         let base_node_id = Uuid::new_v4();
         nodes.insert(base_node_id, base_node);
 
-        let body_node = create_default_node("+body", &mut count, DummyComponent::Body,x);
+        let body_node = create_default_node("+body", &mut count, DummyComponent::Body, x);
         let body_node_id = uuid::Uuid::new_v4();
         nodes.insert(body_node_id, body_node);
 
-        let revolute_node = create_default_node("+revolute", &mut count, DummyComponent::Revolute,x);
+        let revolute_node =
+            create_default_node("+revolute", &mut count, DummyComponent::Revolute, x);
         let revolute_node_id = Uuid::new_v4();
         nodes.insert(revolute_node_id, revolute_node);
 
@@ -78,34 +79,29 @@ impl Default for Nodebar {
 }
 
 impl Nodebar {
-    pub fn cursor_moved(&mut self, cursor: Cursor) -> bool {
+    pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
         let mut redraw = false;
         if let Some(clicked_node_id) = self.left_clicked_node {
             // a node is clicked and being dragged
             if let Some(nodebarnode) = self.nodes.get_mut(&clicked_node_id) {
                 let clicked_node = &mut nodebarnode.node;
-                if let Some(cursor_position) = cursor.position() {
-                    clicked_node.translate_to(cursor_position);
-                    redraw = true;
-                }
+                clicked_node.translate_to(canvas_cursor_position);
+                redraw = true;
             }
         }
         redraw
     }
 
-    pub fn left_button_pressed(&mut self, cursor: Cursor) {
-        self.left_clicked_node = None;
+    pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) {
+        self.left_clicked_node = None;        
+        if self.bounds.contains(canvas_cursor_position) {
+            for (id, nodebarnode) in &mut self.nodes {
+                nodebarnode
+                    .node
+                    .is_clicked(canvas_cursor_position, &MouseButton::Left);
 
-        if cursor.is_over(self.bounds) {
-            if let Some(cursor_position) = cursor.position() {
-                for (id, nodebarnode) in &mut self.nodes {
-                    nodebarnode
-                        .node
-                        .is_clicked(cursor_position, &MouseButton::Left);
-
-                    if nodebarnode.node.is_left_clicked {
-                        self.left_clicked_node = Some(*id);
-                    }
+                if nodebarnode.node.is_left_clicked {
+                    self.left_clicked_node = Some(*id);
                 }
             }
         }
@@ -129,7 +125,7 @@ impl Nodebar {
                         )));
                         nodebarnode.go_home();
                     }
-                    MouseButtonReleaseEvents::Held => {
+                    MouseButtonReleaseEvents::Held => {                        
                         message = Some(NodebarMessage::NewComponent(ActiveModal::new(
                             nodebarnode.component_type,
                             None,
@@ -149,11 +145,11 @@ impl Nodebar {
         message
     }
 
-    pub fn right_button_pressed(&mut self, _cursor: Cursor) {
+    pub fn right_button_pressed(&mut self, _canvas_cursor_position: Point) {
         //placeholder
     }
 
-    pub fn right_button_released(&mut self, _cursor: Cursor) {
+    pub fn right_button_released(&mut self, _canvas_cursor_position: Point) {
         //placeholder
     }
 
@@ -167,12 +163,12 @@ fn create_default_node(
     label: &str,
     count: &mut f32,
     component_type: DummyComponent,
-    x: f32
+    x: f32,
 ) -> NodebarNode {
     let padding = 25.0;
     let height = 50.0;
     let node_size = Size::new(100.0, height);
-    let home = Point::new(x+padding, *count * padding + (*count - 1.0) * height);
+    let home = Point::new(x + padding, *count * padding + (*count - 1.0) * height);
 
     let node = Node::new(label.to_string(), Rectangle::new(home, node_size)); //, label.to_string());
 
