@@ -1,4 +1,4 @@
-use iced::{mouse::Cursor, widget::canvas::Cache, Command, Point, Size};
+use iced::{widget::canvas::Cache, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};

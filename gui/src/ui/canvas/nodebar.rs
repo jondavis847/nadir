@@ -1,4 +1,4 @@
-use iced::{mouse::Cursor, Point, Rectangle, Size};
+use iced::{Point, Rectangle, Size};
 use std::collections::HashMap;
 use uuid::Uuid;
 

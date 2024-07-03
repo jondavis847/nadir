@@ -1,4 +1,4 @@
-use iced::{mouse::Cursor, Point, Rectangle, Size};
+use iced::{Point, Rectangle, Size};
 use multibody::joint::JointTrait;
 use std::collections::HashMap;
 use transforms::Transform;
@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use super::edge::{Edge, EdgeConnection};
 use super::node::Node;
-use multibody::{system::MultibodySystem, MultibodyErrors};
+use multibody::system::MultibodySystem;
 
 use crate::ui::dummies::DummyComponent;
 use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
@@ -16,16 +16,7 @@ pub enum GraphMessage {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum GraphErrors {
-    BodyInvalidId(Uuid),
-    BodyMissingFrom(Uuid),
-    IdNotFound(Uuid),
-    NoBase,
-    NoBaseConnections,
-    JointMissingFrom(Uuid),
-    JointMissingTo(Uuid),
-    JointNoOuterBody(Uuid),
-    Multibody(MultibodyErrors),
+pub enum GraphErrors {    
 }
 
 #[derive(Debug, Clone)]

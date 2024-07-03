@@ -1,7 +1,7 @@
 use crate::Message;
 use iced::{
     widget::{button, text, text::Text, text_input, Column, Row},
-    Command, Element, Length, Point, Rectangle, Size,
+    Command, Element, Length,
 };
 
 #[derive(Debug, Clone)]
