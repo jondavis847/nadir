@@ -127,13 +127,13 @@ impl Node {
         self.bounds.y = position.y - self.bounds.height / 2.0;
     }
 
-    pub fn is_clicked(&mut self, cursor_position: Point, mouse_button: &crate::MouseButton) {
+    pub fn is_clicked(&mut self, cursor_position: Point, mouse_button: &crate::ui::mouse::MouseButton) {
         let is_inside = self.bounds.contains(cursor_position);
 
         match mouse_button {
-            crate::MouseButton::Left => self.is_left_clicked = is_inside,
-            crate::MouseButton::Right => self.is_right_clicked = is_inside,
-            crate::MouseButton::Middle => self.is_middle_clicked = is_inside,
+            crate::ui::mouse::MouseButton::Left => self.is_left_clicked = is_inside,
+            crate::ui::mouse::MouseButton::Right => self.is_right_clicked = is_inside,
+            crate::ui::mouse::MouseButton::Middle => self.is_middle_clicked = is_inside,
         }
     }
 }

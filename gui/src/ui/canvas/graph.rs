@@ -8,16 +8,14 @@ use super::edge::{Edge, EdgeConnection};
 use super::node::Node;
 use multibody::{system::MultibodySystem, MultibodyErrors};
 
-use crate::multibody_ui::MultibodyComponent;
 use crate::ui::dummies::DummyComponent;
-use crate::ui::modals::ActiveModal;
-use crate::{MouseButton, MouseButtonReleaseEvents};
+use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum GraphMessage {
     EditComponent((DummyComponent, Uuid)),
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum GraphErrors {
     BodyInvalidId(Uuid),
     BodyMissingFrom(Uuid),
@@ -361,17 +359,23 @@ impl Graph {
             (DummyComponent::Base, DummyComponent::Revolute) => {
                 let base = self.system.base.as_mut().unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
-                joint.connect_inner_body(base, Transform::default()).unwrap();
+                joint
+                    .connect_inner_body(base, Transform::default())
+                    .unwrap();
             }
             (DummyComponent::Body, DummyComponent::Revolute) => {
                 let body = self.system.bodies.get_mut(&from_node.component_id).unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
-                joint.connect_inner_body(body, Transform::default()).unwrap();
+                joint
+                    .connect_inner_body(body, Transform::default())
+                    .unwrap();
             }
             (DummyComponent::Revolute, DummyComponent::Body) => {
                 let joint = self.system.joints.get_mut(&from_node.component_id).unwrap();
                 let body = self.system.bodies.get_mut(&to_node.component_id).unwrap();
-                joint.connect_outer_body(body, Transform::default()).unwrap();
+                joint
+                    .connect_outer_body(body, Transform::default())
+                    .unwrap();
             }
             _ => {
                 graceful_exit(self);

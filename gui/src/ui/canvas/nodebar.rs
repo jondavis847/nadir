@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::ui::canvas::node::Node;
 use crate::ui::dummies::{Dummies, DummyComponent};
 use crate::ui::modals::ActiveModal;
-use crate::{MouseButton, MouseButtonReleaseEvents};
+use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum NodebarMessage {
     NewComponent(ActiveModal),
