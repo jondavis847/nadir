@@ -66,7 +66,7 @@ pub struct Graph {
 impl Default for Graph {
     fn default() -> Self {
         Self {
-            bounds: Rectangle::new(Point::new(130.0, 0.0), Size::new(870.0, 1000.0)),
+            bounds: Rectangle::new(Point::new(500.0, 0.0), Size::new(2000.0, 1000.0)),
             system: MultibodySystem::new(),
             current_edge: None,
             edges: HashMap::new(),

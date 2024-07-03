@@ -47,18 +47,20 @@ pub struct Nodebar {
 impl Default for Nodebar {
     fn default() -> Self {
         let mut nodes = HashMap::new();
-        let bounds = Rectangle::new(Point::new(0.0, 0.0), Size::new(130.0, 1000.0));
+        let x = 0.0;
+
+        let bounds = Rectangle::new(Point::new(x, 0.0), Size::new(150.0, 1000.0));
         let mut count: f32 = 1.0;
 
-        let base_node = create_default_node("+base", &mut count, DummyComponent::Base);
+        let base_node = create_default_node("+base", &mut count, DummyComponent::Base, x);
         let base_node_id = Uuid::new_v4();
         nodes.insert(base_node_id, base_node);
 
-        let body_node = create_default_node("+body", &mut count, DummyComponent::Body);
+        let body_node = create_default_node("+body", &mut count, DummyComponent::Body,x);
         let body_node_id = uuid::Uuid::new_v4();
         nodes.insert(body_node_id, body_node);
 
-        let revolute_node = create_default_node("+revolute", &mut count, DummyComponent::Revolute);
+        let revolute_node = create_default_node("+revolute", &mut count, DummyComponent::Revolute,x);
         let revolute_node_id = Uuid::new_v4();
         nodes.insert(revolute_node_id, revolute_node);
 
@@ -165,11 +167,12 @@ fn create_default_node(
     label: &str,
     count: &mut f32,
     component_type: DummyComponent,
+    x: f32
 ) -> NodebarNode {
-    let padding = 15.0;
+    let padding = 25.0;
     let height = 50.0;
     let node_size = Size::new(100.0, height);
-    let home = Point::new(padding, *count * padding + (*count - 1.0) * height);
+    let home = Point::new(x+padding, *count * padding + (*count - 1.0) * height);
 
     let node = Node::new(label.to_string(), Rectangle::new(home, node_size)); //, label.to_string());
 

@@ -4,11 +4,7 @@
 use iced::{
     alignment, font, keyboard,
     mouse::Cursor,
-    widget::{
-        button,
-        canvas::Canvas,
-        container, text, text_input, Column, Row,
-    },
+    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
     window, Application, Command, Element, Length, Settings, Size, Subscription,
 };
 
@@ -22,10 +18,13 @@ use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
+use ui::simdiv::SimDiv;
 
-fn main() -> iced::Result {
+fn main() -> iced::Result {   
+
     let mut settings = Settings::default();
     settings.antialiasing = true;
+    settings.window.size = Size::new(1280.0,720.0);    
     IcedTest::run(settings)
 }
 
@@ -49,6 +48,9 @@ enum Message {
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
+    SimDtChanged(String),
+    SimStartTimeChanged(String),
+    SimStopTimeChanged(String),
     LeftButtonPressed(Cursor),
     LeftButtonReleased(Cursor),
     MiddleButtonPressed(Cursor),
@@ -171,6 +173,9 @@ impl Application for IcedTest {
                 Message::TabPressed => state.tab_pressed(),
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),
+                Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
+                Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
+                Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
             },
         }
     }
@@ -213,16 +218,20 @@ fn loading_view() -> Element<'static, Message, crate::ui::theme::Theme> {
 
 // Helper function to create the main loaded view
 fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
+    let sim_div = container(state.simdiv.content())
+        .width(Length::FillPortion(1))
+        .height(Length::Fill);
+
     let graph_canvas = GraphCanvas::new(state);
     let graph_container = container(
         Canvas::new(graph_canvas)
             .width(Length::Fill)
             .height(Length::Fill),
     )
-    .width(Length::Fill)
+    .width(Length::FillPortion(4))
     .height(Length::Fill);
 
-    let underlay = Row::new().push(graph_container);
+    let underlay = Row::new().push(sim_div).push(graph_container);
 
     let overlay = if let Some(active_error) = state.active_error {
         Some(create_error_modal(active_error))

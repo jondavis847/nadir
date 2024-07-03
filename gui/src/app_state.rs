@@ -2,10 +2,7 @@ use iced::{mouse::Cursor, widget::canvas::Cache, Command, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
-use crate::ui::{
-    errors::Errors,
-    mouse::MouseButtonReleaseEvents,
-};
+use crate::ui::{errors::Errors, mouse::MouseButtonReleaseEvents};
 use crate::{
     ui::{
         canvas::{
@@ -14,6 +11,7 @@ use crate::{
         },
         dummies::DummyComponent,
         modals::ActiveModal,
+        simdiv::SimDiv,
     },
     Message,
 };
@@ -30,6 +28,7 @@ pub struct AppState {
     pub left_clicked_time_2: Option<Instant>,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
+    pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
 
@@ -45,6 +44,7 @@ impl Default for AppState {
             graph: Graph::default(),
             modal: None,
             nodebar: Nodebar::default(),
+            simdiv: SimDiv::default(),
             theme: crate::ui::theme::Theme::ORANGE,
         }
     }

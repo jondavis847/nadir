@@ -29,15 +29,6 @@ impl<'a> GraphCanvas<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct CanvasState {}
-
-impl Default for CanvasState {
-    fn default() -> Self {
-        Self {}
-    }
-}
-
 impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
     type State = ();
 
@@ -87,6 +78,7 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let all_content = self.app_state.cache.draw(renderer, bounds.size(), |frame| {
+
             // node_bar border
             frame.stroke(
                 &Path::rectangle(Point::ORIGIN, self.app_state.nodebar.bounds.size()),
@@ -99,7 +91,7 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                 Stroke::default().with_width(2.0),
             );
 
-            // create edges (before nodes so nodes clip)
+            // create edges (before nodes so nodes clip the tail)
             frame.with_clip(self.app_state.graph.bounds, |frame| {
                 self.app_state.graph.edges.iter().for_each(|(_, edge)| {
                     edge.draw(frame, &self.app_state.graph.nodes, &self.app_state.theme)
