@@ -6,28 +6,22 @@ use iced::{
     mouse::Cursor,
     widget::{
         button,
-        canvas::{Cache, Canvas},
+        canvas::Canvas,
         container, text, text_input, Column, Row,
     },
     window, Application, Command, Element, Length, Settings, Size, Subscription,
 };
 
 use iced_aw::{card, modal};
-use multibody::{joint::Joint, MultibodyTrait};
-use std::time::{Duration, Instant};
-
 mod app_state;
 mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
-use ui::canvas::graph::{Graph, GraphMessage};
-use ui::canvas::nodebar::{Nodebar, NodebarMessage};
 use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
-use ui::modals::ActiveModal;
 
 fn main() -> iced::Result {
     let mut settings = Settings::default();
@@ -150,7 +144,7 @@ impl Application for IcedTest {
                     state.update_revolute_field(RevoluteField::ConstantForce, &value)
                 }
                 Message::RevolutedampingInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::damping, &value)
+                    state.update_revolute_field(RevoluteField::Damping, &value)
                 }
                 Message::RevoluteNameInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::Name, &value)

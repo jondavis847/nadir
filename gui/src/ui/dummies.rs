@@ -9,11 +9,6 @@ use multibody::{
     MultibodyTrait,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum DummyErrors {
-    NameIsEmpty,
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct Dummies {
     pub base: DummyBase,
@@ -30,12 +25,6 @@ pub enum DummyComponent {
     Revolute,
 }
 
-pub trait DummyTrait {
-    fn clear(&mut self);
-    fn get_name(&self) -> String;
-    fn set_name(&mut self, name: &str);
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct DummyBase {
     pub name: String,
@@ -45,12 +34,7 @@ impl DummyBase {
     pub fn clear(&mut self) {
         self.name = "".to_string();
     }
-    pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
-
+    
     pub fn set_values_for(&self, base: &mut Base) {
         base.set_name(self.name.clone());
     }

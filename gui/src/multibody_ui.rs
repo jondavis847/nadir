@@ -1,13 +1,6 @@
 // see the dependency multibody for actual multibody dynamics
 // this is just the ui part of multibody
 
-#[derive(Debug,Clone,Copy)]
-pub enum MultibodyComponent {
-    Base,
-    Body,
-    Joint,
-}
-
 pub enum BodyField {
     Name,
     Mass,
@@ -25,7 +18,7 @@ pub enum BodyField {
 pub enum RevoluteField {
     Name,
     ConstantForce,
-    damping,
+    Damping,
     SpringConstant,
     Omega,
     Theta,

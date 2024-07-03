@@ -333,7 +333,7 @@ impl AppState {
         match field {
             RevoluteField::Name => dummy_revolute.name = value.to_string(),
             RevoluteField::ConstantForce => dummy_revolute.constant_force = value.to_string(),
-            RevoluteField::damping => dummy_revolute.damping = value.to_string(),
+            RevoluteField::Damping => dummy_revolute.damping = value.to_string(),
             RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
             RevoluteField::SpringConstant => dummy_revolute.spring_constant = value.to_string(),
             RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
