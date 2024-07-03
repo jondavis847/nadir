@@ -1,7 +1,7 @@
 use crate::Message;
 use iced::{
     widget::{text, text_input, Column, Row},
-    Command, Element, Length, Point, Rectangle, Renderer, Size,
+    Command, Element, Length, Point, Rectangle, Size,
 };
 
 #[derive(Debug, Clone)]
@@ -23,15 +23,13 @@ impl Default for SimDivState {
 
 #[derive(Debug, Clone)]
 pub struct SimDiv {
-    pub bounds: Rectangle,
     pub state: SimDivState,
 }
 
 impl Default for SimDiv {
     fn default() -> Self {
-        let bounds = Rectangle::new(Point::new(0.0, 0.0), Size::new(50.0, 1000.0));
         let state = SimDivState::default();
-        Self { bounds, state }
+        Self { state }
     }
 }
 
