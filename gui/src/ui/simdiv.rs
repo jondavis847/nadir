@@ -73,7 +73,8 @@ impl SimDiv {
                         .height(Length::Fill)
                         .width(Length::Fill)
                         .horizontal_alignment(iced::alignment::Horizontal::Center)
-                        .vertical_alignment(iced::alignment::Vertical::Center),
+                        .vertical_alignment(iced::alignment::Vertical::Center)
+                        .style(crate::ui::theme::TextStyles::Primary),
                 )
                 .on_press(Message::Simulate)
                 .height(Length::FillPortion(1))

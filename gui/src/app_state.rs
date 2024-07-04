@@ -2,7 +2,7 @@ use iced::{widget::canvas::Cache, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
-use crate::ui::{errors::Errors, mouse::MouseButtonReleaseEvents};
+use crate::ui::{errors::Errors, mouse::MouseButtonReleaseEvents, tab_bar::TabBar};
 use crate::{
     ui::{
         canvas::{
@@ -23,11 +23,12 @@ pub struct AppState {
     pub cache: Cache,
     pub counter_body: usize,
     pub counter_revolute: usize,
+    pub tab_bar: TabBar,
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
     pub modal: Option<ActiveModal>,
-    pub nodebar: Nodebar,
+    pub nodebar: Nodebar,    
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -39,6 +40,7 @@ impl Default for AppState {
             cache: Cache::new(),
             counter_body: 0,
             counter_revolute: 0,
+            tab_bar: TabBar::default(),
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),

@@ -3,7 +3,7 @@
 
 use iced::{
     alignment, font, keyboard,
-    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
+    widget::{button, canvas::Canvas, container, text, text::Text, text_input, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
 
@@ -17,6 +17,7 @@ use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
+use ui::tab_bar::AppTabs;
 
 fn main() -> iced::Result {
     let mut settings = Settings::default();
@@ -49,6 +50,9 @@ enum Message {
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
     Simulate,
+    TabAnimationPressed,
+    TabPlotPressed,
+    TabSimulationPressed,
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -175,6 +179,18 @@ impl Application for IcedTest {
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::Simulate => state.simulate(),
+                Message::TabAnimationPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Animation;
+                    Command::none()
+                }
+                Message::TabPlotPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Plot;
+                    Command::none()
+                }
+                Message::TabSimulationPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Simulation;
+                    Command::none()
+                }
             },
         }
     }
@@ -217,20 +233,33 @@ fn loading_view() -> Element<'static, Message, crate::ui::theme::Theme> {
 
 // Helper function to create the main loaded view
 fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
-    let sim_div = container(state.simdiv.content())
-        .width(Length::FillPortion(1))
-        .height(Length::Fill);
+    let tab_bar = state.tab_bar.content();
 
-    let graph_canvas = GraphCanvas::new(state);
-    let graph_container = container(
-        Canvas::new(graph_canvas)
-            .width(Length::Fill)
-            .height(Length::Fill),
-    )
-    .width(Length::FillPortion(4))
-    .height(Length::Fill);
+    let underlay = match state.tab_bar.state.current_tab {
+        AppTabs::Simulation => {
+            let sim_div = container(state.simdiv.content())
+                .width(Length::FillPortion(1))
+                .height(Length::Fill);
 
-    let underlay = Row::new().push(sim_div).push(graph_container);
+            let graph_canvas = GraphCanvas::new(state);
+            let graph_container = container(
+                Canvas::new(graph_canvas)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .width(Length::FillPortion(4))
+            .height(Length::Fill);
+
+            Row::new()
+                .push(sim_div)
+                .push(graph_container)
+                .height(Length::FillPortion(17))
+                .width(Length::Fill)
+        }
+        _ => Row::new().into(), //nothing for now
+    };
+
+    let underlay = Column::new().push(tab_bar).push(underlay);
 
     let overlay = if let Some(active_error) = state.active_error {
         Some(create_error_modal(active_error))
@@ -269,6 +298,14 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::
                 .on_press(Message::SaveComponent),
         );
 
+    //let title = Text::new("Base Information".to_string())
+    //.height(20)
+    //.width(Length::Fill)
+    //.horizontal_alignment(iced::alignment::Horizontal::Center)
+    //.vertical_alignment(iced::alignment::Vertical::Center)
+    //.style(crate::ui::theme::TextStyles::Primary);
+
+    //title doesnt work yet
     card("Base Information", content)
         .foot(footer)
         .max_width(500.0)
