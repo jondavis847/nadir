@@ -1,4 +1,4 @@
-use iced::{widget::canvas::Cache, mouse::ScrollDelta, Command, Point, Size};
+use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
@@ -28,7 +28,7 @@ pub struct AppState {
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
     pub modal: Option<ActiveModal>,
-    pub nodebar: Nodebar,    
+    pub nodebar: Nodebar,
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -53,6 +53,13 @@ impl Default for AppState {
 }
 
 impl AppState {
+    pub fn animation(&mut self, instant: iced::time::Instant) -> Command<Message> {
+        if self.graph.animation(instant) {
+            self.cache.clear()
+        };
+        Command::none()
+    }
+
     pub fn close_error(&mut self) -> Command<Message> {
         self.active_error = None;
         Command::none()

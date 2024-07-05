@@ -12,6 +12,7 @@ use iced::{
 pub struct Node {
     pub label: String,
     pub bounds: Rectangle,
+    pub rendered_bounds: Rectangle,
     pub is_left_clicked: bool,
     pub is_middle_clicked: bool,
     pub is_right_clicked: bool,
@@ -19,13 +20,15 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn new(label: String, mut bounds: Rectangle, zoom: f32) -> Self {
-        bounds.height *= zoom;
-        bounds.width *= zoom;
+    pub fn new(label: String, bounds: Rectangle, zoom: f32) -> Self {
+        let mut rendered_bounds = bounds.clone();
+        rendered_bounds.height *= zoom;
+        rendered_bounds.width *= zoom;
 
         Self {
             label: label,
             bounds: bounds,
+            rendered_bounds: rendered_bounds,
             is_left_clicked: false,
             is_middle_clicked: false,
             is_selected: false,
@@ -33,20 +36,21 @@ impl Node {
         }
     }
 
-    pub fn adjust_for_zoom(&mut self, zoom_delta: f32, canvas_cursor_position: Point) {
-        self.bounds.height += self.bounds.height * zoom_delta;
-        self.bounds.width += self.bounds.width * zoom_delta;
+    pub fn adjust_for_zoom(&mut self, zoom: f32, zoom_delta: f32, canvas_cursor_position: Point) {
+        //TODO: just save height and width instead of an entire rectangle in node, since we dont actually use the x,y position of bounds ever
+        self.rendered_bounds.height = self.bounds.height * zoom;
+        self.rendered_bounds.width = self.bounds.width * zoom;
 
-        let vector_top_left_to_cursor = self.bounds.position() - canvas_cursor_position;
-        let new_vector = vector_top_left_to_cursor + vector_top_left_to_cursor * zoom_delta;
+        let vector_top_left_to_cursor = self.rendered_bounds.position() - canvas_cursor_position;
+        let new_vector = vector_top_left_to_cursor * zoom_delta;
         let new_position = canvas_cursor_position + new_vector;
-        self.bounds.x = new_position.x;
-        self.bounds.y = new_position.y;
+        self.rendered_bounds.x = new_position.x;
+        self.rendered_bounds.y = new_position.y;
     }
 
     pub fn calculate_path(&self, x_offset: f32, zoom: f32) -> Path {
         //TODO: save the path in the node for more efficient calc?
-        let mut bounds = self.bounds;
+        let mut bounds = self.rendered_bounds;
 
         // because we create a new frame_with_clip, we need the canvas
         // to subtract off the nodebar width and create the node referenced to the graph
@@ -118,7 +122,7 @@ impl Node {
                 },
             );
             frame.fill(&background, node_background_color);
-            let mut text_center = self.bounds.center();
+            let mut text_center = self.rendered_bounds.center();
             text_center.x -= x_offset;
 
             let mut text = Text {
@@ -131,19 +135,18 @@ impl Node {
                 ..Text::default()
             };
             text.size = text.size * zoom;
-
             frame.fill_text(text);
         });
     }
 
     pub fn translate_by(&mut self, graph_translation: Vector) {
-        self.bounds.x = self.bounds.x + graph_translation.x;
-        self.bounds.y = self.bounds.y + graph_translation.y;
+        self.rendered_bounds.x = self.rendered_bounds.x + graph_translation.x;
+        self.rendered_bounds.y = self.rendered_bounds.y + graph_translation.y;
     }
 
     pub fn translate_to(&mut self, position: Point) {
-        self.bounds.x = position.x - self.bounds.width / 2.0;
-        self.bounds.y = position.y - self.bounds.height / 2.0;
+        self.rendered_bounds.x = position.x - self.rendered_bounds.width / 2.0;
+        self.rendered_bounds.y = position.y - self.rendered_bounds.height / 2.0;
     }
 
     pub fn is_clicked(
@@ -151,7 +154,7 @@ impl Node {
         canvas_cursor_position: Point,
         mouse_button: &crate::ui::mouse::MouseButton,
     ) {
-        let is_inside = self.bounds.contains(canvas_cursor_position);
+        let is_inside = self.rendered_bounds.contains(canvas_cursor_position);
 
         match mouse_button {
             crate::ui::mouse::MouseButton::Left => self.is_left_clicked = is_inside,

@@ -32,7 +32,7 @@ impl Edge {
     pub fn draw(&self, frame: &mut iced::widget::canvas::Frame, nodes: &HashMap<Uuid,GraphNode>, theme: &Theme, x_offset:f32, zoom:f32) {
         let offset = Vector::new(x_offset,0.0);        
         let from_point = match self.from {
-            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.bounds.center() - offset,
+            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.rendered_bounds.center() - offset,
             EdgeConnection::Point(point) => point - offset,
         };
         
@@ -42,7 +42,7 @@ impl Edge {
                 let graphnode = nodes.get(&id).unwrap();
                 let node_path = graphnode.node.calculate_path(x_offset, zoom);
 
-                find_intersection(from_point,graphnode.node.bounds.center()-offset, &node_path)
+                find_intersection(from_point,graphnode.node.rendered_bounds.center()-offset, &node_path)
             }
             EdgeConnection::Point(point) => point - offset,
         };

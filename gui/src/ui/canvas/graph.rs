@@ -1,3 +1,4 @@
+use iced::widget::canvas;
 use iced::widget::shader::wgpu::SurfaceConfiguration;
 use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
 use multibody::joint::JointTrait;
@@ -51,7 +52,11 @@ pub struct Graph {
     pub nodes: HashMap<Uuid, GraphNode>,
     right_clicked_node: Option<Uuid>,
     selected_node: Option<Uuid>,
+    //TODO: combine the zoom stuff into it's own struct?
     pub zoom: f32,
+    initial_zoom:f32,
+    target_zoom: f32,
+    zoom_animation_start: Option<iced::time::Instant>,
 }
 
 impl Default for Graph {
@@ -68,11 +73,45 @@ impl Default for Graph {
             right_clicked_node: None,
             selected_node: None,
             zoom: 1.0,
+            initial_zoom: 1.0,
+            target_zoom: 1.0,
+            zoom_animation_start: None,
         }
     }
 }
 
 impl Graph {
+    pub fn animation(&mut self, now: iced::time::Instant) -> bool {
+        let mut redraw = false;
+        if let Some(start) = self.zoom_animation_start {
+            let elapsed = now - start;
+            let duration = iced::time::Duration::from_millis(300); // Animation duration
+
+            if elapsed < duration {
+                let t = elapsed.as_secs_f32() / duration.as_secs_f32();
+                // Cubic ease-out function
+                let t = t - 1.0;
+                let t = t * t * t + 1.0;
+                let new_zoom = self.initial_zoom + t * (self.target_zoom - self.initial_zoom);
+                let delta = new_zoom/self.zoom;
+                self.zoom = new_zoom;
+            
+                if self.zoom > 0.1 && self.zoom < 10.0 {
+                    self.nodes.iter_mut().for_each(|(_, graphnode)| {
+                        graphnode
+                            .node
+                            .adjust_for_zoom(self.zoom, delta, self.cursor_position_previous.unwrap())
+                    });
+                }
+            } else {
+                self.zoom = self.target_zoom;
+                self.zoom_animation_start = None;
+            }
+            redraw = true;
+        }
+        redraw
+    }
+
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
         let mut redraw = false;
 
@@ -171,7 +210,7 @@ impl Graph {
                 .iter()
                 .find(|(_, graphnode)| {
                     let node = &graphnode.node;
-                    node.bounds.contains(canvas_cursor_position)
+                    node.rendered_bounds.contains(canvas_cursor_position)
                 })
                 // If a node is found, return its UUID
                 .map(|(id, _)| *id);
@@ -422,22 +461,18 @@ impl Graph {
     }
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
-        let zoom_factor = 0.1;
-        let delta = match delta {
-            ScrollDelta::Lines { x, y } => x + y,
-            ScrollDelta::Pixels { x, y } => x + y,
-        };
-        let delta = zoom_factor * delta;
-        self.zoom += self.zoom * delta;
-        self.zoom = self.zoom.clamp(0.1, 10.0);
-
         let canvas_cursor_position = self.cursor_position_previous.unwrap();
-        if self.zoom > 0.1 && self.zoom < 10.0 {
-            self.nodes.iter_mut().for_each(|(_, graphnode)| {
-                graphnode
-                    .node
-                    .adjust_for_zoom(delta, canvas_cursor_position)
-            });
+        if self.bounds.contains(canvas_cursor_position) {
+            let zoom_speed = 0.25;
+            let delta = match delta {
+                ScrollDelta::Lines { x, y } => x + y,
+                ScrollDelta::Pixels { x, y } => x + y,
+            };
+            let delta = zoom_speed * delta;
+            self.initial_zoom = self.zoom;
+            self.target_zoom += self.zoom * delta;
+            self.target_zoom = self.target_zoom.clamp(0.1, 10.0);
+            self.zoom_animation_start = Some(iced::time::Instant::now());
         }
     }
 

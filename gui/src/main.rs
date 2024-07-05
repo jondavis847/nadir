@@ -2,8 +2,10 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    alignment, font, keyboard, mouse::ScrollDelta,
-    widget::{button, canvas::Canvas, container, text, text::Text, text_input, Column, Row},
+    alignment, font, keyboard,
+    mouse::ScrollDelta,
+    time::{self, Duration, Instant},
+    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
 
@@ -29,6 +31,7 @@ fn main() -> iced::Result {
 // Define the possible user interactions
 #[derive(Debug, Clone)]
 enum Message {
+    AnimationTick(Instant),
     BodyNameInputChanged(String),
     BodyMassInputChanged(String),
     BodyCmxInputChanged(String),
@@ -110,6 +113,7 @@ impl Application for IcedTest {
                 Command::none()
             }
             IcedTest::Loaded(state) => match message {
+                Message::AnimationTick(instant) => state.animation(instant),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
                 Message::BodyNameInputChanged(value) => {
@@ -205,18 +209,25 @@ impl Application for IcedTest {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        iced::event::listen_with(|event, _| match event {
-            iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
-                Message::WindowResized(Size::new(width as f32, height as f32)),
-            ),
-            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
-                keyboard::Key::Named(keyboard::key::Named::Enter) => Some(Message::EnterPressed),
-                keyboard::Key::Named(keyboard::key::Named::Delete) => Some(Message::DeletePressed),
-                keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+        Subscription::batch(vec![
+            time::every(Duration::from_millis(16)).map(Message::AnimationTick),
+            iced::event::listen_with(|event, _| match event {
+                iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
+                    Message::WindowResized(Size::new(width as f32, height as f32)),
+                ),
+                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
+                    keyboard::Key::Named(keyboard::key::Named::Enter) => {
+                        Some(Message::EnterPressed)
+                    }
+                    keyboard::Key::Named(keyboard::key::Named::Delete) => {
+                        Some(Message::DeletePressed)
+                    }
+                    keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+                    _ => None,
+                },
                 _ => None,
-            },
-            _ => None,
-        })
+            }),
+        ])
     }
 }
 // Helper function to create the loading view
