@@ -2,7 +2,11 @@ use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
-use crate::ui::{errors::Errors, mouse::MouseButtonReleaseEvents, tab_bar::TabBar};
+use crate::ui::{
+    errors::Errors,
+    mouse::MouseButtonReleaseEvents,
+    tab_bar::{AppTabs, TabBar},
+};
 use crate::{
     ui::{
         canvas::{
@@ -71,13 +75,19 @@ impl AppState {
     }
 
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> Command<Message> {
-        let nodebar_redraw = self.nodebar.cursor_moved(canvas_cursor_position);
-        let graph_redraw = self.graph.cursor_moved(canvas_cursor_position);
+        match self.tab_bar.state.current_tab {
+            AppTabs::Simulation => {
+                let nodebar_redraw = self.nodebar.cursor_moved(canvas_cursor_position);
+                let graph_redraw = self.graph.cursor_moved(canvas_cursor_position);
 
-        // don't need to redraw just because mouse is moving
-        if nodebar_redraw || graph_redraw {
-            self.cache.clear();
+                // don't need to redraw just because mouse is moving
+                if nodebar_redraw || graph_redraw {
+                    self.cache.clear();
+                }
+            }
+            _ => {}
         }
+
         Command::none()
     }
 

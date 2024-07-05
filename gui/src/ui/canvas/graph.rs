@@ -54,7 +54,7 @@ pub struct Graph {
     selected_node: Option<Uuid>,
     //TODO: combine the zoom stuff into it's own struct?
     pub zoom: f32,
-    initial_zoom:f32,
+    initial_zoom: f32,
     target_zoom: f32,
     zoom_animation_start: Option<iced::time::Instant>,
 }
@@ -93,14 +93,16 @@ impl Graph {
                 let t = t - 1.0;
                 let t = t * t * t + 1.0;
                 let new_zoom = self.initial_zoom + t * (self.target_zoom - self.initial_zoom);
-                let delta = new_zoom/self.zoom;
+                let delta = new_zoom / self.zoom;
                 self.zoom = new_zoom;
-            
+
                 if self.zoom > 0.1 && self.zoom < 10.0 {
                     self.nodes.iter_mut().for_each(|(_, graphnode)| {
-                        graphnode
-                            .node
-                            .adjust_for_zoom(self.zoom, delta, self.cursor_position_previous.unwrap())
+                        graphnode.node.adjust_for_zoom(
+                            self.zoom,
+                            delta,
+                            self.cursor_position_previous.unwrap(),
+                        )
                     });
                 }
             } else {
@@ -115,49 +117,52 @@ impl Graph {
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
         let mut redraw = false;
 
-        // Handle left-clicked node dragging
-        if let Some(clicked_node_id) = self.left_clicked_node {
-            if let Some(graphnode) = self.nodes.get_mut(&clicked_node_id) {
-                graphnode.node.translate_to(canvas_cursor_position);
-                redraw = true;
-            }
-        } else if self.is_clicked {
-            // Handle graph translating
-
-            if let Some(last_position) = self.cursor_position_previous {
-                let delta = canvas_cursor_position - last_position;
-                self.nodes.iter_mut().for_each(|(_, graphnode)| {
-                    graphnode.node.translate_by(delta);
-                });
-                redraw = true;
-            }
-        }
-
-        // Update last cursor position
-
-        self.cursor_position_previous = Some(canvas_cursor_position);
-
-        // Handle right-clicked node for edge drawing
-        if let Some(clicked_node_id) = self.right_clicked_node {
-            if let Some(edge_id) = self.current_edge {
-                if let Some(edge) = self.edges.get_mut(&edge_id) {
-                    edge.to = EdgeConnection::Point(canvas_cursor_position);
+        if self.bounds.contains(canvas_cursor_position) {
+            dbg!("test");
+            // Handle left-clicked node dragging
+            if let Some(clicked_node_id) = self.left_clicked_node {
+                if let Some(graphnode) = self.nodes.get_mut(&clicked_node_id) {
+                    graphnode.node.translate_to(canvas_cursor_position);
+                    redraw = true;
                 }
-            } else {
-                let new_edge = Edge::new(
-                    EdgeConnection::Node(clicked_node_id),
-                    EdgeConnection::Point(canvas_cursor_position),
-                );
-                let new_edge_id = Uuid::new_v4();
-                self.edges.insert(new_edge_id, new_edge);
-                self.current_edge = Some(new_edge_id);
+            } else if self.is_clicked {
+                // Handle graph translating
 
-                // Add the edge to the from node
-                if let Some(from_node) = self.nodes.get_mut(&clicked_node_id) {
-                    from_node.edges.push(new_edge_id);
+                if let Some(last_position) = self.cursor_position_previous {
+                    let delta = canvas_cursor_position - last_position;
+                    self.nodes.iter_mut().for_each(|(_, graphnode)| {
+                        graphnode.node.translate_by(delta);
+                    });
+                    redraw = true;
                 }
             }
-            redraw = true;
+
+            // Update last cursor position
+
+            self.cursor_position_previous = Some(canvas_cursor_position);
+
+            // Handle right-clicked node for edge drawing
+            if let Some(clicked_node_id) = self.right_clicked_node {
+                if let Some(edge_id) = self.current_edge {
+                    if let Some(edge) = self.edges.get_mut(&edge_id) {
+                        edge.to = EdgeConnection::Point(canvas_cursor_position);
+                    }
+                } else {
+                    let new_edge = Edge::new(
+                        EdgeConnection::Node(clicked_node_id),
+                        EdgeConnection::Point(canvas_cursor_position),
+                    );
+                    let new_edge_id = Uuid::new_v4();
+                    self.edges.insert(new_edge_id, new_edge);
+                    self.current_edge = Some(new_edge_id);
+
+                    // Add the edge to the from node
+                    if let Some(from_node) = self.nodes.get_mut(&clicked_node_id) {
+                        from_node.edges.push(new_edge_id);
+                    }
+                }
+                redraw = true;
+            }
         }
 
         redraw
