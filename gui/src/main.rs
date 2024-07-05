@@ -19,6 +19,7 @@ use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
+use ui::plot_tab::PlotCanvas;
 use ui::tab_bar::AppTabs;
 
 fn main() -> iced::Result {
@@ -266,6 +267,21 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             Row::new()
                 .push(sim_div)
                 .push(graph_container)
+                .height(Length::FillPortion(17))
+                .width(Length::Fill)
+        }
+        AppTabs::Plot => {
+            let plot_canvas = PlotCanvas::new();
+            let plot_container = container(
+                Canvas::new(plot_canvas)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .width(Length::FillPortion(4))
+            .height(Length::Fill);
+
+            Row::new()
+                .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)
         }
