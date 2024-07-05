@@ -2,12 +2,10 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    alignment, font, keyboard,
-    mouse::ScrollDelta,
-    time::{self, Duration, Instant},
-    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
-    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
+    advanced::graphics::core::window::icon, alignment, font, keyboard, mouse::ScrollDelta, time::{self, Duration, Instant}, widget::{button, canvas::Canvas, container, text, text_input, Column, Row}, window::{self, Icon}, Application, Command, Element, Length, Point, Settings, Size, Subscription
 };
+use std::path::Path;
+use std::env;
 
 use iced_aw::{card, modal};
 mod app_state;
@@ -23,9 +21,27 @@ use ui::plot_tab::PlotCanvas;
 use ui::tab_bar::AppTabs;
 
 fn main() -> iced::Result {
+    match env::current_dir() {
+        Ok(path) => println!("The current working directory is: {}", path.display()),
+        Err(e) => println!("Error getting current directory: {}", e),
+    }
+
+    let icon_path = Path::new("./resources/icon.png");
+    dbg!(icon_path);
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(icon_path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        (image.into_raw(), width, height)
+    };
+    
+    let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+
     let mut settings = Settings::default();
     settings.antialiasing = true;
     settings.window.size = Size::new(1280.0, 720.0);
+    settings.window.icon = Some(icon);
     IcedTest::run(settings)
 }
 
@@ -102,7 +118,7 @@ impl Application for IcedTest {
     }
 
     fn title(&self) -> String {
-        String::from("jds")
+        String::from("GADGT")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
@@ -211,7 +227,7 @@ impl Application for IcedTest {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         Subscription::batch(vec![
-            time::every(Duration::from_millis(16)).map(Message::AnimationTick),
+            window::frames().map(Message::AnimationTick),
             iced::event::listen_with(|event, _| match event {
                 iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
                     Message::WindowResized(Size::new(width as f32, height as f32)),

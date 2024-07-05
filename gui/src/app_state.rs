@@ -336,7 +336,7 @@ impl AppState {
         } = self.simdiv.state;
 
         let result = sys.simulate(start_time, stop_time, dt);
-        let joint1 = result.get_component("joint1");
+        let joint1 = result.get_component("revolute1");
         dbg!(joint1);
         Command::none()
     }
