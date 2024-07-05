@@ -1,4 +1,5 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
@@ -19,7 +20,7 @@ use crate::{
     },
     Message,
 };
-use multibody::{joint::Joint, MultibodyTrait};
+use multibody::{joint::Joint, MultibodyTrait, system_sim::MultibodyResult};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -33,6 +34,7 @@ pub struct AppState {
     pub left_clicked_time_2: Option<Instant>,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
+    pub results: HashMap<String, MultibodyResult>,
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -50,6 +52,7 @@ impl Default for AppState {
             graph: Graph::default(),
             modal: None,
             nodebar: Nodebar::default(),
+            results: HashMap::new(),
             simdiv: SimDiv::default(),
             theme: crate::ui::theme::Theme::ORANGE,
         }
@@ -326,18 +329,20 @@ impl AppState {
         Command::none()
     }
 
-    pub fn simulate(&self) -> Command<Message> {
+    pub fn simulate(&mut self) -> Command<Message> {
         let sys = &self.graph.system;
 
         let SimDivState {
+            name,
             start_time,
             stop_time,
             dt,
-        } = self.simdiv.state;
+        } = &self.simdiv.state;
 
-        let result = sys.simulate(start_time, stop_time, dt);
-        let joint1 = result.get_component("revolute1");
-        dbg!(joint1);
+        let result = sys.simulate(*start_time, *stop_time, *dt);
+        self.results.insert(name.clone(),result);
+        
+        dbg!(&self.results);
         Command::none()
     }
 

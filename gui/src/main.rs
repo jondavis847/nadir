@@ -67,6 +67,7 @@ enum Message {
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
     SimDtChanged(String),
+    SimNameChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
     Simulate,
@@ -201,6 +202,7 @@ impl Application for IcedTest {
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
+                Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
                 Message::TabAnimationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Animation;

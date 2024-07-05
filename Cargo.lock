@@ -1582,6 +1582,7 @@ dependencies = [
  "lyon_path",
  "mass_properties",
  "multibody",
+ "polars",
  "transforms",
  "uuid",
  "winit 0.30.3",

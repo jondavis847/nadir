@@ -6,6 +6,7 @@ use iced::{
 
 #[derive(Debug, Clone)]
 pub struct SimDivState {
+    pub name: String, 
     pub start_time: f64,
     pub stop_time: f64,
     pub dt: f64,
@@ -14,6 +15,7 @@ pub struct SimDivState {
 impl Default for SimDivState {
     fn default() -> Self {
         Self {
+            name: "".to_string(),
             start_time: 0.0,
             stop_time: 10.0,
             dt: 1.0,
@@ -51,17 +53,22 @@ impl SimDiv {
             .push(
                 Column::new()
                     .push(create_text_input(
-                        "start time",
+                        "Sim Name",
+                        &self.state.name,
+                        Message::SimNameChanged,
+                    ))
+                    .push(create_text_input(
+                        "Start Time",
                         &self.state.start_time.to_string(),
                         Message::SimStartTimeChanged,
                     ))
                     .push(create_text_input(
-                        "stop time",
+                        "Stop Time",
                         &self.state.stop_time.to_string(),
                         Message::SimStopTimeChanged,
                     ))
                     .push(create_text_input(
-                        "dt",
+                        "Step Size",
                         &self.state.dt.to_string(),
                         Message::SimDtChanged,
                     ))
@@ -93,6 +100,11 @@ impl SimDiv {
     }
     pub fn stop_time_changed(&mut self, value: String) -> Command<Message> {
         self.state.stop_time = value.parse().unwrap_or(0.0);
+        Command::none()
+    }
+
+    pub fn name_changed(&mut self, value: String) -> Command<Message> {
+        self.state.name = value;
         Command::none()
     }
 }
