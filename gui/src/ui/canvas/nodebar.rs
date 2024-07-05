@@ -29,8 +29,8 @@ impl NodebarNode {
 
     pub fn go_home(&mut self) {
         //send it home
-        self.node.rendered_bounds.x = self.home.x;
-        self.node.rendered_bounds.y = self.home.y;
+        self.node.bounds.x = self.home.x;
+        self.node.bounds.y = self.home.y;
         self.node.is_left_clicked = false;
         self.node.is_selected = false;
     }

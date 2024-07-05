@@ -171,7 +171,7 @@ impl Graph {
                 .iter()
                 .find(|(_, graphnode)| {
                     let node = &graphnode.node;
-                    node.rendered_bounds.contains(canvas_cursor_position)                    
+                    node.bounds.contains(canvas_cursor_position)
                 })
                 // If a node is found, return its UUID
                 .map(|(id, _)| *id);
@@ -429,13 +429,15 @@ impl Graph {
         };
         let delta = zoom_factor * delta;
         self.zoom += self.zoom * delta;
-        self.zoom = self.zoom.clamp(0.1, 10.0);                
+        self.zoom = self.zoom.clamp(0.1, 10.0);
 
         let canvas_cursor_position = self.cursor_position_previous.unwrap();
-        if self.zoom > 0.1  && self.zoom < 10.0 {
-        self.nodes
-            .iter_mut()
-            .for_each(|(_, graphnode)| graphnode.node.adjust_for_zoom(delta, self.zoom, canvas_cursor_position));
+        if self.zoom > 0.1 && self.zoom < 10.0 {
+            self.nodes.iter_mut().for_each(|(_, graphnode)| {
+                graphnode
+                    .node
+                    .adjust_for_zoom(delta, canvas_cursor_position)
+            });
         }
     }
 
