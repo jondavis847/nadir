@@ -117,8 +117,7 @@ impl Graph {
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
         let mut redraw = false;
 
-        if self.bounds.contains(canvas_cursor_position) {
-            dbg!("test");
+        if self.bounds.contains(canvas_cursor_position) {            
             // Handle left-clicked node dragging
             if let Some(clicked_node_id) = self.left_clicked_node {
                 if let Some(graphnode) = self.nodes.get_mut(&clicked_node_id) {

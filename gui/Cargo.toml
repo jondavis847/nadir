@@ -12,3 +12,11 @@ multibody = {path = "../multibody"}
 lyon_geom = "1.0.5"
 lyon_path = "1.0.5"
 transforms = {path = "../transforms"}
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
