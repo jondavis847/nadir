@@ -2,7 +2,7 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    alignment, font, keyboard,
+    alignment, font, keyboard, mouse::ScrollDelta,
     widget::{button, canvas::Canvas, container, text, text::Text, text_input, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
@@ -59,6 +59,7 @@ enum Message {
     RightButtonPressed(Point),
     RightButtonReleased(Point),
     CursorMoved(Point),
+    WheelScrolled(ScrollDelta),
     CloseError,
     CloseModal,
     DeletePressed,
@@ -170,6 +171,7 @@ impl Application for IcedTest {
                 Message::CloseError => state.close_error(),
                 Message::CloseModal => state.close_modal(),
                 Message::CursorMoved(cursor) => state.cursor_moved(cursor),
+                Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
                 Message::DeletePressed => state.delete_pressed(),
                 Message::EnterPressed => state.enter_pressed(),
                 Message::TabPressed => state.tab_pressed(),

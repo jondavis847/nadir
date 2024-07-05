@@ -1,4 +1,4 @@
-use iced::{widget::canvas::Cache, Command, Point, Size};
+use iced::{widget::canvas::Cache, mouse::ScrollDelta, Command, Point, Size};
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
@@ -364,6 +364,13 @@ impl AppState {
             RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
         }
 
+        Command::none()
+    }
+
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) -> Command<Message> {
+        self.nodebar.wheel_scrolled(delta);
+        self.graph.wheel_scrolled(delta);
+        self.cache.clear();
         Command::none()
     }
 

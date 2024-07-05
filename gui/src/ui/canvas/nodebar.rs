@@ -1,4 +1,4 @@
-use iced::{Point, Rectangle, Size};
+use iced::{Point, Rectangle, Size, mouse::ScrollDelta};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -29,8 +29,8 @@ impl NodebarNode {
 
     pub fn go_home(&mut self) {
         //send it home
-        self.node.bounds.x = self.home.x;
-        self.node.bounds.y = self.home.y;
+        self.node.rendered_bounds.x = self.home.x;
+        self.node.rendered_bounds.y = self.home.y;
         self.node.is_left_clicked = false;
         self.node.is_selected = false;
     }
@@ -153,6 +153,11 @@ impl Nodebar {
         //placeholder
     }
 
+    pub fn wheel_scrolled(&mut self, _delta: ScrollDelta) {
+        //placeholder for nodebar scrolling
+    }
+
+
     pub fn window_resized(&mut self, size: Size) {
         self.bounds.height = size.height;
         self.bounds.width = size.width;
@@ -170,7 +175,7 @@ fn create_default_node(
     let node_size = Size::new(100.0, height);
     let home = Point::new(x + padding, *count * padding + (*count - 1.0) * height);
 
-    let node = Node::new(label.to_string(), Rectangle::new(home, node_size)); //, label.to_string());
+    let node = Node::new(label.to_string(), Rectangle::new(home, node_size),1.0); //, label.to_string());
 
     *count += 1.0;
     NodebarNode::new(component_type, home, node)

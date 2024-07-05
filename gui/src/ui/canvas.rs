@@ -71,6 +71,9 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                     Status::Captured,
                     Some(Message::CursorMoved(canvas_cursor_position)),
                 ),
+                mouse::Event::WheelScrolled { delta } => {
+                    (Status::Captured, Some(Message::WheelScrolled(delta)))
+                }
                 _ => (Status::Captured, None),
             },
             _ => (Status::Ignored, None),
@@ -86,6 +89,7 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let nodebar_width = self.app_state.nodebar.bounds.width;
+        let zoom = self.app_state.graph.zoom;
         let all_content = self.app_state.cache.draw(renderer, bounds.size(), |frame| {
             // node_bar border
             frame.stroke(
@@ -102,7 +106,12 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
             // create edges (before nodes so nodes clip the tail)
             frame.with_clip(self.app_state.graph.bounds, |frame| {
                 self.app_state.graph.edges.iter().for_each(|(_, edge)| {
-                    edge.draw(frame, &self.app_state.graph.nodes, &self.app_state.theme, nodebar_width)
+                    edge.draw(
+                        frame,
+                        &self.app_state.graph.nodes,
+                        &self.app_state.theme,
+                        nodebar_width,zoom
+                    )
                 });
             });
 
@@ -112,11 +121,11 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                 .nodes
                 .iter()
                 .for_each(|(_, nodebarnode)| {
-                    nodebarnode.node.draw(frame, &self.app_state.theme, 0.0);
+                    nodebarnode.node.draw(frame, &self.app_state.theme, 0.0, 1.0);
                 });
 
             // create nodes that are clipped (graph)
-            
+
             frame.with_clip(self.app_state.graph.bounds, |frame| {
                 self.app_state
                     .graph
@@ -125,7 +134,7 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                     .for_each(|(_, graphnode)| {
                         graphnode
                             .node
-                            .draw(frame, &self.app_state.theme, nodebar_width)
+                            .draw(frame, &self.app_state.theme, nodebar_width, zoom);
                     });
             });
         });

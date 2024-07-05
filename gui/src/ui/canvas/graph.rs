@@ -1,4 +1,5 @@
-use iced::{Point, Rectangle, Size};
+use iced::widget::shader::wgpu::SurfaceConfiguration;
+use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
 use multibody::joint::JointTrait;
 use std::collections::HashMap;
 use transforms::Transform;
@@ -16,8 +17,7 @@ pub enum GraphMessage {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum GraphErrors {    
-}
+pub enum GraphErrors {}
 
 #[derive(Debug, Clone)]
 pub struct GraphNode {
@@ -46,12 +46,12 @@ pub struct Graph {
     current_edge: Option<Uuid>,
     pub edges: HashMap<Uuid, Edge>,
     pub is_clicked: bool,
-    cursor_position_previous: Option<Point>,    
+    cursor_position_previous: Option<Point>,
     left_clicked_node: Option<Uuid>,
     pub nodes: HashMap<Uuid, GraphNode>,
     right_clicked_node: Option<Uuid>,
     selected_node: Option<Uuid>,
-    //zoom: f32,
+    pub zoom: f32,
 }
 
 impl Default for Graph {
@@ -62,12 +62,12 @@ impl Default for Graph {
             current_edge: None,
             edges: HashMap::new(),
             is_clicked: false,
-            cursor_position_previous: None,            
+            cursor_position_previous: None,
             left_clicked_node: None,
             nodes: HashMap::new(),
             right_clicked_node: None,
             selected_node: None,
-            //zoom: 1.0,
+            zoom: 1.0,
         }
     }
 }
@@ -171,12 +171,7 @@ impl Graph {
                 .iter()
                 .find(|(_, graphnode)| {
                     let node = &graphnode.node;
-                    node.bounds.contains(canvas_cursor_position)
-                    // Check if the cursor's x and y positions are within the node's bounds
-                    //cursor_position.x > node.bounds.x
-                    //   && cursor_position.x < node.bounds.x + node.bounds.width
-                    //  && cursor_position.y > node.bounds.y
-                    // && cursor_position.y < node.bounds.y + node.bounds.height
+                    node.rendered_bounds.contains(canvas_cursor_position)                    
                 })
                 // If a node is found, return its UUID
                 .map(|(id, _)| *id);
@@ -418,12 +413,30 @@ impl Graph {
 
             // Create the new node
             let name = label;
-            let new_node = Node::new(name, bounds);
+            let new_node = Node::new(name, bounds, self.zoom);
             let graph_node = GraphNode::new(component_id, *dummy_type, new_node);
 
             self.nodes.insert(component_id, graph_node);
         }
         Ok(())
+    }
+
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
+        let zoom_factor = 0.1;
+        let delta = match delta {
+            ScrollDelta::Lines { x, y } => x + y,
+            ScrollDelta::Pixels { x, y } => x + y,
+        };
+        let delta = zoom_factor * delta;
+        self.zoom += self.zoom * delta;
+        self.zoom = self.zoom.clamp(0.1, 10.0);                
+
+        let canvas_cursor_position = self.cursor_position_previous.unwrap();
+        if self.zoom > 0.1  && self.zoom < 10.0 {
+        self.nodes
+            .iter_mut()
+            .for_each(|(_, graphnode)| graphnode.node.adjust_for_zoom(delta, self.zoom, canvas_cursor_position));
+        }
     }
 
     pub fn window_resized(&mut self, size: Size) {
