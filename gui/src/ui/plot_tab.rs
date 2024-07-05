@@ -5,31 +5,61 @@ use iced::{
         event::{Event, Status},
         Geometry, Path, Stroke,
     },
-    Point, Rectangle, Renderer,
+    Element, Length, Point, Rectangle, Renderer,
 };
+use iced_aw::selection_list::SelectionList;
+use multibody::system_sim::MultibodyResult;
+use std::collections::HashMap;
 
 use crate::ui::theme::Theme;
 use crate::Message;
 
-#[derive(Debug, Default)]
-pub struct PlotState {
-
-}
-
 #[derive(Debug)]
-pub struct PlotCanvas {
-    state: PlotState,
+pub struct ResultsBar {
+    options: Vec<String>,
 }
 
-impl PlotCanvas {
-    pub fn new() -> Self {
+impl Default for ResultsBar {
+    fn default() -> Self {
         Self {
-            state: PlotState{},
+            options: Vec::new(),
         }
     }
 }
 
-impl canvas::Program<Message, Theme> for PlotCanvas{
+impl ResultsBar {
+    pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
+        let on_select = |_i: usize, result: String| Message::ResultSelected(result);
+        SelectionList::new(&self.options, on_select)
+            .height(Length::Fill)
+            .width(Length::FillPortion(1))
+            .into()
+    }
+
+    pub fn update_options(&mut self, results: &HashMap<String, MultibodyResult>) {
+        self.options = results.keys().cloned().collect();
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PlotState {}
+
+#[derive(Debug)]
+pub struct PlotCanvas<'a> {
+    state: PlotState,
+    app_state: &'a crate::AppState,
+}
+
+impl<'a> PlotCanvas<'a> {
+    pub fn new(app_state: &'a crate::AppState) -> Self {
+        Self {
+            state: PlotState {},
+            app_state: app_state,
+        }
+    }
+}
+
+impl<'a> canvas::Program<Message, Theme> for PlotCanvas<'a> {
     type State = PlotState;
 
     fn update(
@@ -88,7 +118,6 @@ impl canvas::Program<Message, Theme> for PlotCanvas{
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        
         Vec::new()
     }
 
@@ -97,7 +126,7 @@ impl canvas::Program<Message, Theme> for PlotCanvas{
         _state: &Self::State,
         bounds: Rectangle,
         cursor: mouse::Cursor,
-    ) -> mouse::Interaction {        
+    ) -> mouse::Interaction {
         mouse::Interaction::default()
     }
 }

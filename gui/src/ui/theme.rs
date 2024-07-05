@@ -68,6 +68,51 @@ impl iced::application::StyleSheet for Theme {
     }
 }
 
+impl iced_aw::style::selection_list::StyleSheet for Theme {
+    type Style = ();
+
+    fn style(&self, style: &Self::Style) -> iced_aw::style::selection_list::Appearance {
+        iced_aw::style::selection_list::Appearance {
+            background: self.background.into(),
+            text_color: self.text,
+            ..Default::default()
+        }
+    }
+}
+
+impl iced::widget::scrollable::StyleSheet for Theme {
+    type Style = ();
+    fn active(&self, _style: &Self::Style) -> iced::widget::scrollable::Appearance {
+        let container = iced::widget::container::Appearance::default();
+        let scroller = iced::widget::scrollable::Scroller {
+            color: self.dark_background.into(),
+            border: Border {
+                ..Default::default()
+            },
+        };
+        let scrollbar = iced::widget::scrollable::Scrollbar {
+            background: Some(iced::Background::Color(self.background)),
+            border: Border {
+                ..Default::default()
+            },
+            scroller: scroller,
+        };
+        let gap = None;
+        iced::widget::scrollable::Appearance {
+            container,
+            scrollbar,
+            gap,
+        }
+    }
+    fn hovered(
+        &self,
+        style: &Self::Style,
+        _is_mouse_over_scrollber: bool,
+    ) -> iced::widget::scrollable::Appearance {
+        self.active(style)
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub enum ContainerStyles {
     #[default]

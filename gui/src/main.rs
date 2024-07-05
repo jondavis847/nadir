@@ -2,10 +2,16 @@
 //#![warn(missing_docs)]
 
 use iced::{
-    advanced::graphics::core::window::icon, alignment, font, keyboard, mouse::ScrollDelta, time::{self, Duration, Instant}, widget::{button, canvas::Canvas, container, text, text_input, Column, Row}, window::{self, Icon}, Application, Command, Element, Length, Point, Settings, Size, Subscription
+    advanced::graphics::core::window::icon,
+    alignment, font, keyboard,
+    mouse::ScrollDelta,
+    time::{self, Duration, Instant},
+    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
+    window::{self, Icon},
+    Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
-use std::path::Path;
 use std::env;
+use std::path::Path;
 
 use iced_aw::{card, modal};
 mod app_state;
@@ -14,11 +20,11 @@ mod ui;
 
 use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
-use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
 use ui::plot_tab::PlotCanvas;
 use ui::tab_bar::AppTabs;
+use ui::{canvas::GraphCanvas, plot_tab::ResultsBar};
 
 fn main() -> iced::Result {
     match env::current_dir() {
@@ -35,7 +41,7 @@ fn main() -> iced::Result {
         let (width, height) = image.dimensions();
         (image.into_raw(), width, height)
     };
-    
+
     let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
 
     let mut settings = Settings::default();
@@ -60,6 +66,7 @@ enum Message {
     BodyIxyInputChanged(String),
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
+    ResultSelected(String),
     RevoluteConstantForceInputChanged(String),
     RevolutedampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
@@ -216,6 +223,10 @@ impl Application for IcedTest {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
                     Command::none()
                 }
+                Message::ResultSelected(result) => {
+                    dbg!(result);
+                    Command::none()
+                }
             },
         }
     }
@@ -289,7 +300,8 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
                 .width(Length::Fill)
         }
         AppTabs::Plot => {
-            let plot_canvas = PlotCanvas::new();
+            let results_bar = state.results_bar.content();
+            let plot_canvas = PlotCanvas::new(state);
             let plot_container = container(
                 Canvas::new(plot_canvas)
                     .width(Length::Fill)
@@ -299,6 +311,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             .height(Length::Fill);
 
             Row::new()
+                .push(results_bar)
                 .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)

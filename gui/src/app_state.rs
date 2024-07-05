@@ -7,6 +7,7 @@ use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
     tab_bar::{AppTabs, TabBar},
+    plot_tab::ResultsBar,
 };
 use crate::{
     ui::{
@@ -35,6 +36,7 @@ pub struct AppState {
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
     pub results: HashMap<String, MultibodyResult>,
+    pub results_bar: ResultsBar,
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -53,6 +55,7 @@ impl Default for AppState {
             modal: None,
             nodebar: Nodebar::default(),
             results: HashMap::new(),
+            results_bar: ResultsBar::default(),
             simdiv: SimDiv::default(),
             theme: crate::ui::theme::Theme::ORANGE,
         }
@@ -341,7 +344,8 @@ impl AppState {
 
         let result = sys.simulate(*start_time, *stop_time, *dt);
         self.results.insert(name.clone(),result);
-        
+        self.results_bar.update_options(&self.results);
+        self.cache.clear();
         dbg!(&self.results);
         Command::none()
     }
