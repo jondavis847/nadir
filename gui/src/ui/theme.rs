@@ -33,7 +33,7 @@ impl Theme {
         node_background: color!(30, 30, 31),
         text_background: color!(47, 47, 48),
         text: color!(204, 204, 200),
-        greyed: color!(204, 197, 185),
+        greyed: color!(100, 100, 100),
         border: color!(0, 0, 0),
         shadow: color!(37, 36, 34),
         //primary: color!(235, 161, 66),
