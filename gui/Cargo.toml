@@ -12,6 +12,7 @@ multibody = {path = "../multibody"}
 lyon_geom = "1.0.5"
 lyon_path = "1.0.5"
 transforms = {path = "../transforms"}
+utilities = {path = "../utilities"}
 image = "0.25.1"
 winit = "0.30.3"
 polars = "0.41.3"

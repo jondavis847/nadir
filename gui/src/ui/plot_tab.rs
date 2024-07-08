@@ -13,9 +13,6 @@ use iced::{
     Element, Rectangle, Renderer,
 };
 
-use multibody::system_sim::MultibodyResult;
-use std::collections::HashMap;
-
 use crate::ui::theme::Theme;
 use crate::Message;
 

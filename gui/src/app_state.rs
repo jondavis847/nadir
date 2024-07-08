@@ -1,6 +1,7 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use utilities::generate_unique_id;
 
 use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
@@ -347,8 +348,13 @@ impl AppState {
             dt,
         } = &self.simdiv.state;
 
+        let mut name = name.clone();
+        if name.is_empty() {
+            name = format!("sim_{}", generate_unique_id());
+        }
+
         let result = sys.simulate(*start_time, *stop_time, *dt);
-        self.results.insert(name.clone(), result);
+        self.results.insert(name, result);
         self.cache.clear();
         dbg!(&self.results);
         Command::none()

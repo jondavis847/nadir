@@ -1584,6 +1584,7 @@ dependencies = [
  "multibody",
  "polars",
  "transforms",
+ "utilities",
  "uuid",
  "winit 0.30.3",
 ]
