@@ -686,6 +686,10 @@ impl MultibodyResult {
 
         df.select(columns).unwrap()
     }
+
+    pub fn get_states(&self) -> Vec<String> {
+        self.result.keys().cloned().collect()
+    }
 }
 
 #[derive(Debug)]

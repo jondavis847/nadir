@@ -10,21 +10,20 @@ use iced::{
     window::{self, Icon},
     Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
+use iced_aw::{card, modal};
 use std::env;
 use std::path::Path;
-use uuid::Uuid;
-use iced_aw::{card, modal};
 mod app_state;
 mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
+use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
 use ui::plot_tab::plot_canvas::PlotCanvas;
 use ui::tab_bar::AppTabs;
-use ui::{canvas::GraphCanvas, plot_tab::sim_menu::PlotSimMenu};
 
 fn main() -> iced::Result {
     match env::current_dir() {
@@ -77,8 +76,9 @@ enum Message {
     SimNameChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
-    SimSelected(String),
     Simulate,
+    PlotSimSelected(String),
+    PlotComponentSelected(String),
     TabAnimationPressed,
     TabPlotPressed,
     TabSimulationPressed,
@@ -209,7 +209,8 @@ impl Application for IcedTest {
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
-                Message::SimSelected(id) => state.sim_selected(id),
+                Message::PlotSimSelected(string) => state.sim_selected(string),
+                Message::PlotComponentSelected(string) => state.plot_component_selected(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
@@ -302,11 +303,12 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
                 .width(Length::Fill)
         }
         AppTabs::Plot => {
-            //let loaded_sims_menu = LoadedSimsMenu::default();
-            //let loaded_sims_menu_content = loaded_sims_menu.content(sim_names);
-
-            //make the loaded sims menu            
-            let plot_sim_menu = state.plot_sim_menu.content();
+            let plot_sim_menu = state
+                .plot_sim_menu
+                .content(|string| Message::PlotSimSelected(string));
+            let plot_component_menu = state
+                .plot_component_menu
+                .content(|string| Message::PlotComponentSelected(string));
 
             let plot_canvas = PlotCanvas::new(state);
             let plot_container = container(
@@ -319,6 +321,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
 
             Row::new()
                 .push(plot_sim_menu)
+                .push(plot_component_menu)
                 .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)
