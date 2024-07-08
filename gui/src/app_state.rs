@@ -7,7 +7,7 @@ use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
-    plot_tab::LoadedSimsMenu,
+    plot_tab::sim_menu::PlotSimMenu,
     tab_bar::{AppTabs, TabBar},
 };
 use crate::{
@@ -34,7 +34,7 @@ pub struct AppState {
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
-    pub loaded_sims_menu: LoadedSimsMenu,
+    pub plot_sim_menu: PlotSimMenu,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
     pub results: HashMap<String, MultibodyResult>,
@@ -53,7 +53,7 @@ impl Default for AppState {
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),
-            loaded_sims_menu: LoadedSimsMenu::default(),
+            plot_sim_menu: PlotSimMenu::default(),
             modal: None,
             nodebar: Nodebar::default(),
             results: HashMap::new(),

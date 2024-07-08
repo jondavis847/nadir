@@ -22,9 +22,9 @@ use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
-use ui::plot_tab::PlotCanvas;
+use ui::plot_tab::plot_canvas::PlotCanvas;
 use ui::tab_bar::AppTabs;
-use ui::{canvas::GraphCanvas, plot_tab::LoadedSimsMenu};
+use ui::{canvas::GraphCanvas, plot_tab::sim_menu::PlotSimMenu};
 
 fn main() -> iced::Result {
     match env::current_dir() {
@@ -308,11 +308,11 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             //make the loaded sims menu
             let mut loaded_sims_menu = Column::new().width(Length::FillPortion(1));
             let sim_names: Vec<String> = state.results.keys().cloned().collect();
-            for sim in sim_names {
-                let label = text(sim.clone());
+            for name in sim_names {
+                let label = text(name.clone());
                 loaded_sims_menu = loaded_sims_menu.push(
                     button(label)
-                        .on_press(Message::SimSelected(sim.clone()))
+                        .on_press(Message::SimSelected(name.clone()))
                         .width(Length::Fill),
                 );
             }
