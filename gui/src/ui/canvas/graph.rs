@@ -1,4 +1,6 @@
-use iced::{mouse::Cursor, Point, Rectangle, Size};
+use iced::widget::canvas;
+use iced::widget::shader::wgpu::SurfaceConfiguration;
+use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
 use multibody::joint::JointTrait;
 use std::collections::HashMap;
 use transforms::Transform;
@@ -6,42 +8,32 @@ use uuid::Uuid;
 
 use super::edge::{Edge, EdgeConnection};
 use super::node::Node;
-use multibody::{joint::Joint, system::MultibodySystem, MultibodyErrors, MultibodyTrait};
+use multibody::system::MultibodySystem;
 
-use crate::multibody_ui::MultibodyComponent;
-use crate::ui::dummies::{DummyComponent, DummyTrait};
-use crate::{MouseButton, MouseButtonReleaseEvents};
+use crate::ui::dummies::DummyComponent;
+use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum GraphMessage {
-    EditComponent((MultibodyComponent,Uuid)),
+    EditComponent((DummyComponent, Uuid)),
 }
 
-pub enum GraphErrors {
-    BodyInvalidId(Uuid),
-    BodyMissingFrom(Uuid),
-    IdNotFound(Uuid),
-    NoBase,
-    NoBaseConnections,
-    JointMissingFrom(Uuid),
-    JointMissingTo(Uuid),
-    JointNoOuterBody(Uuid),
-    Multibody(MultibodyErrors),
-}
+#[derive(Debug, Clone, Copy)]
+pub enum GraphErrors {}
 
 #[derive(Debug, Clone)]
 pub struct GraphNode {
     pub component_id: Uuid,
-    pub component_type: MultibodyComponent,
+    pub dummy_type: DummyComponent,
     pub edges: Vec<Uuid>,
     pub node: Node,
 }
 
 impl GraphNode {
-    fn new(component_id: Uuid, component_type: MultibodyComponent, node: Node) -> Self {
+    fn new(component_id: Uuid, dummy_type: DummyComponent, node: Node) -> Self {
         let edges = Vec::new();
         Self {
             component_id,
-            component_type,
+            dummy_type,
             edges,
             node,
         }
@@ -55,84 +47,117 @@ pub struct Graph {
     current_edge: Option<Uuid>,
     pub edges: HashMap<Uuid, Edge>,
     pub is_clicked: bool,
-    last_cursor_position: Option<Point>,
+    cursor_position_previous: Option<Point>,
     left_clicked_node: Option<Uuid>,
     pub nodes: HashMap<Uuid, GraphNode>,
     right_clicked_node: Option<Uuid>,
     selected_node: Option<Uuid>,
-    //zoom: f32,
+    //TODO: combine the zoom stuff into it's own struct?
+    pub zoom: f32,
+    initial_zoom:f32,
+    target_zoom: f32,
+    zoom_animation_start: Option<iced::time::Instant>,
 }
 
 impl Default for Graph {
     fn default() -> Self {
         Self {
-            bounds: Rectangle::new(Point::new(130.0, 0.0), Size::new(870.0, 1000.0)),
+            bounds: Rectangle::new(Point::new(150.0, 0.0), Size::new(2000.0, 1000.0)), // this is too big and in consequential since the container is Length::Fill
             system: MultibodySystem::new(),
             current_edge: None,
             edges: HashMap::new(),
             is_clicked: false,
-            last_cursor_position: None,
+            cursor_position_previous: None,
             left_clicked_node: None,
             nodes: HashMap::new(),
             right_clicked_node: None,
             selected_node: None,
-            //zoom: 1.0,
+            zoom: 1.0,
+            initial_zoom: 1.0,
+            target_zoom: 1.0,
+            zoom_animation_start: None,
         }
     }
 }
 
 impl Graph {
-    pub fn cursor_moved(&mut self, cursor: Cursor) -> bool {
+    pub fn animation(&mut self, now: iced::time::Instant) -> bool {
         let mut redraw = false;
-        let cursor_position = cursor.position_in(self.bounds);
+        if let Some(start) = self.zoom_animation_start {
+            let elapsed = now - start;
+            let duration = iced::time::Duration::from_millis(300); // Animation duration
+
+            if elapsed < duration {
+                let t = elapsed.as_secs_f32() / duration.as_secs_f32();
+                // Cubic ease-out function
+                let t = t - 1.0;
+                let t = t * t * t + 1.0;
+                let new_zoom = self.initial_zoom + t * (self.target_zoom - self.initial_zoom);
+                let delta = new_zoom/self.zoom;
+                self.zoom = new_zoom;
+            
+                if self.zoom > 0.1 && self.zoom < 10.0 {
+                    self.nodes.iter_mut().for_each(|(_, graphnode)| {
+                        graphnode
+                            .node
+                            .adjust_for_zoom(self.zoom, delta, self.cursor_position_previous.unwrap())
+                    });
+                }
+            } else {
+                self.zoom = self.target_zoom;
+                self.zoom_animation_start = None;
+            }
+            redraw = true;
+        }
+        redraw
+    }
+
+    pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
+        let mut redraw = false;
 
         // Handle left-clicked node dragging
         if let Some(clicked_node_id) = self.left_clicked_node {
             if let Some(graphnode) = self.nodes.get_mut(&clicked_node_id) {
-                if let Some(position) = cursor_position {
-                    graphnode.node.translate_to(position);
-                    redraw = true;
-                }
+                graphnode.node.translate_to(canvas_cursor_position);
+                redraw = true;
             }
         } else if self.is_clicked {
             // Handle graph translating
-            if let Some(graph_cursor_position) = cursor_position {
-                if let Some(last_position) = self.last_cursor_position {
-                    let delta = graph_cursor_position - last_position;
-                    self.nodes.iter_mut().for_each(|(_, graphnode)| {
-                        graphnode.node.translate_by(delta);
-                    });
-                    redraw = true;
-                }
+
+            if let Some(last_position) = self.cursor_position_previous {
+                let delta = canvas_cursor_position - last_position;
+                self.nodes.iter_mut().for_each(|(_, graphnode)| {
+                    graphnode.node.translate_by(delta);
+                });
+                redraw = true;
             }
         }
 
         // Update last cursor position
-        if let Some(position) = cursor_position {
-            self.last_cursor_position = Some(position);
 
-            // Handle right-clicked node for edge drawing
-            if let Some(clicked_node_id) = self.right_clicked_node {
-                if let Some(edge_id) = self.current_edge {
-                    if let Some(edge) = self.edges.get_mut(&edge_id) {
-                        edge.to = EdgeConnection::Point(position);
-                    }
-                } else {
-                    let new_edge = Edge::new(
-                        EdgeConnection::Node(clicked_node_id),
-                        EdgeConnection::Point(position),
-                    );
-                    let new_edge_id = Uuid::new_v4();
-                    self.edges.insert(new_edge_id, new_edge);
-                    self.current_edge = Some(new_edge_id);
+        self.cursor_position_previous = Some(canvas_cursor_position);
 
-                    // Add the edge to the from node
-                    if let Some(from_node) = self.nodes.get_mut(&clicked_node_id) {
-                        from_node.edges.push(new_edge_id);
-                    }
+        // Handle right-clicked node for edge drawing
+        if let Some(clicked_node_id) = self.right_clicked_node {
+            if let Some(edge_id) = self.current_edge {
+                if let Some(edge) = self.edges.get_mut(&edge_id) {
+                    edge.to = EdgeConnection::Point(canvas_cursor_position);
                 }
-                redraw = true;
+            } else {
+                let new_edge = Edge::new(
+                    EdgeConnection::Node(clicked_node_id),
+                    EdgeConnection::Point(canvas_cursor_position),
+                );
+                let new_edge_id = Uuid::new_v4();
+                self.edges.insert(new_edge_id, new_edge);
+                self.current_edge = Some(new_edge_id);
+
+                // Add the edge to the from node
+                if let Some(from_node) = self.nodes.get_mut(&clicked_node_id) {
+                    from_node.edges.push(new_edge_id);
+                }
             }
+            redraw = true;
         }
 
         redraw
@@ -149,35 +174,15 @@ impl Graph {
                     self.edges.remove(&edge_id);
                 }
 
-                match selected_node.component_type {
-                    MultibodyComponent::Base => self.system.base = None,
-                    MultibodyComponent::Body => {
+                match selected_node.dummy_type {
+                    DummyComponent::Base => self.system.base = None,
+                    DummyComponent::Body => {
                         self.system.bodies.remove(&selected_node.component_id);
                     }
-                    MultibodyComponent::Joint => {
+                    DummyComponent::Revolute => {
                         self.system.joints.remove(&selected_node.component_id);
                     }
                 };
-            }
-        }
-    }
-
-    pub fn edit_component(&mut self, dummy: &DummyComponent, component_id: Uuid) {
-        match dummy {
-            DummyComponent::Base => {
-                dummy_base.set_values_for(self.system.base.as_mut().unwrap())
-            }
-            DummyComponent::Body(dummy_body) => {
-                let body = self.system.bodies.get_mut(&component_id).unwrap();
-                dummy_body.set_values_for(body);
-            }
-            DummyComponent::Revolute(dummy_revolute) => {
-                let joint = self.system.joints.get_mut(&component_id).unwrap();
-                match joint {
-                    Joint::Revolute(revolute) => {
-                        dummy_revolute.set_values_for(revolute);
-                    } //_ => {} //TODO: Error
-                }
             }
         }
     }
@@ -196,20 +201,16 @@ impl Graph {
     /// This function checks if the cursor is within the graph's bounds and, if so,
     /// iterates over the nodes to find the first node is in snapping distance of the cursor position.
     /// If such a node is found, its UUID is returned.
-    fn get_snappable_node(&self, cursor: Cursor) -> Option<Uuid> {
+    fn get_snappable_node(&self, canvas_cursor_position: Point) -> Option<Uuid> {
         // Check if the cursor is within the graph's bounds
-        if let Some(cursor_position) = cursor.position_in(self.bounds) {
+        if self.bounds.contains(canvas_cursor_position) {
             // Find the first node that the cursor is in snapping distance of
             return self
                 .nodes
                 .iter()
                 .find(|(_, graphnode)| {
                     let node = &graphnode.node;
-                    // Check if the cursor's x and y positions are within the node's bounds
-                    cursor_position.x > node.bounds.x
-                        && cursor_position.x < node.bounds.x + node.bounds.width
-                        && cursor_position.y > node.bounds.y
-                        && cursor_position.y < node.bounds.y + node.bounds.height
+                    node.rendered_bounds.contains(canvas_cursor_position)
                 })
                 // If a node is found, return its UUID
                 .map(|(id, _)| *id);
@@ -218,32 +219,18 @@ impl Graph {
         None
     }
 
-    fn is_valid_connection(
-        &self,
-        from_type: &MultibodyComponent,
-        to_type: &MultibodyComponent,
-    ) -> bool {
-        matches!(
-            (from_type, to_type),
-            (MultibodyComponent::Base, MultibodyComponent::Joint)
-                | (MultibodyComponent::Body, MultibodyComponent::Joint)
-                | (MultibodyComponent::Joint, MultibodyComponent::Base)
-                | (MultibodyComponent::Joint, MultibodyComponent::Body)
-        )
-    }
-
-    pub fn left_button_pressed(&mut self, cursor: Cursor) {
+    pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) {
         self.left_clicked_node = None;
 
-        if let Some(cursor_position) = cursor.position_in(self.bounds) {
+        if self.bounds.contains(canvas_cursor_position) {
             self.is_clicked = true;
-            self.last_cursor_position = Some(cursor_position);
+            self.cursor_position_previous = Some(canvas_cursor_position);
 
             // Clear the nodes' selected flags and determine the clicked node
             for (id, graphnode) in &mut self.nodes {
                 let node = &mut graphnode.node;
                 node.is_selected = false;
-                node.is_clicked(cursor_position, &MouseButton::Left);
+                node.is_clicked(canvas_cursor_position, &MouseButton::Left);
 
                 if node.is_left_clicked {
                     node.is_selected = true;
@@ -259,13 +246,13 @@ impl Graph {
     pub fn left_button_released(
         &mut self,
         release_event: &MouseButtonReleaseEvents,
-        cursor: Cursor,
+        canvas_cursor_position: Point,
     ) -> Option<GraphMessage> {
         self.is_clicked = false;
         let mut message = None;
 
-        if let Some(cursor_position) = cursor.position_in(self.bounds) {
-            self.last_cursor_position = Some(cursor_position);
+        if self.bounds.contains(canvas_cursor_position) {
+            self.cursor_position_previous = Some(canvas_cursor_position);
         }
 
         //clear the nodes selected flags, to be reapplied on click
@@ -279,7 +266,11 @@ impl Graph {
                 match release_event {
                     MouseButtonReleaseEvents::DoubleClick => {
                         clicked_node.is_selected = true;
-                        message = Some(GraphMessage::EditComponent((graphnode.component_type,graphnode.component_id)));
+
+                        message = Some(GraphMessage::EditComponent((
+                            graphnode.dummy_type,
+                            graphnode.component_id,
+                        )));
                     }
                     MouseButtonReleaseEvents::SingleClick => {
                         clicked_node.is_selected = true;
@@ -301,18 +292,18 @@ impl Graph {
         message
     }
 
-    pub fn right_button_pressed(&mut self, cursor: Cursor) {
+    pub fn right_button_pressed(&mut self, canvas_cursor_position: Point) {
         self.right_clicked_node = None;
 
-        if let Some(cursor_position) = cursor.position_in(self.bounds) {
+        if self.bounds.contains(canvas_cursor_position) {
             for (id, graphnode) in &mut self.nodes {
                 let node = &mut graphnode.node;
-                node.is_clicked(cursor_position, &MouseButton::Right);
+                node.is_clicked(canvas_cursor_position, &MouseButton::Right);
                 if node.is_right_clicked {
                     self.right_clicked_node = Some(*id);
                 }
             }
-            self.last_cursor_position = Some(cursor_position);
+            self.cursor_position_previous = Some(canvas_cursor_position);
         }
     }
 
@@ -325,7 +316,7 @@ impl Graph {
     /// # Arguments
     ///
     /// * `cursor` - The current position of the cursor.
-    pub fn right_button_released(&mut self, cursor: Cursor) {
+    pub fn right_button_released(&mut self, canvas_cursor_position: Point) {
         // Get the current edge ID if it exists, return if it does not
         let edge_id = match self.current_edge {
             Some(id) => id,
@@ -367,7 +358,7 @@ impl Graph {
         };
 
         // Attempt to get the snappable node near the cursor, return if it does not exist
-        let to_node_id = match self.get_snappable_node(cursor) {
+        let to_node_id = match self.get_snappable_node(canvas_cursor_position) {
             Some(id) => id,
             None => {
                 graceful_exit(self);
@@ -385,21 +376,27 @@ impl Graph {
         };
 
         // match valid conections and connect, other wise exit
-        match (&from_node.component_type, &to_node.component_type) {
-            (MultibodyComponent::Base, MultibodyComponent::Joint) => {
+        match (&from_node.dummy_type, &to_node.dummy_type) {
+            (DummyComponent::Base, DummyComponent::Revolute) => {
                 let base = self.system.base.as_mut().unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
-                joint.connect_inner_body(base, Transform::default());
+                joint
+                    .connect_inner_body(base, Transform::default())
+                    .unwrap();
             }
-            (MultibodyComponent::Body, MultibodyComponent::Joint) => {
+            (DummyComponent::Body, DummyComponent::Revolute) => {
                 let body = self.system.bodies.get_mut(&from_node.component_id).unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
-                joint.connect_inner_body(body, Transform::default());
+                joint
+                    .connect_inner_body(body, Transform::default())
+                    .unwrap();
             }
-            (MultibodyComponent::Joint, MultibodyComponent::Body) => {
+            (DummyComponent::Revolute, DummyComponent::Body) => {
                 let joint = self.system.joints.get_mut(&from_node.component_id).unwrap();
                 let body = self.system.bodies.get_mut(&to_node.component_id).unwrap();
-                joint.connect_outer_body(body, Transform::default());
+                joint
+                    .connect_outer_body(body, Transform::default())
+                    .unwrap();
             }
             _ => {
                 graceful_exit(self);
@@ -433,52 +430,50 @@ impl Graph {
         self.right_clicked_node = None;
     }
 
-    pub fn save_component(&mut self, dummy: &DummyComponent) -> Result<(), GraphErrors> {
+    pub fn save_component(
+        &mut self,
+        dummy_type: &DummyComponent,
+        component_id: Uuid,
+        label: String,
+    ) -> Result<(), GraphErrors> {
         // only do this if we can save the node
-        if let Some(last_cursor_position) = self.last_cursor_position {
+        if let Some(cursor_position_previous) = self.cursor_position_previous {
             // Generate unique IDs for node
-            let node_id = Uuid::new_v4();
+            // actually lets juts use the component id since it's a different hashmap
+            // let node_id = Uuid::new_v4();
 
             // Calculate the bounds for the new node
             let size = Size::new(100.0, 50.0); // TODO: make width dynamic based on name length
             let top_left = Point::new(
-                last_cursor_position.x - size.width / 2.0,
-                last_cursor_position.y - size.height / 2.0,
+                cursor_position_previous.x - size.width / 2.0,
+                cursor_position_previous.y - size.height / 2.0,
             );
             let bounds = Rectangle::new(top_left, size);
 
-            // Create the new component from it's 'dummy'
-            // also set the component_type
-            let (component_id, component_type) = match dummy {
-                DummyComponent::Base(dummy_base) => {
-                    // add base should have caught more than one base errors
-                    let new_base = dummy_base.to_base();
-                    let out = (*new_base.get_id(), MultibodyComponent::Base);
-                    self.system.add_base(new_base);
-                    out
-                }
-                DummyComponent::Body(dummy_body) => {
-                    let new_body = dummy_body.to_body();
-                    let out = (*new_body.get_id(), MultibodyComponent::Body);
-                    self.system.add_body(new_body);
-                    out
-                }
-                DummyComponent::Revolute(dummy_joint) => {
-                    let new_joint = dummy_joint.to_joint();
-                    let out = (*new_joint.get_id(), MultibodyComponent::Joint);
-                    self.system.add_joint(new_joint);
-                    out
-                }
-            };
-
             // Create the new node
-            let name = dummy.get_name();
-            let new_node = Node::new(name, bounds);
-            let graph_node = GraphNode::new(component_id, component_type, new_node);
+            let name = label;
+            let new_node = Node::new(name, bounds, self.zoom);
+            let graph_node = GraphNode::new(component_id, *dummy_type, new_node);
 
-            self.nodes.insert(node_id, graph_node);
+            self.nodes.insert(component_id, graph_node);
         }
         Ok(())
+    }
+
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
+        let canvas_cursor_position = self.cursor_position_previous.unwrap();
+        if self.bounds.contains(canvas_cursor_position) {
+            let zoom_speed = 0.25;
+            let delta = match delta {
+                ScrollDelta::Lines { x, y } => x + y,
+                ScrollDelta::Pixels { x, y } => x + y,
+            };
+            let delta = zoom_speed * delta;
+            self.initial_zoom = self.zoom;
+            self.target_zoom += self.zoom * delta;
+            self.target_zoom = self.target_zoom.clamp(0.1, 10.0);
+            self.zoom_animation_start = Some(iced::time::Instant::now());
+        }
     }
 
     pub fn window_resized(&mut self, size: Size) {

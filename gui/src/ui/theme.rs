@@ -1,4 +1,4 @@
-use iced::{application, Color};
+use iced::{application, Border, Color};
 
 macro_rules! color {
     ($red:expr, $green:expr, $blue:expr) => {
@@ -13,6 +13,7 @@ macro_rules! color {
 #[derive(Debug)]
 pub struct Theme {
     pub background: Color,
+    pub dark_background: Color,
     pub error: Color,
     pub node_background: Color,
     pub text_background: Color,
@@ -27,7 +28,8 @@ pub struct Theme {
 impl Theme {
     pub const ORANGE: Self = Self {
         background: color!(37, 37, 38),
-        error: color!(255,0,0),
+        dark_background: color!(27, 27, 28),
+        error: color!(255, 0, 0),
         node_background: color!(30, 30, 31),
         text_background: color!(47, 47, 48),
         text: color!(204, 204, 200),
@@ -66,34 +68,75 @@ impl iced::application::StyleSheet for Theme {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub enum ContainerStyles {
+    #[default]
+    DefaultContainer,
+    TabBarContainer,
+}
+
 impl iced::widget::container::StyleSheet for Theme {
-    type Style = ();
-    fn appearance(&self, _style: &Self::Style) -> iced::widget::container::Appearance {
-        let mut border = iced::Border::with_radius(2.0);
-        border.color = self.border;
-        border.width = 2.0;
+    type Style = ContainerStyles;
+    fn appearance(&self, style: &Self::Style) -> iced::widget::container::Appearance {
+        match style {
+            ContainerStyles::DefaultContainer => {
+                let mut border = iced::Border::with_radius(2.0);
+                border.color = self.border;
+                border.width = 2.0;
 
-        let shadow = iced::Shadow {
-            color: self.shadow,
-            offset: iced::Vector::new(3.0, 3.0),
-            blur_radius: 4.0,
-        };
+                let shadow = iced::Shadow {
+                    color: self.shadow,
+                    offset: iced::Vector::new(3.0, 3.0),
+                    blur_radius: 4.0,
+                };
 
-        iced::widget::container::Appearance {
-            text_color: None,
-            background: Some(self.background.into()),
-            border: border,
-            shadow: shadow,
+                iced::widget::container::Appearance {
+                    text_color: None,
+                    background: Some(self.background.into()),
+                    border: border,
+                    shadow: shadow,
+                }
+            }
+            ContainerStyles::TabBarContainer => {
+                let mut border = iced::Border::with_radius(2.0);
+                border.color = self.border;
+                border.width = 2.0;
+
+                let shadow = iced::Shadow {
+                    color: self.shadow,
+                    offset: iced::Vector::new(3.0, 3.0),
+                    blur_radius: 4.0,
+                };
+
+                iced::widget::container::Appearance {
+                    text_color: None,
+                    background: Some(self.dark_background.into()),
+                    border: border,
+                    shadow: shadow,
+                }
+            }
         }
     }
 }
 
-impl iced::widget::text::StyleSheet for Theme {
-    type Style = ();
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TextStyles {
+    #[default]
+    Default,
+    Primary,
+}
 
-    fn appearance(&self, _style: Self::Style) -> iced::widget::text::Appearance {
-        iced::widget::text::Appearance {
-            color: Some(self.text),
+impl iced::widget::text::StyleSheet for Theme {
+    type Style = TextStyles;
+
+    fn appearance(&self, style: Self::Style) -> iced::widget::text::Appearance {
+        match style {
+            TextStyles::Default => iced::widget::text::Appearance {
+                color: Some(self.text),
+            },
+            TextStyles::Primary => iced::widget::text::Appearance {
+                color: Some(self.highlight),
+            },
         }
     }
 }
@@ -102,9 +145,31 @@ impl iced::widget::button::StyleSheet for Theme {
     type Style = ();
 
     fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        let border = Border {
+            color: self.border,
+            width: 2.0,
+            radius: 0.0.into(),
+        };
+
         iced::widget::button::Appearance {
             background: Some(iced::Background::Color(self.node_background)),
-            text_color: self.text,
+            border: border,
+            text_color: self.primary,
+            ..Default::default()
+        }
+    }
+
+    fn hovered(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+        let border = Border {
+            color: self.border,
+            width: 2.0,
+            radius: 0.0.into(),
+        };
+
+        iced::widget::button::Appearance {
+            background: Some(iced::Background::Color(self.background)),
+            border: border,
+            text_color: self.primary,
             ..Default::default()
         }
     }
@@ -129,15 +194,13 @@ impl iced_aw::style::card::StyleSheet for Theme {
                 border_color: self.border,
                 ..iced_aw::style::card::Appearance::default()
             },
-            Card::Error => {
-                iced_aw::style::card::Appearance {
-                    background: iced::Background::Color(self.background),
-                    head_background: iced::Background::Color(self.error),
-                    head_text_color: self.error,
-                    border_color: self.border,
-                    ..iced_aw::style::card::Appearance::default()
-                }
-            }
+            Card::Error => iced_aw::style::card::Appearance {
+                background: iced::Background::Color(self.background),
+                head_background: iced::Background::Color(self.error),
+                head_text_color: self.error,
+                border_color: self.border,
+                ..iced_aw::style::card::Appearance::default()
+            },
         }
     }
 }

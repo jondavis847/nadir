@@ -1,4 +1,4 @@
-use iced::Point;
+use iced::{Point,Vector};
 use iced::widget::canvas::{Path,stroke::{self,Stroke}};
 use uuid::Uuid;
 use std::collections::HashMap;
@@ -29,20 +29,22 @@ impl Edge {
         }
     }
 
-    pub fn draw(&self, frame: &mut iced::widget::canvas::Frame, nodes: &HashMap<Uuid,GraphNode>, theme: &Theme) {
+    pub fn draw(&self, frame: &mut iced::widget::canvas::Frame, nodes: &HashMap<Uuid,GraphNode>, theme: &Theme, x_offset:f32, zoom:f32) {
+        let offset = Vector::new(x_offset,0.0);        
         let from_point = match self.from {
-            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.bounds.center(),
-            EdgeConnection::Point(point) => point,
+            EdgeConnection::Node(id) => nodes.get(&id).unwrap().node.rendered_bounds.center() - offset,
+            EdgeConnection::Point(point) => point - offset,
         };
         
         let to_point = match self.to {
             EdgeConnection::Node(id) => {
+                //TODO: this is redundant, save the path for the node so we dont have to calculate twice
                 let graphnode = nodes.get(&id).unwrap();
-                let node_path = graphnode.node.calculate_path();
+                let node_path = graphnode.node.calculate_path(x_offset, zoom);
 
-                find_intersection(from_point,graphnode.node.bounds.center(), &node_path)
+                find_intersection(from_point,graphnode.node.rendered_bounds.center()-offset, &node_path)
             }
-            EdgeConnection::Point(point) => point,
+            EdgeConnection::Point(point) => point - offset,
         };
 
         let control_point = Point::new((from_point.x + to_point.x)/2.0,(from_point.y + to_point.y)/2.0 );
@@ -57,7 +59,7 @@ impl Edge {
                 &path,
                 Stroke {
                     style: stroke::Style::Solid(theme.primary),
-                    width: 3.0,
+                    width: 3.0*zoom,
                     ..Stroke::default()
                 },
             );
@@ -69,8 +71,8 @@ impl Edge {
         let unit_direction = Point::new(direction.x / length, direction.y / length);
 
         // Define the arrowhead size
-        let arrowhead_length = 10.0;
-        let arrowhead_width = 5.0;
+        let arrowhead_length = 10.0*zoom;
+        let arrowhead_width = 5.0*zoom;
 
         // Calculate the points of the arrowhead
         let arrow_point1 = Point::new(

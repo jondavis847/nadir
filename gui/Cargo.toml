@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { version = "0.12.1", features = ["canvas"] }
+iced = { version = "0.12.1", features = ["canvas","tokio"] }
 iced_aw = { version = "0.9.3", features = ["card", "modal"] }
 uuid = "1.9.1"
 mass_properties = {path = "../mass_properties"}

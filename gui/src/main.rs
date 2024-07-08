@@ -3,41 +3,35 @@
 
 use iced::{
     alignment, font, keyboard,
-    mouse::Cursor,
-    widget::{
-        button,
-        canvas::{Cache, Canvas},
-        container, text, text_input, Column, Row,
-    },
-    window, Application, Command, Element, Length, Settings, Size, Subscription,
+    mouse::ScrollDelta,
+    time::{self, Duration, Instant},
+    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
+    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
 
 use iced_aw::{card, modal};
-use multibody::joint::Joint;
-use std::{
-    ops::Mul,
-    time::{Duration, Instant},
-};
-
+mod app_state;
 mod multibody_ui;
 mod ui;
-use multibody_ui::{BodyField, MultibodyComponent, RevoluteField};
-use ui::canvas::graph::{Graph, GraphMessage};
-use ui::canvas::nodebar::{Nodebar, NodebarMessage};
+
+use app_state::AppState;
+use multibody_ui::{BodyField, RevoluteField};
 use ui::canvas::GraphCanvas;
-use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute, DummyTrait};
+use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
-use ui::modals::ActiveModal;
+use ui::tab_bar::AppTabs;
 
 fn main() -> iced::Result {
     let mut settings = Settings::default();
     settings.antialiasing = true;
+    settings.window.size = Size::new(1280.0, 720.0);
     IcedTest::run(settings)
 }
 
 // Define the possible user interactions
 #[derive(Debug, Clone)]
 enum Message {
+    AnimationTick(Instant),
     BodyNameInputChanged(String),
     BodyMassInputChanged(String),
     BodyCmxInputChanged(String),
@@ -55,12 +49,20 @@ enum Message {
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
-    LeftButtonPressed(Cursor),
-    LeftButtonReleased(Cursor),
-    MiddleButtonPressed(Cursor),
-    RightButtonPressed(Cursor),
-    RightButtonReleased(Cursor),
-    CursorMoved(Cursor),
+    SimDtChanged(String),
+    SimStartTimeChanged(String),
+    SimStopTimeChanged(String),
+    Simulate,
+    TabAnimationPressed,
+    TabPlotPressed,
+    TabSimulationPressed,
+    LeftButtonPressed(Point),
+    LeftButtonReleased(Point),
+    MiddleButtonPressed(Point),
+    RightButtonPressed(Point),
+    RightButtonReleased(Point),
+    CursorMoved(Point),
+    WheelScrolled(ScrollDelta),
     CloseError,
     CloseModal,
     DeletePressed,
@@ -76,364 +78,6 @@ enum Message {
 enum IcedTest {
     Loading,
     Loaded(AppState),
-}
-
-#[derive(Debug)]
-struct AppState {
-    active_error: Option<Errors>,
-    cache: Cache,
-    counter_body: usize,
-    counter_revolute: usize,
-    graph: Graph,
-    left_clicked_time_1: Option<Instant>,
-    left_clicked_time_2: Option<Instant>,
-    modal: Option<ActiveModal>,
-    nodebar: Nodebar,
-    theme: crate::ui::theme::Theme,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            active_error: None,
-            cache: Cache::new(),
-            counter_body: 0,
-            counter_revolute: 0,
-            left_clicked_time_1: None,
-            left_clicked_time_2: None,
-            graph: Graph::default(),
-            modal: None,
-            nodebar: Nodebar::default(),
-            theme: crate::ui::theme::Theme::ORANGE,
-        }
-    }
-}
-
-enum MouseButton {
-    Left,
-    Right,
-    Middle,
-}
-
-#[derive(Debug)]
-enum MouseButtonReleaseEvents {
-    SingleClick,
-    DoubleClick,
-    Held,
-    Nothing,
-}
-
-impl AppState {
-    pub fn close_error(&mut self) -> Command<Message> {
-        self.active_error = None;
-        Command::none()
-    }
-
-    pub fn close_modal(&mut self) -> Command<Message> {
-        self.modal = None;
-        Command::none()
-    }
-
-    pub fn cursor_moved(&mut self, cursor: Cursor) -> Command<Message> {
-        let nodebar_redraw = self.nodebar.cursor_moved(cursor);
-        let graph_redraw = self.graph.cursor_moved(cursor);
-
-        // don't need to redraw just because mouse is moving
-        if nodebar_redraw || graph_redraw {
-            self.cache.clear();
-        }
-        Command::none()
-    }
-
-    pub fn delete_pressed(&mut self) -> Command<Message> {
-        self.graph.delete_pressed();
-        //self.nodebar.delete_pressed(); // no need for this, maybe ever?
-        self.cache.clear();
-        Command::none()
-    }
-
-    pub fn enter_pressed(&mut self) -> Command<Message> {
-        // if the error modal is currently open, close it
-        if self.active_error.is_some() {
-            self.active_error = None;
-        }
-        //if a component modal is currently open, save it
-        self.save_component()
-    }
-
-    pub fn left_button_pressed(&mut self, cursor: Cursor) -> Command<Message> {
-        self.left_clicked_time_1 = self.left_clicked_time_2;
-        self.left_clicked_time_2 = Some(Instant::now());
-
-        self.nodebar.left_button_pressed(cursor);
-        self.graph.left_button_pressed(cursor);
-        self.cache.clear();
-        Command::none()
-    }
-
-    pub fn left_button_released(&mut self, cursor: Cursor) -> Command<Message> {
-        // Determine the type of mouse button release event
-        let release_event = match (self.left_clicked_time_1, self.left_clicked_time_2) {
-            (Some(clicked_time_1), Some(clicked_time_2)) => {
-                let clicked_elapsed_time_1 = clicked_time_1.elapsed();
-                let clicked_elapsed_time_2 = clicked_time_2.elapsed();
-
-                if clicked_elapsed_time_1 <= Duration::from_millis(500) {
-                    MouseButtonReleaseEvents::DoubleClick
-                } else if clicked_elapsed_time_2 <= Duration::from_millis(300) {
-                    MouseButtonReleaseEvents::SingleClick
-                } else {
-                    MouseButtonReleaseEvents::Held
-                }
-            }
-            (None, Some(clicked_time_2)) => {
-                if clicked_time_2.elapsed() <= Duration::from_millis(200) {
-                    MouseButtonReleaseEvents::SingleClick
-                } else {
-                    MouseButtonReleaseEvents::Held
-                }
-            }
-            _ => MouseButtonReleaseEvents::Nothing,
-        };
-        if let Some(NodebarMessage::NewComponent(id)) =
-            self.nodebar.left_button_released(&release_event)
-        {
-            // Only create a new component if the mouse is over the graph
-            if cursor.is_over(self.graph.bounds) {
-                if self.nodebar.components.contains_key(&id) {
-                    if let Some(component) = self.nodebar.components.get(&id) {
-                        // Don't allow more than one base
-                        let mut set_modal = false;
-
-                        match component {
-                            &DummyComponent::Base(_) => {
-                                if self.graph.system.base.is_some() {
-                                    self.active_error = Some(Errors::TooManyBases);
-                                } else {
-                                    set_modal = true;
-                                }
-                            }
-                            _ => {
-                                // Not a base, all good
-                                set_modal = true;
-                            }
-                        }
-
-                        if set_modal {
-                            self.modal = Some(ActiveModal::new(id, None));
-                        }
-                    }
-                }
-            }
-        }
-        if let Some(GraphMessage::EditComponent((component_type, component_id))) =
-            self.graph.left_button_released(&release_event, cursor)
-        {
-            match component_type {
-                MultibodyComponent::Base => {
-                    let base = &self.graph.system.base.unwrap();
-                    let dummy = self
-                        .nodebar
-                        .components
-                        .get_mut(&self.nodebar.map.base)
-                        .unwrap();
-                    match dummy {
-                        DummyComponent::Base(dummy_base) => {
-                            dummy_base.get_values_from(base);
-                        }
-                        _ => {} //TODO error, should not be possible
-                    }
-                }
-                MultibodyComponent::Body => {
-                    let body = self.graph.system.bodies.get(&component_id).unwrap();
-                    let dummy = self
-                        .nodebar
-                        .components
-                        .get_mut(&self.nodebar.map.body)
-                        .unwrap();
-                    match dummy {
-                        DummyComponent::Body(dummy_body) => {
-                            dummy_body.get_values_from(body);
-                        }
-                        _ => {} //TODO error, should not be possible
-                    }
-                }
-                MultibodyComponent::Joint => {
-                    let joint = self.graph.system.joints.get(&component_id).unwrap();
-                    match joint {
-                        Joint::Revolute(revolute) => {
-                            let dummy = self
-                                .nodebar
-                                .components
-                                .get_mut(&self.nodebar.map.revolute)
-                                .unwrap();
-                            match dummy {
-                                DummyComponent::Revolute(dummy_rev) => {
-                                    dummy_rev.get_values_from(revolute);
-                                }
-                                _ => {} //TODO error, should not be possible
-                            }
-                        }
-                    }
-                }
-            }
-            self.modal = Some(ActiveModal(component_type));
-        }
-
-        self.cache.clear();
-        Command::none()
-    }
-
-    pub fn middle_button_pressed(&mut self, _cursor: Cursor) -> Command<Message> {
-        //match self.graph.create_multibody_system() {
-        //    Ok(system) => dbg!(system),
-        //    Err(error) => {
-                // TODO: handle error
-        //        return Command::none();
-        //    }
-       // };
-        Command::none()
-    }
-
-    pub fn right_button_pressed(&mut self, cursor: Cursor) -> Command<Message> {
-        self.nodebar.right_button_pressed(cursor);
-        self.graph.right_button_pressed(cursor);
-        Command::none()
-    }
-
-    pub fn right_button_released(&mut self, cursor: Cursor) -> Command<Message> {
-        self.graph.right_button_released(cursor);
-        self.nodebar.right_button_released(cursor);
-        self.cache.clear();
-        Command::none()
-    }
-
-    pub fn save_component(&mut self) -> Command<Message> {
-        // early return
-        let modal = match self.modal {
-            Some(ref modal) => modal,
-            None => return Command::none(),
-        };
-
-        // early return
-        match modal.0 {
-            MultibodyComponent::Base => {
-                if self.nodebar.dummies.base.name.is_empty() {
-                    self.nodebar.dummies.base.name = "base".to_string();
-                }
-                let base = self.nodebar.dummies.base.to_base();
-                self.graph.system.base = Some(base);
-            },
-            MultibodyComponent::Body => {
-                if self.nodebar.dummies.body.name.is_empty() {
-                    self.counter_body += 1;
-                    self.nodebar.dummies.body.name = format!("body{}",self.counter_body).to_string();
-                }
-                let base = self.nodebar.dummies.base.to_base();
-                self.graph.system.base = Some(base);
-            }
-        }
-        
-
-        // Ensure the body has a unique name if it's empty
-        if dummy_component.get_name().is_empty() {
-            let name = match dummy_component {
-                DummyComponent::Base(_) => "base".to_string(),
-                DummyComponent::Body(_) => {
-                    self.counter_body += 1;
-                    format!("body{}", self.counter_body)
-                }
-                DummyComponent::Revolute(_) => {
-                    self.counter_revolute += 1;
-                    format!("revolute{}", self.counter_revolute)
-                }
-            };
-            dummy_component.set_name(&name);
-        }
-        match modal.graph_component_id {
-            Some(id) => self.graph.edit_component(&dummy_component, id),
-            None => self.graph.save_component(&dummy_component),
-        };
-
-        //TODO: actually do something with the error/message
-        //match graph_message {
-
-        //}
-
-        // Clear the modal and cache
-        dummy_component.clear();
-        self.modal = None;
-        self.cache.clear();
-        Command::none()
-    }
-
-    fn tab_pressed(&mut self) -> Command<Message> {
-        if self.modal.is_some() {
-            Command::none()
-            //iced::widget::focus_next() // not working right now
-        } else {
-            Command::none()
-        }
-    }
-
-    pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {
-        if let Some(dummy_component) = self.nodebar.components.get_mut(&self.nodebar.map.body) {
-            if let DummyComponent::Body(dummy_body) = dummy_component {
-                match field {
-                    BodyField::Name => dummy_body.set_name(value),
-                    BodyField::Mass => dummy_body.mass = value.to_string(),
-                    BodyField::Cmx => dummy_body.cmx = value.to_string(),
-                    BodyField::Cmy => dummy_body.cmy = value.to_string(),
-                    BodyField::Cmz => dummy_body.cmz = value.to_string(),
-                    BodyField::Ixx => dummy_body.ixx = value.to_string(),
-                    BodyField::Iyy => dummy_body.iyy = value.to_string(),
-                    BodyField::Izz => dummy_body.izz = value.to_string(),
-                    BodyField::Ixy => dummy_body.ixy = value.to_string(),
-                    BodyField::Ixz => dummy_body.ixz = value.to_string(),
-                    BodyField::Iyz => dummy_body.iyz = value.to_string(),
-                }
-            } else {
-                // Handle error: must be the dummy body
-                eprintln!("Error: Component is not a DummyBody");
-            }
-        }
-        Command::none()
-    }
-
-    pub fn update_revolute_field(&mut self, field: RevoluteField, value: &str) -> Command<Message> {
-        if let Some(dummy_component) = self.nodebar.components.get_mut(&self.nodebar.map.revolute) {
-            if let DummyComponent::Revolute(dummy_revolute) = dummy_component {
-                match field {
-                    RevoluteField::Name => dummy_revolute.set_name(value),
-                    RevoluteField::ConstantForce => {
-                        dummy_revolute.constant_force = value.to_string()
-                    }
-                    RevoluteField::damping => dummy_revolute.damping = value.to_string(),
-                    RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
-                    RevoluteField::SpringConstant => {
-                        dummy_revolute.spring_constant = value.to_string()
-                    }
-                    RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
-                }
-            } else {
-                // Handle error: must be the dummy revolute
-                eprintln!("Error: Component is not a DummyRevolute");
-            }
-        }
-        Command::none()
-    }
-
-    fn window_resized(&mut self, window_size: Size) -> Command<Message> {
-        let graph_size = Size::new(
-            window_size.width - self.nodebar.bounds.width,
-            window_size.height,
-        );
-        self.graph.window_resized(graph_size);
-        let nodebar_size = Size::new(self.nodebar.bounds.width, window_size.height);
-        self.nodebar.window_resized(nodebar_size);
-        self.cache.clear();
-        Command::none()
-    }
 }
 
 async fn load() -> Result<(), String> {
@@ -469,6 +113,7 @@ impl Application for IcedTest {
                 Command::none()
             }
             IcedTest::Loaded(state) => match message {
+                Message::AnimationTick(instant) => state.animation(instant),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
                 Message::BodyNameInputChanged(value) => {
@@ -508,7 +153,7 @@ impl Application for IcedTest {
                     state.update_revolute_field(RevoluteField::ConstantForce, &value)
                 }
                 Message::RevolutedampingInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::damping, &value)
+                    state.update_revolute_field(RevoluteField::Damping, &value)
                 }
                 Message::RevoluteNameInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::Name, &value)
@@ -530,11 +175,28 @@ impl Application for IcedTest {
                 Message::CloseError => state.close_error(),
                 Message::CloseModal => state.close_modal(),
                 Message::CursorMoved(cursor) => state.cursor_moved(cursor),
+                Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
                 Message::DeletePressed => state.delete_pressed(),
                 Message::EnterPressed => state.enter_pressed(),
                 Message::TabPressed => state.tab_pressed(),
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),
+                Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
+                Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
+                Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
+                Message::Simulate => state.simulate(),
+                Message::TabAnimationPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Animation;
+                    Command::none()
+                }
+                Message::TabPlotPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Plot;
+                    Command::none()
+                }
+                Message::TabSimulationPressed => {
+                    state.tab_bar.state.current_tab = AppTabs::Simulation;
+                    Command::none()
+                }
             },
         }
     }
@@ -547,18 +209,25 @@ impl Application for IcedTest {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        iced::event::listen_with(|event, _| match event {
-            iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
-                Message::WindowResized(Size::new(width as f32, height as f32)),
-            ),
-            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
-                keyboard::Key::Named(keyboard::key::Named::Enter) => Some(Message::EnterPressed),
-                keyboard::Key::Named(keyboard::key::Named::Delete) => Some(Message::DeletePressed),
-                keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+        Subscription::batch(vec![
+            time::every(Duration::from_millis(16)).map(Message::AnimationTick),
+            iced::event::listen_with(|event, _| match event {
+                iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
+                    Message::WindowResized(Size::new(width as f32, height as f32)),
+                ),
+                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
+                    keyboard::Key::Named(keyboard::key::Named::Enter) => {
+                        Some(Message::EnterPressed)
+                    }
+                    keyboard::Key::Named(keyboard::key::Named::Delete) => {
+                        Some(Message::DeletePressed)
+                    }
+                    keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+                    _ => None,
+                },
                 _ => None,
-            },
-            _ => None,
-        })
+            }),
+        ])
     }
 }
 // Helper function to create the loading view
@@ -577,33 +246,43 @@ fn loading_view() -> Element<'static, Message, crate::ui::theme::Theme> {
 
 // Helper function to create the main loaded view
 fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
-    let graph_canvas = GraphCanvas::new(state);
-    let graph_container = container(
-        Canvas::new(graph_canvas)
-            .width(Length::Fill)
-            .height(Length::Fill),
-    )
-    .width(Length::Fill)
-    .height(Length::Fill);
+    let tab_bar = state.tab_bar.content();
 
-    let underlay = Row::new().push(graph_container);
+    let underlay = match state.tab_bar.state.current_tab {
+        AppTabs::Simulation => {
+            let sim_div = container(state.simdiv.content())
+                .width(Length::FillPortion(1))
+                .height(Length::Fill);
+
+            let graph_canvas = GraphCanvas::new(state);
+            let graph_container = container(
+                Canvas::new(graph_canvas)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .width(Length::FillPortion(4))
+            .height(Length::Fill);
+
+            Row::new()
+                .push(sim_div)
+                .push(graph_container)
+                .height(Length::FillPortion(17))
+                .width(Length::Fill)
+        }
+        _ => Row::new().into(), //nothing for now
+    };
+
+    let underlay = Column::new().push(tab_bar).push(underlay);
 
     let overlay = if let Some(active_error) = state.active_error {
         Some(create_error_modal(active_error))
     } else if let Some(active_modal) = state.modal {
-        // and there's a DummyComponent for that ActiveModal
-        if let Some(dummy) = state
-            .nodebar
-            .components
-            .get(&active_modal.dummy_component_id)
-        {
-            match dummy {
-                DummyComponent::Base(base) => Some(create_base_modal(base)),
-                DummyComponent::Body(body) => Some(create_body_modal(body)),
-                DummyComponent::Revolute(joint) => Some(create_revolute_modal(joint)),
+        match active_modal.dummy_type {
+            DummyComponent::Base => Some(create_base_modal(&state.nodebar.dummies.base)),
+            DummyComponent::Body => Some(create_body_modal(&state.nodebar.dummies.body)),
+            DummyComponent::Revolute => {
+                Some(create_revolute_modal(&state.nodebar.dummies.revolute))
             }
-        } else {
-            None
         }
     } else {
         None
@@ -632,6 +311,14 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::
                 .on_press(Message::SaveComponent),
         );
 
+    //let title = Text::new("Base Information".to_string())
+    //.height(20)
+    //.width(Length::Fill)
+    //.horizontal_alignment(iced::alignment::Horizontal::Center)
+    //.vertical_alignment(iced::alignment::Vertical::Center)
+    //.style(crate::ui::theme::TextStyles::Primary);
+
+    //title doesnt work yet
     card("Base Information", content)
         .foot(footer)
         .max_width(500.0)
@@ -655,7 +342,7 @@ fn create_body_modal(body: &DummyBody) -> Element<Message, crate::ui::theme::The
     let content = Column::new()
         .push(create_text_input(
             "name",
-            &body.get_name(),
+            &body.name,
             Message::BodyNameInputChanged,
         ))
         .push(create_text_input(

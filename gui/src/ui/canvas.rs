@@ -29,15 +29,6 @@ impl<'a> GraphCanvas<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct CanvasState {}
-
-impl Default for CanvasState {
-    fn default() -> Self {
-        Self {}
-    }
-}
-
 impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
     type State = ();
 
@@ -52,25 +43,36 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
             return (Status::Ignored, None);
         };
 
+        let canvas_cursor_position = cursor.position_in(bounds).unwrap();
+
         match event {
             Event::Mouse(mouse_event) => match mouse_event {
-                mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                    (Status::Captured, Some(Message::LeftButtonPressed(cursor)))
-                }
-                mouse::Event::ButtonReleased(mouse::Button::Left) => {
-                    (Status::Captured, Some(Message::LeftButtonReleased(cursor)))
-                }
-                mouse::Event::ButtonPressed(mouse::Button::Middle) => {
-                    (Status::Captured, Some(Message::MiddleButtonPressed(cursor)))
-                }
-                mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                    (Status::Captured, Some(Message::RightButtonPressed(cursor)))
-                }
-                mouse::Event::ButtonReleased(mouse::Button::Right) => {
-                    (Status::Captured, Some(Message::RightButtonReleased(cursor)))
-                }
-                mouse::Event::CursorMoved { position: _ } => {
-                    (Status::Captured, Some(Message::CursorMoved(cursor)))
+                mouse::Event::ButtonPressed(mouse::Button::Left) => (
+                    Status::Captured,
+                    Some(Message::LeftButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonReleased(mouse::Button::Left) => (
+                    Status::Captured,
+                    Some(Message::LeftButtonReleased(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonPressed(mouse::Button::Middle) => (
+                    Status::Captured,
+                    Some(Message::MiddleButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonPressed(mouse::Button::Right) => (
+                    Status::Captured,
+                    Some(Message::RightButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonReleased(mouse::Button::Right) => (
+                    Status::Captured,
+                    Some(Message::RightButtonReleased(canvas_cursor_position)),
+                ),
+                mouse::Event::CursorMoved { position: _ } => (
+                    Status::Captured,
+                    Some(Message::CursorMoved(canvas_cursor_position)),
+                ),
+                mouse::Event::WheelScrolled { delta } => {
+                    (Status::Captured, Some(Message::WheelScrolled(delta)))
                 }
                 _ => (Status::Captured, None),
             },
@@ -86,6 +88,8 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
+        let nodebar_width = self.app_state.nodebar.bounds.width;
+        let zoom = self.app_state.graph.zoom;
         let all_content = self.app_state.cache.draw(renderer, bounds.size(), |frame| {
             // node_bar border
             frame.stroke(
@@ -99,10 +103,15 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                 Stroke::default().with_width(2.0),
             );
 
-            // create edges (before nodes so nodes clip)
+            // create edges (before nodes so nodes clip the tail)
             frame.with_clip(self.app_state.graph.bounds, |frame| {
                 self.app_state.graph.edges.iter().for_each(|(_, edge)| {
-                    edge.draw(frame, &self.app_state.graph.nodes, &self.app_state.theme)
+                    edge.draw(
+                        frame,
+                        &self.app_state.graph.nodes,
+                        &self.app_state.theme,
+                        nodebar_width,zoom
+                    )
                 });
             });
 
@@ -112,16 +121,21 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                 .nodes
                 .iter()
                 .for_each(|(_, nodebarnode)| {
-                    nodebarnode.node.draw(frame, &self.app_state.theme);
+                    nodebarnode.node.draw(frame, &self.app_state.theme, 0.0, 1.0);
                 });
 
             // create nodes that are clipped (graph)
+
             frame.with_clip(self.app_state.graph.bounds, |frame| {
                 self.app_state
                     .graph
                     .nodes
                     .iter()
-                    .for_each(|(_, graphnode)| graphnode.node.draw(frame, &self.app_state.theme));
+                    .for_each(|(_, graphnode)| {
+                        graphnode
+                            .node
+                            .draw(frame, &self.app_state.theme, nodebar_width, zoom);
+                    });
             });
         });
         vec![all_content]
