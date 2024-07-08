@@ -34,7 +34,7 @@ impl Theme {
         text_background: color!(47, 47, 48),
         text: color!(204, 204, 200),
         greyed: color!(100, 100, 100),
-        border: color!(0, 0, 0),
+        border: color!(10, 10,10),
         shadow: color!(37, 36, 34),
         //primary: color!(235, 161, 66),
         //highlight: color!(212, 207, 40),

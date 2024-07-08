@@ -24,7 +24,7 @@ use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
 use ui::plot_tab::PlotCanvas;
 use ui::tab_bar::AppTabs;
-use ui::{canvas::GraphCanvas, plot_tab::ResultsBar};
+use ui::{canvas::GraphCanvas, plot_tab::LoadedSimsMenu};
 
 fn main() -> iced::Result {
     match env::current_dir() {
@@ -77,6 +77,7 @@ enum Message {
     SimNameChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
+    SimSelected(String),
     Simulate,
     TabAnimationPressed,
     TabPlotPressed,
@@ -208,6 +209,7 @@ impl Application for IcedTest {
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
+                Message::SimSelected(string) => state.sim_selected(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
@@ -300,18 +302,32 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
                 .width(Length::Fill)
         }
         AppTabs::Plot => {
-            let results_bar = state.results_bar.content();
+            //let loaded_sims_menu = LoadedSimsMenu::default();
+            //let loaded_sims_menu_content = loaded_sims_menu.content(sim_names);
+
+            //make the loaded sims menu
+            let mut loaded_sims_menu = Column::new().width(Length::FillPortion(1));
+            let sim_names: Vec<String> = state.results.keys().cloned().collect();
+            for sim in sim_names {
+                let label = text(sim.clone());
+                loaded_sims_menu = loaded_sims_menu.push(
+                    button(label)
+                        .on_press(Message::SimSelected(sim.clone()))
+                        .width(Length::Fill),
+                );
+            }
+
             let plot_canvas = PlotCanvas::new(state);
             let plot_container = container(
                 Canvas::new(plot_canvas)
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
-            .width(Length::FillPortion(4))
+            .width(Length::FillPortion(8))
             .height(Length::Fill);
 
             Row::new()
-                .push(results_bar)
+                .push(loaded_sims_menu)
                 .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)

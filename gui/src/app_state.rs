@@ -6,8 +6,8 @@ use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
+    plot_tab::LoadedSimsMenu,
     tab_bar::{AppTabs, TabBar},
-    plot_tab::ResultsBar,
 };
 use crate::{
     ui::{
@@ -21,7 +21,7 @@ use crate::{
     },
     Message,
 };
-use multibody::{joint::Joint, MultibodyTrait, system_sim::MultibodyResult};
+use multibody::{joint::Joint, system_sim::MultibodyResult, MultibodyTrait};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -33,10 +33,10 @@ pub struct AppState {
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
+    pub loaded_sims_menu: LoadedSimsMenu,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
     pub results: HashMap<String, MultibodyResult>,
-    pub results_bar: ResultsBar,
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -52,10 +52,10 @@ impl Default for AppState {
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),
+            loaded_sims_menu: LoadedSimsMenu::default(),
             modal: None,
             nodebar: Nodebar::default(),
             results: HashMap::new(),
-            results_bar: ResultsBar::default(),
             simdiv: SimDiv::default(),
             theme: crate::ui::theme::Theme::ORANGE,
         }
@@ -332,6 +332,11 @@ impl AppState {
         Command::none()
     }
 
+    pub fn sim_selected(&mut self, sim: String) -> Command<Message> {
+        dbg!(sim);
+        Command::none()
+    }
+
     pub fn simulate(&mut self) -> Command<Message> {
         let sys = &self.graph.system;
 
@@ -343,8 +348,7 @@ impl AppState {
         } = &self.simdiv.state;
 
         let result = sys.simulate(*start_time, *stop_time, *dt);
-        self.results.insert(name.clone(),result);
-        self.results_bar.update_options(&self.results);
+        self.results.insert(name.clone(), result);
         self.cache.clear();
         dbg!(&self.results);
         Command::none()

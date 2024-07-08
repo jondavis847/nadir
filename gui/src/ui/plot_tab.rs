@@ -1,13 +1,18 @@
 use iced::{
     mouse::{self, Cursor},
-    widget::canvas::{
-        self,
-        event::{Event, Status},
-        Geometry, Path, Stroke,
+    widget::{
+        button::Button,
+        canvas::{
+            self,
+            event::{Event, Status},
+            Geometry, Path, Stroke,
+        },
+        Column,
+        text::Text,
     },
-    Element, Length, Point, Rectangle, Renderer,
+    Element, Rectangle, Renderer,
 };
-use iced_aw::selection_list::SelectionList;
+
 use multibody::system_sim::MultibodyResult;
 use std::collections::HashMap;
 
@@ -15,29 +20,22 @@ use crate::ui::theme::Theme;
 use crate::Message;
 
 #[derive(Debug)]
-pub struct ResultsBar {
-    options: Vec<String>,
-}
+pub struct LoadedSimsMenu {}
 
-impl Default for ResultsBar {
+impl Default for LoadedSimsMenu {
     fn default() -> Self {
-        Self {
-            options: Vec::new(),
-        }
+        Self {}
     }
 }
 
-impl ResultsBar {
-    pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
-        let on_select = |_i: usize, result: String| Message::ResultSelected(result);
-        SelectionList::new(&self.options, on_select)
-            .height(Length::Fill)
-            .width(Length::FillPortion(1))
-            .into()
-    }
-
-    pub fn update_options(&mut self, results: &HashMap<String, MultibodyResult>) {
-        self.options = results.keys().cloned().collect();
+impl LoadedSimsMenu {
+    pub fn content(&self, sims: Vec<String>) -> Element<Message, crate::ui::theme::Theme> {
+        let mut content = Column::new();
+        for sim in sims {
+            let label = Text::new(sim.clone());
+            content = content.push(Button::new(label).on_press(Message::SimSelected(sim.clone())));
+        };
+        content.into()
     }
 }
 
