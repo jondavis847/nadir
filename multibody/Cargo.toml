@@ -12,4 +12,6 @@ rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}
 mass_properties = {path = "../mass_properties"}
 uuid = { version = "1.8.0", features = ["v4"] }
+utilities = {path = "../utilities"}
 polars = "0.41.2"
+chrono = "0.4.38"

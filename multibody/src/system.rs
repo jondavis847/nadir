@@ -80,9 +80,9 @@ impl MultibodySystem {
         false
     }
 
-    pub fn simulate(&self,tstart:f64,tstop:f64,dt:f64) -> MultibodyResult {
+    pub fn simulate(&self,name: String, tstart:f64,tstop:f64,dt:f64) -> MultibodyResult {
         let mut sim = MultibodySystemSim::from(self.clone());
-        sim.simulate(tstart,tstop,dt)
+        sim.simulate(name, tstart,tstop,dt)
     }
 
     pub fn validate(&self) {

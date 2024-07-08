@@ -333,7 +333,8 @@ impl AppState {
         Command::none()
     }
 
-    pub fn sim_selected(&mut self, sim: String) -> Command<Message> {
+    pub fn sim_selected(&mut self, sim_name: String) -> Command<Message> {
+        let sim = self.results.get(&sim_name).unwrap();
         dbg!(sim);
         Command::none()
     }
@@ -353,7 +354,7 @@ impl AppState {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        let result = sys.simulate(*start_time, *stop_time, *dt);
+        let result = sys.simulate(name.clone(), *start_time, *stop_time, *dt);
         self.results.insert(name, result);
         self.cache.clear();
         dbg!(&self.results);

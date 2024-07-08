@@ -1,7 +1,10 @@
+use chrono::{DateTime, Utc};
 use rotations::quaternion::Quaternion;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
+use std::time::{Duration, Instant, SystemTime};
+use utilities::{format_duration, generate_unique_id};
 use uuid::Uuid;
 
 use polars::prelude::*;
@@ -153,7 +156,10 @@ impl MultibodySystemSim {
         }
     }
 
-    pub fn simulate(&mut self, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+    pub fn simulate(&mut self, name: String, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+        let start_time = SystemTime::now();
+        let instant_start = Instant::now();
+
         // Create a vec of JointStates
         let initial_joint_states =
             JointStates(self.joints.iter().map(|joint| joint.get_state()).collect());
@@ -173,8 +179,12 @@ impl MultibodySystemSim {
             callbacks: Vec::new(),
         };
 
+        let sim_start_time = Instant::now();
+
         // Solve for joint states over time
         let (times, joint_states) = solver.solve();
+
+        let sim_duration = sim_start_time.elapsed();
 
         // Post-process body states
         for (ti, js) in times.iter().zip(joint_states.iter()) {
@@ -229,7 +239,20 @@ impl MultibodySystemSim {
             }
         }
 
-        MultibodyResult(result_hm)
+        let total_duration = instant_start.elapsed();
+
+        let mut name = name.clone();
+        if name.is_empty() {
+            name = format!("sim_{}", generate_unique_id());
+        }
+
+        MultibodyResult {
+            name: name,
+            result: result_hm,
+            time_start: start_time,
+            sim_duration: sim_duration,
+            total_duration: total_duration,
+        }
     }
 
     fn update_body_forces(&mut self) {
@@ -414,14 +437,20 @@ impl Div<f64> for MultibodyState {
     }
 }
 
-pub struct MultibodyResult(HashMap<String, ResultEntry>);
+pub struct MultibodyResult {
+    name: String,
+    result: HashMap<String, ResultEntry>,
+    time_start: SystemTime,
+    sim_duration: Duration,
+    total_duration: Duration,
+}
 
 impl MultibodyResult {
     pub fn get_component(&self, component_name: &str) -> DataFrame {
-        let component = self.0.get(component_name).unwrap();
+        let component = self.result.get(component_name).unwrap();
         let mut df = DataFrame::default();
 
-        let t = match self.0.get("t") {
+        let t = match self.result.get("t") {
             Some(ResultEntry::VecF64(vec)) => Series::new("t", vec.clone()),
             _ => panic!("Could not find `t`, this should not be possible"),
         };
@@ -668,13 +697,26 @@ pub enum ResultEntry {
 
 impl fmt::Debug for MultibodyResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let time_start = DateTime::<Utc>::from(self.time_start);
+
+        writeln!(f)?;
+        writeln!(f, "sim name: {}", self.name)?;
+        writeln!(f, "start time: {}", time_start)?;
+        writeln!(f, "sim duration: {}", format_duration(self.sim_duration))?;
+        writeln!(
+            f,
+            "total duration: {}",
+            format_duration(self.total_duration)
+        )?;
+        writeln!(f, "states: ")?;
+
         // Collect headers (keys) and sort them
-        let mut headers: Vec<&String> = self.0.keys().collect();
+        let mut headers: Vec<&String> = self.result.keys().collect();
         headers.sort();
 
         // Print each header as an individual row
         for header in headers {
-            writeln!(f, "{}", header)?;
+            writeln!(f, "     {}", header)?;
         }
 
         Ok(())

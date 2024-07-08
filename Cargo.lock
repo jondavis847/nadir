@@ -1575,6 +1575,7 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "iced",
  "iced_aw",
  "image 0.25.1",
@@ -2391,6 +2392,7 @@ dependencies = [
 name = "multibody"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "coordinate_systems",
  "differential_equations",
  "linear_algebra",
@@ -2399,6 +2401,7 @@ dependencies = [
  "rotations",
  "spatial_algebra",
  "transforms",
+ "utilities",
  "uuid",
 ]
 

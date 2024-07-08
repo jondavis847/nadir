@@ -47,7 +47,7 @@ fn main() {
 
     let mut sim = MultibodySystemSim::from(sys);
 
-    let result = sim.simulate(0.0, 10.0, 0.1);
+    let result = sim.simulate("sim_test".to_string(), 0.0, 10.0, 0.1);
 
     let joint1 = result.get_component("joint1");
     dbg!(joint1);
