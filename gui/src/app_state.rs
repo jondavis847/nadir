@@ -1,6 +1,6 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::collections::HashMap;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use utilities::generate_unique_id;
 
 use crate::multibody_ui::{BodyField, RevoluteField};

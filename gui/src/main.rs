@@ -306,16 +306,8 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             //let loaded_sims_menu_content = loaded_sims_menu.content(sim_names);
 
             //make the loaded sims menu
-            let mut loaded_sims_menu = Column::new().width(Length::FillPortion(1));
             let sim_names: Vec<String> = state.results.keys().cloned().collect();
-            for name in sim_names {
-                let label = text(name.clone());
-                loaded_sims_menu = loaded_sims_menu.push(
-                    button(label)
-                        .on_press(Message::SimSelected(name.clone()))
-                        .width(Length::Fill),
-                );
-            }
+            let plot_sim_menu = state.plot_sim_menu.content(sim_names);
 
             let plot_canvas = PlotCanvas::new(state);
             let plot_container = container(
@@ -327,7 +319,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             .height(Length::Fill);
 
             Row::new()
-                .push(loaded_sims_menu)
+                .push(plot_sim_menu)
                 .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)
