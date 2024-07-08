@@ -1,11 +1,14 @@
 use iced::{
     mouse::{self, Cursor},
-    widget::canvas::{
-        self,
-        event::{Event, Status},
-        Geometry,
+    widget::{
+        canvas::{
+            self,
+            event::{Event, Status},
+            Canvas, Geometry,
+        },
+        container,
     },
-    Rectangle, Renderer,
+    Element, Length, Rectangle, Renderer,
 };
 
 use crate::ui::theme::Theme;
@@ -14,22 +17,27 @@ use crate::Message;
 #[derive(Debug, Default)]
 pub struct PlotState {}
 
-#[derive(Debug)]
-pub struct PlotCanvas<'a> {
+#[derive(Debug, Default)]
+pub struct PlotCanvas {
     state: PlotState,
-    app_state: &'a crate::AppState,
 }
 
-impl<'a> PlotCanvas<'a> {
-    pub fn new(app_state: &'a crate::AppState) -> Self {
+impl PlotCanvas {
+    pub fn new() -> Self {
         Self {
             state: PlotState {},
-            app_state: app_state,
         }
+    }
+
+    pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
+        container(Canvas::new(self).width(Length::Fill).height(Length::Fill))
+            .width(Length::FillPortion(8))
+            .height(Length::Fill)
+            .into()
     }
 }
 
-impl<'a> canvas::Program<Message, Theme> for PlotCanvas<'a> {
+impl canvas::Program<Message, Theme> for PlotCanvas {
     type State = PlotState;
 
     fn update(

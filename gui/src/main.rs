@@ -304,13 +304,13 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
         }
         AppTabs::Plot => {
             let plot_sim_menu = state
-                .plot_sim_menu
+                .plot_tab.sim_menu
                 .content(|string| Message::PlotSimSelected(string));
             let plot_component_menu = state
-                .plot_component_menu
+                .plot_tab.component_menu
                 .content(|string| Message::PlotComponentSelected(string));
 
-            let plot_canvas = PlotCanvas::new(state);
+            let plot_canvas = PlotCanvas::new();
             let plot_container = container(
                 Canvas::new(plot_canvas)
                     .width(Length::Fill)

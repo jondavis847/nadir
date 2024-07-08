@@ -6,8 +6,8 @@ use utilities::{generate_unique_id, unique_strings};
 use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
     errors::Errors,
-    mouse::MouseButtonReleaseEvents,    
-    select_menu::SelectMenu,
+    mouse::MouseButtonReleaseEvents,
+    plot_tab::PlotTab,    
     tab_bar::{AppTabs, TabBar},
 };
 use crate::{
@@ -34,8 +34,7 @@ pub struct AppState {
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
-    pub plot_sim_menu: SelectMenu,
-    pub plot_component_menu: SelectMenu,
+    pub plot_tab: PlotTab,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
     pub results: HashMap<String, MultibodyResult>,
@@ -54,8 +53,7 @@ impl Default for AppState {
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),
-            plot_sim_menu: SelectMenu::default(),
-            plot_component_menu: SelectMenu::default(),
+            plot_tab: PlotTab::default(),
             modal: None,
             nodebar: Nodebar::default(),
             results: HashMap::new(),
@@ -336,17 +334,17 @@ impl AppState {
     }
 
     pub fn sim_selected(&mut self, sim_name: String) -> Command<Message> {
-        self.plot_sim_menu.option_selected(&sim_name);
+        self.plot_tab.sim_menu.option_selected(&sim_name);
 
         // get the unique sim states by looking all selected sims
-        let selected_sims = self.plot_sim_menu.get_selected_options();
+        let selected_sims = self.plot_tab.sim_menu.get_selected_options();
         let mut states = Vec::new();
         for sim in &selected_sims {
             let result = self.results.get(sim).unwrap();
             states = unique_strings(states, result.get_states());
         }
 
-        self.plot_component_menu.update_options(states);
+        self.plot_tab.component_menu.update_options(states);
 
         //let sim = self.results.get(&sim_name).unwrap();
 
@@ -372,14 +370,16 @@ impl AppState {
         let result = sys.simulate(name.clone(), *start_time, *stop_time, *dt);
         self.results.insert(name.clone(), result);
         self.cache.clear();
-        
-        self.plot_sim_menu.add_option(name.clone());
+
+        self.plot_tab.sim_menu.add_option(name.clone());
 
         Command::none()
     }
 
     pub fn plot_component_selected(&mut self, component_name: String) -> Command<Message> {
-        self.plot_component_menu.option_selected(&component_name);        
+        self.plot_tab
+            .component_menu
+            .option_selected(&component_name);
         Command::none()
     }
 
