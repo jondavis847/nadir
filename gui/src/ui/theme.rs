@@ -1,4 +1,4 @@
-use iced::{application, Border, Color};
+use iced::{application, widget::Button, Border, Color};
 
 macro_rules! color {
     ($red:expr, $green:expr, $blue:expr) => {
@@ -34,7 +34,7 @@ impl Theme {
         text_background: color!(47, 47, 48),
         text: color!(204, 204, 200),
         greyed: color!(100, 100, 100),
-        border: color!(10, 10,10),
+        border: color!(10, 10, 10),
         shadow: color!(37, 36, 34),
         //primary: color!(235, 161, 66),
         //highlight: color!(212, 207, 40),
@@ -186,36 +186,57 @@ impl iced::widget::text::StyleSheet for Theme {
     }
 }
 
-impl iced::widget::button::StyleSheet for Theme {
-    type Style = ();
+#[derive(Default)]
+pub enum ButtonStyles {
+    #[default]
+    Default,
+    Selected,
+}
 
-    fn active(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+impl iced::widget::button::StyleSheet for Theme {
+    type Style = ButtonStyles;
+
+    fn active(&self, style: &Self::Style) -> iced::widget::button::Appearance {
         let border = Border {
             color: self.border,
             width: 2.0,
             radius: 0.0.into(),
         };
-
-        iced::widget::button::Appearance {
-            background: Some(iced::Background::Color(self.node_background)),
-            border: border,
-            text_color: self.primary,
-            ..Default::default()
+        match style {
+            ButtonStyles::Default => iced::widget::button::Appearance {
+                background: Some(iced::Background::Color(self.node_background)),
+                border: border,
+                text_color: self.primary,
+                ..Default::default()
+            },
+            ButtonStyles::Selected => iced::widget::button::Appearance {
+                background: Some(iced::Background::Color(self.primary)),
+                border: border,
+                text_color: self.primary,
+                ..Default::default()
+            },
         }
     }
-
-    fn hovered(&self, _style: &Self::Style) -> iced::widget::button::Appearance {
+    fn hovered(&self, style: &Self::Style) -> iced::widget::button::Appearance {
         let border = Border {
             color: self.border,
             width: 2.0,
             radius: 0.0.into(),
         };
 
-        iced::widget::button::Appearance {
-            background: Some(iced::Background::Color(self.background)),
-            border: border,
-            text_color: self.primary,
-            ..Default::default()
+        match style {
+            ButtonStyles::Default => iced::widget::button::Appearance {
+                background: Some(iced::Background::Color(self.background)),
+                border: border,
+                text_color: self.primary,
+                ..Default::default()
+            },
+            ButtonStyles::Selected => iced::widget::button::Appearance {
+                background: Some(iced::Background::Color(self.primary)),
+                border: border,
+                text_color: self.primary,
+                ..Default::default()
+            },
         }
     }
 }

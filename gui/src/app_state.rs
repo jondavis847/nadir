@@ -7,7 +7,7 @@ use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
-    plot_tab::sim_menu::PlotSimMenu,
+    plot_tab::sim_menu::{PlotSimMenu, SimMenuOption},
     tab_bar::{AppTabs, TabBar},
 };
 use crate::{
@@ -334,6 +334,7 @@ impl AppState {
     }
 
     pub fn sim_selected(&mut self, sim_name: String) -> Command<Message> {
+        self.plot_sim_menu.sim_selected(&sim_name);
         let sim = self.results.get(&sim_name).unwrap();
         dbg!(sim);
         Command::none()
@@ -355,9 +356,12 @@ impl AppState {
         }
 
         let result = sys.simulate(name.clone(), *start_time, *stop_time, *dt);
-        self.results.insert(name, result);
+        self.results.insert(name.clone(), result);
         self.cache.clear();
-        dbg!(&self.results);
+
+        let plot_sim_option = SimMenuOption::new(name.clone());
+        self.plot_sim_menu.add_option(plot_sim_option);
+
         Command::none()
     }
 

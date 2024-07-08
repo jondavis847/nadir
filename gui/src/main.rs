@@ -12,7 +12,7 @@ use iced::{
 };
 use std::env;
 use std::path::Path;
-
+use uuid::Uuid;
 use iced_aw::{card, modal};
 mod app_state;
 mod multibody_ui;
@@ -209,7 +209,7 @@ impl Application for IcedTest {
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
-                Message::SimSelected(string) => state.sim_selected(string),
+                Message::SimSelected(id) => state.sim_selected(id),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
@@ -305,9 +305,8 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             //let loaded_sims_menu = LoadedSimsMenu::default();
             //let loaded_sims_menu_content = loaded_sims_menu.content(sim_names);
 
-            //make the loaded sims menu
-            let sim_names: Vec<String> = state.results.keys().cloned().collect();
-            let plot_sim_menu = state.plot_sim_menu.content(sim_names);
+            //make the loaded sims menu            
+            let plot_sim_menu = state.plot_sim_menu.content();
 
             let plot_canvas = PlotCanvas::new(state);
             let plot_container = container(
