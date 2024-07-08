@@ -2,12 +2,16 @@
 //#![warn(missing_docs)]
 
 use iced::{
+    advanced::graphics::core::window::icon,
     alignment, font, keyboard,
     mouse::ScrollDelta,
     time::{self, Duration, Instant},
     widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
-    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
+    window::{self, Icon},
+    Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
+use std::env;
+use std::path::Path;
 
 use iced_aw::{card, modal};
 mod app_state;
@@ -16,15 +20,34 @@ mod ui;
 
 use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
-use ui::canvas::GraphCanvas;
 use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
 use ui::errors::Errors;
+use ui::plot_tab::PlotCanvas;
 use ui::tab_bar::AppTabs;
+use ui::{canvas::GraphCanvas, plot_tab::LoadedSimsMenu};
 
 fn main() -> iced::Result {
+    match env::current_dir() {
+        Ok(path) => println!("The current working directory is: {}", path.display()),
+        Err(e) => println!("Error getting current directory: {}", e),
+    }
+
+    let icon_path = Path::new("./resources/icon.png");
+    dbg!(icon_path);
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(icon_path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        (image.into_raw(), width, height)
+    };
+
+    let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+
     let mut settings = Settings::default();
     settings.antialiasing = true;
     settings.window.size = Size::new(1280.0, 720.0);
+    settings.window.icon = Some(icon);
     IcedTest::run(settings)
 }
 
@@ -43,6 +66,7 @@ enum Message {
     BodyIxyInputChanged(String),
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
+    ResultSelected(String),
     RevoluteConstantForceInputChanged(String),
     RevolutedampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
@@ -50,8 +74,10 @@ enum Message {
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
     SimDtChanged(String),
+    SimNameChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
+    SimSelected(String),
     Simulate,
     TabAnimationPressed,
     TabPlotPressed,
@@ -101,7 +127,7 @@ impl Application for IcedTest {
     }
 
     fn title(&self) -> String {
-        String::from("jds")
+        String::from("GADGT")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
@@ -183,7 +209,9 @@ impl Application for IcedTest {
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
+                Message::SimSelected(string) => state.sim_selected(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
+                Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
                 Message::TabAnimationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Animation;
@@ -195,6 +223,10 @@ impl Application for IcedTest {
                 }
                 Message::TabSimulationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
+                    Command::none()
+                }
+                Message::ResultSelected(result) => {
+                    dbg!(result);
                     Command::none()
                 }
             },
@@ -210,7 +242,7 @@ impl Application for IcedTest {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         Subscription::batch(vec![
-            time::every(Duration::from_millis(16)).map(Message::AnimationTick),
+            window::frames().map(Message::AnimationTick),
             iced::event::listen_with(|event, _| match event {
                 iced::Event::Window(_, window::Event::Resized { width, height }) => Some(
                     Message::WindowResized(Size::new(width as f32, height as f32)),
@@ -266,6 +298,37 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
             Row::new()
                 .push(sim_div)
                 .push(graph_container)
+                .height(Length::FillPortion(17))
+                .width(Length::Fill)
+        }
+        AppTabs::Plot => {
+            //let loaded_sims_menu = LoadedSimsMenu::default();
+            //let loaded_sims_menu_content = loaded_sims_menu.content(sim_names);
+
+            //make the loaded sims menu
+            let mut loaded_sims_menu = Column::new().width(Length::FillPortion(1));
+            let sim_names: Vec<String> = state.results.keys().cloned().collect();
+            for sim in sim_names {
+                let label = text(sim.clone());
+                loaded_sims_menu = loaded_sims_menu.push(
+                    button(label)
+                        .on_press(Message::SimSelected(sim.clone()))
+                        .width(Length::Fill),
+                );
+            }
+
+            let plot_canvas = PlotCanvas::new(state);
+            let plot_container = container(
+                Canvas::new(plot_canvas)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .width(Length::FillPortion(8))
+            .height(Length::Fill);
+
+            Row::new()
+                .push(loaded_sims_menu)
+                .push(plot_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)
         }

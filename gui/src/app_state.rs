@@ -1,8 +1,14 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::multibody_ui::{BodyField, RevoluteField};
-use crate::ui::{errors::Errors, mouse::MouseButtonReleaseEvents, tab_bar::TabBar};
+use crate::ui::{
+    errors::Errors,
+    mouse::MouseButtonReleaseEvents,
+    plot_tab::LoadedSimsMenu,
+    tab_bar::{AppTabs, TabBar},
+};
 use crate::{
     ui::{
         canvas::{
@@ -15,7 +21,7 @@ use crate::{
     },
     Message,
 };
-use multibody::{joint::Joint, MultibodyTrait};
+use multibody::{joint::Joint, system_sim::MultibodyResult, MultibodyTrait};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -27,8 +33,10 @@ pub struct AppState {
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
     pub left_clicked_time_2: Option<Instant>,
+    pub loaded_sims_menu: LoadedSimsMenu,
     pub modal: Option<ActiveModal>,
     pub nodebar: Nodebar,
+    pub results: HashMap<String, MultibodyResult>,
     pub simdiv: SimDiv,
     pub theme: crate::ui::theme::Theme,
 }
@@ -44,8 +52,10 @@ impl Default for AppState {
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),
+            loaded_sims_menu: LoadedSimsMenu::default(),
             modal: None,
             nodebar: Nodebar::default(),
+            results: HashMap::new(),
             simdiv: SimDiv::default(),
             theme: crate::ui::theme::Theme::ORANGE,
         }
@@ -71,13 +81,19 @@ impl AppState {
     }
 
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> Command<Message> {
-        let nodebar_redraw = self.nodebar.cursor_moved(canvas_cursor_position);
-        let graph_redraw = self.graph.cursor_moved(canvas_cursor_position);
+        match self.tab_bar.state.current_tab {
+            AppTabs::Simulation => {
+                let nodebar_redraw = self.nodebar.cursor_moved(canvas_cursor_position);
+                let graph_redraw = self.graph.cursor_moved(canvas_cursor_position);
 
-        // don't need to redraw just because mouse is moving
-        if nodebar_redraw || graph_redraw {
-            self.cache.clear();
+                // don't need to redraw just because mouse is moving
+                if nodebar_redraw || graph_redraw {
+                    self.cache.clear();
+                }
+            }
+            _ => {}
         }
+
         Command::none()
     }
 
@@ -316,18 +332,25 @@ impl AppState {
         Command::none()
     }
 
-    pub fn simulate(&self) -> Command<Message> {
+    pub fn sim_selected(&mut self, sim: String) -> Command<Message> {
+        dbg!(sim);
+        Command::none()
+    }
+
+    pub fn simulate(&mut self) -> Command<Message> {
         let sys = &self.graph.system;
 
         let SimDivState {
+            name,
             start_time,
             stop_time,
             dt,
-        } = self.simdiv.state;
+        } = &self.simdiv.state;
 
-        let result = sys.simulate(start_time, stop_time, dt);
-        let joint1 = result.get_component("joint1");
-        dbg!(joint1);
+        let result = sys.simulate(*start_time, *stop_time, *dt);
+        self.results.insert(name.clone(), result);
+        self.cache.clear();
+        dbg!(&self.results);
         Command::none()
     }
 
