@@ -5,25 +5,27 @@ use iced::{
     advanced::graphics::core::window::icon,
     alignment, font, keyboard,
     mouse::ScrollDelta,
-    time::{self, Duration, Instant},
+    time::Instant,
     widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
-    window::{self, Icon},
-    Application, Command, Element, Length, Point, Settings, Size, Subscription,
+    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
 };
 use iced_aw::{card, modal};
-use std::env;
-use std::path::Path;
+use std::{env, path::Path};
+
 mod app_state;
 mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
-use ui::canvas::GraphCanvas;
-use ui::dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute};
-use ui::errors::Errors;
-use ui::plot_tab::plot_canvas::PlotCanvas;
-use ui::tab_bar::AppTabs;
+
+use ui::{
+    canvas::GraphCanvas,
+    dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute},
+    errors::Errors,
+    tab_bar::AppTabs,
+    theme::Theme,
+};
 
 fn main() -> iced::Result {
     match env::current_dir() {
@@ -112,7 +114,7 @@ async fn load() -> Result<(), String> {
 
 impl Application for IcedTest {
     type Message = Message;
-    type Theme = crate::ui::theme::Theme;
+    type Theme = Theme;
     type Executor = iced::executor::Default;
     type Flags = ();
 
@@ -234,7 +236,7 @@ impl Application for IcedTest {
         }
     }
 
-    fn view(&self) -> Element<Message, crate::ui::theme::Theme> {
+    fn view(&self) -> Element<Message, Theme> {
         match self {
             IcedTest::Loading => loading_view(),
             IcedTest::Loaded(state) => loaded_view(state),
@@ -264,7 +266,7 @@ impl Application for IcedTest {
     }
 }
 // Helper function to create the loading view
-fn loading_view() -> Element<'static, Message, crate::ui::theme::Theme> {
+fn loading_view() -> Element<'static, Message, Theme> {
     container(
         text("Loading...")
             .horizontal_alignment(alignment::Horizontal::Center)
@@ -278,10 +280,11 @@ fn loading_view() -> Element<'static, Message, crate::ui::theme::Theme> {
 }
 
 // Helper function to create the main loaded view
-fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
+fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     let tab_bar = state.tab_bar.content();
 
-    let underlay = match state.tab_bar.state.current_tab {
+    let underlay: Element<Message, Theme> = match state.tab_bar.state.current_tab
+    {
         AppTabs::Simulation => {
             let sim_div = container(state.simdiv.content())
                 .width(Length::FillPortion(1))
@@ -301,31 +304,9 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
                 .push(graph_container)
                 .height(Length::FillPortion(17))
                 .width(Length::Fill)
+                .into()
         }
-        AppTabs::Plot => {
-            let plot_sim_menu = state
-                .plot_tab.sim_menu
-                .content(|string| Message::PlotSimSelected(string));
-            let plot_component_menu = state
-                .plot_tab.component_menu
-                .content(|string| Message::PlotComponentSelected(string));
-
-            let plot_canvas = PlotCanvas::new();
-            let plot_container = container(
-                Canvas::new(plot_canvas)
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            )
-            .width(Length::FillPortion(8))
-            .height(Length::Fill);
-
-            Row::new()
-                .push(plot_sim_menu)
-                .push(plot_component_menu)
-                .push(plot_container)
-                .height(Length::FillPortion(17))
-                .width(Length::Fill)
-        }
+        AppTabs::Plot => state.plot_tab.content().into(),
         _ => Row::new().into(), //nothing for now
     };
 
@@ -351,7 +332,7 @@ fn loaded_view(state: &AppState) -> Element<Message, crate::ui::theme::Theme> {
         .into()
 }
 
-fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::theme::Theme> {
+fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, Theme> {
     let content = Column::new();
     let footer = Row::new()
         .spacing(10)
@@ -368,12 +349,6 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::
                 .on_press(Message::SaveComponent),
         );
 
-    //let title = Text::new("Base Information".to_string())
-    //.height(20)
-    //.width(Length::Fill)
-    //.horizontal_alignment(iced::alignment::Horizontal::Center)
-    //.vertical_alignment(iced::alignment::Vertical::Center)
-    //.style(crate::ui::theme::TextStyles::Primary);
 
     //title doesnt work yet
     card("Base Information", content)
@@ -382,7 +357,7 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, crate::ui::
         .into()
 }
 
-fn create_body_modal(body: &DummyBody) -> Element<Message, crate::ui::theme::Theme> {
+fn create_body_modal(body: &DummyBody) -> Element<Message, Theme> {
     let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
         Row::new()
             .spacing(10)
@@ -474,7 +449,7 @@ fn create_body_modal(body: &DummyBody) -> Element<Message, crate::ui::theme::The
         .into()
 }
 
-fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, crate::ui::theme::Theme> {
+fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
     let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
         Row::new()
             .spacing(10)
@@ -541,7 +516,7 @@ fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, crate::ui::t
         .into()
 }
 
-fn create_error_modal(error: Errors) -> Element<'static, Message, crate::ui::theme::Theme> {
+fn create_error_modal(error: Errors) -> Element<'static, Message, Theme> {
     let text = text(error.get_error_message());
     let content = Column::new().push(text);
     let footer = Row::new().spacing(10).padding(5).width(Length::Fill).push(
