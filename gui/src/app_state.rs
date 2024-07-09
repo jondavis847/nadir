@@ -7,18 +7,20 @@ use crate::multibody_ui::{BodyField, RevoluteField};
 use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
-    plot_tab::PlotTab,    
+    plot_tab::PlotTab,
     tab_bar::{AppTabs, TabBar},
 };
 use crate::{
     ui::{
-        canvas::{
-            graph::{Graph, GraphMessage},
-            nodebar::{Nodebar, NodebarMessage},
-        },
         dummies::DummyComponent,
         modals::ActiveModal,
-        simdiv::{SimDiv, SimDivState},
+        sim_tab::{
+            canvas::{
+                graph::{Graph, GraphMessage},
+                nodebar::{Nodebar, NodebarMessage},
+            },
+            sim_div::SimDiv,
+        },
     },
     Message,
 };
@@ -355,12 +357,12 @@ impl AppState {
     pub fn simulate(&mut self) -> Command<Message> {
         let sys = &self.graph.system;
 
-        let SimDivState {
+        let SimDiv {
             name,
             start_time,
             stop_time,
             dt,
-        } = &self.simdiv.state;
+        } = &self.simdiv;
 
         let mut name = name.clone();
         if name.is_empty() {

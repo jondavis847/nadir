@@ -2,7 +2,7 @@ use iced::{Point,Vector};
 use iced::widget::canvas::{Path,stroke::{self,Stroke}};
 use uuid::Uuid;
 use std::collections::HashMap;
-use crate::ui::canvas::graph::GraphNode;
+use super::graph::GraphNode;
 use crate::ui::theme::Theme;
 use lyon_geom::{euclid::default::Point2D, CubicBezierSegment, Line, LineSegment, QuadraticBezierSegment};
 use lyon_path::PathEvent;

@@ -1,8 +1,8 @@
-use iced::{Point, Rectangle, Size, mouse::ScrollDelta};
+use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::ui::canvas::node::Node;
+use super::node::Node;
 use crate::ui::dummies::{Dummies, DummyComponent};
 use crate::ui::modals::ActiveModal;
 use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
@@ -93,7 +93,7 @@ impl Nodebar {
     }
 
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) {
-        self.left_clicked_node = None;        
+        self.left_clicked_node = None;
         if self.bounds.contains(canvas_cursor_position) {
             for (id, nodebarnode) in &mut self.nodes {
                 nodebarnode
@@ -125,7 +125,7 @@ impl Nodebar {
                         )));
                         nodebarnode.go_home();
                     }
-                    MouseButtonReleaseEvents::Held => {                        
+                    MouseButtonReleaseEvents::Held => {
                         message = Some(NodebarMessage::NewComponent(ActiveModal::new(
                             nodebarnode.component_type,
                             None,
@@ -157,7 +157,6 @@ impl Nodebar {
         //placeholder for nodebar scrolling
     }
 
-
     pub fn window_resized(&mut self, size: Size) {
         self.bounds.height = size.height;
         self.bounds.width = size.width;
@@ -175,7 +174,7 @@ fn create_default_node(
     let node_size = Size::new(100.0, height);
     let home = Point::new(x + padding, *count * padding + (*count - 1.0) * height);
 
-    let node = Node::new(label.to_string(), Rectangle::new(home, node_size),1.0); //, label.to_string());
+    let node = Node::new(label.to_string(), Rectangle::new(home, node_size), 1.0); //, label.to_string());
 
     *count += 1.0;
     NodebarNode::new(component_type, home, node)

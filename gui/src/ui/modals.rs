@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::ui::dummies::DummyComponent;
+use super::dummies::DummyComponent;
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveModal {
     pub dummy_type: DummyComponent,

@@ -20,9 +20,9 @@ use app_state::AppState;
 use multibody_ui::{BodyField, RevoluteField};
 
 use ui::{
-    canvas::GraphCanvas,
     dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute},
     errors::Errors,
+    sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
     theme::Theme,
 };
@@ -283,8 +283,7 @@ fn loading_view() -> Element<'static, Message, Theme> {
 fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     let tab_bar = state.tab_bar.content();
 
-    let underlay: Element<Message, Theme> = match state.tab_bar.state.current_tab
-    {
+    let underlay: Element<Message, Theme> = match state.tab_bar.state.current_tab {
         AppTabs::Simulation => {
             let sim_div = container(state.simdiv.content())
                 .width(Length::FillPortion(1))
@@ -348,7 +347,6 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, Theme> {
                 .width(Length::Fill)
                 .on_press(Message::SaveComponent),
         );
-
 
     //title doesnt work yet
     card("Base Information", content)

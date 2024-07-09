@@ -1,5 +1,3 @@
-use iced::widget::canvas;
-use iced::widget::shader::wgpu::SurfaceConfiguration;
 use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
 use multibody::joint::JointTrait;
 use std::collections::HashMap;

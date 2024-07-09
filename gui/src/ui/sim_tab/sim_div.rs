@@ -5,14 +5,14 @@ use iced::{
 };
 
 #[derive(Debug, Clone)]
-pub struct SimDivState {
-    pub name: String, 
+pub struct SimDiv {
+    pub name: String,
     pub start_time: f64,
     pub stop_time: f64,
     pub dt: f64,
 }
 
-impl Default for SimDivState {
+impl Default for SimDiv {
     fn default() -> Self {
         Self {
             name: "".to_string(),
@@ -20,18 +20,6 @@ impl Default for SimDivState {
             stop_time: 10.0,
             dt: 1.0,
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SimDiv {
-    pub state: SimDivState,
-}
-
-impl Default for SimDiv {
-    fn default() -> Self {
-        let state = SimDivState::default();
-        Self { state }
     }
 }
 
@@ -49,27 +37,28 @@ impl SimDiv {
                 .width(Length::Fill)
                 .padding(5.0)
         };
+
         Column::new()
             .push(
                 Column::new()
                     .push(create_text_input(
                         "Sim Name",
-                        &self.state.name,
+                        &self.name,
                         Message::SimNameChanged,
                     ))
                     .push(create_text_input(
                         "Start Time",
-                        &self.state.start_time.to_string(),
+                        &self.start_time.to_string(),
                         Message::SimStartTimeChanged,
                     ))
                     .push(create_text_input(
                         "Stop Time",
-                        &self.state.stop_time.to_string(),
+                        &self.stop_time.to_string(),
                         Message::SimStopTimeChanged,
                     ))
                     .push(create_text_input(
                         "Step Size",
-                        &self.state.dt.to_string(),
+                        &self.dt.to_string(),
                         Message::SimDtChanged,
                     ))
                     .height(Length::FillPortion(19)),
@@ -87,24 +76,26 @@ impl SimDiv {
                 .height(Length::FillPortion(1))
                 .width(Length::Fill),
             )
+            .width(Length::FillPortion(1))
+            .height(Length::Fill)
             .into()
     }
 
     pub fn dt_changed(&mut self, value: String) -> Command<Message> {
-        self.state.dt = value.parse().unwrap_or(0.0);
+        self.dt = value.parse().unwrap_or(0.0);
         Command::none()
     }
     pub fn start_time_changed(&mut self, value: String) -> Command<Message> {
-        self.state.start_time = value.parse().unwrap_or(0.0);
+        self.start_time = value.parse().unwrap_or(0.0);
         Command::none()
     }
     pub fn stop_time_changed(&mut self, value: String) -> Command<Message> {
-        self.state.stop_time = value.parse().unwrap_or(0.0);
+        self.stop_time = value.parse().unwrap_or(0.0);
         Command::none()
     }
 
     pub fn name_changed(&mut self, value: String) -> Command<Message> {
-        self.state.name = value;
+        self.name = value;
         Command::none()
     }
 }
