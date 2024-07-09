@@ -4,7 +4,7 @@ use iced::{
         canvas::{
             self,
             event::{Event, Status},
-            Canvas, Geometry,
+            Cache, Canvas, Geometry,
         },
         container,
     },
@@ -14,8 +14,14 @@ use iced::{
 use crate::ui::theme::Theme;
 use crate::Message;
 
+pub mod axes;
+use axes::Axes;
+
 #[derive(Debug, Default)]
-pub struct PlotState {}
+pub struct PlotState {
+    cache: Cache,
+    axes: Axes,
+}
 
 #[derive(Debug, Default)]
 pub struct PlotCanvas {
@@ -25,11 +31,11 @@ pub struct PlotCanvas {
 impl PlotCanvas {
     pub fn new() -> Self {
         Self {
-            state: PlotState {},
+            state: PlotState::default(),
         }
     }
 
-    pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
+    pub fn content(&self) -> Element<Message, Theme> {
         container(Canvas::new(self).width(Length::Fill).height(Length::Fill))
             .width(Length::FillPortion(8))
             .height(Length::Fill)
@@ -90,13 +96,16 @@ impl canvas::Program<Message, Theme> for PlotCanvas {
 
     fn draw(
         &self,
-        _state: &Self::State,
-        _renderer: &Renderer,
-        _theme: &Theme,
-        _bounds: Rectangle,
+        state: &Self::State,
+        renderer: &Renderer,
+        theme: &Theme,
+        bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        Vec::new()
+        let all_content = state.cache.draw(renderer, bounds.size(), |frame| {
+            state.axes.draw(frame, theme);
+        });
+        vec![all_content]
     }
 
     fn mouse_interaction(
