@@ -9,7 +9,6 @@ use multibody::{
     system::MultibodySystem,
     system_sim::MultibodySystemSim,
 };
-use plotting::{ChartTheme,plot_column_against_time};
 use transforms::Transform;
 
 fn main() {
@@ -66,12 +65,10 @@ fn main() {
             "attitude_base_s",
             "attitude_base_x",
             "attitude_base_y",
-            "attitude_base_z"
+            "attitude_base_z",
         ],
     );
 
-    dbg!(body1_rate);    
-    dbg!(body1_quat);    
-
-plot_column_against_time(&result.get_component("body1"), "angular_rate_body_z", "angular_rate_body_z.svg", ChartTheme::default()).unwrap();
+    dbg!(body1_rate);
+    dbg!(body1_quat);
 }
