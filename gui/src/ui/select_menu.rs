@@ -1,7 +1,7 @@
 use crate::ui::theme::ButtonStyles;
 use crate::Message;
 use iced::{
-    widget::{button, text, Column},
+    widget::{button, container, text, Column},
     Element, Length,
 };
 
@@ -30,11 +30,11 @@ impl SelectMenu {
     where
         F: Fn(String) -> Message,
     {
-        let mut select_menu = Column::new().width(Length::FillPortion(1));
+        let mut select_menu = Column::new().width(Length::Fill).height(Length::Fill);
         for (_, option) in &self.options {
             select_menu = select_menu.push(option.content(&message));
         }
-        select_menu.into()
+        container(select_menu).width(Length::FillPortion(1)).into()
     }
 
     pub fn get_selected_options(&self) -> Vec<String> {
