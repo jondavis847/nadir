@@ -21,13 +21,18 @@ impl PlotTab {
             .component_menu
             .content(|string| Message::PlotComponentSelected(string));
 
+            let state_menu = self
+            .state_menu
+            .content(|string| Message::PlotStateSelected(string));
+
         let canvas = self.canvas.content();
 
         Row::new()
             .push(sim_menu)
             .push(component_menu)
+            .push(state_menu)
             .push(canvas)
-            .height(Length::FillPortion(17))
+            .height(Length::FillPortion(15))
             .width(Length::Fill)
             .into()
     }

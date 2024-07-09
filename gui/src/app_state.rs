@@ -216,6 +216,46 @@ impl AppState {
         Command::none()
     }
 
+    pub fn plot_sim_selected(&mut self, sim_name: String) -> Command<Message> {
+        self.plot_tab.sim_menu.option_selected(&sim_name);
+
+        // get the unique sim components by looking all selected sims
+        let selected_sims = self.plot_tab.sim_menu.get_selected_options();
+        let mut states = Vec::new();
+        for sim in &selected_sims {
+            let result = self.results.get(sim).unwrap();
+            states = unique_strings(states, result.get_states());
+        }
+
+        self.plot_tab.component_menu.update_options(states);
+        Command::none()
+    }
+
+    pub fn plot_component_selected(&mut self, component_name: String) -> Command<Message> {
+        self.plot_tab
+            .component_menu
+            .option_selected(&component_name);
+
+        // get the unique component states by looking all selected components
+        let selected_sims = self.plot_tab.sim_menu.get_selected_options();
+        let selected_components = self.plot_tab.component_menu.get_selected_options();
+        let mut states = Vec::new();
+        for sim in &selected_sims {
+            let result = self.results.get(sim).unwrap();
+            for component in &selected_components {
+                let component_states = result.get_component_states(component);
+                states = unique_strings(states, component_states);
+            }
+        }
+        self.plot_tab.state_menu.update_options(states);
+        Command::none()
+    }
+
+    pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {
+        self.plot_tab.state_menu.option_selected(&state_name);
+        Command::none()
+    }
+
     pub fn right_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         self.nodebar.right_button_pressed(canvas_cursor_position);
         self.graph.right_button_pressed(canvas_cursor_position);
@@ -335,25 +375,6 @@ impl AppState {
         Command::none()
     }
 
-    pub fn sim_selected(&mut self, sim_name: String) -> Command<Message> {
-        self.plot_tab.sim_menu.option_selected(&sim_name);
-
-        // get the unique sim states by looking all selected sims
-        let selected_sims = self.plot_tab.sim_menu.get_selected_options();
-        let mut states = Vec::new();
-        for sim in &selected_sims {
-            let result = self.results.get(sim).unwrap();
-            states = unique_strings(states, result.get_states());
-        }
-
-        self.plot_tab.component_menu.update_options(states);
-
-        //let sim = self.results.get(&sim_name).unwrap();
-
-        //dbg!(sim);
-        Command::none()
-    }
-
     pub fn simulate(&mut self) -> Command<Message> {
         let sys = &self.graph.system;
 
@@ -375,13 +396,6 @@ impl AppState {
 
         self.plot_tab.sim_menu.add_option(name.clone());
 
-        Command::none()
-    }
-
-    pub fn plot_component_selected(&mut self, component_name: String) -> Command<Message> {
-        self.plot_tab
-            .component_menu
-            .option_selected(&component_name);
         Command::none()
     }
 
