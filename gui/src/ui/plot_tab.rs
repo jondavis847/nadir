@@ -4,12 +4,23 @@ use iced::{widget::Row, Element, Length};
 pub mod plot_canvas;
 use plot_canvas::PlotCanvas;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PlotTab {
     pub sim_menu: SelectMenu,
     pub component_menu: SelectMenu,
     pub state_menu: SelectMenu,
     pub canvas: PlotCanvas,
+}
+
+impl Default for PlotTab {
+    fn default() -> Self {
+        Self {
+            sim_menu: SelectMenu::new(Length::FillPortion(1), false),
+            component_menu: SelectMenu::new(Length::FillPortion(1), true),
+            state_menu: SelectMenu::new(Length::FillPortion(2), true),
+            canvas: PlotCanvas::default(),
+        }
+    }
 }
 
 impl PlotTab {
@@ -21,7 +32,7 @@ impl PlotTab {
             .component_menu
             .content(|string| Message::PlotComponentSelected(string));
 
-            let state_menu = self
+        let state_menu = self
             .state_menu
             .content(|string| Message::PlotStateSelected(string));
 

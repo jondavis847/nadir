@@ -56,6 +56,7 @@ impl Axis {
         frame.stroke(&x_axis_line, axis_stroke.clone());
         frame.stroke(&y_axis_line, axis_stroke.clone());
 
+        // calculate x ticks
         let value_span = xlim.1 - xlim.0;
         let canvas_span = axis_bottom_right_x - axis_bottom_left_x;
         let (x_tick_spacing, x_tick_increment) =
@@ -93,6 +94,46 @@ impl Axis {
             // increment counters
             x_canvas += x_tick_spacing;
             x_value += x_tick_increment;
+        }
+
+        // calculate y ticks
+        let value_span = ylim.1 - ylim.0;
+        let canvas_span = axis_bottom_left_y - axis_top_left.y;
+        let (y_tick_spacing, y_tick_increment) =
+            calculate_tick_spacing(value_span, canvas_span, self.n_ticks);
+
+        let mut y_canvas = axis_bottom_left_y as f32;
+        let mut y_value = ylim.0;
+        let x_canvas = axis_bottom_left.x;
+        for i in 0..self.n_ticks {
+            let y_tick_point = Point::new(x_canvas, y_canvas);
+            let y_tick_path = Path::line(
+                y_tick_point + Vector::new(-self.tick_length / 2.0, 0.0),
+                y_tick_point + Vector::new(self.tick_length / 2.0, 0.0),
+            );
+            frame.stroke(&y_tick_path, axis_stroke.clone());
+            dbg!(y_tick_point);
+            // Automatically decide between fixed-point and scientific notation
+            let label = if x_value.abs() < 0.01 || x_value.abs() > 1000.0 {
+                format!("{:e}", y_value) // use scientific notation
+            } else {
+                format!("{:.2}", y_value) // use fixed precision
+            };
+            let text_center = y_tick_point + Vector::new(-self.tick_text_spacing, 0.0);
+
+            let text = Text {
+                content: label,
+                color: theme.primary, //theme.edge_multibody,
+                horizontal_alignment: Horizontal::Center,
+                position: text_center,
+                vertical_alignment: Vertical::Center,
+                ..Text::default()
+            };
+            frame.fill_text(text);
+
+            // increment counters
+            y_canvas -= y_tick_spacing;
+            y_value += y_tick_increment;
         }
     }
 }

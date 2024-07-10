@@ -1,26 +1,40 @@
 use crate::ui::theme::ButtonStyles;
 use crate::Message;
 use iced::{
-    widget::{button, container, text, Column},
+    widget::{button, container, scrollable, text, Column},
     Element, Length,
 };
+use image::GrayAlphaImage;
 
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SelectMenu {
     options: HashMap<String, SelectMenuOption>,
+    width: Length,
+    alphabetize: bool,
 }
 
 impl Default for SelectMenu {
     fn default() -> Self {
         Self {
             options: HashMap::new(),
+            width: Length::Fill,
+            alphabetize: false,
         }
     }
 }
 
 impl SelectMenu {
+    pub fn new(width: Length, alphabetize: bool) -> Self {
+        let options = HashMap::new();
+        Self {
+            options,
+            width,
+            alphabetize,
+        }
+    }
+
     pub fn add_option(&mut self, option_name: String) {
         let option = SelectMenuOption::new(option_name);
         self.options.insert(option.label.clone(), option);
@@ -31,10 +45,16 @@ impl SelectMenu {
         F: Fn(String) -> Message,
     {
         let mut select_menu = Column::new().width(Length::Fill).height(Length::Fill);
-        for (_, option) in &self.options {
+
+        let mut keys: Vec<String> = self.options.keys().cloned().collect();
+        if self.alphabetize {
+            keys.sort();
+        }
+        for key in keys {
+            let option = self.options.get(&key).unwrap();
             select_menu = select_menu.push(option.content(&message));
         }
-        container(select_menu).width(Length::FillPortion(1)).into()
+        scrollable(select_menu).width(self.width).into()
     }
 
     pub fn get_selected_options(&self) -> Vec<String> {
@@ -90,6 +110,7 @@ impl SelectMenuOption {
             .on_press(message(self.label.clone()))
             .width(Length::Fill)
             .style(style)
+            .clip(true)
             .into()
     }
 }

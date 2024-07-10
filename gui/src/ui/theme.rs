@@ -83,18 +83,28 @@ impl iced_aw::style::selection_list::StyleSheet for Theme {
 impl iced::widget::scrollable::StyleSheet for Theme {
     type Style = ();
     fn active(&self, _style: &Self::Style) -> iced::widget::scrollable::Appearance {
-        let container = iced::widget::container::Appearance::default();
+        let mut border = iced::Border::with_radius(2.0);
+        border.color = self.border;
+        border.width = 2.0;
+
+        let container = {
+            let shadow = iced::Shadow::default();
+
+            iced::widget::container::Appearance {
+                text_color: None,
+                background: Some(self.background.into()),
+                border: border,
+                shadow: shadow,
+            }
+        };
+
         let scroller = iced::widget::scrollable::Scroller {
             color: self.dark_background.into(),
-            border: Border {
-                ..Default::default()
-            },
+            border: border,
         };
         let scrollbar = iced::widget::scrollable::Scrollbar {
             background: Some(iced::Background::Color(self.background)),
-            border: Border {
-                ..Default::default()
-            },
+            border: border,
             scroller: scroller,
         };
         let gap = None;

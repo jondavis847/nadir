@@ -1,3 +1,4 @@
+use super::line::Line;
 use crate::ui::theme::Theme;
 use iced::{
     widget::canvas::{path::Path, Fill, Frame, Stroke},
@@ -13,6 +14,7 @@ pub struct Axes {
     axis: Axis,
     xlim: (f32, f32),
     ylim: (f32, f32),
+    lines: Vec<Line>,
 }
 
 impl Default for Axes {
@@ -22,6 +24,7 @@ impl Default for Axes {
             axis: Axis::default(),
             xlim: (0.0, 1.0),
             ylim: (0.0, 1.0),
+            lines: Vec::new(),
         }
     }
 }
