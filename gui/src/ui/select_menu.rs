@@ -1,10 +1,9 @@
 use crate::ui::theme::ButtonStyles;
 use crate::Message;
 use iced::{
-    widget::{button, container, scrollable, text, Column},
+    widget::{button, scrollable, text, Column},
     Element, Length,
 };
-use image::GrayAlphaImage;
 
 use std::collections::HashMap;
 
