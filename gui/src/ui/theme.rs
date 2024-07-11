@@ -297,11 +297,13 @@ impl iced::widget::text_input::StyleSheet for Theme {
     }
 
     fn focused(&self, _style: &Self::Style) -> iced::widget::text_input::Appearance {
-        let border = iced::Border::default();
-
         iced::widget::text_input::Appearance {
             background: iced::Background::Color(self.text_background),
-            border: border,
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             icon_color: self.shadow,
         }
     }
@@ -331,6 +333,18 @@ impl iced::widget::text_input::StyleSheet for Theme {
         iced::widget::text_input::Appearance {
             background: iced::Background::Color(self.background),
             border: border,
+            icon_color: self.shadow,
+        }
+    }
+
+    fn hovered(&self, _style: &Self::Style) -> iced::widget::text_input::Appearance {
+        iced::widget::text_input::Appearance {
+            background: iced::Background::Color(self.text_background),
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             icon_color: self.shadow,
         }
     }
