@@ -70,13 +70,8 @@ impl SelectMenu {
     }
 
     pub fn option_selected(&mut self, option_name: &str) {
-        let already_selected = self.options.get(option_name).unwrap().is_selected;
-
-        self.options
-            .iter_mut()
-            .for_each(|(_, option)| option.is_selected = false);
         let option = self.options.get_mut(option_name).unwrap();
-        option.is_selected = !already_selected;
+        option.toggle();
     }
 
     pub fn update_options(&mut self, options: Vec<String>) {
@@ -119,6 +114,6 @@ impl SelectMenuOption {
     }
 
     pub fn toggle(&mut self) {
-        self.is_selected != self.is_selected;
+        self.is_selected = !self.is_selected;
     }
 }

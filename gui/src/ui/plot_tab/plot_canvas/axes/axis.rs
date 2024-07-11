@@ -105,14 +105,13 @@ impl Axis {
         let mut y_canvas = axis_bottom_left_y as f32;
         let mut y_value = ylim.0;
         let x_canvas = axis_bottom_left.x;
-        for i in 0..self.n_ticks {
+        for _ in 0..self.n_ticks {
             let y_tick_point = Point::new(x_canvas, y_canvas);
             let y_tick_path = Path::line(
                 y_tick_point + Vector::new(-self.tick_length / 2.0, 0.0),
                 y_tick_point + Vector::new(self.tick_length / 2.0, 0.0),
             );
             frame.stroke(&y_tick_path, axis_stroke.clone());
-            dbg!(y_tick_point);
             // Automatically decide between fixed-point and scientific notation
             let label = if x_value.abs() < 0.01 || x_value.abs() > 1000.0 {
                 format!("{:e}", y_value) // use scientific notation

@@ -8,7 +8,7 @@ use iced::{
         },
         container,
     },
-    Element, Length, Rectangle, Renderer,
+    Element, Length, Point, Rectangle, Renderer,
 };
 
 use crate::ui::theme::Theme;
@@ -32,17 +32,17 @@ pub struct PlotCanvas {
 }
 
 impl PlotCanvas {
-    pub fn new() -> Self {
-        Self {
-            state: PlotState::default(),
-        }
-    }
-
     pub fn content(&self) -> Element<Message, Theme> {
         container(Canvas::new(self).width(Length::Fill).height(Length::Fill))
             .width(Length::FillPortion(8))
             .height(Length::Fill)
             .into()
+    }
+
+    #[inline]
+    pub fn plot(&mut self, line_label: String, points: Vec<Point>) {
+        self.state.axes.plot(line_label, points);
+        self.state.cache.clear();
     }
 }
 
@@ -99,14 +99,14 @@ impl canvas::Program<Message, Theme> for PlotCanvas {
 
     fn draw(
         &self,
-        state: &Self::State,
+        _state: &Self::State,
         renderer: &Renderer,
         theme: &Theme,
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
-        let all_content = state.cache.draw(renderer, bounds.size(), |frame| {
-            state.axes.draw(frame, theme);
+        let all_content = self.state.cache.draw(renderer, bounds.size(), |frame| {
+            self.state.axes.draw(frame, theme);
         });
         vec![all_content]
     }

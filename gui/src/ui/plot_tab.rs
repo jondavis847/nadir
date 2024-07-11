@@ -1,5 +1,5 @@
 use crate::{ui::select_menu::SelectMenu, Message};
-use iced::{widget::Row, Element, Length};
+use iced::{widget::Row, Element, Length, Point};
 
 pub mod plot_canvas;
 use plot_canvas::PlotCanvas;
@@ -9,6 +9,9 @@ pub struct PlotTab {
     pub sim_menu: SelectMenu,
     pub component_menu: SelectMenu,
     pub state_menu: SelectMenu,
+    pub selected_components: Vec<String>,
+    pub selected_sims: Vec<String>,
+    pub selected_states: Vec<String>,
     pub canvas: PlotCanvas,
 }
 
@@ -18,6 +21,9 @@ impl Default for PlotTab {
             sim_menu: SelectMenu::new(Length::FillPortion(1), false),
             component_menu: SelectMenu::new(Length::FillPortion(1), true),
             state_menu: SelectMenu::new(Length::FillPortion(2), true),
+            selected_components: Vec::new(),
+            selected_sims: Vec::new(),
+            selected_states: Vec::new(),
             canvas: PlotCanvas::default(),
         }
     }
@@ -46,5 +52,10 @@ impl PlotTab {
             .height(Length::FillPortion(15))
             .width(Length::Fill)
             .into()
+    }
+
+    #[inline]
+    pub fn plot(&mut self, line_label: String, points: Vec<Point>) {
+        self.canvas.plot(line_label, points);
     }
 }

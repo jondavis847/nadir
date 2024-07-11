@@ -216,13 +216,51 @@ impl AppState {
         Command::none()
     }
 
+    fn plot(&mut self) {
+        let mut plot_data: Vec<(String, Vec<Point>)> = Vec::new();
+
+        for sim_name in &self.plot_tab.selected_sims {
+            let sim = self.results.get(sim_name).unwrap();
+
+            for component_name in &self.plot_tab.selected_components {
+                let component = sim.get_component(component_name);
+                let t = component.column("t").unwrap().f64().unwrap();
+                let column_names = component.get_column_names();
+
+                for state_name in &self.plot_tab.selected_states {
+                    if column_names.contains(&state_name.as_str()) {
+                        let data = component.column(state_name).unwrap().f64().unwrap();
+                        assert_eq!(t.len(), data.len());
+
+                        // Create a Vec<iced::Point> by iterating over the Series
+                        let points: Vec<Point> = t
+                            .into_iter()
+                            .zip(data.into_iter())
+                            .map(|(x, y)| Point {
+                                x: x.unwrap_or_default() as f32,
+                                y: y.unwrap_or_default() as f32,
+                            })
+                            .collect();
+
+                        let line_label = format!("{}:{}:{}", sim_name, component_name, state_name);
+                        plot_data.push((line_label, points));
+                    }
+                }
+            }
+        }
+
+        // Perform the plotting
+        for (line_label, points) in plot_data {
+            self.plot_tab.plot(line_label, points);
+        }
+    }
+
     pub fn plot_sim_selected(&mut self, sim_name: String) -> Command<Message> {
         self.plot_tab.sim_menu.option_selected(&sim_name);
+        self.plot_tab.selected_sims = self.plot_tab.sim_menu.get_selected_options();
 
-        // get the unique sim components by looking all selected sims
-        let selected_sims = self.plot_tab.sim_menu.get_selected_options();
         let mut states = Vec::new();
-        for sim in &selected_sims {
+        for sim in &self.plot_tab.selected_sims {
             let result = self.results.get(sim).unwrap();
             states = unique_strings(states, result.get_states());
         }
@@ -235,6 +273,7 @@ impl AppState {
         self.plot_tab
             .component_menu
             .option_selected(&component_name);
+        self.plot_tab.selected_components = self.plot_tab.component_menu.get_selected_options();
 
         // get the unique component states by looking all selected components
         let selected_sims = self.plot_tab.sim_menu.get_selected_options();
@@ -253,6 +292,9 @@ impl AppState {
 
     pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {
         self.plot_tab.state_menu.option_selected(&state_name);
+        self.plot_tab.selected_states = self.plot_tab.state_menu.get_selected_options();
+
+        self.plot();
         Command::none()
     }
 

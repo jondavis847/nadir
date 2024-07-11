@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use rotations::quaternion::Quaternion;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Duration, Instant, SystemTime};
@@ -680,9 +680,20 @@ impl MultibodyResult {
 
     pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> DataFrame {
         let df = self.get_component(component_name);
-        let mut columns: Vec<&str> = Vec::with_capacity(state_name.len() + 1);
+        let df_column_names = df.get_column_names();
+        // check to make sure that the states exist in the dataframe
+        // by getting intersection
+        let state_names: Vec<&str> = {
+            let df_set: HashSet<&str> = df_column_names.into_iter().collect();
+            state_name
+                .into_iter()
+                .filter(|state| df_set.contains(state))
+                .collect()
+        };
+
+        let mut columns: Vec<&str> = Vec::with_capacity(state_names.len() + 1);
         columns.push("t");
-        columns.extend(state_name);
+        columns.extend(state_names);
 
         df.select(columns).unwrap()
     }
