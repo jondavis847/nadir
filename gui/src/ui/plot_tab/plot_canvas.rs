@@ -18,7 +18,6 @@ pub mod axes;
 pub mod line;
 
 use axes::Axes;
-use line::Line;
 
 #[derive(Debug, Default)]
 pub struct PlotState {

@@ -71,7 +71,7 @@ impl Axis {
         let mut x_canvas = axis_bottom_left_x as f32;
         let mut x_value = xlim.0;
         let y_canvas = axis_bottom_left.y;
-        for i in 0..self.n_ticks {
+        for _ in 0..self.n_ticks {
             let x_tick_point = Point::new(x_canvas, y_canvas);
             let x_tick_path = Path::line(
                 x_tick_point + Vector::new(0.0, self.tick_length / 2.0),

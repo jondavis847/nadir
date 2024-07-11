@@ -229,7 +229,7 @@ impl Application for IcedTest {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
                     Command::none()
                 }
-                Message::ResultSelected(result) => {                    
+                Message::ResultSelected(_) => {                    
                     Command::none()
                 }
             },

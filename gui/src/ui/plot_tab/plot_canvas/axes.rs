@@ -45,7 +45,7 @@ impl Axes {
         });
     }
 
-    fn draw_lines(&self, frame: &mut Frame, theme: &Theme) {
+    fn draw_lines(&self, frame: &mut Frame, _theme: &Theme) {
         let bounds = self.get_bounds(frame);
         let height = bounds.height;
         let width = bounds.width;

@@ -1,13 +1,8 @@
-use chrono::{DateTime, Utc};
-use rotations::quaternion::Quaternion;
-use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
-use std::time::{Duration, Instant, SystemTime};
-use utilities::{format_duration, generate_unique_id};
+use std::time::{Instant, SystemTime};
+use utilities::generate_unique_id;
 use uuid::Uuid;
-
-use polars::prelude::*;
 
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},

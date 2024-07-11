@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn format_number(value: f64) -> String {
     if value.abs() >= 10000.0 || value.abs() < 0.0001 {

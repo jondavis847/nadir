@@ -1,4 +1,4 @@
-use iced::{application, widget::Button, Border, Color};
+use iced::{application, Border, Color};
 
 macro_rules! color {
     ($red:expr, $green:expr, $blue:expr) => {
@@ -71,7 +71,7 @@ impl iced::application::StyleSheet for Theme {
 impl iced_aw::style::selection_list::StyleSheet for Theme {
     type Style = ();
 
-    fn style(&self, style: &Self::Style) -> iced_aw::style::selection_list::Appearance {
+    fn style(&self, _style: &Self::Style) -> iced_aw::style::selection_list::Appearance {
         iced_aw::style::selection_list::Appearance {
             background: self.background.into(),
             text_color: self.text,

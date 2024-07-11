@@ -2,25 +2,16 @@ use chrono::{DateTime, Utc};
 use rotations::quaternion::Quaternion;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::ops::{Add, AddAssign, Div, Mul};
-use std::time::{Duration, Instant, SystemTime};
-use utilities::{format_duration, generate_unique_id};
-use uuid::Uuid;
+use std::time::{Duration, SystemTime};
+use utilities::format_duration;
 
 use polars::prelude::*;
 
 use crate::{
-    algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
-    body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
-    joint::{
-        revolute::RevoluteResult, Joint, JointResult, JointSim, JointSimTrait, JointState,
-        JointTrait,
-    },
-    system::MultibodySystem,
-    MultibodyTrait,
+    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
+    body::{BodyResult, BodySim},
+    joint::{JointResult, JointSim, JointSimTrait},
 };
-use differential_equations::solver::{Solver, SolverMethod};
-use spatial_algebra::{Acceleration, Velocity};
 
 pub struct MultibodyResult {
     pub name: String,
