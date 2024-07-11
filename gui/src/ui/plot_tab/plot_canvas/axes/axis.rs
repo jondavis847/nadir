@@ -7,7 +7,7 @@ use iced::{
 
 #[derive(Debug)]
 pub struct Axis {
-    padding: f32,
+    pub padding: f32,
     line_width: f32,
     n_ticks: u32,
     tick_length: f32,
@@ -39,6 +39,7 @@ impl Axis {
         let axes_size = axes_bounds.size();
 
         let axis_top_left = Point::new(self.padding, self.padding);
+        let axis_top_right = Point::new(axes_size.width - self.padding, self.padding);
 
         let axis_bottom_left_x = self.padding;
         let axis_bottom_left_y = axes_size.height - self.padding;
@@ -50,11 +51,16 @@ impl Axis {
 
         let x_axis_line = Path::line(axis_bottom_left, axis_bottom_right);
         let y_axis_line = Path::line(axis_bottom_left, axis_top_left);
+        let top_line = Path::line(axis_top_left, axis_top_right);
+        let right_line = Path::line(axis_top_right, axis_bottom_right);
 
         let axis_stroke = Stroke::default().with_width(self.line_width);
+        let border_stroke = Stroke::default().with_width(1.0);
 
         frame.stroke(&x_axis_line, axis_stroke.clone());
         frame.stroke(&y_axis_line, axis_stroke.clone());
+        frame.stroke(&top_line, border_stroke.clone());
+        frame.stroke(&right_line, border_stroke.clone());
 
         // calculate x ticks
         let value_span = xlim.1 - xlim.0;
