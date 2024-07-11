@@ -56,14 +56,14 @@ impl Axes {
         
         let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
             let mut canvas_points = points.clone();
-            let axes_height = height-2.0*self.axis.padding;
-            let axes_width = width-2.0*self.axis.padding;
+            let axes_height = height-2.0*self.axis.padding-self.axis.line_width;
+            let axes_width = width-2.0*self.axis.padding-self.axis.line_width;
 
             let x_ratio = axes_width / (xlim.1 - xlim.0);
             let y_ratio = axes_height / (ylim.1 - ylim.0);
             for i in 0..points.len() {
-                let canvas_x = (points[i].x - xlim.0) * x_ratio + top_left.x + self.axis.padding;
-                let canvas_y = top_left.y + axes_height  + self.axis.padding - (points[i].y - ylim.0) * y_ratio;
+                let canvas_x = (points[i].x - xlim.0) * x_ratio + top_left.x + self.axis.padding + self.axis.line_width/2.0;
+                let canvas_y = top_left.y + axes_height  + self.axis.padding + self.axis.line_width/2.0 - (points[i].y - ylim.0) * y_ratio;
                 canvas_points[i] = Point::new(canvas_x, canvas_y);
             }
             canvas_points

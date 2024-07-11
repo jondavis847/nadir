@@ -8,7 +8,7 @@ use iced::{
 #[derive(Debug)]
 pub struct Axis {
     pub padding: f32,
-    line_width: f32,
+    pub line_width: f32,
     n_ticks: u32,
     tick_length: f32,
     tick_text_spacing: f32,

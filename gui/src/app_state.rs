@@ -269,13 +269,17 @@ impl AppState {
         self.plot_tab.sim_menu.option_selected(&sim_name);
         self.plot_tab.selected_sims = self.plot_tab.sim_menu.get_selected_options();
 
-        let mut states = Vec::new();
+        let mut components = Vec::new();
         for sim in &self.plot_tab.selected_sims {
             let result = self.results.get(sim).unwrap();
-            states = unique_strings(states, result.get_states());
+            components = unique_strings(components, result.get_components());
         }
 
-        self.plot_tab.component_menu.update_options(states);
+        self.plot_tab.component_menu.update_options(components);
+        self.plot_tab.selected_components.clear();
+        self.plot_tab.state_menu.update_options(Vec::new());
+        self.plot_tab.selected_states.clear();
+
         Command::none()
     }
 
@@ -296,7 +300,8 @@ impl AppState {
                 states = unique_strings(states, component_states);
             }
         }
-        self.plot_tab.state_menu.update_options(states);
+        self.plot_tab.state_menu.update_options(states);        
+        self.plot_tab.selected_states.clear();
         Command::none()
     }
 

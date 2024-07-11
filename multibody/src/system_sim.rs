@@ -744,7 +744,7 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_states(&self) -> Vec<String> {
+    pub fn get_components(&self) -> Vec<String> {
         self.result.keys().cloned().collect()
     }
 }
