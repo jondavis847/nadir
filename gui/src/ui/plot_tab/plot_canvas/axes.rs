@@ -42,16 +42,40 @@ impl Axes {
                 .draw(frame, theme, &axes_bounds, &self.xlim, &self.ylim);
         });
         self.draw_lines(frame, theme);
-        dbg!(&self.lines);
     }
 
     fn draw_lines(&self, frame: &mut Frame, theme: &Theme) {
+        let bounds = self.get_bounds(frame);
+        let height = bounds.height;
+        let width = bounds.width;
+        let top_left = bounds.position();
+
+        let ylim = self.ylim;
+        let xlim = self.xlim;
+        dbg!(xlim);
+        dbg!(ylim);
+        let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
+            let mut canvas_points = points.clone();
+            let x_ratio = width / (xlim.1 - xlim.0);
+            let y_ratio = height / (ylim.1 - ylim.0);
+            for i in 0..points.len() {
+                let canvas_x = (points[i].x - xlim.0) * x_ratio + top_left.x;
+                let canvas_y = top_left.y + height - (points[i].y - ylim.0) * y_ratio;
+                canvas_points[i] = Point::new(canvas_x, canvas_y);
+            }
+            canvas_points
+        };
+
         for (_, line) in &self.lines {
             if line.data.len() > 1 {
-                let path = Path::new(|builder| {
-                    builder.move_to(line.data[0]);
+                //convert line data to canvas data
+                let canvas_data = canvas_values(&line.data);
+                dbg!(&canvas_data);
 
-                    for point in &line.data[1..] {
+                let path = Path::new(|builder| {
+                    builder.move_to(canvas_data[0]);
+
+                    for point in &canvas_data[1..] {
                         builder.line_to(*point);
                     }
                 });
@@ -88,5 +112,81 @@ impl Axes {
         let theme = Theme::ORANGE;
         let line = Line::new(line_label.clone(), points, theme.highlight);
         self.lines.insert(line_label, line);
+        //update xlim and ylim based on line data
+        if let Some((x_lim, y_lim)) = get_global_lims(&self.lines) {
+            self.xlim = x_lim;
+            self.ylim = y_lim;
+        };
+    }
+}
+
+fn get_lims(points: &Vec<Point>) -> Option<((f32, f32), (f32, f32))> {
+    if points.is_empty() {
+        return None;
+    }
+
+    let mut x_min = points[0].x;
+    let mut x_max = points[0].x;
+    let mut y_min = points[0].y;
+    let mut y_max = points[0].y;
+
+    for point in points.iter() {
+        if point.x < x_min {
+            x_min = point.x;
+        }
+        if point.x > x_max {
+            x_max = point.x;
+        }
+        if point.y < y_min {
+            y_min = point.y;
+        }
+        if point.y > y_max {
+            y_max = point.y;
+        }
+    }
+
+    Some(((x_min, x_max), (y_min, y_max)))
+}
+
+fn get_global_lims(lines: &HashMap<String, Line>) -> Option<((f32, f32), (f32, f32))> {
+    let mut x_min = f32::INFINITY;
+    let mut x_max = f32::NEG_INFINITY;
+    let mut y_min = f32::INFINITY;
+    let mut y_max = f32::NEG_INFINITY;
+
+    let mut found_any_points = false;
+
+    for line in lines.values() {
+        if let Some(((line_x_min, line_x_max), (line_y_min, line_y_max))) = get_lims(&line.data) {
+            found_any_points = true;
+            if line_x_min < x_min {
+                x_min = line_x_min;
+            }
+            if line_x_max > x_max {
+                x_max = line_x_max;
+            }
+            if line_y_min < y_min {
+                y_min = line_y_min;
+            }
+            if line_y_max > y_max {
+                y_max = line_y_max;
+            }
+        }
+    }
+
+    if (x_max - x_min).abs() < f32::EPSILON {
+        x_max = x_max + 0.5;
+        x_min = x_min - 0.5;
+    }
+
+    if (y_max - y_min).abs() < f32::EPSILON {
+        y_max = y_max + 0.5;
+        y_min = y_min - 0.5;
+    }
+
+    if found_any_points {
+        Some(((x_min, x_max), (y_min, y_max)))
+    } else {
+        None // Return None if no points were found
     }
 }

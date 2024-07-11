@@ -40,7 +40,7 @@ impl PlotCanvas {
     }
 
     #[inline]
-    pub fn plot(&mut self, line_label: String, points: Vec<Point>) {
+    pub fn plot(&mut self, line_label: String, points: Vec<Point>) {        
         self.state.axes.plot(line_label, points);
         self.state.cache.clear();
     }
