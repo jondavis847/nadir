@@ -33,8 +33,7 @@ fn main() -> iced::Result {
         Err(e) => println!("Error getting current directory: {}", e),
     }
 
-    let icon_path = Path::new("./resources/icon.png");
-    dbg!(icon_path);
+    let icon_path = Path::new("./resources/icon.png");    
     let (icon_rgba, icon_width, icon_height) = {
         let image = image::open(icon_path)
             .expect("Failed to open icon path")
@@ -69,7 +68,7 @@ enum Message {
     BodyIyzInputChanged(String),
     ResultSelected(String),
     RevoluteConstantForceInputChanged(String),
-    RevolutedampingInputChanged(String),
+    RevoluteDampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
@@ -179,22 +178,22 @@ impl Application for IcedTest {
                     state.update_body_field(BodyField::Iyz, &value)
                 }
                 Message::RevoluteConstantForceInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::ConstantForce, &value)
+                    state.update_revolute_field(RevoluteField::ConstantForce, value)
                 }
-                Message::RevolutedampingInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Damping, &value)
+                Message::RevoluteDampingInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::Damping, value)
                 }
                 Message::RevoluteNameInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Name, &value)
+                    state.update_revolute_field(RevoluteField::Name, value)
                 }
                 Message::RevoluteOmegaInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Omega, &value)
+                    state.update_revolute_field(RevoluteField::Omega, value)
                 }
                 Message::RevoluteSpringConstantInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::SpringConstant, &value)
+                    state.update_revolute_field(RevoluteField::SpringConstant, value)
                 }
                 Message::RevoluteThetaInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Theta, &value)
+                    state.update_revolute_field(RevoluteField::Theta, value)
                 }
                 Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                 Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
@@ -230,8 +229,7 @@ impl Application for IcedTest {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
                     Command::none()
                 }
-                Message::ResultSelected(result) => {
-                    dbg!(result);
+                Message::ResultSelected(result) => {                    
                     Command::none()
                 }
             },
@@ -256,7 +254,7 @@ impl Application for IcedTest {
                     keyboard::Key::Named(keyboard::key::Named::Enter) => {
                         Some(Message::EnterPressed)
                     }
-                    keyboard::Key::Named(keyboard::key::Named::Delete) => {
+                    keyboard::Key::Named(keyboard::key::Named::Delete) => {                        
                         Some(Message::DeletePressed)
                     }
                     keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
@@ -464,35 +462,27 @@ fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
     };
 
     let content = Column::new()
-        .push(create_text_input(
-            "name",
-            &joint.name,
-            Message::RevoluteNameInputChanged,
-        ))
-        .push(create_text_input(
-            "theta",
-            &joint.theta,
-            Message::RevoluteThetaInputChanged,
-        ))
-        .push(create_text_input(
-            "omega",
-            &joint.omega,
-            Message::RevoluteOmegaInputChanged,
-        ))
+        .push(create_text_input("name", &joint.name, |string| {
+            Message::RevoluteNameInputChanged(string)
+        }))
+        .push(create_text_input("theta", &joint.theta, |string| {
+            Message::RevoluteThetaInputChanged(string)
+        }))
+        .push(create_text_input("omega", &joint.omega, |string| {
+            Message::RevoluteOmegaInputChanged(string)
+        }))
         .push(create_text_input(
             "constant force",
             &joint.constant_force,
-            Message::RevoluteConstantForceInputChanged,
+            |string| Message::RevoluteConstantForceInputChanged(string),
         ))
-        .push(create_text_input(
-            "damping",
-            &joint.damping,
-            Message::RevolutedampingInputChanged,
-        ))
+        .push(create_text_input("damping", &joint.damping, |string| {
+            Message::RevoluteDampingInputChanged(string)
+        }))
         .push(create_text_input(
             "spring constant",
-            &joint.theta,
-            Message::RevoluteSpringConstantInputChanged,
+            &joint.spring_constant,
+            |string| Message::RevoluteSpringConstantInputChanged(string),
         ));
 
     let footer = Row::new()

@@ -101,17 +101,27 @@ impl AppState {
     }
 
     pub fn delete_pressed(&mut self) -> Command<Message> {
-        self.graph.delete_pressed();
+        match self.tab_bar.state.current_tab {
+            AppTabs::Simulation => {
+                if self.modal.is_none() && self.active_error.is_none() {
+                    //NOTE: . on num pad might also be delete, which will delete nodes when typing floats on modals
+                    self.graph.delete_pressed();
+                    self.cache.clear();
+                }
+            }
+            _ => {}
+        }
+
         //self.nodebar.delete_pressed(); // no need for this, maybe ever?
-        self.cache.clear();
+
         Command::none()
     }
 
-    pub fn enter_pressed(&mut self) -> Command<Message> {
+    pub fn enter_pressed(&mut self) -> Command<Message> {        
         // if the error modal is currently open, close it
         if self.active_error.is_some() {
             self.active_error = None;
-        }
+        }        
         //if a component modal is currently open, save it
         self.save_component()
     }
@@ -312,6 +322,7 @@ impl AppState {
     }
 
     pub fn save_component(&mut self) -> Command<Message> {
+        
         // early return
         let modal = match self.modal {
             Some(ref modal) => modal,
@@ -380,7 +391,7 @@ impl AppState {
                 }
                 match modal.component_id {
                     Some(id) => {
-                        //editing existing joint
+                        //editing existing joint                        
                         let joint = self.graph.system.joints.get_mut(&id).unwrap();
                         match joint {
                             Joint::Revolute(revolute) => {
@@ -395,7 +406,7 @@ impl AppState {
                         let joint = self.nodebar.dummies.revolute.to_joint();
                         let id = *joint.get_id();
                         let label = joint.get_name().to_string();
-                        self.graph.system.add_joint(joint).unwrap();
+                        self.graph.system.add_joint(joint).unwrap();                        
                         self.graph
                             .save_component(&modal.dummy_type, id, label)
                             .unwrap();
@@ -427,12 +438,17 @@ impl AppState {
             dt,
         } = &self.simdiv;
 
+        // convert strings to floats
+        let start_time = start_time.parse().unwrap_or(0.0);
+        let stop_time = stop_time.parse().unwrap_or(10.0);
+        let dt = dt.parse().unwrap_or(1.0);
+
         let mut name = name.clone();
         if name.is_empty() {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        let result = sys.simulate(name.clone(), *start_time, *stop_time, *dt);
+        let result = sys.simulate(name.clone(), start_time, stop_time, dt);
         self.results.insert(name.clone(), result);
         self.cache.clear();
 
@@ -450,7 +466,8 @@ impl AppState {
         }
     }
 
-    pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {
+    pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {        
+
         let dummy_body = &mut self.nodebar.dummies.body;
 
         match field {
@@ -470,16 +487,20 @@ impl AppState {
         Command::none()
     }
 
-    pub fn update_revolute_field(&mut self, field: RevoluteField, value: &str) -> Command<Message> {
+    pub fn update_revolute_field(
+        &mut self,
+        field: RevoluteField,
+        string: String,
+    ) -> Command<Message> {        
         let dummy_revolute = &mut self.nodebar.dummies.revolute;
         match field {
-            RevoluteField::Name => dummy_revolute.name = value.to_string(),
-            RevoluteField::ConstantForce => dummy_revolute.constant_force = value.to_string(),
-            RevoluteField::Damping => dummy_revolute.damping = value.to_string(),
-            RevoluteField::Omega => dummy_revolute.omega = value.to_string(),
-            RevoluteField::SpringConstant => dummy_revolute.spring_constant = value.to_string(),
-            RevoluteField::Theta => dummy_revolute.theta = value.to_string(),
-        }
+            RevoluteField::Name => dummy_revolute.name = string,
+            RevoluteField::ConstantForce => dummy_revolute.constant_force = string,
+            RevoluteField::Damping => dummy_revolute.damping = string,
+            RevoluteField::Omega => dummy_revolute.omega = string,
+            RevoluteField::SpringConstant => dummy_revolute.spring_constant = string,
+            RevoluteField::Theta => dummy_revolute.theta = string,
+        }        
 
         Command::none()
     }

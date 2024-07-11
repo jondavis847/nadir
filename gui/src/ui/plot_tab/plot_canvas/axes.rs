@@ -52,8 +52,7 @@ impl Axes {
 
         let ylim = self.ylim;
         let xlim = self.xlim;
-        dbg!(xlim);
-        dbg!(ylim);
+        
         let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
             let mut canvas_points = points.clone();
             let x_ratio = width / (xlim.1 - xlim.0);
@@ -69,8 +68,7 @@ impl Axes {
         for (_, line) in &self.lines {
             if line.data.len() > 1 {
                 //convert line data to canvas data
-                let canvas_data = canvas_values(&line.data);
-                dbg!(&canvas_data);
+                let canvas_data = canvas_values(&line.data);                
 
                 let path = Path::new(|builder| {
                     builder.move_to(canvas_data[0]);
