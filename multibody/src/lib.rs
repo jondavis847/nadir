@@ -2,6 +2,7 @@ pub mod algorithms;
 pub mod base;
 pub mod body;
 pub mod joint;
+pub mod result;
 pub mod system;
 pub mod system_sim;
 

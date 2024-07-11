@@ -3,8 +3,9 @@ use super::{
     base::Base,
     body::{Body, BodyTrait},
     joint::{Joint, JointTrait},
+    result::MultibodyResult,
+    system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
-    system_sim::{MultibodySystemSim,MultibodyResult}
 };
 
 use std::collections::HashMap;
@@ -80,9 +81,9 @@ impl MultibodySystem {
         false
     }
 
-    pub fn simulate(&self,name: String, tstart:f64,tstop:f64,dt:f64) -> MultibodyResult {
+    pub fn simulate(&self, name: String, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
         let mut sim = MultibodySystemSim::from(self.clone());
-        sim.simulate(name, tstart,tstop,dt)
+        sim.simulate(name, tstart, tstop, dt)
     }
 
     pub fn validate(&self) {
@@ -172,4 +173,3 @@ impl MultibodySystem {
         println!("System validation complete!");
     }
 }
-

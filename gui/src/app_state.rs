@@ -24,7 +24,7 @@ use crate::{
     },
     Message,
 };
-use multibody::{joint::Joint, system_sim::MultibodyResult, MultibodyTrait};
+use multibody::{joint::Joint, result::MultibodyResult, MultibodyTrait};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -117,11 +117,11 @@ impl AppState {
         Command::none()
     }
 
-    pub fn enter_pressed(&mut self) -> Command<Message> {        
+    pub fn enter_pressed(&mut self) -> Command<Message> {
         // if the error modal is currently open, close it
         if self.active_error.is_some() {
             self.active_error = None;
-        }        
+        }
         //if a component modal is currently open, save it
         self.save_component()
     }
@@ -300,7 +300,7 @@ impl AppState {
                 states = unique_strings(states, component_states);
             }
         }
-        self.plot_tab.state_menu.update_options(states);        
+        self.plot_tab.state_menu.update_options(states);
         self.plot_tab.selected_states.clear();
         Command::none()
     }
@@ -327,7 +327,6 @@ impl AppState {
     }
 
     pub fn save_component(&mut self) -> Command<Message> {
-        
         // early return
         let modal = match self.modal {
             Some(ref modal) => modal,
@@ -396,7 +395,7 @@ impl AppState {
                 }
                 match modal.component_id {
                     Some(id) => {
-                        //editing existing joint                        
+                        //editing existing joint
                         let joint = self.graph.system.joints.get_mut(&id).unwrap();
                         match joint {
                             Joint::Revolute(revolute) => {
@@ -411,7 +410,7 @@ impl AppState {
                         let joint = self.nodebar.dummies.revolute.to_joint();
                         let id = *joint.get_id();
                         let label = joint.get_name().to_string();
-                        self.graph.system.add_joint(joint).unwrap();                        
+                        self.graph.system.add_joint(joint).unwrap();
                         self.graph
                             .save_component(&modal.dummy_type, id, label)
                             .unwrap();
@@ -471,8 +470,7 @@ impl AppState {
         }
     }
 
-    pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {        
-
+    pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {
         let dummy_body = &mut self.nodebar.dummies.body;
 
         match field {
@@ -496,7 +494,7 @@ impl AppState {
         &mut self,
         field: RevoluteField,
         string: String,
-    ) -> Command<Message> {        
+    ) -> Command<Message> {
         let dummy_revolute = &mut self.nodebar.dummies.revolute;
         match field {
             RevoluteField::Name => dummy_revolute.name = string,
@@ -505,7 +503,7 @@ impl AppState {
             RevoluteField::Omega => dummy_revolute.omega = string,
             RevoluteField::SpringConstant => dummy_revolute.spring_constant = string,
             RevoluteField::Theta => dummy_revolute.theta = string,
-        }        
+        }
 
         Command::none()
     }
