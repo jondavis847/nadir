@@ -23,8 +23,8 @@ pub struct Edge {
 impl Edge {
     pub fn new(from: EdgeConnection, to: EdgeConnection) -> Self {
         Self {
-            from: from,
-            to: to,
+            from,
+            to,
             control: None,
         }
     }

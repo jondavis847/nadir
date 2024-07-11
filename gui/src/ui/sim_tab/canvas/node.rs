@@ -26,9 +26,9 @@ impl Node {
         rendered_bounds.width *= zoom;
 
         Self {
-            label: label,
-            bounds: bounds,
-            rendered_bounds: rendered_bounds,
+            label,
+            bounds,
+            rendered_bounds,
             is_left_clicked: false,
             is_middle_clicked: false,
             is_selected: false,

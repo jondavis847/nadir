@@ -24,7 +24,7 @@ pub struct GraphCanvas<'a> {
 impl<'a> GraphCanvas<'a> {
     pub fn new(app_state: &'a crate::AppState) -> Self {
         Self {
-            app_state: app_state,
+            app_state,
         }
     }
 }

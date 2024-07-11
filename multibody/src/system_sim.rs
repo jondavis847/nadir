@@ -186,7 +186,7 @@ impl MultibodySystemSim {
         for (ti, js) in times.iter().zip(joint_states.iter()) {
             self.run(js, &None, *ti);
             update_body_states(&mut self.bodies, &self.joints);
-            body_states.push(self.bodies.iter().map(|body| body.state.clone()).collect());
+            body_states.push(self.bodies.iter().map(|body| body.state).collect());
         }
 
         // Convert to a multibody result

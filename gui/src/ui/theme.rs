@@ -93,19 +93,19 @@ impl iced::widget::scrollable::StyleSheet for Theme {
             iced::widget::container::Appearance {
                 text_color: None,
                 background: Some(self.background.into()),
-                border: border,
-                shadow: shadow,
+                border,
+                shadow,
             }
         };
 
         let scroller = iced::widget::scrollable::Scroller {
             color: self.dark_background.into(),
-            border: border,
+            border,
         };
         let scrollbar = iced::widget::scrollable::Scrollbar {
             background: Some(iced::Background::Color(self.background)),
-            border: border,
-            scroller: scroller,
+            border,
+            scroller,
         };
         let gap = None;
         iced::widget::scrollable::Appearance {
@@ -148,8 +148,8 @@ impl iced::widget::container::StyleSheet for Theme {
                 iced::widget::container::Appearance {
                     text_color: None,
                     background: Some(self.background.into()),
-                    border: border,
-                    shadow: shadow,
+                    border,
+                    shadow,
                 }
             }
             ContainerStyles::TabBarContainer => {
@@ -166,8 +166,8 @@ impl iced::widget::container::StyleSheet for Theme {
                 iced::widget::container::Appearance {
                     text_color: None,
                     background: Some(self.dark_background.into()),
-                    border: border,
-                    shadow: shadow,
+                    border,
+                    shadow,
                 }
             }
         }
@@ -215,13 +215,13 @@ impl iced::widget::button::StyleSheet for Theme {
         match style {
             ButtonStyles::Default => iced::widget::button::Appearance {
                 background: Some(iced::Background::Color(self.node_background)),
-                border: border,
+                border,
                 text_color: self.primary,
                 ..Default::default()
             },
             ButtonStyles::Selected => iced::widget::button::Appearance {
                 background: Some(iced::Background::Color(self.primary)),
-                border: border,
+                border,
                 text_color: self.primary,
                 ..Default::default()
             },
@@ -237,13 +237,13 @@ impl iced::widget::button::StyleSheet for Theme {
         match style {
             ButtonStyles::Default => iced::widget::button::Appearance {
                 background: Some(iced::Background::Color(self.background)),
-                border: border,
+                border,
                 text_color: self.primary,
                 ..Default::default()
             },
             ButtonStyles::Selected => iced::widget::button::Appearance {
                 background: Some(iced::Background::Color(self.primary)),
-                border: border,
+                border,
                 text_color: self.primary,
                 ..Default::default()
             },

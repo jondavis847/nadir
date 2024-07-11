@@ -92,7 +92,7 @@ pub struct SelectMenuOption {
 impl SelectMenuOption {
     pub fn new(label: String) -> Self {
         Self {
-            label: label,
+            label,
             is_selected: false,
         }
     }

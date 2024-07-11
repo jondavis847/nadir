@@ -15,8 +15,7 @@ pub fn generate_unique_id() -> String {
     let duration_since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
     let timestamp = duration_since_epoch.as_secs();
     // Convert the timestamp to base-36
-    let unique_id = base36_encode(timestamp);
-    unique_id
+    base36_encode(timestamp)    
 }
 
 // Function to encode a number to base-36
