@@ -33,15 +33,15 @@ impl Default for Axes {
 impl Axes {
     pub fn draw(&self, frame: &mut Frame, theme: &Theme) {
         // update the bounds based on the frame
-        let axes_bounds = self.get_bounds(frame);
-        self.background(frame, theme, &axes_bounds);
+        let canvas_bounds = self.get_bounds(frame);
+        self.background(frame, theme, &canvas_bounds);
         
         self.draw_lines(frame, theme);
         frame.with_save(|frame| {
             let translation = Vector::new(self.padding, self.padding);
             frame.translate(translation);
             self.axis
-                .draw(frame, theme, &axes_bounds, &self.xlim, &self.ylim);
+                .draw(frame, theme, &canvas_bounds, &self.xlim, &self.ylim);
         });
     }
 

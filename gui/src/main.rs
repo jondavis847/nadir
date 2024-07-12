@@ -256,7 +256,7 @@ impl Application for GadgtGui {
                     }
                     keyboard::Key::Named(keyboard::key::Named::Delete) => {                        
                         Some(Message::DeletePressed)
-                    }
+                    }                    
                     keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
                     _ => None,
                 },
