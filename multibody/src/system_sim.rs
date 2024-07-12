@@ -8,8 +8,8 @@ use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
     joint::{
-        revolute::RevoluteResult, Joint, JointResult, JointSim, JointSimTrait, JointState,
-        JointTrait,
+        prismatic::PrismaticResult, revolute::RevoluteResult, Joint, JointResult, JointSim,
+        JointSimTrait, JointState, JointTrait,
     },
     result::{update_body_states, MultibodyResult, ResultEntry},
     system::MultibodySystem,
@@ -205,6 +205,17 @@ impl MultibodySystemSim {
                         if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
                             revolute_result.theta.push(revolute.theta);
                             revolute_result.omega.push(revolute.omega);
+                        }
+                    }
+                    JointState::Prismatic(prismatic) => {
+                        let entry = result_hm.entry(joint_name.clone()).or_insert_with(|| {
+                            ResultEntry::Joint(JointResult::Prismatic(PrismaticResult::default()))
+                        });
+
+                        if let ResultEntry::Joint(JointResult::Prismatic(prismatic_result)) = entry
+                        {
+                            prismatic_result.position.push(prismatic.position);
+                            prismatic_result.velocity.push(prismatic.velocity);
                         }
                     }
                 }

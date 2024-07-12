@@ -39,6 +39,12 @@ impl MultibodyResult {
                     let omega = Series::new("omega", revolute.omega.clone());
                     df.with_column(theta).unwrap();
                     df.with_column(omega).unwrap();
+                }
+                JointResult::Prismatic(prismatic) => {
+                    let position = Series::new("theta", prismatic.position.clone());
+                    let velocity = Series::new("omega", prismatic.velocity.clone());
+                    df.with_column(position).unwrap();
+                    df.with_column(velocity).unwrap();
                 } //_ => panic!("Invalid joint type"),
             },
             ResultEntry::Body(body) => {
@@ -313,6 +319,9 @@ impl MultibodyResult {
                 match joint {
                     JointResult::Revolute(_) => {
                         vec!["theta".to_string(), "omega".to_string()]
+                    }
+                    JointResult::Prismatic(_) => {
+                        vec!["position".to_string(), "velocity".to_string()]
                     } //_ => panic!("Invalid joint type"),
                 }
             }

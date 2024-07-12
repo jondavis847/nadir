@@ -12,6 +12,8 @@ use uuid::Uuid;
 
 pub mod revolute;
 use revolute::{Revolute, RevoluteResult, RevoluteSim, RevoluteState};
+pub mod prismatic;
+use prismatic::{Prismatic, PrismaticResult, PrismaticSim, PrismaticState};
 pub trait JointTrait: MultibodyTrait {
     fn connect_inner_body<T: BodyTrait>(
         &mut self,
@@ -59,7 +61,7 @@ impl JointCommon {
 #[derive(Debug, Clone)]
 pub enum Joint {
     //Floating,
-    //Prismatic,
+    Prismatic(Prismatic),
     Revolute(Revolute),
     //Spherical,
 }
@@ -69,22 +71,30 @@ impl From<Revolute> for Joint {
         Joint::Revolute(revolute)
     }
 }
+impl From<Prismatic> for Joint {
+    fn from(prismatic: Prismatic) -> Self {
+        Joint::Prismatic(prismatic)
+    }
+}
 
 impl MultibodyTrait for Joint {
     fn get_id(&self) -> &Uuid {
         match self {
+            Joint::Prismatic(joint) => joint.get_id(),
             Joint::Revolute(joint) => joint.get_id(),
         }
     }
     fn get_name(&self) -> &str {
         match self {
-            Joint::Revolute(revolute) => revolute.get_name(),
+            Joint::Prismatic(joint) => joint.get_name(),
+            Joint::Revolute(joint) => joint.get_name(),
         }
     }
 
     fn set_name(&mut self, name: String) {
         match self {
-            Joint::Revolute(revolute) => revolute.set_name(name),
+            Joint::Prismatic(joint) => joint.set_name(name),
+            Joint::Revolute(joint) => joint.set_name(name),
         }
     }
 }
@@ -96,6 +106,7 @@ impl JointTrait for Joint {
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
+            Joint::Prismatic(joint) => joint.connect_inner_body(body, transform),
             Joint::Revolute(joint) => joint.connect_inner_body(body, transform),
         }
     }
@@ -106,28 +117,33 @@ impl JointTrait for Joint {
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
+            Joint::Prismatic(joint) => joint.connect_outer_body(body, transform),
             Joint::Revolute(joint) => joint.connect_outer_body(body, transform),
         }
     }
 
     fn delete_inner_body_id(&mut self) {
         match self {
+            Joint::Prismatic(joint) => joint.delete_inner_body_id(),
             Joint::Revolute(joint) => joint.delete_inner_body_id(),
         }
     }
     fn delete_outer_body_id(&mut self) {
         match self {
+            Joint::Prismatic(joint) => joint.delete_outer_body_id(),
             Joint::Revolute(joint) => joint.delete_outer_body_id(),
         }
     }
 
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match self {
+            Joint::Prismatic(joint) => joint.get_inner_body_id(),
             Joint::Revolute(joint) => joint.get_inner_body_id(),
         }
     }
     fn get_outer_body_id(&self) -> Option<&Uuid> {
         match self {
+            Joint::Prismatic(joint) => joint.get_outer_body_id(),
             Joint::Revolute(joint) => joint.get_outer_body_id(),
         }
     }
@@ -136,51 +152,60 @@ impl JointTrait for Joint {
 impl ArticulatedBodyAlgorithm for JointSim {
     fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         match self {
+            JointSim::Prismatic(joint) => joint.first_pass(v_ij, f_ob),
             JointSim::Revolute(joint) => joint.first_pass(v_ij, f_ob),
         }
     }
     fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
         match self {
+            JointSim::Prismatic(joint) => joint.second_pass(inner_is_base),
             JointSim::Revolute(joint) => joint.second_pass(inner_is_base),
         }
     }
     fn third_pass(&mut self, a_ij: Acceleration) {
         match self {
+            JointSim::Prismatic(joint) => joint.third_pass(a_ij),
             JointSim::Revolute(joint) => joint.third_pass(a_ij),
         }
     }
 
     fn get_aba_derivative(&self) -> JointState {
         match self {
+            JointSim::Prismatic(joint) => joint.get_aba_derivative(),
             JointSim::Revolute(joint) => joint.get_aba_derivative(),
         }
     }
 
     fn get_v(&self) -> &Velocity {
         match self {
+            JointSim::Prismatic(joint) => joint.get_v(),
             JointSim::Revolute(joint) => joint.get_v(),
         }
     }
     fn get_p_big_a(&self) -> &Force {
         match self {
+            JointSim::Prismatic(joint) => joint.get_p_big_a(),
             JointSim::Revolute(joint) => joint.get_p_big_a(),
         }
     }
 
     fn get_a(&self) -> &Acceleration {
         match self {
+            JointSim::Prismatic(joint) => joint.get_a(),
             JointSim::Revolute(joint) => joint.get_a(),
         }
     }
 
     fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
         match self {
+            JointSim::Prismatic(joint) => joint.add_inertia_articulated(inertia),
             JointSim::Revolute(joint) => joint.add_inertia_articulated(inertia),
         }
     }
 
     fn add_p_big_a(&mut self, force: Force) {
         match self {
+            JointSim::Prismatic(joint) => joint.add_p_big_a(force),
             JointSim::Revolute(joint) => joint.add_p_big_a(force),
         }
     }
@@ -298,13 +323,15 @@ impl JointTransforms {
 
 #[derive(Debug, Copy, Clone)]
 pub enum JointSim {
+    Prismatic(PrismaticSim),
     Revolute(RevoluteSim),
 }
 
 impl From<Joint> for JointSim {
     fn from(joint: Joint) -> Self {
         match joint {
-            Joint::Revolute(revolute) => JointSim::Revolute(revolute.into()),
+            Joint::Prismatic(joint) => JointSim::Prismatic(joint.into()),
+            Joint::Revolute(joint) => JointSim::Revolute(joint.into()),
         }
     }
 }
@@ -312,12 +339,14 @@ impl From<Joint> for JointSim {
 impl JointSimTrait for JointSim {
     fn calculate_tau(&mut self) {
         match self {
+            JointSim::Prismatic(joint) => joint.calculate_tau(),
             JointSim::Revolute(joint) => joint.calculate_tau(),
         }
     }
 
     fn calculate_vj(&mut self) {
         match self {
+            JointSim::Prismatic(joint) => joint.calculate_vj(),
             JointSim::Revolute(joint) => joint.calculate_vj(),
         }
     }
@@ -325,6 +354,7 @@ impl JointSimTrait for JointSim {
     #[inline]
     fn get_id(&self) -> &Uuid {
         match self {
+            JointSim::Prismatic(joint) => joint.get_id(),
             JointSim::Revolute(joint) => joint.get_id(),
         }
     }
@@ -332,12 +362,14 @@ impl JointSimTrait for JointSim {
     #[inline]
     fn get_state(&self) -> JointState {
         match self {
+            JointSim::Prismatic(joint) => joint.get_state(),
             JointSim::Revolute(joint) => joint.get_state(),
         }
     }
     #[inline]
     fn set_state(&mut self, state: JointState) {
         match self {
+            JointSim::Prismatic(joint) => joint.set_state(state),
             JointSim::Revolute(joint) => joint.set_state(state),
         }
     }
@@ -345,6 +377,7 @@ impl JointSimTrait for JointSim {
     #[inline]
     fn get_transforms(&self) -> &JointTransforms {
         match self {
+            JointSim::Prismatic(joint) => joint.get_transforms(),
             JointSim::Revolute(joint) => joint.get_transforms(),
         }
     }
@@ -352,6 +385,7 @@ impl JointSimTrait for JointSim {
     #[inline]
     fn get_transforms_mut(&mut self) -> &mut JointTransforms {
         match self {
+            JointSim::Prismatic(joint) => joint.get_transforms_mut(),
             JointSim::Revolute(joint) => joint.get_transforms_mut(),
         }
     }
@@ -359,6 +393,7 @@ impl JointSimTrait for JointSim {
     #[inline]
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
         match self {
+            JointSim::Prismatic(joint) => joint.update_transforms(ij_transforms),
             JointSim::Revolute(joint) => joint.update_transforms(ij_transforms),
         }
     }
@@ -377,7 +412,8 @@ pub trait JointSimTrait {
 
 #[derive(Clone, Copy, Debug)]
 pub enum JointState {
-    Revolute(RevoluteState), // Spherical(SphericalState)
+    Prismatic(PrismaticState), // Spherical(SphericalState)
+    Revolute(RevoluteState),   // Spherical(SphericalState)
 }
 
 impl Add for JointState {
@@ -387,9 +423,12 @@ impl Add for JointState {
         match (self, rhs) {
             (JointState::Revolute(lhs), JointState::Revolute(rhs)) => {
                 JointState::Revolute(lhs + rhs)
+            }
+            (JointState::Prismatic(lhs), JointState::Prismatic(rhs)) => {
+                JointState::Prismatic(lhs + rhs)
             } // Handle other variants here if they are added
-              // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
-              //_ => panic!("Cannot add different JointState variants"),
+            // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
+            _ => panic!("Cannot add different JointState variants"), // shouldnt be possible, just used to integrate systems
         }
     }
 }
@@ -398,9 +437,10 @@ impl AddAssign for JointState {
     fn add_assign(&mut self, rhs: Self) {
         match (self, rhs) {
             (JointState::Revolute(lhs), JointState::Revolute(rhs)) => *lhs += rhs,
+            (JointState::Prismatic(lhs), JointState::Prismatic(rhs)) => *lhs += rhs,
             // Handle other variants here if they are added
             // (JointState::Spherical(lhs), JointState::Spherical(rhs)) => JointState::Spherical(lhs + rhs),
-            //_ => panic!("Cannot add different JointState variants"),
+            _ => panic!("Cannot add different JointState variants"),
         }
     }
 }
@@ -410,7 +450,8 @@ impl Mul<f64> for JointState {
 
     fn mul(self, rhs: f64) -> Self {
         match self {
-            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state * rhs),
+            JointState::Prismatic(state) => JointState::Prismatic(state * rhs),
+            JointState::Revolute(state) => JointState::Revolute(state * rhs),
         }
     }
 }
@@ -420,12 +461,14 @@ impl Div<f64> for JointState {
 
     fn div(self, rhs: f64) -> Self {
         match self {
-            JointState::Revolute(revolute_state) => JointState::Revolute(revolute_state / rhs),
+            JointState::Prismatic(state) => JointState::Prismatic(state / rhs),
+            JointState::Revolute(state) => JointState::Revolute(state / rhs),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum JointResult {
+    Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
 }

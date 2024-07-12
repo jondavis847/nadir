@@ -184,6 +184,9 @@ impl Graph {
                     DummyComponent::Revolute => {
                         self.system.joints.remove(&selected_node.component_id);
                     }
+                    DummyComponent::Prismatic => {
+                        self.system.joints.remove(&selected_node.component_id);
+                    }
                 };
             }
         }

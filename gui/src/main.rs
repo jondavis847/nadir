@@ -17,10 +17,10 @@ mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
-use multibody_ui::{BodyField, RevoluteField};
+use multibody_ui::{BodyField, PrismaticField, RevoluteField};
 
 use ui::{
-    dummies::{DummyBase, DummyBody, DummyComponent, DummyRevolute},
+    dummies::{DummyBase, DummyBody, DummyComponent, DummyPrismatic, DummyRevolute},
     errors::Errors,
     sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
@@ -67,6 +67,12 @@ enum Message {
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
     ResultSelected(String),
+    PrismaticConstantForceInputChanged(String),
+    PrismaticDampingInputChanged(String),
+    PrismaticVelocityInputChanged(String),
+    PrismaticNameInputChanged(String),
+    PrismaticSpringConstantInputChanged(String),
+    PrismaticPositionInputChanged(String),
     RevoluteConstantForceInputChanged(String),
     RevoluteDampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
@@ -195,6 +201,26 @@ impl Application for GadgtGui {
                 Message::RevoluteThetaInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::Theta, value)
                 }
+
+                Message::PrismaticConstantForceInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::ConstantForce, value)
+                }
+                Message::PrismaticDampingInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::Damping, value)
+                }
+                Message::PrismaticNameInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::Name, value)
+                }
+                Message::PrismaticVelocityInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::Velocity, value)
+                }
+                Message::PrismaticSpringConstantInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::SpringConstant, value)
+                }
+                Message::PrismaticPositionInputChanged(value) => {
+                    state.update_prismatic_field(PrismaticField::Position, value)
+                }
+
                 Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                 Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
                 Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
@@ -319,6 +345,9 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             DummyComponent::Body => Some(create_body_modal(&state.nodebar.dummies.body)),
             DummyComponent::Revolute => {
                 Some(create_revolute_modal(&state.nodebar.dummies.revolute))
+            }
+            DummyComponent::Prismatic => {
+                Some(create_prismatic_modal(&state.nodebar.dummies.prismatic))
             }
         }
     } else {
@@ -501,6 +530,65 @@ fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
         );
 
     card("Revolute Information", content)
+        .foot(footer)
+        .max_width(500.0)
+        .into()
+}
+
+fn create_prismatic_modal(joint: &DummyPrismatic) -> Element<Message, Theme> {
+    let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
+        Row::new()
+            .spacing(10)
+            .push(text(label).width(Length::FillPortion(1)))
+            .push(
+                text_input(label, value)
+                    .on_input(on_input)
+                    .on_submit(Message::SaveComponent)
+                    .width(Length::FillPortion(2)),
+            )
+            .width(Length::Fill)
+    };
+
+    let content = Column::new()
+        .push(create_text_input("name", &joint.name, |string| {
+            Message::PrismaticNameInputChanged(string)
+        }))
+        .push(create_text_input("position", &joint.position, |string| {
+            Message::PrismaticPositionInputChanged(string)
+        }))
+        .push(create_text_input("velocity", &joint.velocity, |string| {
+            Message::PrismaticVelocityInputChanged(string)
+        }))
+        .push(create_text_input(
+            "constant force",
+            &joint.constant_force,
+            |string| Message::PrismaticConstantForceInputChanged(string),
+        ))
+        .push(create_text_input("damping", &joint.damping, |string| {
+            Message::PrismaticDampingInputChanged(string)
+        }))
+        .push(create_text_input(
+            "spring constant",
+            &joint.spring_constant,
+            |string| Message::PrismaticSpringConstantInputChanged(string),
+        ));
+
+    let footer = Row::new()
+        .spacing(10)
+        .padding(5)
+        .width(Length::Fill)
+        .push(
+            button("Cancel")
+                .width(Length::Fill)
+                .on_press(crate::Message::CloseModal),
+        )
+        .push(
+            button("Ok")
+                .width(Length::Fill)
+                .on_press(crate::Message::SaveComponent),
+        );
+
+    card("Prismatic Information", content)
         .foot(footer)
         .max_width(500.0)
         .into()

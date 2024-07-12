@@ -7,42 +7,39 @@ use crate::{
     },
     MultibodyTrait,
 };
-use coordinate_systems::CoordinateSystem;
+use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
-use rotations::{
-    euler_angles::{Angles, EulerAngles},
-    Rotation,
-};
+use rotations::{Rotation, RotationTrait};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone)]
-pub enum RevoluteErrors {}
+pub enum PrismaticErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct RevoluteState {
-    pub theta: f64,
-    pub omega: f64,
+pub struct PrismaticState {
+    pub position: f64,
+    pub velocity: f64,
 }
 
-impl RevoluteState {
-    pub fn new(theta: f64, omega: f64) -> Self {
+impl PrismaticState {
+    pub fn new(position: f64, velocity: f64) -> Self {
         // assume this is about Z until we add more axes
-        Self { theta, omega }
+        Self { position, velocity }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Revolute {
+pub struct Prismatic {
     pub common: JointCommon,
     pub parameters: JointParameters,
-    pub state: RevoluteState,
+    pub state: PrismaticState,
 }
 
-impl Revolute {
-    pub fn new(name: &str, parameters: JointParameters, state: RevoluteState) -> Self {
+impl Prismatic {
+    pub fn new(name: &str, parameters: JointParameters, state: PrismaticState) -> Self {
         let common = JointCommon::new(name);
 
         Self {
@@ -53,7 +50,7 @@ impl Revolute {
     }
 }
 
-impl JointTrait for Revolute {
+impl JointTrait for Prismatic {
     fn connect_inner_body<T: BodyTrait>(
         &mut self,
         body: &mut T,
@@ -114,7 +111,7 @@ impl JointTrait for Revolute {
     }
 }
 
-impl MultibodyTrait for Revolute {
+impl MultibodyTrait for Prismatic {
     fn get_id(&self) -> &Uuid {
         &self.common.id
     }
@@ -128,7 +125,7 @@ impl MultibodyTrait for Revolute {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct RevoluteAbaCache {
+struct PrismaticAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
@@ -138,27 +135,27 @@ struct RevoluteAbaCache {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RevoluteSim {
-    aba: RevoluteAbaCache,
+pub struct PrismaticSim {
+    aba: PrismaticAbaCache,
     id: Uuid,
     parameters: JointParameters,
-    state: RevoluteState,
+    state: PrismaticState,
     transforms: JointTransforms,
 }
 
-impl From<Revolute> for RevoluteSim {
-    fn from(revolute: Revolute) -> Self {
-        RevoluteSim {
-            aba: RevoluteAbaCache::default(),
-            id: *revolute.get_id(),
-            parameters: revolute.parameters,
-            state: revolute.state,
+impl From<Prismatic> for PrismaticSim {
+    fn from(prismatic: Prismatic) -> Self {
+        PrismaticSim {
+            aba: PrismaticAbaCache::default(),
+            id: *prismatic.get_id(),
+            parameters: prismatic.parameters,
+            state: prismatic.state,
             transforms: JointTransforms::default(),
         }
     }
 }
 
-impl ArticulatedBodyAlgorithm for RevoluteSim {
+impl ArticulatedBodyAlgorithm for PrismaticSim {
     fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         let transforms = &self.transforms;
         let aba = &mut self.aba;
@@ -176,9 +173,10 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
+        // assum prismatic is in x for now
+        aba.big_u = inertia_articulated_matrix.get_column(4).unwrap();
         aba.big_d_inv = 1.0 / aba.big_u.e31;
-        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(3).unwrap());
+        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap());
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -204,12 +202,12 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.q_ddot =
             aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
         aba.common.a = aba.common.a_prime
-            + Acceleration::from(Vector6::new(0.0, 0.0, aba.q_ddot, 0.0, 0.0, 0.0));
+            + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, aba.q_ddot, 0.0, 0.0));
     }
 
     fn get_aba_derivative(&self) -> JointState {
-        let derivative = RevoluteState::new(self.state.omega, self.aba.q_ddot);
-        JointState::Revolute(derivative)
+        let derivative = PrismaticState::new(self.state.velocity, self.aba.q_ddot);
+        JointState::Prismatic(derivative)
     }
 
     fn get_v(&self) -> &Velocity {
@@ -233,7 +231,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     }
 }
 
-impl JointSimTrait for RevoluteSim {
+impl JointSimTrait for PrismaticSim {
     fn calculate_tau(&mut self) {
         let JointParameters {
             constant_force,
@@ -242,23 +240,23 @@ impl JointSimTrait for RevoluteSim {
             ..
         } = self.parameters;
         self.aba.tau =
-            constant_force - spring_constant * self.state.theta - damping * self.state.omega;
+            constant_force - spring_constant * self.state.position - damping * self.state.velocity;
     }
 
     fn calculate_vj(&mut self) {
         self.aba.common.vj =
-            Velocity::from(Vector6::new(0.0, 0.0, self.state.omega, 0.0, 0.0, 0.0));
+            Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
     }
     fn get_id(&self) -> &Uuid {
         &self.id
     }
     fn get_state(&self) -> JointState {
-        JointState::Revolute(self.state)
+        JointState::Prismatic(self.state)
     }
     fn set_state(&mut self, state: JointState) {
         match state {
-            JointState::Revolute(revolute_state) => self.state = revolute_state,
-            _ => panic!("Can't set a different joints state to revolute")
+            JointState::Prismatic(prismatic_state) => self.state = prismatic_state,
+            _ => panic!("Can't set a different joints state to Prismatic"),
         }
     }
     fn get_transforms(&self) -> &JointTransforms {
@@ -269,10 +267,8 @@ impl JointSimTrait for RevoluteSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-        let angles = Angles::new(self.state.theta, 0.0, 0.0);
-        let euler_angles = EulerAngles::ZYX(angles);
-        let rotation = Rotation::EulerAngles(euler_angles);
-        let translation = CoordinateSystem::default();
+        let rotation = Rotation::identity();
+        let translation = CoordinateSystem::from(Cartesian::new(self.state.position, 0.0, 0.0));
         let transform = Transform::new(rotation, translation);
 
         self.transforms.jof_from_jif = SpatialTransform(transform);
@@ -281,48 +277,48 @@ impl JointSimTrait for RevoluteSim {
     }
 }
 
-impl Add for RevoluteState {
+impl Add for PrismaticState {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        RevoluteState {
-            theta: self.theta + rhs.theta,
-            omega: self.omega + rhs.omega,
+        PrismaticState {
+            position: self.position + rhs.position,
+            velocity: self.velocity + rhs.velocity,
         }
     }
 }
 
-impl AddAssign for RevoluteState {
+impl AddAssign for PrismaticState {
     fn add_assign(&mut self, rhs: Self) {
-        self.theta += rhs.theta;
-        self.omega += rhs.omega;
+        self.position += rhs.position;
+        self.velocity += rhs.velocity;
     }
 }
 
-impl Mul<f64> for RevoluteState {
+impl Mul<f64> for PrismaticState {
     type Output = Self;
 
     fn mul(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta * rhs,
-            omega: self.omega * rhs,
+        PrismaticState {
+            position: self.position * rhs,
+            velocity: self.velocity * rhs,
         }
     }
 }
 
-impl Div<f64> for RevoluteState {
+impl Div<f64> for PrismaticState {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta / rhs,
-            omega: self.omega / rhs,
+        PrismaticState {
+            position: self.position / rhs,
+            velocity: self.velocity / rhs,
         }
     }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct RevoluteResult {
-    pub theta: Vec<f64>,
-    pub omega: Vec<f64>,
+pub struct PrismaticResult {
+    pub position: Vec<f64>,
+    pub velocity: Vec<f64>,
 }

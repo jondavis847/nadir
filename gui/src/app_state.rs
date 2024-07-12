@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use utilities::{generate_unique_id, unique_strings};
 
-use crate::multibody_ui::{BodyField, RevoluteField};
+use crate::multibody_ui::{BodyField, PrismaticField, RevoluteField};
 use crate::ui::{
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
@@ -32,6 +32,7 @@ pub struct AppState {
     pub cache: Cache,
     pub counter_body: usize,
     pub counter_revolute: usize,
+    pub counter_prismatic: usize,
     pub tab_bar: TabBar,
     pub graph: Graph,
     pub left_clicked_time_1: Option<Instant>,
@@ -51,6 +52,7 @@ impl Default for AppState {
             cache: Cache::new(),
             counter_body: 0,
             counter_revolute: 0,
+            counter_prismatic: 0,
             tab_bar: TabBar::default(),
             left_clicked_time_1: None,
             left_clicked_time_2: None,
@@ -179,6 +181,9 @@ impl AppState {
                     DummyComponent::Revolute => {
                         self.modal = Some(active_modal);
                     }
+                    DummyComponent::Prismatic => {
+                        self.modal = Some(active_modal);
+                    }
                 }
             }
         }
@@ -205,6 +210,17 @@ impl AppState {
                             self.nodebar.dummies.revolute.get_values_from(revolute);
                             dummy_type = DummyComponent::Revolute;
                         }
+                        _ => panic!("should not be possible to another joint"),
+                    }
+                }
+                DummyComponent::Prismatic => {
+                    let joint = self.graph.system.joints.get(&component_id).unwrap();
+                    match joint {
+                        Joint::Prismatic(prismatic) => {
+                            self.nodebar.dummies.prismatic.get_values_from(prismatic);
+                            dummy_type = DummyComponent::Prismatic;
+                        }
+                        _ => panic!("should not be possible to another joint"),
                     }
                 }
             }
@@ -403,6 +419,7 @@ impl AppState {
                                 let graph_node = self.graph.nodes.get_mut(&id).unwrap();
                                 graph_node.node.label = revolute.get_name().to_string();
                             }
+                            _ => panic!("this should not be possible"),
                         }
                     }
                     None => {
@@ -418,6 +435,39 @@ impl AppState {
                 }
 
                 self.nodebar.dummies.revolute.clear();
+            }
+            DummyComponent::Prismatic => {
+                if self.nodebar.dummies.prismatic.name.is_empty() {
+                    self.counter_prismatic += 1;
+                    self.nodebar.dummies.prismatic.name =
+                        format!("prismatic{}", self.counter_prismatic).to_string();
+                }
+                match modal.component_id {
+                    Some(id) => {
+                        //editing existing joint
+                        let joint = self.graph.system.joints.get_mut(&id).unwrap();
+                        match joint {
+                            Joint::Prismatic(prismatic) => {
+                                self.nodebar.dummies.prismatic.set_values_for(prismatic);
+                                let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                                graph_node.node.label = prismatic.get_name().to_string();
+                            }
+                            _ => panic!("this should not be possible"),
+                        }
+                    }
+                    None => {
+                        //create new joint
+                        let joint = self.nodebar.dummies.prismatic.to_joint();
+                        let id = *joint.get_id();
+                        let label = joint.get_name().to_string();
+                        self.graph.system.add_joint(joint).unwrap();
+                        self.graph
+                            .save_component(&modal.dummy_type, id, label)
+                            .unwrap();
+                    }
+                }
+
+                self.nodebar.dummies.prismatic.clear();
             }
         }
 
@@ -503,6 +553,24 @@ impl AppState {
             RevoluteField::Omega => dummy_revolute.omega = string,
             RevoluteField::SpringConstant => dummy_revolute.spring_constant = string,
             RevoluteField::Theta => dummy_revolute.theta = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_prismatic_field(
+        &mut self,
+        field: PrismaticField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy_prismatic = &mut self.nodebar.dummies.prismatic;
+        match field {
+            PrismaticField::Name => dummy_prismatic.name = string,
+            PrismaticField::ConstantForce => dummy_prismatic.constant_force = string,
+            PrismaticField::Damping => dummy_prismatic.damping = string,
+            PrismaticField::Velocity => dummy_prismatic.velocity = string,
+            PrismaticField::SpringConstant => dummy_prismatic.spring_constant = string,
+            PrismaticField::Position => dummy_prismatic.position = string,
         }
 
         Command::none()

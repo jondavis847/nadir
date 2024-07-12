@@ -3,7 +3,8 @@ use multibody::{
     base::Base,
     body::Body,
     joint::{
-        revolute::{Revolute, RevoluteState},
+        prismatic::{Prismatic,PrismaticState},
+        revolute::{Revolute, RevoluteState},        
         Joint, JointParameters,
     },
     MultibodyTrait,
@@ -13,6 +14,7 @@ use multibody::{
 pub struct Dummies {
     pub base: DummyBase,
     pub body: DummyBody,
+    pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
 }
 
@@ -23,6 +25,7 @@ pub enum DummyComponent {
     Base,
     Body,
     Revolute,
+    Prismatic,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -182,5 +185,57 @@ impl DummyRevolute {
         );
         let revolute = Revolute::new(self.name.as_str(), parameters, state);
         Joint::Revolute(revolute)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct DummyPrismatic {
+    pub constant_force: String,
+    pub damping: String,
+    pub name: String,
+    pub position: String,
+    pub spring_constant: String,
+    pub velocity: String,
+}
+
+impl DummyPrismatic {
+    pub fn clear(&mut self) {
+        self.name = String::new();
+        self.position = String::new();
+        self.velocity = String::new();
+        self.spring_constant = String::new();
+        self.damping = String::new();
+        self.constant_force = String::new();
+    }
+    pub fn get_values_from(&mut self, rev: &Prismatic) {
+        self.name = rev.get_name().to_string();
+        self.position = rev.state.position.to_string();
+        self.velocity = rev.state.velocity.to_string();
+        self.spring_constant = rev.parameters.spring_constant.to_string();
+        self.damping = rev.parameters.damping.to_string();
+        self.constant_force = rev.parameters.constant_force.to_string();
+    }
+
+    pub fn set_values_for(&self, rev: &mut Prismatic) {
+        rev.set_name(self.name.clone());
+        rev.state.position = self.position.parse::<f64>().unwrap_or(0.0);
+        rev.state.velocity = self.velocity.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.spring_constant = self.spring_constant.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.damping = self.damping.parse::<f64>().unwrap_or(0.0);
+        rev.parameters.constant_force = self.constant_force.parse::<f64>().unwrap_or(0.0);
+    }
+
+    pub fn to_joint(&self) -> Joint {
+        let state = PrismaticState::new(
+            self.position.parse::<f64>().unwrap_or(0.0),
+            self.velocity.parse::<f64>().unwrap_or(0.0),
+        );
+        let parameters = JointParameters::new(
+            self.constant_force.parse::<f64>().unwrap_or(0.0),
+            self.damping.parse::<f64>().unwrap_or(0.0),
+            self.spring_constant.parse::<f64>().unwrap_or(0.0),
+        );
+        let prismatic = Prismatic::new(self.name.as_str(), parameters, state);
+        Joint::Prismatic(prismatic)
     }
 }

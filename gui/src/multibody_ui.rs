@@ -23,3 +23,12 @@ pub enum RevoluteField {
     Omega,
     Theta,
 }
+
+pub enum PrismaticField {
+    Name,
+    ConstantForce,
+    Damping,
+    SpringConstant,
+    Velocity,
+    Position,
+}
