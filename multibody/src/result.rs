@@ -41,8 +41,8 @@ impl MultibodyResult {
                     df.with_column(omega).unwrap();
                 }
                 JointResult::Prismatic(prismatic) => {
-                    let position = Series::new("theta", prismatic.position.clone());
-                    let velocity = Series::new("omega", prismatic.velocity.clone());
+                    let position = Series::new("position", prismatic.position.clone());
+                    let velocity = Series::new("velocity", prismatic.velocity.clone());
                     df.with_column(position).unwrap();
                     df.with_column(velocity).unwrap();
                 } //_ => panic!("Invalid joint type"),

@@ -115,7 +115,7 @@ impl Graph {
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> bool {
         let mut redraw = false;
 
-        if self.bounds.contains(canvas_cursor_position) {            
+        if self.bounds.contains(canvas_cursor_position) {
             // Handle left-clicked node dragging
             if let Some(clicked_node_id) = self.left_clicked_node {
                 if let Some(graphnode) = self.nodes.get_mut(&clicked_node_id) {
@@ -382,21 +382,24 @@ impl Graph {
 
         // match valid conections and connect, other wise exit
         match (&from_node.dummy_type, &to_node.dummy_type) {
-            (DummyComponent::Base, DummyComponent::Revolute) => {
+            (DummyComponent::Base, DummyComponent::Revolute)
+            | (DummyComponent::Base, DummyComponent::Prismatic) => {
                 let base = self.system.base.as_mut().unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
                 joint
                     .connect_inner_body(base, Transform::default())
                     .unwrap();
             }
-            (DummyComponent::Body, DummyComponent::Revolute) => {
+            (DummyComponent::Body, DummyComponent::Revolute)
+            | (DummyComponent::Body, DummyComponent::Prismatic) => {
                 let body = self.system.bodies.get_mut(&from_node.component_id).unwrap();
                 let joint = self.system.joints.get_mut(&to_node.component_id).unwrap();
                 joint
                     .connect_inner_body(body, Transform::default())
                     .unwrap();
             }
-            (DummyComponent::Revolute, DummyComponent::Body) => {
+            (DummyComponent::Revolute, DummyComponent::Body)
+            | (DummyComponent::Prismatic, DummyComponent::Body) => {
                 let joint = self.system.joints.get_mut(&from_node.component_id).unwrap();
                 let body = self.system.bodies.get_mut(&to_node.component_id).unwrap();
                 joint

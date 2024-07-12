@@ -259,7 +259,7 @@ impl MultibodySystemSim {
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
-        }
+        }                
     }
 
     fn update_body_forces(&mut self) {

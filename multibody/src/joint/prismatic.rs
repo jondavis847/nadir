@@ -175,7 +175,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         // assum prismatic is in x for now
         aba.big_u = inertia_articulated_matrix.get_column(4).unwrap();
-        aba.big_d_inv = 1.0 / aba.big_u.e31;
+        aba.big_d_inv = 1.0 / aba.big_u.e41;
         aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap());
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;

@@ -60,6 +60,11 @@ impl Default for Nodebar {
         let body_node_id = uuid::Uuid::new_v4();
         nodes.insert(body_node_id, body_node);
 
+        let prismatic_node =
+            create_default_node("+prismatic", &mut count, DummyComponent::Prismatic, x);
+        let prismatic_node_id = Uuid::new_v4();
+        nodes.insert(prismatic_node_id, prismatic_node);
+
         let revolute_node =
             create_default_node("+revolute", &mut count, DummyComponent::Revolute, x);
         let revolute_node_id = Uuid::new_v4();

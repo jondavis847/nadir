@@ -20,7 +20,7 @@ pub struct Dummies {
 
 /// DummyComponents are like MultibodyComponents but with String fields
 /// for editing in the text inputs rather than numeric values
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DummyComponent {
     Base,
     Body,

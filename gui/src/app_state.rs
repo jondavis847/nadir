@@ -251,13 +251,11 @@ impl AppState {
             for component_name in &self.plot_tab.selected_components {
                 let component = sim.get_component(component_name);
                 let t = component.column("t").unwrap().f64().unwrap();
-                let column_names = component.get_column_names();
-
+                let column_names = component.get_column_names();                
                 for state_name in &self.plot_tab.selected_states {
                     if column_names.contains(&state_name.as_str()) {
                         let data = component.column(state_name).unwrap().f64().unwrap();
-                        assert_eq!(t.len(), data.len());
-
+                        assert_eq!(t.len(), data.len());                        
                         // Create a Vec<iced::Point> by iterating over the Series
                         let points: Vec<Point> = t
                             .into_iter()
@@ -322,6 +320,7 @@ impl AppState {
     }
 
     pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {
+        dbg!(&state_name);
         self.plot_tab.state_menu.option_selected(&state_name);
         self.plot_tab.selected_states = self.plot_tab.state_menu.get_selected_options();
 
@@ -502,7 +501,7 @@ impl AppState {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        let result = sys.simulate(name.clone(), start_time, stop_time, dt);
+        let result = sys.simulate(name.clone(), start_time, stop_time, dt);        
         self.results.insert(name.clone(), result);
         self.cache.clear();
 
