@@ -48,7 +48,7 @@ fn main() -> iced::Result {
     settings.antialiasing = true;
     settings.window.size = Size::new(1280.0, 720.0);
     settings.window.icon = Some(icon);
-    IcedTest::run(settings)
+    GadgtGui::run(settings)
 }
 
 // Define the possible user interactions
@@ -103,7 +103,7 @@ enum Message {
 }
 
 #[derive(Debug)]
-enum IcedTest {
+enum GadgtGui {
     Loading,
     Loaded(AppState),
 }
@@ -112,7 +112,7 @@ async fn load() -> Result<(), String> {
     Ok(())
 }
 
-impl Application for IcedTest {
+impl Application for GadgtGui {
     type Message = Message;
     type Theme = Theme;
     type Executor = iced::executor::Default;
@@ -134,13 +134,13 @@ impl Application for IcedTest {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match self {
-            IcedTest::Loading => {
+            GadgtGui::Loading => {
                 if let Message::Loaded(_) = message {
-                    *self = IcedTest::Loaded(AppState::default());
+                    *self = GadgtGui::Loaded(AppState::default());
                 }
                 Command::none()
             }
-            IcedTest::Loaded(state) => match message {
+            GadgtGui::Loaded(state) => match message {
                 Message::AnimationTick(instant) => state.animation(instant),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
@@ -238,8 +238,8 @@ impl Application for IcedTest {
 
     fn view(&self) -> Element<Message, Theme> {
         match self {
-            IcedTest::Loading => loading_view(),
-            IcedTest::Loaded(state) => loaded_view(state),
+            GadgtGui::Loading => loading_view(),
+            GadgtGui::Loaded(state) => loaded_view(state),
         }
     }
 
