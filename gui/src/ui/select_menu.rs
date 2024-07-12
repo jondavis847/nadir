@@ -53,7 +53,9 @@ impl SelectMenu {
             let option = self.options.get(&key).unwrap();
             select_menu = select_menu.push(option.content(&message));
         }
-        scrollable(select_menu).width(self.width).into()
+        scrollable(select_menu)
+            .width(self.width)            
+            .into()
     }
 
     pub fn get_selected_options(&self) -> Vec<String> {
