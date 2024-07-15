@@ -332,6 +332,7 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
                 .into()
         }
         AppTabs::Plot => state.plot_tab.content().into(),
+        AppTabs::Animation => state.animation_tab.content().into(),
         _ => Row::new().into(), //nothing for now
     };
 

@@ -2,6 +2,7 @@ pub mod errors;
 pub mod dummies;
 pub mod modals;
 pub mod mouse;
+pub mod animation_tab;
 pub mod plot_tab;
 pub mod sim_tab;
 pub mod select_menu;

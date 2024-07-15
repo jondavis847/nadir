@@ -5,6 +5,7 @@ use utilities::{generate_unique_id, unique_strings};
 
 use crate::multibody_ui::{BodyField, PrismaticField, RevoluteField};
 use crate::ui::{
+    animation_tab::AnimationTab,
     errors::Errors,
     mouse::MouseButtonReleaseEvents,
     plot_tab::PlotTab,
@@ -29,6 +30,7 @@ use multibody::{joint::Joint, result::MultibodyResult, MultibodyTrait};
 #[derive(Debug)]
 pub struct AppState {
     pub active_error: Option<Errors>,
+    pub animation_tab: AnimationTab,
     pub cache: Cache,
     pub counter_body: usize,
     pub counter_revolute: usize,
@@ -57,6 +59,7 @@ impl Default for AppState {
             left_clicked_time_1: None,
             left_clicked_time_2: None,
             graph: Graph::default(),
+            animation_tab: AnimationTab::default(),
             plot_tab: PlotTab::default(),
             modal: None,
             nodebar: Nodebar::default(),
@@ -251,11 +254,11 @@ impl AppState {
             for component_name in &self.plot_tab.selected_components {
                 let component = sim.get_component(component_name);
                 let t = component.column("t").unwrap().f64().unwrap();
-                let column_names = component.get_column_names();                
+                let column_names = component.get_column_names();
                 for state_name in &self.plot_tab.selected_states {
                     if column_names.contains(&state_name.as_str()) {
                         let data = component.column(state_name).unwrap().f64().unwrap();
-                        assert_eq!(t.len(), data.len());                        
+                        assert_eq!(t.len(), data.len());
                         // Create a Vec<iced::Point> by iterating over the Series
                         let points: Vec<Point> = t
                             .into_iter()
@@ -501,7 +504,7 @@ impl AppState {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        let result = sys.simulate(name.clone(), start_time, stop_time, dt);        
+        let result = sys.simulate(name.clone(), start_time, stop_time, dt);
         self.results.insert(name.clone(), result);
         self.cache.clear();
 
