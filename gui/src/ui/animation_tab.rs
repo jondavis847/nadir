@@ -1,13 +1,18 @@
 use crate::{ui::select_menu::SelectMenu, Message};
-use iced::{widget::Row, Element, Length, Point};
+use iced::{
+    widget::{shader, Row},
+    Element, Length, Point,
+};
 
-//pub mod plot_canvas;
+pub mod scene;
+use scene::Scene;
 //use plot_canvas::PlotCanvas;
 
 #[derive(Debug)]
 pub struct AnimationTab {
     pub sim_menu: SelectMenu,
     pub selected_sims: Vec<String>,
+    pub scene: Scene,
 }
 
 impl Default for AnimationTab {
@@ -15,6 +20,7 @@ impl Default for AnimationTab {
         Self {
             sim_menu: SelectMenu::new(Length::FillPortion(1), false),
             selected_sims: Vec::new(),
+            scene: Scene::new(),
         }
     }
 }
@@ -25,8 +31,13 @@ impl AnimationTab {
             .sim_menu
             .content(|string| Message::PlotSimSelected(string));
 
+        let shader_program = shader(&self.scene)
+            .width(Length::FillPortion(15))
+            .height(Length::Fill);
+
         Row::new()
             .push(sim_menu)
+            .push(shader_program)
             .height(Length::FillPortion(15))
             .width(Length::Fill)
             .into()

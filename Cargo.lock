@@ -1373,6 +1373,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 
 [[package]]
+name = "glam"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1467,7 +1476,9 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "chrono",
+ "glam 0.28.0",
  "iced",
  "iced_aw",
  "image",
@@ -1627,7 +1638,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d7e6bbd197f311ed3d8b71651876b0ce01318fde52cda862a9a7a4373c9b930"
 dependencies = [
  "bitflags 2.6.0",
- "glam",
+ "glam 0.25.0",
  "log",
  "num-traits",
  "palette",
@@ -1736,7 +1747,7 @@ dependencies = [
  "bitflags 2.6.0",
  "bytemuck",
  "futures",
- "glam",
+ "glam 0.25.0",
  "glyphon",
  "guillotiere",
  "iced_graphics",
