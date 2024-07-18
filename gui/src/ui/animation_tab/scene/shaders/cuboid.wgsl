@@ -16,13 +16,13 @@ struct Vertex {
 }
 
 struct Cube {
-    @location(4) matrix_0: vec4<f32>,
-    @location(5) matrix_1: vec4<f32>,
-    @location(6) matrix_2: vec4<f32>,
-    @location(7) matrix_3: vec4<f32>,
-    @location(8) normal_matrix_0: vec3<f32>,
-    @location(9) normal_matrix_1: vec3<f32>,
-    @location(10) normal_matrix_2: vec3<f32>,
+    @location(4) matrix_0: vec4<f32>,    
+    @location(5) matrix_1: vec4<f32>,    
+    @location(6) matrix_2: vec4<f32>,    
+    @location(7) matrix_3: vec4<f32>,    
+    @location(8) normal_matrix_0: vec3<f32>,    
+    @location(9) normal_matrix_1: vec3<f32>,    
+    @location(10) normal_matrix_2: vec3<f32>,    
 }
 
 struct Output {
@@ -34,8 +34,9 @@ struct Output {
 }
 
 @vertex
-fn vs_main(vertex: Vertex, cube: Cube) -> Output {
-     let cube_matrix = mat4x4<f32>(
+fn vs_main(vertex: Vertex, cube: Cube) -> Output {     
+
+    let cube_matrix = mat4x4<f32>(
          cube.matrix_0,
          cube.matrix_1,
          cube.matrix_2,

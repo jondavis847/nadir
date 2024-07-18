@@ -1,6 +1,6 @@
 use iced::widget::shader::wgpu;
 
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Default)]
 #[repr(C)]
 pub struct Vertex {
     pub pos: glam::Vec3,

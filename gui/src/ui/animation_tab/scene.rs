@@ -11,26 +11,27 @@ use iced::{
 };
 
 pub mod camera;
+pub mod geometry;
 pub mod pipeline;
+pub mod vertex;
+
+use geometry::cuboid::{Cuboid, CuboidRaw};
 
 use camera::Camera;
-use pipeline::{
-    cube::{Cube, Raw},
-    Pipeline, Uniforms,
-};
+use pipeline::{Pipeline, Uniforms};
 
 #[derive(Debug, Clone)]
-pub struct Scene {    
-    pub cubes: Vec<Cube>,
+pub struct Scene {
+    pub cuboids: Vec<Cuboid>,
     pub camera: Camera,
     pub light_color: Color,
 }
 
 impl Scene {
     pub fn new() -> Self {
-        let cube = Cube::new(0.2, glam::Quat::IDENTITY, glam::Vec3::ZERO);
-        Self {            
-            cubes: vec![cube],
+        let cuboid = Cuboid::new(1.0, 1.0, 1.0, glam::Quat::IDENTITY, glam::Vec3::ZERO);
+        Self {
+            cuboids: vec![cuboid],
             camera: Camera::default(),
             light_color: Color::WHITE,
         }
@@ -43,15 +44,15 @@ pub struct SceneState {}
 #[derive(Debug)]
 pub struct ScenePrimitive {
     pub uniforms: Uniforms,
-    pub cubes: Vec<Raw>,
+    pub cuboids: Vec<CuboidRaw>,
 }
 
 impl ScenePrimitive {
-    pub fn new(cubes: &[Cube], camera: &Camera, bounds: Rectangle, light_color: Color) -> Self {
+    pub fn new(cuboids: &[Cuboid], camera: &Camera, bounds: Rectangle, light_color: Color) -> Self {
         let uniforms = pipeline::Uniforms::new(camera, bounds, light_color);
 
         Self {
-            cubes: cubes.iter().map(Raw::from_cube).collect::<Vec<Raw>>(),
+            cuboids: cuboids.iter().map(CuboidRaw::from_cuboid).collect::<Vec<CuboidRaw>>(),
             uniforms,
         }
     }
@@ -75,7 +76,7 @@ impl Primitive for ScenePrimitive {
         let pipeline = storage.get_mut::<Pipeline>().unwrap();
 
         //upload data to GPU
-        pipeline.update(device, queue, target_size, &self.uniforms, 1, &self.cubes);
+        pipeline.update(device, queue, target_size, &self.uniforms, 1, &self.cuboids);
     }
 
     fn render(
@@ -90,7 +91,7 @@ impl Primitive for ScenePrimitive {
         let pipeline = storage.get::<Pipeline>().unwrap();
 
         //render primitive
-        pipeline.render(target, encoder, viewport, self.cubes.len() as u32, false);
+        pipeline.render(target, encoder, viewport, self.cuboids.len() as u32, false);
     }
 }
 
@@ -100,7 +101,7 @@ impl<Message> Program<Message> for Scene {
 
     // Required method
     fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
-        ScenePrimitive::new(&self.cubes, &self.camera, bounds, self.light_color)
+        ScenePrimitive::new(&self.cuboids, &self.camera, bounds, self.light_color)
     }
 
     // Provided methods
