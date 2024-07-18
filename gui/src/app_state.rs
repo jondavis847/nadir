@@ -135,6 +135,12 @@ impl AppState {
         self.left_clicked_time_1 = self.left_clicked_time_2;
         self.left_clicked_time_2 = Some(Instant::now());
 
+        match self.tab_bar.state.current_tab {
+            AppTabs::Animation => self.animation_tab.left_button_pressed(canvas_cursor_position),
+            AppTabs::Plot => self.plot_tab.left_button_pressed(canvas_cursor_position),
+            AppTabs::Simulation => self.simulation_tab.left_button_pressed(canvas_cursor_position),
+        }
+
         self.nodebar.left_button_pressed(canvas_cursor_position);
         self.graph.left_button_pressed(canvas_cursor_position);
         self.cache.clear();

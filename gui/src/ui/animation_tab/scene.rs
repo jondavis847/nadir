@@ -1,8 +1,6 @@
-use crate::Message;
-
 use iced::{
     advanced::Shell,
-    mouse::{Cursor, Interaction},
+    mouse::{self, Cursor, Interaction},
     widget::{
         canvas::event::Status,
         shader::{wgpu, Event, Primitive, Program, Storage},
@@ -20,6 +18,8 @@ use geometry::cuboid::{Cuboid, CuboidRaw};
 use camera::Camera;
 use pipeline::{Pipeline, Uniforms};
 
+use crate::Message;
+
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub cuboids: Vec<Cuboid>,
@@ -29,11 +29,17 @@ pub struct Scene {
 
 impl Scene {
     pub fn new() -> Self {
-        let cuboid = Cuboid::new(1.0, 1.0, 1.0, glam::Quat::IDENTITY, glam::Vec3::ZERO);
+        let cuboid = Cuboid::new(2.0, 1.0, 3.0, glam::Quat::IDENTITY, glam::Vec3::ZERO);
 
-        let cuboid2 = Cuboid::new(1.0, 1.0, 1.0, glam::Quat::IDENTITY, glam::Vec3::new(0.5,0.5,0.5));
+        let cuboid2 = Cuboid::new(
+            1.0,
+            1.0,
+            1.0,
+            glam::Quat::IDENTITY,
+            glam::Vec3::new(0.5, 0.5, 0.5),
+        );
         Self {
-            cuboids: vec![cuboid,cuboid2],
+            cuboids: vec![cuboid, cuboid2],
             camera: Camera::default(),
             light_color: Color::WHITE,
         }
@@ -54,7 +60,10 @@ impl ScenePrimitive {
         let uniforms = pipeline::Uniforms::new(camera, bounds, light_color);
 
         Self {
-            cuboids: cuboids.iter().map(CuboidRaw::from_cuboid).collect::<Vec<CuboidRaw>>(),
+            cuboids: cuboids
+                .iter()
+                .map(CuboidRaw::from_cuboid)
+                .collect::<Vec<CuboidRaw>>(),
             uniforms,
         }
     }
@@ -78,7 +87,14 @@ impl Primitive for ScenePrimitive {
         let pipeline = storage.get_mut::<Pipeline>().unwrap();
 
         //upload data to GPU
-        pipeline.update(device, queue, target_size, &self.uniforms, self.cuboids.len(), &self.cuboids);
+        pipeline.update(
+            device,
+            queue,
+            target_size,
+            &self.uniforms,
+            self.cuboids.len(),
+            &self.cuboids,
+        );
     }
 
     fn render(
@@ -97,7 +113,7 @@ impl Primitive for ScenePrimitive {
     }
 }
 
-impl<Message> Program<Message> for Scene {
+impl Program<Message> for Scene {
     type State = SceneState;
     type Primitive = ScenePrimitive;
 
@@ -110,12 +126,46 @@ impl<Message> Program<Message> for Scene {
     fn update(
         &self,
         _state: &mut Self::State,
-        _event: Event,
-        _bounds: Rectangle,
-        _cursor: Cursor,
+        event: Event,
+        bounds: Rectangle,
+        cursor: Cursor,
         _shell: &mut Shell<'_, Message>,
     ) -> (Status, Option<Message>) {
-        (Status::Captured, None)
+        let canvas_cursor_position = cursor.position_in(bounds).unwrap();
+
+        match event {
+            Event::Mouse(mouse_event) => match mouse_event {
+                mouse::Event::ButtonPressed(mouse::Button::Left) => (
+                    Status::Captured,
+                    Some(Message::LeftButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonReleased(mouse::Button::Left) => (
+                    Status::Captured,
+                    Some(Message::LeftButtonReleased(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonPressed(mouse::Button::Middle) => (
+                    Status::Captured,
+                    Some(Message::MiddleButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonPressed(mouse::Button::Right) => (
+                    Status::Captured,
+                    Some(Message::RightButtonPressed(canvas_cursor_position)),
+                ),
+                mouse::Event::ButtonReleased(mouse::Button::Right) => (
+                    Status::Captured,
+                    Some(Message::RightButtonReleased(canvas_cursor_position)),
+                ),
+                mouse::Event::CursorMoved { position: _ } => (
+                    Status::Captured,
+                    Some(Message::CursorMoved(canvas_cursor_position)),
+                ),
+                mouse::Event::WheelScrolled { delta } => {
+                    (Status::Captured, Some(Message::WheelScrolled(delta)))
+                }
+                _ => (Status::Captured, None),
+            },
+            _ => (Status::Ignored, None),
+        }
     }
     fn mouse_interaction(
         &self,

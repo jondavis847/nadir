@@ -1,3 +1,4 @@
+use graph::Graph;
 use iced::{
     mouse::{self, Cursor},
     widget::canvas::{
@@ -23,14 +24,23 @@ pub struct GraphCanvas<'a> {
 
 impl<'a> GraphCanvas<'a> {
     pub fn new(app_state: &'a crate::AppState) -> Self {
-        Self {
-            app_state,
-        }
+        Self { app_state }
+    }
+}
+
+#[derive(Debug)]
+struct GraphState {
+    zoom: f32,
+}
+
+impl Default for GraphState {
+    fn default() -> Self {
+        GraphState { zoom: 1.0 }
     }
 }
 
 impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
-    type State = ();
+    type State = GraphState;
 
     fn update(
         &self,
@@ -110,7 +120,8 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                         frame,
                         &self.app_state.graph.nodes,
                         &self.app_state.theme,
-                        nodebar_width,zoom
+                        nodebar_width,
+                        zoom,
                     )
                 });
             });
@@ -121,7 +132,9 @@ impl<'a> canvas::Program<Message, Theme> for GraphCanvas<'a> {
                 .nodes
                 .iter()
                 .for_each(|(_, nodebarnode)| {
-                    nodebarnode.node.draw(frame, &self.app_state.theme, 0.0, 1.0);
+                    nodebarnode
+                        .node
+                        .draw(frame, &self.app_state.theme, 0.0, 1.0);
                 });
 
             // create nodes that are clipped (graph)
