@@ -29,7 +29,7 @@ impl<'a> GraphCanvas<'a> {
 }
 
 #[derive(Debug)]
-struct GraphState {
+pub struct GraphState {
     zoom: f32,
 }
 

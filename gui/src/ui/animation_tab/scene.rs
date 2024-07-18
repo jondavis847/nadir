@@ -131,40 +131,42 @@ impl Program<Message> for Scene {
         cursor: Cursor,
         _shell: &mut Shell<'_, Message>,
     ) -> (Status, Option<Message>) {
-        let canvas_cursor_position = cursor.position_in(bounds).unwrap();
-
-        match event {
-            Event::Mouse(mouse_event) => match mouse_event {
-                mouse::Event::ButtonPressed(mouse::Button::Left) => (
-                    Status::Captured,
-                    Some(Message::LeftButtonPressed(canvas_cursor_position)),
-                ),
-                mouse::Event::ButtonReleased(mouse::Button::Left) => (
-                    Status::Captured,
-                    Some(Message::LeftButtonReleased(canvas_cursor_position)),
-                ),
-                mouse::Event::ButtonPressed(mouse::Button::Middle) => (
-                    Status::Captured,
-                    Some(Message::MiddleButtonPressed(canvas_cursor_position)),
-                ),
-                mouse::Event::ButtonPressed(mouse::Button::Right) => (
-                    Status::Captured,
-                    Some(Message::RightButtonPressed(canvas_cursor_position)),
-                ),
-                mouse::Event::ButtonReleased(mouse::Button::Right) => (
-                    Status::Captured,
-                    Some(Message::RightButtonReleased(canvas_cursor_position)),
-                ),
-                mouse::Event::CursorMoved { position: _ } => (
-                    Status::Captured,
-                    Some(Message::CursorMoved(canvas_cursor_position)),
-                ),
-                mouse::Event::WheelScrolled { delta } => {
-                    (Status::Captured, Some(Message::WheelScrolled(delta)))
-                }
-                _ => (Status::Captured, None),
-            },
-            _ => (Status::Ignored, None),
+        if let Some(canvas_cursor_position) = cursor.position_in(bounds) {
+            match event {
+                Event::Mouse(mouse_event) => match mouse_event {
+                    mouse::Event::ButtonPressed(mouse::Button::Left) => (
+                        Status::Captured,
+                        Some(Message::LeftButtonPressed(canvas_cursor_position)),
+                    ),
+                    mouse::Event::ButtonReleased(mouse::Button::Left) => (
+                        Status::Captured,
+                        Some(Message::LeftButtonReleased(canvas_cursor_position)),
+                    ),
+                    mouse::Event::ButtonPressed(mouse::Button::Middle) => (
+                        Status::Captured,
+                        Some(Message::MiddleButtonPressed(canvas_cursor_position)),
+                    ),
+                    mouse::Event::ButtonPressed(mouse::Button::Right) => (
+                        Status::Captured,
+                        Some(Message::RightButtonPressed(canvas_cursor_position)),
+                    ),
+                    mouse::Event::ButtonReleased(mouse::Button::Right) => (
+                        Status::Captured,
+                        Some(Message::RightButtonReleased(canvas_cursor_position)),
+                    ),
+                    mouse::Event::CursorMoved { position: _ } => (
+                        Status::Captured,
+                        Some(Message::CursorMoved(canvas_cursor_position)),
+                    ),
+                    mouse::Event::WheelScrolled { delta } => {
+                        (Status::Captured, Some(Message::WheelScrolled(delta)))
+                    }
+                    _ => (Status::Captured, None),
+                },
+                _ => (Status::Ignored, None),
+            }
+        } else {
+            (Status::Ignored, None)
         }
     }
     fn mouse_interaction(

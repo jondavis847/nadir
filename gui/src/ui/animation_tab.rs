@@ -42,4 +42,8 @@ impl AnimationTab {
             .width(Length::Fill)
             .into()
     }
+
+    pub fn left_button_pressed(&self, position: Point) {
+        //Nothing for now
+    }
 }

@@ -58,4 +58,8 @@ impl PlotTab {
     pub fn plot(&mut self, line_label: String, points: Vec<Point>) {
         self.canvas.plot(line_label, points);
     }
+
+    pub fn left_button_pressed(&self, position: Point) {
+        //Nothing for now
+    }
 }
