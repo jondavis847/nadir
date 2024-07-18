@@ -30,8 +30,10 @@ pub struct Scene {
 impl Scene {
     pub fn new() -> Self {
         let cuboid = Cuboid::new(1.0, 1.0, 1.0, glam::Quat::IDENTITY, glam::Vec3::ZERO);
+
+        let cuboid2 = Cuboid::new(1.0, 1.0, 1.0, glam::Quat::IDENTITY, glam::Vec3::new(0.5,0.5,0.5));
         Self {
-            cuboids: vec![cuboid],
+            cuboids: vec![cuboid,cuboid2],
             camera: Camera::default(),
             light_color: Color::WHITE,
         }
@@ -76,7 +78,7 @@ impl Primitive for ScenePrimitive {
         let pipeline = storage.get_mut::<Pipeline>().unwrap();
 
         //upload data to GPU
-        pipeline.update(device, queue, target_size, &self.uniforms, 1, &self.cuboids);
+        pipeline.update(device, queue, target_size, &self.uniforms, self.cuboids.len(), &self.cuboids);
     }
 
     fn render(
