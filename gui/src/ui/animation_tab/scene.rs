@@ -5,7 +5,7 @@ use iced::{
         canvas::event::Status,
         shader::{wgpu, Event, Primitive, Program, Storage},
     },
-    Color, Rectangle, Size,
+    Color, Point, Rectangle, Size,
 };
 
 pub mod camera;
@@ -47,7 +47,10 @@ impl Scene {
 }
 
 #[derive(Default, Debug)]
-pub struct SceneState {}
+pub struct SceneState {
+    is_pressed: bool,
+    last_mouse_position: Point,
+}
 
 #[derive(Debug)]
 pub struct ScenePrimitive {
@@ -125,7 +128,7 @@ impl Program<Message> for Scene {
     // Provided methods
     fn update(
         &self,
-        _state: &mut Self::State,
+        state: &mut Self::State,
         event: Event,
         bounds: Rectangle,
         cursor: Cursor,
@@ -134,14 +137,18 @@ impl Program<Message> for Scene {
         if let Some(canvas_cursor_position) = cursor.position_in(bounds) {
             match event {
                 Event::Mouse(mouse_event) => match mouse_event {
-                    mouse::Event::ButtonPressed(mouse::Button::Left) => (
-                        Status::Captured,
-                        Some(Message::LeftButtonPressed(canvas_cursor_position)),
-                    ),
-                    mouse::Event::ButtonReleased(mouse::Button::Left) => (
-                        Status::Captured,
-                        Some(Message::LeftButtonReleased(canvas_cursor_position)),
-                    ),
+                    mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                        state.is_pressed = true;
+                        state.last_mouse_position = canvas_cursor_position;
+                        (
+                            Status::Captured,
+                            None, //Some(Message::LeftButtonPressed(canvas_cursor_position)),
+                        )
+                    }
+                    mouse::Event::ButtonReleased(mouse::Button::Left) => {
+                        state.is_pressed = false;
+                        (Status::Captured, None)
+                    }
                     mouse::Event::ButtonPressed(mouse::Button::Middle) => (
                         Status::Captured,
                         Some(Message::MiddleButtonPressed(canvas_cursor_position)),
@@ -154,10 +161,18 @@ impl Program<Message> for Scene {
                         Status::Captured,
                         Some(Message::RightButtonReleased(canvas_cursor_position)),
                     ),
-                    mouse::Event::CursorMoved { position: _ } => (
-                        Status::Captured,
-                        Some(Message::CursorMoved(canvas_cursor_position)),
-                    ),
+                    mouse::Event::CursorMoved { position } => {
+                        if state.is_pressed {
+                            let delta = position - state.last_mouse_position;
+                            state.last_mouse_position = position;
+                            (
+                                Status::Captured,
+                                Some(Message::TabAnimationCameraRotation(delta)),
+                            )
+                        } else {
+                            (Status::Captured, None)
+                        }
+                    }
                     mouse::Event::WheelScrolled { delta } => {
                         (Status::Captured, Some(Message::WheelScrolled(delta)))
                     }

@@ -13,6 +13,7 @@ pub struct AnimationTab {
     pub sim_menu: SelectMenu,
     pub selected_sims: Vec<String>,
     pub scene: Scene,
+    is_pressed: bool,
 }
 
 impl Default for AnimationTab {
@@ -21,6 +22,7 @@ impl Default for AnimationTab {
             sim_menu: SelectMenu::new(Length::FillPortion(1), false),
             selected_sims: Vec::new(),
             scene: Scene::new(),
+            is_pressed: false,
         }
     }
 }

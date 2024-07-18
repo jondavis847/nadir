@@ -6,8 +6,8 @@ use iced::{
     alignment, font, keyboard,
     mouse::ScrollDelta,
     time::Instant,
-    widget::{button, canvas::Canvas, container, text, text_input, Column, Row},
-    window, Application, Command, Element, Length, Point, Settings, Size, Subscription,
+    widget::{button, canvas::Canvas, container, shader::Program, text, text_input, Column, Row},
+    window, Application, Command, Element, Length, Point, Settings, Size, Subscription, Vector,
 };
 use iced_aw::{card, modal};
 use std::{env, path::Path};
@@ -33,7 +33,7 @@ fn main() -> iced::Result {
         Err(e) => println!("Error getting current directory: {}", e),
     }
 
-    let icon_path = Path::new("./resources/icon.png");    
+    let icon_path = Path::new("./resources/icon.png");
     let (icon_rgba, icon_width, icon_height) = {
         let image = image::open(icon_path)
             .expect("Failed to open icon path")
@@ -88,6 +88,7 @@ enum Message {
     PlotStateSelected(String),
     PlotComponentSelected(String),
     TabAnimationPressed,
+    TabAnimationCameraRotation(Vector),
     TabPlotPressed,
     TabSimulationPressed,
     LeftButtonPressed(Point),
@@ -247,6 +248,14 @@ impl Application for GadgtGui {
                     state.tab_bar.state.current_tab = AppTabs::Animation;
                     Command::none()
                 }
+                Message::TabAnimationCameraRotation(delta) => {
+                    state
+                        .animation_tab
+                        .scene
+                        .camera
+                        .update_position_from_mouse_delta(delta);
+                    Command::none()
+                }
                 Message::TabPlotPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Plot;
                     Command::none()
@@ -255,9 +264,7 @@ impl Application for GadgtGui {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
                     Command::none()
                 }
-                Message::ResultSelected(_) => {                    
-                    Command::none()
-                }
+                Message::ResultSelected(_) => Command::none(),
             },
         }
     }
@@ -280,9 +287,9 @@ impl Application for GadgtGui {
                     keyboard::Key::Named(keyboard::key::Named::Enter) => {
                         Some(Message::EnterPressed)
                     }
-                    keyboard::Key::Named(keyboard::key::Named::Delete) => {                        
+                    keyboard::Key::Named(keyboard::key::Named::Delete) => {
                         Some(Message::DeletePressed)
-                    }                    
+                    }
                     keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
                     _ => None,
                 },
