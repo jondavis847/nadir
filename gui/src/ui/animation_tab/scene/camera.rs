@@ -1,5 +1,5 @@
-use glam::{mat4, vec3, vec4, Vec2, Vec3};
-use iced::Rectangle;
+use glam::{mat4, vec3, vec4, Quat, Vec2, Vec3};
+use iced::{Rectangle, Vector};
 use std::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug)]
@@ -18,7 +18,7 @@ impl Default for Camera {
         Self {
             eye: vec3(5.0, 0.0, 0.0),
             target: Vec3::ZERO,
-            up: Vec3::Y,
+            up: Vec3::Z,
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
@@ -49,31 +49,33 @@ impl Camera {
         glam::Vec4::from((self.eye, 0.0))
     }
 
-    pub fn update_position_from_mouse_delta(&mut self, mouse_delta: iced::Vector) {
-        let mouse_delta = Vec2::new(mouse_delta.y, mouse_delta.x); // not sure why i have to swap these
+    pub fn update_position_from_mouse_delta(&mut self, mouse_delta: Vector) {
+        let mouse_delta = Vec2::new(mouse_delta.y, mouse_delta.x); // Swap y and x to match the mouse movement direction
+
         // Calculate the vector from the target to the camera
         let target_to_camera = self.eye - self.target;
 
-        // Calculate spherical coordinates (radius, theta, phi)
-        let radius = target_to_camera.length();
-        let theta = (target_to_camera.z / radius).acos();
-        let phi = target_to_camera.y.atan2(target_to_camera.x);
+        // Calculate the current forward, up, and right vectors
+        let forward = target_to_camera.normalize();
+        let up = Vec3::Y;
+        let right = forward.cross(up).normalize();
 
-        // Calculate angular changes from the mouse delta
-        let delta_theta = -mouse_delta.y * self.sensitivity;
-        let delta_phi = mouse_delta.x * self.sensitivity;
+        // Convert mouse delta to yaw and pitch
+        let yaw = Quat::from_axis_angle(up, -mouse_delta.x * self.sensitivity);
+        let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
+
+        // Combine yaw and pitch into a single rotation quaternion
+        let rotation = yaw * pitch;
+
+        // Apply the rotation to the forward vector
+        let new_forward = rotation * forward;
+
+        // Calculate the new camera position
+        let new_camera_pos = self.target + new_forward * target_to_camera.length();
+
         
-        // Update theta and phi
-        let new_theta = (theta + delta_theta).clamp(0.0001, PI - 0.0001); // Avoid gimbal lock
-        let new_phi = phi + delta_phi;
-
-        // Convert spherical coordinates back to Cartesian coordinates
-        let new_camera_pos = Vec3::new(
-            radius * new_theta.sin() * new_phi.cos(),
-            radius * new_theta.sin() * new_phi.sin(),
-            radius * new_theta.cos(),
-        );
-
+        // Update the camera position
         self.eye = new_camera_pos;
     }
+
 }

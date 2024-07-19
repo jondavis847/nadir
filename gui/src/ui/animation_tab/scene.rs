@@ -161,10 +161,11 @@ impl Program<Message> for Scene {
                         Status::Captured,
                         Some(Message::RightButtonReleased(canvas_cursor_position)),
                     ),
-                    mouse::Event::CursorMoved { position } => {
-                        if state.is_pressed {
-                            let delta = position - state.last_mouse_position;
-                            state.last_mouse_position = position;
+                    mouse::Event::CursorMoved { position: _ } => { //use canvas position instead of this position
+                        let last_position = state.last_mouse_position;
+                        state.last_mouse_position = canvas_cursor_position;
+                        if state.is_pressed {                            
+                            let delta = canvas_cursor_position - last_position;
                             (
                                 Status::Captured,
                                 Some(Message::TabAnimationCameraRotation(delta)),
