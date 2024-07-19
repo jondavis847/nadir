@@ -1310,7 +1310,6 @@ version = "0.1.0"
 dependencies = [
  "coordinate_systems",
  "differential_equations",
- "gravity",
  "mass_properties",
  "multibody",
  "rotations",
@@ -1474,6 +1473,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gravity"
+version = "0.1.0"
+dependencies = [
+ "linear_algebra",
+]
+
+[[package]]
 name = "gui"
 version = "0.1.0"
 dependencies = [
@@ -1502,13 +1508,6 @@ checksum = "b62d5865c036cb1393e23c50693df631d3f5d7bcca4c04fe4cc0fd592e74a782"
 dependencies = [
  "euclid",
  "svg_fmt",
-]
-
-[[package]]
-name = "gravity"
-version = "0.1.0"
-dependencies = [
- "linear_algebra",
 ]
 
 [[package]]

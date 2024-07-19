@@ -20,7 +20,7 @@ pub struct MultibodySystem{
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
-    pub gravity: GravityEnum, 
+    pub gravity: Option<GravityEnum>, 
     pub joints: HashMap<Uuid, Joint>,
 }
 
@@ -30,7 +30,7 @@ impl MultibodySystem {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: None,
             bodies: HashMap::new(),
-            gravity:GravityEnum::Constant(ConstantGravity::new (0.0, 0.0, -9.81)),
+            gravity: None,
             joints: HashMap::new(),
         }
     }

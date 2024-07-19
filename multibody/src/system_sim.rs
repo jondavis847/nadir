@@ -3,6 +3,8 @@ use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Instant, SystemTime};
 use utilities::generate_unique_id;
 use uuid::Uuid;
+use gravity::{GravityEnum, Gravity};
+use linear_algebra::vector6::Vector6;
 
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
@@ -16,7 +18,7 @@ use crate::{
     MultibodyTrait,
 };
 use differential_equations::solver::{Solver, SolverMethod};
-use spatial_algebra::{Acceleration, Velocity};
+use spatial_algebra::{Acceleration, Force, Velocity};
 
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
@@ -26,6 +28,7 @@ pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     bodies: Vec<BodySim>,
     body_names: Vec<String>,
+    gravity: Option<GravityEnum>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
     parent_joint_indeces: Vec<usize>,
@@ -77,6 +80,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             body_names: bodynames,
+            gravity: sys.gravity,
             joints: jointsims,
             joint_names: jointnames,
             parent_joint_indeces: parent_joint_indeces,
@@ -263,6 +267,17 @@ impl MultibodySystemSim {
     }
 
     fn update_body_forces(&mut self) {
+        for i in 0..self.bodies.len(){
+            let body = &mut self.bodies[i];
+            body.state.external_force = Vector6::ZERO.into();
+            if let Some(gravity) = &self.gravity{
+                let position = body.state.position_base;
+                let g = gravity.calculate(position);
+                let f_gravity = Vector6::new(0.0, 0.0, 0.0, g.e1, g.e2, g.e3);
+                body.state.external_force = body.state.external_force + f_gravity.into();
+        }
+    }
+        
         //pub external_force: Force, //used for calculations
         //pub external_force_body: Vector3, //use for reporting
         //pub external_torque_body: Vector3, //use for reporting
