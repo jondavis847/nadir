@@ -69,6 +69,7 @@ fn main() {
         tstop: 10.0,
         dt: 0.1,
         solver: SolverMethod::Rk4Classical,
+        callbacks: Vec::new(),
     };
 
     let (time, results) = solver.solve();

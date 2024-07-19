@@ -7,19 +7,24 @@ use crate::{
     },
     MultibodyTrait,
 };
+use coordinate_systems::CoordinateSystem;
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
+use rotations::{
+    euler_angles::{Angles, EulerAngles},
+    Rotation,
+};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum RevoluteErrors {}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevoluteState {
-    theta: f64,
-    omega: f64,
+    pub theta: f64,
+    pub omega: f64,
 }
 
 impl RevoluteState {
@@ -31,9 +36,9 @@ impl RevoluteState {
 
 #[derive(Debug, Clone)]
 pub struct Revolute {
-    common: JointCommon,
-    parameters: JointParameters,
-    state: RevoluteState,
+    pub common: JointCommon,
+    pub parameters: JointParameters,
+    pub state: RevoluteState,
 }
 
 impl Revolute {
@@ -135,6 +140,7 @@ struct RevoluteAbaCache {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
     aba: RevoluteAbaCache,
+    id: Uuid,
     parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
@@ -144,6 +150,7 @@ impl From<Revolute> for RevoluteSim {
     fn from(revolute: Revolute) -> Self {
         RevoluteSim {
             aba: RevoluteAbaCache::default(),
+            id: *revolute.get_id(),
             parameters: revolute.parameters,
             state: revolute.state,
             transforms: JointTransforms::default(),
@@ -230,20 +237,28 @@ impl JointSimTrait for RevoluteSim {
     fn calculate_tau(&mut self) {
         let JointParameters {
             constant_force,
-            dampening,
+            damping,
             spring_constant,
             ..
         } = self.parameters;
         self.aba.tau =
-            constant_force - spring_constant * self.state.theta - dampening * self.state.omega;
+            constant_force - spring_constant * self.state.theta - damping * self.state.omega;
     }
 
+    fn calculate_vj(&mut self) {
+        self.aba.common.vj =
+            Velocity::from(Vector6::new(0.0, 0.0, self.state.omega, 0.0, 0.0, 0.0));
+    }
+    fn get_id(&self) -> &Uuid {
+        &self.id
+    }
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
     fn set_state(&mut self, state: JointState) {
         match state {
             JointState::Revolute(revolute_state) => self.state = revolute_state,
+            _ => panic!("Can't set a different joints state to revolute")
         }
     }
     fn get_transforms(&self) -> &JointTransforms {
@@ -254,6 +269,14 @@ impl JointSimTrait for RevoluteSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+        let angles = Angles::new(self.state.theta, 0.0, 0.0);
+        let euler_angles = EulerAngles::ZYX(angles);
+        let rotation = Rotation::EulerAngles(euler_angles);
+        let translation = CoordinateSystem::default();
+        let transform = Transform::new(rotation, translation);
+
+        self.transforms.jof_from_jif = SpatialTransform(transform);
+        self.transforms.jif_from_jof = self.transforms.jof_from_jif.inv();
         self.transforms.update(ij_transforms)
     }
 }
@@ -296,4 +319,10 @@ impl Div<f64> for RevoluteState {
             omega: self.omega / rhs,
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RevoluteResult {
+    pub theta: Vec<f64>,
+    pub omega: Vec<f64>,
 }

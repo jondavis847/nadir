@@ -2,6 +2,7 @@ pub mod algorithms;
 pub mod base;
 pub mod body;
 pub mod joint;
+pub mod result;
 pub mod system;
 pub mod system_sim;
 
@@ -9,7 +10,7 @@ use uuid::Uuid;
 use body::BodyErrors;
 use joint::revolute::RevoluteErrors;
 
-#[derive(Debug)]
+#[derive(Debug, Copy,Clone)]
 pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,

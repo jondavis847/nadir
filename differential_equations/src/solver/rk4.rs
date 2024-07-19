@@ -1,7 +1,7 @@
 use crate::{solver::Solver, Integrable, OdeFunction};
 
-pub fn solve_fixed_rk4<F, P, T>(solver: &mut Solver<F, P, T>) -> (Vec<f64>, Vec<T>)
-where
+pub fn solve_fixed_rk4<F, P, T>(solver: &mut Solver< F, P, T>) -> (Vec<f64>, Vec<T>)
+where    
     F: OdeFunction<P, T>,
     T: Integrable,
 {
@@ -41,6 +41,11 @@ where
 
         x = x + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * *dt / 6.0;
         t += *dt;
+
+        // call any callbacks for the new state now
+        for cb in solver.callbacks.iter_mut() {
+            cb(&mut x,parameters,&mut t);
+        }
 
         result.push(x.clone());
         time.push(t);

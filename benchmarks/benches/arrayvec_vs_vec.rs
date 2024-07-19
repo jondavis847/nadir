@@ -3,11 +3,13 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 use mass_properties::MassProperties;
 
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
 struct BodyNoString {
-    mass_properties: MassProperties,
+    pub mass_properties: MassProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 struct BodyString {
     name: String,
@@ -42,8 +44,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut array_vec_3: ArrayVec<BodyNoString, 100> = ArrayVec::new();
     let mut vec_3 = Vec::new();
     let mut array_vec_3_5: ArrayVec<BodyNoString, 5> = ArrayVec::new();
-    let mut array_3_5 = [body,body,body,body,body];
-    for i in 0..3 {
+    let array_3_5 = [body,body,body,body,body];
+    for _i in 0..3 {
         array_vec_3.push(body.clone());
         vec_3.push(body.clone());
         array_vec_3_5.push(body.clone());
@@ -51,14 +53,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let mut array_vec_50: ArrayVec<BodyNoString, 100> = ArrayVec::new();
     let mut vec_50 = Vec::new();
-    for i in 0..50 {
+    for _i in 0..50 {
         array_vec_50.push(body.clone());
         vec_50.push(body.clone());
     }
 
     let mut array_vec_100: ArrayVec<BodyNoString, 100> = ArrayVec::new();
     let mut vec_100 = Vec::new();
-    for i in 0..100 {
+    for _i in 0..100 {
         array_vec_100.push(body.clone());
         vec_100.push(body.clone());
     }

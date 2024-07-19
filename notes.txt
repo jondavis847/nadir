@@ -1,6 +1,0 @@
-On diff_eq:
-
-Rather than use a general diffeq solver, we decided to implement directly in multibody.
-For example, if it was general, we'd have to calculate the transforms every stage of the solver,
-but since the initial state doesnt change, the transforms don't change, so we only need to 
-calculate once for the whole rk4 time step. 

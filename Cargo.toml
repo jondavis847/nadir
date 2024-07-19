@@ -5,9 +5,9 @@ edition = "2021"
 
 [workspace]
 members = [ "benchmarks",    
-    "coordinate_systems", "differential_equations", "gravity",
+    "coordinate_systems", "differential_equations","gui",
     "linear_algebra", "mass_properties",
-    "multibody",
+    "multibody", 
     "rotations", "sim_value", "spatial_algebra",
     "transforms", "utilities",    
 ]
@@ -15,8 +15,15 @@ members = [ "benchmarks",
 [dependencies]
 coordinate_systems = {path = "./coordinate_systems"}
 differential_equations = {path = "./differential_equations"}
+mass_properties = {path = "./mass_properties"}
 multibody = { path = "./multibody" }
 rotations = { path = "./rotations" }
 transforms = { path = "./transforms" }
-mass_properties = {path = "./mass_properties"}
-gravity = {path = "./gravity"}
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 0
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 0
