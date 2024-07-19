@@ -224,6 +224,7 @@ version = "0.1.0"
 dependencies = [
  "coordinate_systems",
  "differential_equations",
+ "gravity",
  "mass_properties",
  "multibody",
  "rotations",
@@ -239,6 +240,13 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "gravity"
+version = "0.1.0"
+dependencies = [
+ "linear_algebra",
 ]
 
 [[package]]
@@ -333,6 +341,7 @@ version = "0.1.0"
 dependencies = [
  "coordinate_systems",
  "differential_equations",
+ "gravity",
  "linear_algebra",
  "mass_properties",
  "rotations",
