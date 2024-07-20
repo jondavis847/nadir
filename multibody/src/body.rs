@@ -1,4 +1,5 @@
 use super::MultibodyTrait;
+use geometry::Geometry;
 use linear_algebra::vector3::Vector3;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use rotations::quaternion::Quaternion;
@@ -31,6 +32,7 @@ pub struct Body {
     pub mass_properties: MassProperties,
     pub name: String,
     pub outer_joints: Vec<Uuid>,
+    pub geometry: Option<Geometry>,
     //sensors: Vec<BodySensorConnection>,
 }
 
@@ -62,12 +64,18 @@ impl Body {
         }
         Ok(Self {
             //actuators: Vec::new(),
+            geometry: None,
             id: Uuid::new_v4(),
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
         })
+    }
+
+    pub fn with_geometry(mut self, geometry: Geometry) -> Self {
+        self.geometry = Some(geometry);
+        self
     }
 }
 
@@ -113,17 +121,20 @@ impl MultibodyTrait for Body {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BodySim {
     pub state: BodyState,
+    pub geometry: Option<Geometry>,
 }
 
 impl From<Body> for BodySim {
-    fn from(_body: Body) -> Self {
+    fn from(body: Body) -> Self {
         let state = BodyState::default();
-        Self { state }
+        Self {
+            state,
+            geometry: body.geometry,
+        }
     }
 }
 
-impl BodySim {    
-
+impl BodySim {
     pub fn get_external_force(&self) -> &Force {
         &self.state.external_force
     }

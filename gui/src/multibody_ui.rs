@@ -32,3 +32,9 @@ pub enum PrismaticField {
     Velocity,
     Position,
 }
+
+pub enum CuboidField {
+    Length,
+    Width,
+    Height,
+}

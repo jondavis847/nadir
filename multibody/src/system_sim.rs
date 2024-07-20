@@ -24,8 +24,8 @@ pub struct MultibodyParameters;
 #[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
-    bodies: Vec<BodySim>,
-    body_names: Vec<String>,
+    pub bodies: Vec<BodySim>,
+    pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
     parent_joint_indeces: Vec<usize>,
@@ -256,6 +256,7 @@ impl MultibodySystemSim {
         MultibodyResult {
             name: name,
             result: result_hm,
+            system: self.clone(),
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,

@@ -1,9 +1,10 @@
+use iced::advanced::graphics::text::cosmic_text::rustybuzz::script::GEORGIAN;
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use utilities::{generate_unique_id, unique_strings};
 
-use crate::multibody_ui::{BodyField, PrismaticField, RevoluteField};
+use crate::multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
 use crate::ui::{
     animation_tab::AnimationTab,
     errors::Errors,
@@ -13,7 +14,7 @@ use crate::ui::{
 };
 use crate::{
     ui::{
-        dummies::DummyComponent,
+        dummies::{DummyComponent, DummyCuboid, DummyGeometry, GeometryPickList},
         modals::ActiveModal,
         sim_tab::{
             canvas::{
@@ -25,6 +26,7 @@ use crate::{
     },
     Message,
 };
+use geometry::Geometry;
 use multibody::{joint::Joint, result::MultibodyResult, MultibodyTrait};
 
 #[derive(Debug)]
@@ -78,6 +80,11 @@ impl AppState {
         Command::none()
     }
 
+    pub fn animation_sim_selected(&mut self, sim_name: String) -> Command<Message> {
+        let result = self.results.get(&sim_name).unwrap();
+        self.animation_tab.sim_selected(result);
+        Command::none()
+    }
     pub fn close_error(&mut self) -> Command<Message> {
         self.active_error = None;
         Command::none()
@@ -129,6 +136,17 @@ impl AppState {
         }
         //if a component modal is currently open, save it
         self.save_component()
+    }
+
+    pub fn geometry_selected(&mut self, geometry: GeometryPickList) -> Command<Message> {
+        match geometry {
+            GeometryPickList::None => self.nodebar.dummies.body.geometry = GeometryPickList::None,
+            GeometryPickList::Cuboid => {
+                self.nodebar.dummies.body.geometry = GeometryPickList::Cuboid
+            }
+        }
+
+        Command::none()
     }
 
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
@@ -212,8 +230,19 @@ impl AppState {
                     dummy_type = DummyComponent::Base;
                 }
                 DummyComponent::Body => {
+                    let dummy = &mut self.nodebar.dummies.body;
                     let body = self.graph.system.bodies.get(&component_id).unwrap();
-                    self.nodebar.dummies.body.get_values_from(body);
+                    dummy.get_values_from(body);
+                    if let Some(geometry) = &body.geometry {
+                        match geometry {
+                            Geometry::Cuboid(cuboid) => {
+                                dummy.geometry = GeometryPickList::Cuboid;
+                                self.nodebar.dummies.cuboid.get_values_from(cuboid)
+                            }
+                        }
+                    } else {
+                        dummy.geometry = GeometryPickList::None;
+                    }
                     dummy_type = DummyComponent::Body;
                 }
                 DummyComponent::Revolute => {
@@ -397,14 +426,31 @@ impl AppState {
                 match modal.component_id {
                     Some(id) => {
                         //editing existing body
+                        let dummy = &self.nodebar.dummies.body;
                         let body = self.graph.system.bodies.get_mut(&id).unwrap();
-                        self.nodebar.dummies.body.set_values_for(body);
+                        dummy.set_values_for(body);
+                        match dummy.geometry {
+                            GeometryPickList::None => body.geometry = None,
+                            GeometryPickList::Cuboid => {
+                                let geometry = &self.nodebar.dummies.cuboid.to_cuboid();
+                                body.geometry = Some(Geometry::Cuboid(*geometry));
+                            }
+                        };
                         let graph_node = self.graph.nodes.get_mut(&id).unwrap();
                         graph_node.node.label = body.get_name().to_string();
                     }
                     None => {
                         //creating new body
-                        let body = self.nodebar.dummies.body.to_body();
+                        let dummy = &self.nodebar.dummies.body;
+                        let body = dummy.to_body();
+                        // make the geometry if it has one
+                        let body = match dummy.geometry {
+                            GeometryPickList::None => body, // nothing to do
+                            GeometryPickList::Cuboid => {
+                                let geometry = &self.nodebar.dummies.cuboid.to_cuboid();
+                                body.with_geometry(Geometry::Cuboid(*geometry))
+                            }
+                        };
                         let id = *body.get_id();
                         let label = body.get_name().to_string();
                         self.graph.system.add_body(body).unwrap();
@@ -519,6 +565,7 @@ impl AppState {
         self.cache.clear();
 
         self.plot_tab.sim_menu.add_option(name.clone());
+        self.animation_tab.sim_menu.add_option(name.clone());
 
         Command::none()
     }
@@ -547,6 +594,18 @@ impl AppState {
             BodyField::Ixy => dummy_body.ixy = value.to_string(),
             BodyField::Ixz => dummy_body.ixz = value.to_string(),
             BodyField::Iyz => dummy_body.iyz = value.to_string(),
+        }
+
+        Command::none()
+    }
+
+    pub fn update_cuboid_field(&mut self, field: CuboidField, value: &str) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.cuboid;
+
+        match field {
+            CuboidField::Length => dummy.length = value.to_string(),
+            CuboidField::Width => dummy.width = value.to_string(),
+            CuboidField::Height => dummy.height = value.to_string(),
         }
 
         Command::none()

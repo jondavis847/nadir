@@ -1317,6 +1317,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "geometry"
+version = "0.1.0"
+
+[[package]]
 name = "gethostname"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1478,6 +1482,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "chrono",
+ "geometry",
  "glam 0.28.0",
  "iced",
  "iced_aw",
@@ -2268,6 +2273,7 @@ dependencies = [
  "chrono",
  "coordinate_systems",
  "differential_equations",
+ "geometry",
  "linear_algebra",
  "mass_properties",
  "polars",

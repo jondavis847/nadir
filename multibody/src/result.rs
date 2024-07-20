@@ -11,11 +11,13 @@ use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
     body::{BodyResult, BodySim},
     joint::{JointResult, JointSim, JointSimTrait},
+    system_sim::MultibodySystemSim,
 };
 
 pub struct MultibodyResult {
     pub name: String,
     pub result: HashMap<String, ResultEntry>,
+    pub system: MultibodySystemSim,
     pub time_start: SystemTime,
     pub sim_duration: Duration,
     pub total_duration: Duration,

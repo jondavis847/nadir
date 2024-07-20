@@ -6,7 +6,7 @@ use iced::{
     alignment, font, keyboard,
     mouse::ScrollDelta,
     time::Instant,
-    widget::{button, canvas::Canvas, container, shader::Program, text, text_input, Column, Row},
+    widget::{button, canvas::Canvas, container, pick_list, text, text_input, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription, Vector,
 };
 use iced_aw::{card, modal};
@@ -17,10 +17,13 @@ mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
-use multibody_ui::{BodyField, PrismaticField, RevoluteField};
+use multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
 
 use ui::{
-    dummies::{DummyBase, DummyBody, DummyComponent, DummyPrismatic, DummyRevolute},
+    dummies::{
+        DummyBase, DummyBody, DummyComponent, DummyCuboid, DummyPrismatic, DummyRevolute,
+        GeometryPickList,
+    },
     errors::Errors,
     sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
@@ -54,6 +57,7 @@ fn main() -> iced::Result {
 // Define the possible user interactions
 #[derive(Debug, Clone)]
 enum Message {
+    AnimationSimSelected(String),
     AnimationTick(Instant),
     BodyNameInputChanged(String),
     BodyMassInputChanged(String),
@@ -66,6 +70,10 @@ enum Message {
     BodyIxyInputChanged(String),
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
+    CuboidLengthInputChanged(String),
+    CuboidWidthInputChanged(String),
+    CuboidHeightInputChanged(String),
+    GeometrySelected(GeometryPickList),
     ResultSelected(String),
     PrismaticConstantForceInputChanged(String),
     PrismaticDampingInputChanged(String),
@@ -148,6 +156,7 @@ impl Application for GadgtGui {
                 Command::none()
             }
             GadgtGui::Loaded(state) => match message {
+                Message::AnimationSimSelected(string) => state.animation_sim_selected(string),
                 Message::AnimationTick(instant) => state.animation(instant),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
@@ -184,6 +193,16 @@ impl Application for GadgtGui {
                 Message::BodyIyzInputChanged(value) => {
                     state.update_body_field(BodyField::Iyz, &value)
                 }
+                Message::CuboidLengthInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Length, &value)
+                }
+                Message::CuboidWidthInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Width, &value)
+                }
+                Message::CuboidHeightInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Height, &value)
+                }
+                Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
                 Message::RevoluteConstantForceInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::ConstantForce, value)
                 }
@@ -334,7 +353,7 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             Row::new()
                 .push(sim_div)
                 .push(graph_container)
-                .height(Length::FillPortion(17))
+                .height(Length::FillPortion(15))
                 .width(Length::Fill)
                 .into()
         }
@@ -350,7 +369,10 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     } else if let Some(active_modal) = state.modal {
         match active_modal.dummy_type {
             DummyComponent::Base => Some(create_base_modal(&state.nodebar.dummies.base)),
-            DummyComponent::Body => Some(create_body_modal(&state.nodebar.dummies.body)),
+            DummyComponent::Body => Some(create_body_modal(
+                &state.nodebar.dummies.body,
+                &state.nodebar.dummies.cuboid,
+            )),
             DummyComponent::Revolute => {
                 Some(create_revolute_modal(&state.nodebar.dummies.revolute))
             }
@@ -392,7 +414,10 @@ fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, Theme> {
         .into()
 }
 
-fn create_body_modal(body: &DummyBody) -> Element<Message, Theme> {
+fn create_body_modal<'a>(
+    body: &'a DummyBody,
+    cuboid: &'a DummyCuboid,
+) -> Element<'a, Message, Theme> {
     let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
         Row::new()
             .spacing(10)
@@ -406,7 +431,7 @@ fn create_body_modal(body: &DummyBody) -> Element<Message, Theme> {
             .width(Length::Fill)
     };
 
-    let content = Column::new()
+    let mut content = Column::new()
         .push(create_text_input(
             "name",
             &body.name,
@@ -461,7 +486,32 @@ fn create_body_modal(body: &DummyBody) -> Element<Message, Theme> {
             "iyz",
             &body.iyz,
             Message::BodyIyzInputChanged,
+        ))
+        .push(pick_list(
+            &GeometryPickList::ALL[..],
+            Some(body.geometry),
+            Message::GeometrySelected,
         ));
+
+    let content = match body.geometry {
+        GeometryPickList::None => content, //nothing to do
+        GeometryPickList::Cuboid => content
+            .push(create_text_input(
+                "length",
+                &cuboid.length,
+                Message::CuboidLengthInputChanged,
+            ))
+            .push(create_text_input(
+                "width",
+                &cuboid.width,
+                Message::CuboidWidthInputChanged,
+            ))
+            .push(create_text_input(
+                "height",
+                &cuboid.height,
+                Message::CuboidHeightInputChanged,
+            )),
+    };
 
     let footer = Row::new()
         .spacing(10)

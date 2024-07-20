@@ -7,6 +7,7 @@ edition = "2021"
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 differential_equations = {path = "../differential_equations"}
+geometry = {path = "../geometry"}
 linear_algebra = {path = "../linear_algebra"}
 rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}

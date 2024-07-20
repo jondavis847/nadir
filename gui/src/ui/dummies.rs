@@ -1,10 +1,11 @@
+use geometry::{cuboid::Cuboid, Geometry};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,
     body::Body,
     joint::{
-        prismatic::{Prismatic,PrismaticState},
-        revolute::{Revolute, RevoluteState},        
+        prismatic::{Prismatic, PrismaticState},
+        revolute::{Revolute, RevoluteState},
         Joint, JointParameters,
     },
     MultibodyTrait,
@@ -16,6 +17,7 @@ pub struct Dummies {
     pub body: DummyBody,
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
+    pub cuboid: DummyCuboid,
 }
 
 /// DummyComponents are like MultibodyComponents but with String fields
@@ -37,7 +39,7 @@ impl DummyBase {
     pub fn clear(&mut self) {
         self.name = "".to_string();
     }
-    
+
     pub fn set_values_for(&self, base: &mut Base) {
         base.set_name(self.name.clone());
     }
@@ -64,6 +66,7 @@ pub struct DummyBody {
     pub ixy: String,
     pub ixz: String,
     pub iyz: String,
+    pub geometry: GeometryPickList,
 }
 
 impl DummyBody {
@@ -79,6 +82,7 @@ impl DummyBody {
         self.ixy = String::new();
         self.ixz = String::new();
         self.iyz = String::new();
+        self.geometry = GeometryPickList::None;
     }
 
     pub fn get_values_from(&mut self, body: &Body) {
@@ -237,5 +241,80 @@ impl DummyPrismatic {
         );
         let prismatic = Prismatic::new(self.name.as_str(), parameters, state);
         Joint::Prismatic(prismatic)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum DummyGeometry {
+    Cuboid(DummyCuboid),
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct DummyCuboid {
+    pub length: String,
+    pub width: String,
+    pub height: String,
+}
+
+impl DummyCuboid {
+    pub fn new() -> Self {
+        Self {
+            length: String::new(),
+            width: String::new(),
+            height: String::new(),
+        }
+    }
+    pub fn clear(&mut self) {
+        self.length = String::new();
+        self.width = String::new();
+        self.height = String::new();
+    }
+
+    pub fn get_values_from(&mut self, cuboid: &Cuboid) {
+        self.length = cuboid.length.to_string();
+        self.width = cuboid.width.to_string();
+        self.height = cuboid.height.to_string();
+    }
+
+    pub fn set_values_for(&self, cuboid: &mut Cuboid) {
+        cuboid.length = self.length.parse::<f32>().unwrap();
+        cuboid.width = self.width.parse::<f32>().unwrap();
+        cuboid.height = self.height.parse::<f32>().unwrap();
+    }
+
+    pub fn to_cuboid(&self) -> Cuboid {
+        let length = self.length.parse::<f32>().unwrap_or(1.0);
+        let width = self.width.parse::<f32>().unwrap_or(1.0);
+        let height = self.height.parse::<f32>().unwrap_or(1.0);
+
+        Cuboid {
+            length,
+            width,
+            height,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GeometryPickList {
+    #[default]
+    None,
+    Cuboid,
+}
+
+impl GeometryPickList {
+    pub const ALL: [GeometryPickList; 2] = [GeometryPickList::None, GeometryPickList::Cuboid];
+}
+
+impl std::fmt::Display for GeometryPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                GeometryPickList::None => "None",
+                GeometryPickList::Cuboid => "Cuboid",
+            }
+        )
     }
 }
