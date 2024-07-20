@@ -5,7 +5,7 @@ mod uniforms;
 
 pub use uniforms::Uniforms;
 
-use super::geometry::cuboid::{Cuboid, CuboidRaw};
+use super::geometries::cuboid::{Cuboid, CuboidRaw};
 use super::vertex::Vertex;
 use buffer::Buffer;
 

@@ -9,11 +9,11 @@ use iced::{
 };
 
 pub mod camera;
-pub mod geometry;
+pub mod geometries;
 pub mod pipeline;
 pub mod vertex;
 
-use geometry::cuboid::{Cuboid, CuboidRaw};
+use geometries::cuboid::{Cuboid, CuboidRaw};
 
 use camera::Camera;
 use pipeline::{Pipeline, Uniforms};
@@ -29,17 +29,8 @@ pub struct Scene {
 
 impl Scene {
     pub fn new() -> Self {
-        let cuboid = Cuboid::new(2.0, 1.0, 3.0, glam::Quat::IDENTITY, glam::Vec3::ZERO);
-
-        let cuboid2 = Cuboid::new(
-            1.0,
-            1.0,
-            1.0,
-            glam::Quat::IDENTITY,
-            glam::Vec3::new(0.5, 0.5, 0.5),
-        );
         Self {
-            cuboids: vec![cuboid, cuboid2],
+            cuboids: Vec::new(),
             camera: Camera::default(),
             light_color: Color::WHITE,
         }
@@ -161,10 +152,11 @@ impl Program<Message> for Scene {
                         Status::Captured,
                         Some(Message::RightButtonReleased(canvas_cursor_position)),
                     ),
-                    mouse::Event::CursorMoved { position: _ } => { //use canvas position instead of this position
+                    mouse::Event::CursorMoved { position: _ } => {
+                        //use canvas position instead of this position
                         let last_position = state.last_mouse_position;
                         state.last_mouse_position = canvas_cursor_position;
-                        if state.is_pressed {                            
+                        if state.is_pressed {
                             let delta = canvas_cursor_position - last_position;
                             (
                                 Status::Captured,

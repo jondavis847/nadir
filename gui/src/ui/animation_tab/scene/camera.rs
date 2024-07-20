@@ -16,7 +16,7 @@ pub struct Camera {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            eye: vec3(5.0, 0.0, 0.0),
+            eye: vec3(0.0, 0.0, 5.0),
             target: Vec3::ZERO,
             up: Vec3::Z,
             fov_y: 45.0,
