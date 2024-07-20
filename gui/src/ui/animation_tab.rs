@@ -7,14 +7,17 @@ use iced::{
 use geometry::Geometry;
 use multibody::result::MultibodyResult;
 
+pub mod animator;
+use animator::Animator;
 pub mod scene;
 use scene::{geometries::cuboid::Cuboid, Scene};
 //use plot_canvas::PlotCanvas;
 
 #[derive(Debug)]
 pub struct AnimationTab {
-    pub sim_menu: SelectMenu,    
-    pub selected_sim: Option<String>,
+    animator: Animator,
+    pub sim_menu: SelectMenu,
+    pub result: Option<MultibodyResult>,
     pub scene: Scene,
     is_pressed: bool,
 }
@@ -22,8 +25,9 @@ pub struct AnimationTab {
 impl Default for AnimationTab {
     fn default() -> Self {
         Self {
+            animator: Animator::default(),
             sim_menu: SelectMenu::new(Length::FillPortion(1), false),
-            selected_sim: None,            
+            result: None,
             scene: Scene::new(),
             is_pressed: false,
         }
@@ -31,6 +35,25 @@ impl Default for AnimationTab {
 }
 
 impl AnimationTab {
+    pub fn animate(&mut self, instant: iced::time::Instant) {
+        self.animator.update(instant);
+        //dbg!(&self.animator);
+        if let Some(result) = &self.result {
+            for cuboid in &mut self.scene.cuboids {
+                let (attitude, position) = result
+                    .get_body_state_at_time_interp(&cuboid.name, self.animator.current_time as f64);
+                cuboid.position =
+                    glam::vec3(position.e1 as f32, position.e2 as f32, position.e3 as f32);
+                cuboid.rotation = glam::quat(
+                    attitude.x as f32,
+                    attitude.y as f32,
+                    attitude.z as f32,
+                    attitude.s as f32,
+                );
+            }
+        }
+    }
+
     pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
         let sim_menu = self
             .sim_menu
@@ -52,7 +75,11 @@ impl AnimationTab {
         //Nothing for now
     }
 
-    pub fn sim_selected(&mut self, result: &MultibodyResult) {        
+    pub fn sim_selected(&mut self, result: &MultibodyResult) {
+        //TODO: This clone is probably really bad. We should not have to do this but I don't want to deal with lifetimes yet.
+        // maybe do RC<RefCell<>> just for this?
+        self.result = Some(result.clone());
+
         let sys = &result.system;
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
@@ -67,6 +94,7 @@ impl AnimationTab {
                 match geometry {
                     Geometry::Cuboid(cuboid) => {
                         let cuboid = Cuboid::new(
+                            body_name.clone(),
                             cuboid.length,
                             cuboid.width,
                             cuboid.height,
@@ -77,8 +105,8 @@ impl AnimationTab {
                     }
                 }
             }
-            self.scene.cuboids = cuboids;
-            dbg!(&self.scene.cuboids);
+            self.scene.cuboids = cuboids;            
         }
+        self.animator.start();
     }
 }

@@ -1,5 +1,5 @@
 use iced::{mouse::ScrollDelta, Point, Rectangle, Size};
-use multibody::joint::JointTrait;
+use multibody::{body::BodyTrait, joint::JointTrait};
 use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
@@ -177,15 +177,59 @@ impl Graph {
                 }
 
                 match selected_node.dummy_type {
-                    DummyComponent::Base => self.system.base = None,
+                    DummyComponent::Base => {
+                        self.system.base = None;
+                        for (_, joint) in &mut self.system.joints {
+                            if let Some(id) = joint.get_inner_body_id() {
+                                if *id == selected_node.component_id {
+                                    joint.delete_inner_body_id();
+                                }
+                            }
+                        }
+                    }
                     DummyComponent::Body => {
                         self.system.bodies.remove(&selected_node.component_id);
+                        for (_, joint) in &mut self.system.joints {
+                            if let Some(id) = joint.get_inner_body_id() {
+                                if *id == selected_node.component_id {
+                                    joint.delete_inner_body_id();
+                                }
+                            }
+                            if let Some(id) = joint.get_outer_body_id() {
+                                if *id == selected_node.component_id {
+                                    joint.delete_outer_body_id();
+                                }
+                            }
+                        }
                     }
                     DummyComponent::Revolute => {
                         self.system.joints.remove(&selected_node.component_id);
+                        if let Some(base) = &mut self.system.base {
+                            base.delete_outer_joint(&selected_node.component_id);
+                        }
+                        for (_, body) in &mut self.system.bodies {
+                            if let Some(id) = body.inner_joint {
+                                if id == selected_node.component_id {
+                                    body.inner_joint = None;
+                                }
+                            }
+                            body.delete_outer_joint(&selected_node.component_id)
+                        }
                     }
                     DummyComponent::Prismatic => {
                         self.system.joints.remove(&selected_node.component_id);
+                        self.system.joints.remove(&selected_node.component_id);
+                        if let Some(base) = &mut self.system.base {
+                            base.delete_outer_joint(&selected_node.component_id);
+                        }
+                        for (_, body) in &mut self.system.bodies {
+                            if let Some(id) = body.inner_joint {
+                                if id == selected_node.component_id {
+                                    body.inner_joint = None;
+                                }
+                            }
+                            body.delete_outer_joint(&selected_node.component_id)
+                        }
                     }
                 };
             }

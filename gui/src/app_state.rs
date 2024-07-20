@@ -74,9 +74,20 @@ impl Default for AppState {
 
 impl AppState {
     pub fn animation(&mut self, instant: iced::time::Instant) -> Command<Message> {
-        if self.graph.animation(instant) {
-            self.cache.clear()
-        };
+        match self.tab_bar.state.current_tab {
+            AppTabs::Simulation => {
+                if self.graph.animation(instant) {
+                    self.cache.clear()
+                };
+            }
+            AppTabs::Animation => {
+                if let Some(result) = &self.animation_tab.result {
+                    self.animation_tab.animate(instant);
+                }
+            }
+            AppTabs::Plot => {}
+        }
+        
         Command::none()
     }
 

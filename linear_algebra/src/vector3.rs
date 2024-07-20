@@ -113,6 +113,15 @@ impl Vector3 {
             e3: 0.0,
         }
     }
+
+    // Linear interpolation function
+    pub fn lerp(v1: &Vector3, v2: &Vector3, t: f64) -> Vector3 {
+        Vector3 {
+            e1: v1.e1 + t * (v2.e1 - v1.e1),
+            e2: v1.e2 + t * (v2.e2 - v1.e2),
+            e3: v1.e3 + t * (v2.e3 - v1.e3),
+        }
+    }
 }
 impl Neg for Vector3 {
     type Output = Self;

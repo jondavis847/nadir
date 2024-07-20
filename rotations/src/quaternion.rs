@@ -1,8 +1,8 @@
 use super::*;
 use linear_algebra::vector3::Vector3;
 use rand::prelude::*;
-use std::ops::Mul;
 use std::fmt;
+use std::ops::Mul;
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy)]
@@ -64,6 +64,11 @@ impl Quaternion {
         })
     }
 
+    // Dot product of two quaternions
+    pub fn dot(&self, other: &Quaternion) -> f64 {
+        self.x * other.x + self.y * other.y + self.z * other.z + self.s * other.s
+    }
+
     /// Creates a random quaternion.
     ///
     /// # Returns
@@ -77,6 +82,59 @@ impl Quaternion {
         let s = rng.gen_range(-1.0..1.0);
 
         Quaternion::new(x, y, z, s).unwrap()
+    }
+
+    pub fn slerp(q1: &Quaternion, q2: &Quaternion, t: f64) -> Quaternion {
+        // t is 0 - 1, where result is q1 when t is 0 and result is q2 when t is 1
+        // Compute the cosine of the angle between the two quaternions
+        let mut dot = q1.dot(q2);
+    
+        // If the dot product is negative, slerp won't take the shorter path.
+        // Note that q1 and -q1 are equivalent when the rotations are the same.
+        let q2 = if dot < 0.0 {
+            dot = -dot;
+            Quaternion {
+                x: -q2.x,
+                y: -q2.y,
+                z: -q2.z,
+                s: -q2.s,
+            }
+        } else {
+            *q2
+        };
+    
+        // If the quaternions are too close, use linear interpolation to avoid division by zero
+        if dot > 0.9995 {
+            let result = Quaternion {
+                x: q1.x + t * (q2.x - q1.x),
+                y: q1.y + t * (q2.y - q1.y),
+                z: q1.z + t * (q2.z - q1.z),
+                s: q1.s + t * (q2.s - q1.s),
+            };
+            return result;
+        }
+    
+        // Calculate the angle between the quaternions
+        let theta_0 = dot.acos();
+        let theta = theta_0 * t;
+    
+        // Compute the second quaternion orthogonal to q1
+        let q2_orth = Quaternion {
+            x: q2.x - q1.x * dot,
+            y: q2.y - q1.y * dot,
+            z: q2.z - q1.z * dot,
+            s: q2.s - q1.s * dot,
+        };
+    
+        // Perform the interpolation
+        let result = Quaternion {
+            x: q1.x * theta.cos() + q2_orth.x * theta.sin(),
+            y: q1.y * theta.cos() + q2_orth.y * theta.sin(),
+            z: q1.z * theta.cos() + q2_orth.z * theta.sin(),
+            s: q1.s * theta.cos() + q2_orth.s * theta.sin(),
+        };
+    
+        result
     }
 }
 
@@ -398,28 +456,14 @@ impl From<RotationMatrix> for Quaternion {
 impl fmt::Debug for Quaternion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Quaternion ")?;
-        writeln!(
-            f,
-            "   x: {: >10.6}",
-            self.x
-        )?;
-        writeln!(
-            f,
-            "   y: {: >10.6}",
-            self.y
-        )?;
-        writeln!(
-            f,
-            "   z: {: >10.6}",
-            self.z
-        )?;
-        writeln!(
-            f,
-            "   s: {: >10.6}",
-            self.s
-        )
+        writeln!(f, "   x: {: >10.6}", self.x)?;
+        writeln!(f, "   y: {: >10.6}", self.y)?;
+        writeln!(f, "   z: {: >10.6}", self.z)?;
+        writeln!(f, "   s: {: >10.6}", self.s)
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {

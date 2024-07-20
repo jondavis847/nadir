@@ -5,6 +5,7 @@ use iced::widget::shader::wgpu;
 /// A single instance of a cuboid.
 #[derive(Debug, Clone)]
 pub struct Cuboid {
+    pub name: String,
     pub rotation: Quat,
     pub position: Vec3,
     pub length: f32, // x
@@ -15,6 +16,7 @@ pub struct Cuboid {
 impl Default for Cuboid {
     fn default() -> Self {
         Self {
+            name: String::new(),
             rotation: Quat::IDENTITY,
             position: Vec3::ZERO,
             length: 1.0,
@@ -25,8 +27,16 @@ impl Default for Cuboid {
 }
 
 impl Cuboid {
-    pub fn new(length: f32, width: f32, height: f32, rotation: Quat, position: Vec3) -> Self {
+    pub fn new(
+        name: String,
+        length: f32,
+        width: f32,
+        height: f32,
+        rotation: Quat,
+        position: Vec3,
+    ) -> Self {
         Self {
+            name,
             rotation,
             position,
             length,

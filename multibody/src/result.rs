@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use linear_algebra::vector3::Vector3;
 use rotations::quaternion::Quaternion;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -14,6 +15,7 @@ use crate::{
     system_sim::MultibodySystemSim,
 };
 
+#[derive(Clone)]
 pub struct MultibodyResult {
     pub name: String,
     pub result: HashMap<String, ResultEntry>,
@@ -331,12 +333,58 @@ impl MultibodyResult {
         }
     }
 
+    pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3) {
+        let time = match self.result.get("t").unwrap() {
+            ResultEntry::VecF64(val) => val,
+            _ => panic!("should not be possible"),
+        };
+
+        let body = match self.result.get(body_name).unwrap() {
+            ResultEntry::Body(body) => body,
+            _ => panic!("should not be possible"),
+        };
+
+        let position = &body.position_base;
+        let attitude = &body.attitude_base;
+
+        match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
+            Ok(i) => {
+                // The target is exactly at index i
+                (attitude[i], position[i])
+            }
+            Err(i) => {
+                if i == 0 {
+                    // The target is smaller than the first element
+                    (attitude[i], position[i])
+                } else if i == time.len() {
+                    // The target is greater than the last element
+                    (attitude[i], position[i])
+                } else {
+                    // The target is between elements at i - 1 and i
+                    let t_prev = time[i - 1];
+                    let t_next = time[i];
+                    let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
+
+                    let position_prev = position[i - 1];
+                    let position_next = position[i];
+                    let interp_position =
+                        Vector3::lerp(&position_prev, &position_next, interp_factor);
+
+                    let attitude_prev = attitude[i - 1];
+                    let attitude_next = attitude[i];
+                    let interp_attitude =
+                        Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+                    (interp_attitude, interp_position)
+                }
+            }
+        }
+    }
     pub fn get_components(&self) -> Vec<String> {
         self.result.keys().cloned().collect()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),
