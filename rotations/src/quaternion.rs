@@ -35,24 +35,21 @@ impl Quaternion {
     /// A `Result` which is `Ok` containing a new `Quaternion` if the magnitude is non-zero,
     /// or an `Err` containing a `QuaternionErrors`.
     pub fn new(x: f64, y: f64, z: f64, s: f64) -> Result<Self, QuaternionErrors> {
-        let mut x = x;
-        let mut y = y;
-        let mut z = z;
-        let mut s = s;
-
         let mag_squared = x * x + y * y + z * z + s * s;
 
         if mag_squared < f64::EPSILON {
             return Err(QuaternionErrors::ZeroMagnitude);
         }
 
+        // DO NOT DO THIS: messes up interpolation continuity checks
+
         // Ensure the scalar part is non-negative to enforce unique quaternions.
-        if s < 0.0 {
-            x = -x;
-            y = -y;
-            z = -z;
-            s = -s;
-        }
+        //if s < 0.0 {
+        //x = -x;
+        //y = -y;
+        //z = -z;
+        //s = -s;
+        //}
 
         let mag = mag_squared.sqrt();
 
@@ -130,42 +127,17 @@ impl Quaternion {
 
     // Spherical Quadrangle interpolation
     pub fn squad(
-        q0: &Quaternion,
-        q1: &Quaternion,
-        q2: &Quaternion,
-        q3: &Quaternion,
+        a: &Quaternion, // q[i-2]
+        p: &Quaternion, // q[i-1]
+        q: &Quaternion, // q[i]
+        b: &Quaternion, // q[i+1]
         t: f64,
     ) -> Quaternion {
-        let a = compute_squad_intermediate(q0, q1, q2);
-        let b = compute_squad_intermediate(q1, q2, q3);
-        let s1 = Quaternion::slerp(q1, &b, t);
-        let s2 = Quaternion::slerp(&a, q2, t);
-        Quaternion::slerp(&s1, &s2, 2.0 * t * (1.0 - t))
+        let tmp1 = Quaternion::slerp(a, b, t);
+        let tmp2 = Quaternion::slerp(p, q, t);
+
+        Quaternion::slerp(&tmp1, &tmp2, 2.0 * t * (1.0 - t))
     }
-}
-
-fn compute_squad_intermediate(q0: &Quaternion, q1: &Quaternion, q2: &Quaternion) -> Quaternion {
-    let q1_inv = q1.inv();
-
-    let q1_inv_q2 = *q2 * q1_inv;
-
-    let q1_inv_q0 = *q0 * q1_inv;
-
-    let q2_log =
-        (q1_inv_q2.x * q2.x + q1_inv_q2.y * q2.y + q1_inv_q2.z * q2.z + q1_inv_q2.s * q2.s).acos();
-    let q0_log =
-        (q1_inv_q0.x * q0.x + q1_inv_q0.y * q0.y + q1_inv_q0.z * q0.z + q1_inv_q0.s * q0.s).acos();
-
-    Quaternion::slerp(
-        q1,
-        &Quaternion {
-            x: q1.x + 0.25 * (q0_log + q2_log) * (q2.x - q0.x),
-            y: q1.y + 0.25 * (q0_log + q2_log) * (q2.y - q0.y),
-            z: q1.z + 0.25 * (q0_log + q2_log) * (q2.z - q0.z),
-            s: q1.s + 0.25 * (q0_log + q2_log) * (q2.s - q0.s),
-        },
-        0.5,
-    )
 }
 
 impl RotationTrait for Quaternion {

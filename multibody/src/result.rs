@@ -371,11 +371,21 @@ impl MultibodyResult {
                         Vector3::lerp(&position_prev, &position_next, interp_factor);
 
                     let attitude_prev = attitude[i - 1];
-                    let attitude_next = attitude[i];
+                    let mut attitude_next = attitude[i];
+
+                    // Ensure quaternion continuity
+                    if attitude_prev.dot(&attitude_next) < 0.0 {
+                        attitude_next = Quaternion {
+                            x: -attitude_next.x,
+                            y: -attitude_next.y,
+                            z: -attitude_next.z,
+                            s: -attitude_next.s,
+                        };
+                    }
 
                     let interp_attitude;
-                    //if i >= 2 && i < attitude.len()-1 {
-                    if false {
+                    //if false {
+                    if i >= 2 && i < attitude.len() - 1 {
                         //squad
                         let q0 = attitude[i - 2];
                         let q3 = attitude[i + 1];
