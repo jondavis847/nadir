@@ -176,9 +176,9 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.get_column(3).unwrap();
-        aba.big_d_inv = 1.0 / aba.big_u.e31;
-        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(3).unwrap());
+        aba.big_u = inertia_articulated_matrix.get_column(1).unwrap();
+        aba.big_d_inv = 1.0 / aba.big_u.e11;
+        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(1).unwrap());
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -247,7 +247,7 @@ impl JointSimTrait for RevoluteSim {
 
     fn calculate_vj(&mut self) {
         self.aba.common.vj =
-            Velocity::from(Vector6::new(0.0, 0.0, self.state.omega, 0.0, 0.0, 0.0));
+            Velocity::from(Vector6::new(self.state.omega, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
     fn get_id(&self) -> &Uuid {
         &self.id
@@ -258,7 +258,7 @@ impl JointSimTrait for RevoluteSim {
     fn set_state(&mut self, state: JointState) {
         match state {
             JointState::Revolute(revolute_state) => self.state = revolute_state,
-            _ => panic!("Can't set a different joints state to revolute")
+            _ => panic!("Can't set a different joints state to revolute"),
         }
     }
     fn get_transforms(&self) -> &JointTransforms {
@@ -269,7 +269,7 @@ impl JointSimTrait for RevoluteSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-        let angles = Angles::new(self.state.theta, 0.0, 0.0);
+        let angles = Angles::new(0.0, 0.0, self.state.theta);
         let euler_angles = EulerAngles::ZYX(angles);
         let rotation = Rotation::EulerAngles(euler_angles);
         let translation = CoordinateSystem::default();

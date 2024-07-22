@@ -372,8 +372,26 @@ impl MultibodyResult {
 
                     let attitude_prev = attitude[i - 1];
                     let attitude_next = attitude[i];
-                    let interp_attitude =
-                        Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+
+                    let interp_attitude;
+                    //if i >= 2 && i < attitude.len()-1 {
+                    if false {
+                        //squad
+                        let q0 = attitude[i - 2];
+                        let q3 = attitude[i + 1];
+                        interp_attitude = Quaternion::squad(
+                            &q0,
+                            &attitude_prev,
+                            &attitude_next,
+                            &q3,
+                            interp_factor,
+                        );
+                    } else {
+                        //slerp
+                        interp_attitude =
+                            Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+                    }
+
                     (interp_attitude, interp_position)
                 }
             }

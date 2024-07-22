@@ -69,6 +69,17 @@ impl Quaternion {
         self.x * other.x + self.y * other.y + self.z * other.z + self.s * other.s
     }
 
+    pub fn powf(&self, pow: f64) -> Self {
+        let theta = self.s.acos();
+        let u = Vector3::new(self.x, self.y, self.z).normalize();
+
+        let pow_theta = pow * theta;
+
+        let s = pow_theta.cos();
+        let v = u * pow_theta.sin();
+        Quaternion::new(v.e1, v.e2, v.e3, s).unwrap()
+    }
+
     /// Creates a random quaternion.
     ///
     /// # Returns
@@ -88,7 +99,7 @@ impl Quaternion {
         // t is 0 - 1, where result is q1 when t is 0 and result is q2 when t is 1
         // Compute the cosine of the angle between the two quaternions
         let mut dot = q1.dot(q2);
-    
+
         // If the dot product is negative, slerp won't take the shorter path.
         // Note that q1 and -q1 are equivalent when the rotations are the same.
         let q2 = if dot < 0.0 {
@@ -102,7 +113,7 @@ impl Quaternion {
         } else {
             *q2
         };
-    
+
         // If the quaternions are too close, use linear interpolation to avoid division by zero
         if dot > 0.9995 {
             let result = Quaternion {
@@ -113,29 +124,48 @@ impl Quaternion {
             };
             return result;
         }
-    
-        // Calculate the angle between the quaternions
-        let theta_0 = dot.acos();
-        let theta = theta_0 * t;
-    
-        // Compute the second quaternion orthogonal to q1
-        let q2_orth = Quaternion {
-            x: q2.x - q1.x * dot,
-            y: q2.y - q1.y * dot,
-            z: q2.z - q1.z * dot,
-            s: q2.s - q1.s * dot,
-        };
-    
-        // Perform the interpolation
-        let result = Quaternion {
-            x: q1.x * theta.cos() + q2_orth.x * theta.sin(),
-            y: q1.y * theta.cos() + q2_orth.y * theta.sin(),
-            z: q1.z * theta.cos() + q2_orth.z * theta.sin(),
-            s: q1.s * theta.cos() + q2_orth.s * theta.sin(),
-        };
-    
-        result
+
+        (q2 * q1.inv()).powf(t) * *q1
     }
+
+    // Spherical Quadrangle interpolation
+    pub fn squad(
+        q0: &Quaternion,
+        q1: &Quaternion,
+        q2: &Quaternion,
+        q3: &Quaternion,
+        t: f64,
+    ) -> Quaternion {
+        let a = compute_squad_intermediate(q0, q1, q2);
+        let b = compute_squad_intermediate(q1, q2, q3);
+        let s1 = Quaternion::slerp(q1, &b, t);
+        let s2 = Quaternion::slerp(&a, q2, t);
+        Quaternion::slerp(&s1, &s2, 2.0 * t * (1.0 - t))
+    }
+}
+
+fn compute_squad_intermediate(q0: &Quaternion, q1: &Quaternion, q2: &Quaternion) -> Quaternion {
+    let q1_inv = q1.inv();
+
+    let q1_inv_q2 = *q2 * q1_inv;
+
+    let q1_inv_q0 = *q0 * q1_inv;
+
+    let q2_log =
+        (q1_inv_q2.x * q2.x + q1_inv_q2.y * q2.y + q1_inv_q2.z * q2.z + q1_inv_q2.s * q2.s).acos();
+    let q0_log =
+        (q1_inv_q0.x * q0.x + q1_inv_q0.y * q0.y + q1_inv_q0.z * q0.z + q1_inv_q0.s * q0.s).acos();
+
+    Quaternion::slerp(
+        q1,
+        &Quaternion {
+            x: q1.x + 0.25 * (q0_log + q2_log) * (q2.x - q0.x),
+            y: q1.y + 0.25 * (q0_log + q2_log) * (q2.y - q0.y),
+            z: q1.z + 0.25 * (q0_log + q2_log) * (q2.z - q0.z),
+            s: q1.s + 0.25 * (q0_log + q2_log) * (q2.s - q0.s),
+        },
+        0.5,
+    )
 }
 
 impl RotationTrait for Quaternion {
@@ -233,7 +263,7 @@ impl Mul<Quaternion> for Quaternion {
     type Output = Self;
 
     /// Multiplies two quaternions.
-    /// IMPORTANT: This follows from the x logic rather than the dot logic from Markley/Crassidis
+    /// IMPORTANT: This follows from the "x" logic rather than the "dot" logic from Markley/Crassidis
     /// Successive multiplications act like DCMs so that a rotation from a2c is
     /// q_a2c = q_c2b * q_b2a
     /// This is different than most of the quaternion calculators out there.
@@ -462,8 +492,6 @@ impl fmt::Debug for Quaternion {
         writeln!(f, "   s: {: >10.6}", self.s)
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

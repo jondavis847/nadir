@@ -28,6 +28,7 @@ impl Pipeline {
         format: wgpu::TextureFormat,
         target_size: Size<u32>,
     ) -> Self {
+
         let raw = CuboidRaw::from_cuboid(&Cuboid::default());
 
         //vertices of one cube
