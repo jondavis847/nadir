@@ -17,6 +17,7 @@ pub mod prelude {
 
 /// Trait defining rotation and transformation operations.
 pub trait RotationTrait {
+
     /// Rotates a vector by the rotation.
     ///
     /// # Arguments

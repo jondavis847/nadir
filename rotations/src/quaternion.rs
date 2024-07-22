@@ -2,7 +2,7 @@ use super::*;
 use linear_algebra::vector3::Vector3;
 use rand::prelude::*;
 use std::fmt;
-use std::ops::Mul;
+use std::ops::{Add, Mul, Neg, Sub};
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy)]
@@ -21,6 +21,18 @@ pub enum QuaternionErrors {
 }
 
 impl Quaternion {
+    /// Creates an identity quaternion.
+    ///
+    /// # Returns
+    ///
+    /// A `Quaternion` representing no rotation.
+    pub const IDENTITY: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        s: 1.0,
+    };
+
     /// Creates a new normalized `Quaternion`.
     ///
     /// # Arguments
@@ -34,36 +46,49 @@ impl Quaternion {
     ///
     /// A `Result` which is `Ok` containing a new `Quaternion` if the magnitude is non-zero,
     /// or an `Err` containing a `QuaternionErrors`.
-    pub fn new(x: f64, y: f64, z: f64, s: f64) -> Result<Self, QuaternionErrors> {
-        let mag_squared = x * x + y * y + z * z + s * s;
-
-        if mag_squared < f64::EPSILON {
-            return Err(QuaternionErrors::ZeroMagnitude);
-        }
-
-        // DO NOT DO THIS: messes up interpolation continuity checks
-
-        // Ensure the scalar part is non-negative to enforce unique quaternions.
-        //if s < 0.0 {
-        //x = -x;
-        //y = -y;
-        //z = -z;
-        //s = -s;
-        //}
-
-        let mag = mag_squared.sqrt();
-
-        Ok(Self {
-            x: x / mag,
-            y: y / mag,
-            z: z / mag,
-            s: s / mag,
-        })
+    pub fn new(x: f64, y: f64, z: f64, s: f64) -> Self {
+        Self { x, y, z, s }
     }
 
     // Dot product of two quaternions
     pub fn dot(&self, other: &Quaternion) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z + self.s * other.s
+    }
+
+    // Function to compute the exponential of a quaternion
+    pub fn exp(&self) -> Quaternion {
+        let v = Vector3::new(self.x, self.y, self.z);
+        let v_mag = v.magnitude();
+        let cos_v = v_mag.cos();
+        let sin_v = v_mag.sin();
+        let u = v.normalize();
+
+        let exp_s = self.s.exp();
+
+        Quaternion {
+            x: exp_s * u.e1 * sin_v,
+            y: exp_s * u.e2 * sin_v,
+            z: exp_s * u.e3 * sin_v,
+            s: exp_s * cos_v,
+        }
+    }
+
+    pub fn log(&self) -> Quaternion {
+        let theta = self.s.acos();
+
+        let v = Vector3::new(self.x, self.y, self.z);
+        let u = v.normalize();
+
+        Quaternion {
+            x: theta * u.e1,
+            y: theta * u.e2,
+            z: theta * u.e3,
+            s: 0.0,
+        }
+    }
+
+    pub fn mag(&self) -> f64 {
+        self.dot(self).sqrt()
     }
 
     pub fn powf(&self, pow: f64) -> Self {
@@ -74,7 +99,15 @@ impl Quaternion {
 
         let s = pow_theta.cos();
         let v = u * pow_theta.sin();
-        Quaternion::new(v.e1, v.e2, v.e3, s).unwrap()
+        Quaternion::new(v.e1, v.e2, v.e3, s)
+    }
+
+    pub fn normalize(&self) -> Self {
+        let mag = self.dot(self).sqrt();
+        if mag < f64::EPSILON {
+            panic!("attemped to normalized Quaternion with zero mag")
+        }
+        Quaternion::new(self.x / mag, self.y / mag, self.z / mag, self.s / mag)
     }
 
     /// Creates a random quaternion.
@@ -89,13 +122,16 @@ impl Quaternion {
         let z = rng.gen_range(-1.0..1.0);
         let s = rng.gen_range(-1.0..1.0);
 
-        Quaternion::new(x, y, z, s).unwrap()
+        Quaternion::new(x, y, z, s)
     }
 
     pub fn slerp(q1: &Quaternion, q2: &Quaternion, t: f64) -> Quaternion {
+        let q1 = q1.normalize();
+        let q2 = q2.normalize();
+
         // t is 0 - 1, where result is q1 when t is 0 and result is q2 when t is 1
         // Compute the cosine of the angle between the two quaternions
-        let mut dot = q1.dot(q2);
+        let mut dot = q1.dot(&q2);
 
         // If the dot product is negative, slerp won't take the shorter path.
         // Note that q1 and -q1 are equivalent when the rotations are the same.
@@ -108,7 +144,7 @@ impl Quaternion {
                 s: -q2.s,
             }
         } else {
-            *q2
+            q2
         };
 
         // If the quaternions are too close, use linear interpolation to avoid division by zero
@@ -122,32 +158,50 @@ impl Quaternion {
             return result;
         }
 
-        (q2 * q1.inv()).powf(t) * *q1
+        ((q2 * q1.inv()).powf(t) * q1).normalize()
     }
 
     // Spherical Quadrangle interpolation
     pub fn squad(
-        a: &Quaternion, // q[i-2]
-        p: &Quaternion, // q[i-1]
-        q: &Quaternion, // q[i]
-        b: &Quaternion, // q[i+1]
+        q0: Quaternion, // q[i-2]
+        q1: Quaternion, // q[i-1]
+        q2: Quaternion, // q[i]
+        q3: Quaternion, // q[i+1]
         t: f64,
     ) -> Quaternion {
-        let tmp1 = Quaternion::slerp(a, b, t);
-        let tmp2 = Quaternion::slerp(p, q, t);
+        let q0 = q0.normalize();
+        let q1 = q1.normalize();
+        let q2 = q2.normalize();
+        let q3 = q3.normalize();
+
+        fn calculate_control_point(q0: Quaternion, q1: Quaternion, q2: Quaternion) -> Quaternion {
+            let log_q = (q1 * q2.inv() * q0 * q1.inv()).log() * (-0.25);
+            (log_q.exp() * q1).normalize()
+        }
+
+        // Calculate control points a and b
+        let a = calculate_control_point(q0, q1, q2);
+        let b = calculate_control_point(q1, q2, q3);
+
+        let tmp1 = Quaternion::slerp(&q1, &q2, t);
+        let tmp2 = Quaternion::slerp(&a, &b, t);
 
         Quaternion::slerp(&tmp1, &tmp2, 2.0 * t * (1.0 - t))
     }
 }
 
 impl RotationTrait for Quaternion {
+    fn identity() -> Self {
+        Self::IDENTITY
+    }
+
     /// Computes the inverse of the quaternion.
     ///
     /// # Returns
     ///
     /// A new `Quaternion` representing the inverse.
     fn inv(&self) -> Self {
-        Self::new(-self.x, -self.y, -self.z, self.s).unwrap()
+        Self::new(-self.x, -self.y, -self.z, self.s)
     }
 
     /// Rotates a vector by the quaternion.
@@ -209,15 +263,6 @@ impl RotationTrait for Quaternion {
 
         Vector3::new(out1, out2, out3)
     }
-
-    /// Creates an identity quaternion.
-    ///
-    /// # Returns
-    ///
-    /// A `Quaternion` representing no rotation.
-    fn identity() -> Self {
-        Self::new(0.0, 0.0, 0.0, 1.0).unwrap()
-    }
 }
 
 impl Default for Quaternion {
@@ -254,7 +299,66 @@ impl Mul<Quaternion> for Quaternion {
             self.s * rhs.z + self.z * rhs.s - self.x * rhs.y + self.y * rhs.x,
             self.s * rhs.s - self.x * rhs.x - self.y * rhs.y - self.z * rhs.z,
         )
-        .unwrap()
+    }
+}
+
+impl Sub<Quaternion> for Quaternion {
+    type Output = Self;
+
+    /// Subtracts two quaternions.            
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side quaternion.
+    ///
+    /// # Returns
+    ///
+    /// The difference of the two quaternions.
+    fn sub(self, rhs: Self) -> Self {
+        Self::new(
+            self.x - rhs.x,
+            self.y - rhs.y,
+            self.z - rhs.z,
+            self.s - rhs.s,
+        )
+    }
+}
+
+impl Add<Quaternion> for Quaternion {
+    type Output = Self;
+
+    /// Adds two quaternions.            
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side quaternion.
+    ///
+    /// # Returns
+    ///
+    /// The sum of the two quaternions.
+    fn add(self, rhs: Self) -> Self {
+        Self::new(
+            self.x + rhs.x,
+            self.y + rhs.y,
+            self.z + rhs.z,
+            self.s + rhs.s,
+        )
+    }
+}
+
+impl Mul<f64> for Quaternion {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        Self::new(self.x * rhs, self.y * rhs, self.z * rhs, self.s * rhs)
+    }
+}
+
+impl Neg for Quaternion {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Self::new(-self.x, -self.y, -self.z, -self.s)
     }
 }
 
@@ -476,7 +580,7 @@ mod tests {
     /// Test for quaternion normalization.
     #[test]
     fn test_quaternion_normalization() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0).unwrap();
+        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
 
         assert_approx_eq!(q.x, 0.18257418583505536, TOL);
         assert_approx_eq!(q.y, 0.3651483716701107, TOL);
@@ -732,15 +836,13 @@ mod tests {
             0.0922959556412572,
             0.560985526796931,
             0.43045933457687946,
-        )
-        .unwrap();
+        );
         let q2 = Quaternion::new(
             -0.41127872745152066,
             -0.4532968654326041,
             0.3615464744060406,
             0.7033177852005419,
-        )
-        .unwrap();
+        );
 
         let result = q2 * q1;
 
