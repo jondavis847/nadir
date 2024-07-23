@@ -190,8 +190,7 @@ impl MultibodySystemSim {
         }
 
         // Convert to a multibody result
-        let mut result_hm = HashMap::<String, ResultEntry>::new();
-        result_hm.insert("t".to_string(), ResultEntry::VecF64(times));
+        let mut result_hm = HashMap::<String, ResultEntry>::new();        
 
         for joint_state in &joint_states {
             for (i, joint) in joint_state.0.iter().enumerate() {
@@ -255,12 +254,13 @@ impl MultibodySystemSim {
 
         MultibodyResult {
             name: name,
+            sim_time: times,
             result: result_hm,
             system: self.clone(),
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
-        }                
+        }
     }
 
     fn update_body_forces(&mut self) {

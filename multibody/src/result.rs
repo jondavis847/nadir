@@ -18,6 +18,7 @@ use crate::{
 #[derive(Clone)]
 pub struct MultibodyResult {
     pub name: String,
+    pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
     pub system: MultibodySystemSim,
     pub time_start: SystemTime,
@@ -30,10 +31,7 @@ impl MultibodyResult {
         let component = self.result.get(component_name).unwrap();
         let mut df = DataFrame::default();
 
-        let t = match self.result.get("t") {
-            Some(ResultEntry::VecF64(vec)) => Series::new("t", vec.clone()),
-            _ => panic!("Could not find `t`, this should not be possible"),
-        };
+        let t = Series::new("t", self.sim_time.clone());
         df.with_column(t).unwrap();
 
         match component {
@@ -334,11 +332,6 @@ impl MultibodyResult {
     }
 
     pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3) {
-        let time = match self.result.get("t").unwrap() {
-            ResultEntry::VecF64(val) => val,
-            _ => panic!("should not be possible"),
-        };
-
         let body = match self.result.get(body_name).unwrap() {
             ResultEntry::Body(body) => body,
             _ => panic!("should not be possible"),
@@ -347,6 +340,7 @@ impl MultibodyResult {
         let position = &body.position_base;
         let attitude = &body.attitude_base;
 
+        let time = &self.sim_time;
         match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
             Ok(i) => {
                 // The target is exactly at index i
@@ -384,8 +378,9 @@ impl MultibodyResult {
                     }
 
                     let interp_attitude;
-                    if false { // TODO: fix squad
-                    //if i >= 2 && i < attitude.len() - 1 {
+                    if false {
+                        // TODO: fix squad
+                        //if i >= 2 && i < attitude.len() - 1 {
                         //squad
                         let q0 = attitude[i - 2];
                         let q3 = attitude[i + 1];

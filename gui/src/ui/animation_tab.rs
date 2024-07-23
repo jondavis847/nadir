@@ -1,11 +1,11 @@
 use crate::{ui::select_menu::SelectMenu, Message};
+use geometry::Geometry;
 use iced::{
     widget::{shader, Row},
     Element, Length, Point,
 };
-
-use geometry::Geometry;
 use multibody::result::MultibodyResult;
+use polars::datatypes::AnyValue;
 
 pub mod animator;
 use animator::Animator;
@@ -105,8 +105,15 @@ impl AnimationTab {
                     }
                 }
             }
-            self.scene.cuboids = cuboids;            
+            self.scene.cuboids = cuboids;
         }
+        let t = &result.sim_time;
+
+        let start_time = t[0] as f32;
+        let end_time = t[t.len() - 1] as f32;
+
+        let animator = Animator::new(start_time, end_time);
+        self.animator = animator;
         self.animator.start();
     }
 }
