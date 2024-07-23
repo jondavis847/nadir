@@ -4,7 +4,7 @@ pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
 use axes::AlignedAxes;
-use euler_angles::EulerAngles;
+use euler_angles::{EulerAngles, EulerSequence};
 use linear_algebra::vector3::Vector3;
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;

@@ -10,8 +10,10 @@ iced_aw = { version = "0.9.3", features = ["card", "modal", "selection_list"] }
 uuid = "1.9.1"
 mass_properties = {path = "../mass_properties"}
 multibody = {path = "../multibody"}
+linear_algebra = {path = "../linear_algebra"}
 lyon_geom = "1.0.5"
 lyon_path = "1.0.5"
+rotations = {path = "../rotations"}
 transforms = {path = "../transforms"}
 utilities = {path = "../utilities"}
 image = "0.25.1"

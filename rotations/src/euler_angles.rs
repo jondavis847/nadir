@@ -3,37 +3,33 @@ use super::*;
 use linear_algebra::vector3::Vector3;
 
 /// Enum representing different Euler angle sequences.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum EulerAngles {
-    XYZ(Angles),
-    XZY(Angles),
-    YXZ(Angles),
-    YZX(Angles),
-    ZXY(Angles),
-    ZYX(Angles),
-    XYX(Angles),
-    XZX(Angles),
-    YXY(Angles),
-    YZY(Angles),
-    ZXZ(Angles),
-    ZYZ(Angles),
-}
-
-impl Default for EulerAngles {
-    fn default() -> Self {
-        Self::identity()
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum EulerSequence {
+    XYZ,
+    XZY,
+    YXZ,
+    YZX,
+    ZXY,
+    #[default]
+    ZYX,
+    XYX,
+    XZX,
+    YXY,
+    YZY,
+    ZXZ,
+    ZYZ,
 }
 
 /// Struct representing Euler angles with a specific rotation sequence.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct Angles {
+pub struct EulerAngles {
     pub phi: f64,
     pub theta: f64,
     pub psi: f64,
+    pub sequence: EulerSequence,
 }
 
-impl Angles {
+impl EulerAngles {
     /// Creates a new `Angles` instance from a `Vector3` and a specified sequence.
     ///
     /// # Arguments
@@ -48,6 +44,7 @@ impl Angles {
             phi: v.e1,
             theta: v.e2,
             psi: v.e3,
+            sequence: EulerSequence::ZYX,
         }
     }
 
@@ -62,8 +59,13 @@ impl Angles {
     /// # Returns
     ///
     /// A new `Angles` instance.
-    pub fn new(phi: f64, theta: f64, psi: f64) -> Self {
-        Self { phi, theta, psi }
+    pub fn new(phi: f64, theta: f64, psi: f64, sequence: EulerSequence) -> Self {
+        Self {
+            phi,
+            theta,
+            psi,
+            sequence,
+        }
     }
 }
 
@@ -106,42 +108,42 @@ impl RotationTrait for EulerAngles {
     }
 
     fn inv(&self) -> EulerAngles {
-        match *self {
-            EulerAngles::XYZ(angles) => {
-                EulerAngles::ZYX(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+        match self.sequence {
+            EulerSequence::XYZ => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZYX)
             }
-            EulerAngles::XZY(angles) => {
-                EulerAngles::YZX(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            EulerSequence::XZY => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YZX)
             }
-            EulerAngles::YXZ(angles) => {
-                EulerAngles::ZXY(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            EulerSequence::YXZ => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZXY)
             }
-            EulerAngles::YZX(angles) => {
-                EulerAngles::XZY(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            EulerSequence::YZX => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XZY)
             }
-            EulerAngles::ZXY(angles) => {
-                EulerAngles::YXZ(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            EulerSequence::ZXY => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YXZ)
             }
-            EulerAngles::ZYX(angles) => {
-                EulerAngles::XYZ(Angles::new(-angles.psi, -angles.theta, -angles.phi))
+            EulerSequence::ZYX => {
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XYZ)
             }
-            EulerAngles::XYX(angles) => {
-                EulerAngles::XYX(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::XYX => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XYX)
             }
-            EulerAngles::XZX(angles) => {
-                EulerAngles::XZX(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::XZX => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XZX)
             }
-            EulerAngles::YXY(angles) => {
-                EulerAngles::YXY(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::YXY => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YXY)
             }
-            EulerAngles::YZY(angles) => {
-                EulerAngles::YZY(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::YZY => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YZY)
             }
-            EulerAngles::ZXZ(angles) => {
-                EulerAngles::ZXZ(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::ZXZ => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZXZ)
             }
-            EulerAngles::ZYZ(angles) => {
-                EulerAngles::ZYZ(Angles::new(-angles.phi, -angles.theta, -angles.psi))
+            EulerSequence::ZYZ => {
+                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZYZ)
             }
         }
     }
@@ -152,6 +154,6 @@ impl RotationTrait for EulerAngles {
     ///
     /// A new `Angles` instance representing no rotation.
     fn identity() -> Self {
-        EulerAngles::ZYX(Angles::new(0.0, 0.0, 0.0))
+        EulerAngles::new(0.0, 0.0, 0.0, EulerSequence::ZYX)
     }
 }

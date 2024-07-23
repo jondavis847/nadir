@@ -2,8 +2,8 @@ use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState,
-        JointTrait, JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
+        JointState, JointTrait, JointTransforms,
     },
     MultibodyTrait,
 };
@@ -95,6 +95,10 @@ impl JointTrait for Prismatic {
             self.common.connection.outer_body = None;
         }
         self.parameters.mass_properties = None;
+    }
+
+    fn get_connections(&self) -> &JointConnection {
+        &self.common.connection
     }
 
     fn get_inner_body_id(&self) -> Option<&Uuid> {

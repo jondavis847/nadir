@@ -1,7 +1,7 @@
 use super::vector3::Vector3;
 use rand::Rng;
 use std::fmt;
-use std::ops::{Add, Div, Mul, Neg, Sub, Index, IndexMut};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 use utilities::format_number;
 
 /// A 3x3 matrix.
@@ -29,6 +29,18 @@ impl Matrix3 {
         e31: 0.0,
         e32: 0.0,
         e33: 0.0,
+    };
+
+    pub const IDENTITY: Self = Self {
+        e11: 1.0,
+        e12: 0.0,
+        e13: 0.0,
+        e21: 0.0,
+        e22: 1.0,
+        e23: 0.0,
+        e31: 0.0,
+        e32: 0.0,
+        e33: 1.0,
     };
 
     pub fn new(

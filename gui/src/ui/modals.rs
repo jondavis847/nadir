@@ -220,6 +220,26 @@ pub fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
             |string| Message::RevoluteSpringConstantInputChanged(string),
         ));
 
+        let content = match joint.inner_transform {
+            GeometryPickList::None => content, //nothing to do
+            GeometryPickList::Cuboid => content
+                .push(create_text_input(
+                    "length",
+                    &cuboid.length,
+                    Message::CuboidLengthInputChanged,
+                ))
+                .push(create_text_input(
+                    "width",
+                    &cuboid.width,
+                    Message::CuboidWidthInputChanged,
+                ))
+                .push(create_text_input(
+                    "height",
+                    &cuboid.height,
+                    Message::CuboidHeightInputChanged,
+                )),
+        };
+
     let footer = Row::new()
         .spacing(10)
         .padding(5)

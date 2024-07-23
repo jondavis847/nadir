@@ -2,15 +2,15 @@ use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState,
-        JointTrait, JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
+        JointState, JointTrait, JointTransforms,
     },
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
 use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
 use rotations::{
-    euler_angles::{Angles, EulerAngles},
+    euler_angles::{EulerAngles, EulerSequence},
     Rotation,
 };
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -100,6 +100,9 @@ impl JointTrait for Revolute {
         self.parameters.mass_properties = None;
     }
 
+    fn get_connections(&self) -> &JointConnection {
+        &self.common.connection
+    }
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match &self.common.connection.inner_body {
             Some(connection) => Some(&connection.body_id),
@@ -268,9 +271,8 @@ impl JointSimTrait for RevoluteSim {
     fn get_transforms_mut(&mut self) -> &mut JointTransforms {
         &mut self.transforms
     }
-    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-        let angles = Angles::new(0.0, 0.0, self.state.theta);
-        let euler_angles = EulerAngles::ZYX(angles);
+    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {        
+        let euler_angles = EulerAngles::new(0.0, 0.0, self.state.theta, EulerSequence::ZYX);
         let rotation = Rotation::EulerAngles(euler_angles);
         let translation = CoordinateSystem::default();
         let transform = Transform::new(rotation, translation);

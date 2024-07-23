@@ -1,6 +1,6 @@
 use std::ops::Neg;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Axis {
     Xp,
     Xn,
@@ -10,13 +10,13 @@ pub enum Axis {
     Zn,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AxisPair {
     pub old: Axis,
     pub new: Axis,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AlignedAxes {
     pub primary: AxisPair,
     pub secondary: AxisPair,

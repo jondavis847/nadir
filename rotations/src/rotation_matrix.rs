@@ -4,8 +4,8 @@ use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
 use std::ops::Mul;
 
 /// A struct representing a 3x3 rotation matrix.
-#[derive(Debug, Copy, Clone)]
-pub struct RotationMatrix(Matrix3);
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct RotationMatrix(pub Matrix3);
 
 /// Errors that can occur when creating a `RotationMatrix`.
 #[derive(Debug, Copy, Clone)]
@@ -135,42 +135,43 @@ impl From<EulerAngles> for RotationMatrix {
         let rotz =
             |a: f64| Matrix3::new(a.cos(), -a.sin(), 0.0, a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
 
-        match euler_angles {
-            EulerAngles::XYZ(angles) => {
-                RotationMatrix::from(rotz(angles.psi) * roty(angles.theta) * rotx(angles.phi))
+        let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
+        match euler_angles.sequence {
+            EulerSequence::XYZ => {
+                RotationMatrix::from(rotz(psi) * roty(theta) * rotx(phi))
             }
-            EulerAngles::XZY(angles) => {
-                RotationMatrix::from(roty(angles.psi) * rotz(angles.theta) * rotx(angles.phi))
+            EulerSequence::XZY => {
+                RotationMatrix::from(roty(psi) * rotz(theta) * rotx(phi))
             }
-            EulerAngles::YXZ(angles) => {
-                RotationMatrix::from(rotz(angles.psi) * rotx(angles.theta) * roty(angles.phi))
+            EulerSequence::YXZ => {
+                RotationMatrix::from(rotz(psi) * rotx(theta) * roty(phi))
             }
-            EulerAngles::YZX(angles) => {
-                RotationMatrix::from(rotx(angles.psi) * rotz(angles.theta) * roty(angles.phi))
+            EulerSequence::YZX => {
+                RotationMatrix::from(rotx(psi) * rotz(theta) * roty(phi))
             }
-            EulerAngles::ZXY(angles) => {
-                RotationMatrix::from(roty(angles.psi) * rotx(angles.theta) * rotz(angles.phi))
+            EulerSequence::ZXY => {
+                RotationMatrix::from(roty(psi) * rotx(theta) * rotz(phi))
             }
-            EulerAngles::ZYX(angles) => {
-                RotationMatrix::from(rotx(angles.psi) * roty(angles.theta) * rotz(angles.phi))
+            EulerSequence::ZYX => {
+                RotationMatrix::from(rotx(psi) * roty(theta) * rotz(phi))
             }
-            EulerAngles::XYX(angles) => {
-                RotationMatrix::from(rotx(angles.psi) * roty(angles.theta) * rotx(angles.phi))
+            EulerSequence::XYX => {
+                RotationMatrix::from(rotx(psi) * roty(theta) * rotx(phi))
             }
-            EulerAngles::YXY(angles) => {
-                RotationMatrix::from(roty(angles.psi) * rotx(angles.theta) * roty(angles.phi))
+            EulerSequence::YXY => {
+                RotationMatrix::from(roty(psi) * rotx(theta) * roty(phi))
             }
-            EulerAngles::XZX(angles) => {
-                RotationMatrix::from(rotx(angles.psi) * rotz(angles.theta) * rotx(angles.phi))
+            EulerSequence::XZX => {
+                RotationMatrix::from(rotx(psi) * rotz(theta) * rotx(phi))
             }
-            EulerAngles::ZXZ(angles) => {
-                RotationMatrix::from(rotz(angles.psi) * rotx(angles.theta) * rotz(angles.phi))
+            EulerSequence::ZXZ => {
+                RotationMatrix::from(rotz(psi) * rotx(theta) * rotz(phi))
             }
-            EulerAngles::YZY(angles) => {
-                RotationMatrix::from(roty(angles.psi) * rotz(angles.theta) * roty(angles.phi))
+            EulerSequence::YZY => {
+                RotationMatrix::from(roty(psi) * rotz(theta) * roty(phi))
             }
-            EulerAngles::ZYZ(angles) => {
-                RotationMatrix::from(rotz(angles.psi) * roty(angles.theta) * rotz(angles.phi))
+            EulerSequence::ZYZ => {
+                RotationMatrix::from(rotz(psi) * roty(theta) * rotz(phi))
             }
         }
     }

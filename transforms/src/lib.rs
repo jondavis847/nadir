@@ -134,32 +134,32 @@ mod tests {
     use approx_eq::assert_approx_eq;
     use linear_algebra::vector3::Vector3;
     use rotations::{
-        euler_angles::{Angles, EulerAngles},
+        euler_angles::{EulerAngles, EulerSequence},
         quaternion::Quaternion,
     };
     use std::f64::consts::PI;
     const TOL: f64 = 1e-12;
 
     fn assert_transform_mul(
-        angles1: Angles,
+        angles1: EulerAngles,
         translation1: Cartesian,
-        angles2: Angles,
+        angles2: EulerAngles,
         translation2: Cartesian,
-        expected_angles: Angles,
+        expected_angles: EulerAngles,
         expected_translation: Cartesian,
         expected_vector: Vector3,
     ) {
-        let rotation1 = EulerAngles::XYZ(angles1).into();
+        let rotation1 = angles1.into();
         let transform1 = Transform::new(rotation1, translation1.into());
 
-        let rotation2 = EulerAngles::XYZ(angles2).into();
+        let rotation2 = angles2.into();
         let transform2 = Transform::new(rotation2, translation2.into());
 
         let result = transform2 * transform1;
         let result_rotation = Quaternion::from(result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
-        let expected_rotation = Quaternion::from(EulerAngles::XYZ(expected_angles));
+        let expected_rotation = Quaternion::from(expected_angles);
         let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
@@ -178,30 +178,30 @@ mod tests {
     }
 
     fn assert_transform_mul3(
-        angles1: Angles,
+        angles1: EulerAngles,
         translation1: Cartesian,
-        angles2: Angles,
+        angles2: EulerAngles,
         translation2: Cartesian,
-        angles3: Angles,
+        angles3: EulerAngles,
         translation3: Cartesian,
-        expected_angles: Angles,
+        expected_angles: EulerAngles,
         expected_translation: Cartesian,
         expected_vector: Vector3,
     ) {
-        let rotation1 = EulerAngles::XYZ(angles1).into();
+        let rotation1 = angles1.into();
         let transform1 = Transform::new(rotation1, translation1.into());
 
-        let rotation2 = EulerAngles::XYZ(angles2).into();
+        let rotation2 = angles2.into();
         let transform2 = Transform::new(rotation2, translation2.into());
 
-        let rotation3 = EulerAngles::XYZ(angles3).into();
+        let rotation3 = angles3.into();
         let transform3 = Transform::new(rotation3, translation3.into());
 
         let result = transform3 * (transform2 * transform1);
         let result_rotation = Quaternion::from(result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
-        let expected_rotation = Quaternion::from(EulerAngles::XYZ(expected_angles));
+        let expected_rotation = Quaternion::from(expected_angles);
         let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
@@ -221,11 +221,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_xx() {
-        let angles1 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let angles1 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let angles2 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(1.0, 0.0, 0.0);
-        let expected_angles = Angles::new(PI, 0.0, 0.0);
+        let expected_angles = EulerAngles::new(PI, 0.0, 0.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(2.0, 0.0, 0.0);
         let expected_vector = Vector3::new(-1.0, -2.0, -3.0);
 
@@ -242,11 +242,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_yy() {
-        let angles1 = Angles::new(0.0, PI / 2.0, 0.0);
+        let angles1 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles2 = Angles::new(0.0, PI / 2.0, 0.0);
+        let angles2 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let expected_angles = Angles::new(0.0, PI, 0.0);
+        let expected_angles = EulerAngles::new(0.0, PI, 0.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(0.0, 2.0, 0.0);
         let expected_vector = Vector3::new(-1.0, 0.0, -3.0);
 
@@ -263,11 +263,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_zz() {
-        let angles1 = Angles::new(0.0, 0.0, PI / 2.0);
+        let angles1 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(0.0, 0.0, 1.0);
-        let angles2 = Angles::new(0.0, 0.0, PI / 2.0);
+        let angles2 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = Angles::new(0.0, 0.0, PI);
+        let expected_angles = EulerAngles::new(0.0, 0.0, PI, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(0.0, 0.0, 2.0);
         let expected_vector = Vector3::new(-1.0, -2.0, 1.0);
 
@@ -284,11 +284,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_xy() {
-        let angles1 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let angles1 =EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = Angles::new(0.0, PI / 2.0, 0.0);
+        let angles2 =EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let expected_angles = Angles::new(PI / 2.0, PI / 2.0, 0.0);
+        let expected_angles =EulerAngles::new(PI / 2.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(1.0, 0.0, 1.0);
         let expected_vector = Vector3::new(2.0, 2.0, 0.0);
 
@@ -305,11 +305,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_xz() {
-        let angles1 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let angles1 =EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = Angles::new(0.0, 0.0, PI / 2.0);
+        let angles2 =EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = Angles::new(PI / 2.0, 0.0, PI / 2.0);
+        let expected_angles =EulerAngles::new(PI / 2.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(1.0, -1.0, 0.0);
         let expected_vector = Vector3::new(3.0, 0.0, -3.0);
 
@@ -326,11 +326,11 @@ mod tests {
 
     #[test]
     fn test_transform_mul_yz() {
-        let angles1 = Angles::new(0.0, PI / 2.0, 0.0);
+        let angles1 =EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles2 = Angles::new(0.0, 0.0, PI / 2.0);
+        let angles2 =EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = Angles::new(0.0, PI / 2.0, PI / 2.0);
+        let expected_angles =EulerAngles::new(0.0, PI / 2.0, PI / 2.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(1.0, 1.0, 0.0);
         let expected_vector = Vector3::new(1.0, 3.0, 0.0);
 
@@ -347,14 +347,14 @@ mod tests {
 
     #[test]
     fn test_transform_mul_zyx() {
-        let angles1 = Angles::new(0.0, 0.0, PI / 2.0);
+        let angles1 =EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
         let translation1 = Cartesian::new(0.0, 0.0, 1.0);
-        let angles2 = Angles::new(0.0, PI / 2.0, 0.0);
+        let angles2 =EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles3 = Angles::new(PI / 2.0, 0.0, 0.0);
+        let angles3 =EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
         let translation3 = Cartesian::new(1.0, 0.0, 0.0);
 
-        let expected_angles = Angles::new(PI / 2.0, PI / 2.0, -PI / 2.0);
+        let expected_angles =EulerAngles::new(PI / 2.0, PI / 2.0, -PI / 2.0, EulerSequence::XYZ);
         let expected_translation = Cartesian::new(-1.0, 0.0, 0.0);
         let expected_vector = Vector3::new(-3.0, 2.0, 2.0);
 

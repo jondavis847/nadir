@@ -5,7 +5,7 @@ use std::fmt;
 use std::ops::{Add, Mul, Neg, Sub};
 
 /// A struct representing a quaternion for 3D rotations.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,
@@ -396,115 +396,81 @@ impl From<EulerAngles> for Quaternion {
         let s = |v: f64| (v / 2.0).sin();
         let c = |v: f64| (v / 2.0).cos();
 
-        match euler_angles {
-            EulerAngles::XYZ(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
-                    y: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
-                    z: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
-                    s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::XZY(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
-                    y: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
-                    z: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
-                    s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::YXZ(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
-                    y: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
-                    z: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
-                    s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::YZX(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
-                    y: s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
-                    z: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
-                    s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::ZXY(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
-                    y: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
-                    z: c(phi) * s(theta) * s(psi) + s(phi) * c(theta) * c(psi),
-                    s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::ZYX(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
-                    y: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
-                    z: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
-                    s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-                }
-            }
-            EulerAngles::XYX(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(theta) * s(phi + psi),
-                    y: s(theta) * c(phi - psi),
-                    z: s(theta) * s(phi - psi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
-            EulerAngles::XZX(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: c(theta) * s(phi + psi),
-                    y: s(theta) * s(psi - phi),
-                    z: s(theta) * c(psi - phi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
-            EulerAngles::YXY(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(theta) * c(psi - phi),
-                    y: c(theta) * s(phi + psi),
-                    z: s(theta) * s(psi - phi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
-            EulerAngles::YZY(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(theta) * s(phi - psi),
-                    y: c(theta) * s(phi + psi),
-                    z: s(theta) * c(phi - psi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
-            EulerAngles::ZXZ(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(theta) * c(phi - psi),
-                    y: s(theta) * s(phi - psi),
-                    z: c(theta) * s(phi + psi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
-            EulerAngles::ZYZ(angles) => {
-                let (phi, theta, psi) = (angles.phi, angles.theta, angles.psi);
-                Quaternion {
-                    x: s(theta) * s(psi - phi),
-                    y: s(theta) * c(psi - phi),
-                    z: c(theta) * s(phi + psi),
-                    s: c(theta) * c(phi + psi),
-                }
-            }
+        let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
+
+        match euler_angles.sequence {
+            EulerSequence::XYZ => Quaternion {
+                x: s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
+                y: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
+                z: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
+                s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::XZY => Quaternion {
+                x: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
+                y: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
+                z: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
+                s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::YXZ => Quaternion {
+                x: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
+                y: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
+                z: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
+                s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::YZX => Quaternion {
+                x: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
+                y: s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
+                z: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
+                s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::ZXY => Quaternion {
+                x: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
+                y: c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
+                z: c(phi) * s(theta) * s(psi) + s(phi) * c(theta) * c(psi),
+                s: c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::ZYX => Quaternion {
+                x: c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
+                y: c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
+                z: s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
+                s: c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
+            },
+            EulerSequence::XYX => Quaternion {
+                x: c(theta) * s(phi + psi),
+                y: s(theta) * c(phi - psi),
+                z: s(theta) * s(phi - psi),
+                s: c(theta) * c(phi + psi),
+            },
+            EulerSequence::XZX => Quaternion {
+                x: c(theta) * s(phi + psi),
+                y: s(theta) * s(psi - phi),
+                z: s(theta) * c(psi - phi),
+                s: c(theta) * c(phi + psi),
+            },
+            EulerSequence::YXY => Quaternion {
+                x: s(theta) * c(psi - phi),
+                y: c(theta) * s(phi + psi),
+                z: s(theta) * s(psi - phi),
+                s: c(theta) * c(phi + psi),
+            },
+            EulerSequence::YZY => Quaternion {
+                x: s(theta) * s(phi - psi),
+                y: c(theta) * s(phi + psi),
+                z: s(theta) * c(phi - psi),
+                s: c(theta) * c(phi + psi),
+            },
+            EulerSequence::ZXZ => Quaternion {
+                x: s(theta) * c(phi - psi),
+                y: s(theta) * s(phi - psi),
+                z: c(theta) * s(phi + psi),
+                s: c(theta) * c(phi + psi),
+            },
+            EulerSequence::ZYZ => Quaternion {
+                x: s(theta) * s(psi - phi),
+                y: s(theta) * c(psi - phi),
+                z: c(theta) * s(phi + psi),
+                s: c(theta) * c(phi + psi),
+            },
         }
     }
 }
@@ -572,7 +538,6 @@ impl fmt::Debug for Quaternion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::euler_angles::Angles;
     use approx_eq::assert_approx_eq;
     use std::f64::consts::PI;
     const TOL: f64 = 1e-12;
@@ -627,7 +592,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_xyz() {
-        let a = EulerAngles::XYZ(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XYZ);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.701057384649978);
@@ -638,7 +603,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_xzy() {
-        let a = EulerAngles::XZY(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XZY);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.430459334576879);
@@ -649,7 +614,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_yxz() {
-        let a = EulerAngles::YXZ(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YXZ);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.560985526796931);
@@ -660,7 +625,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_yzx() {
-        let a = EulerAngles::YZX(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YZX);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.560985526796931);
@@ -671,7 +636,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_zxy() {
-        let a = EulerAngles::ZXY(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZXY);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.092295955641257);
@@ -682,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_zyx() {
-        let a = EulerAngles::ZYX(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZYX);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, -0.092295955641257);
@@ -693,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_xyx() {
-        let a = EulerAngles::XYX(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XYX);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.8001031451912654);
@@ -704,7 +669,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_xzx() {
-        let a = EulerAngles::XZX(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XZX);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.8001031451912654);
@@ -715,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_yxy() {
-        let a = EulerAngles::YXY(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YXY);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.4619397662556433);
@@ -726,7 +691,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_yzy() {
-        let a = EulerAngles::YZY(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YZY);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.1913417161825449);
@@ -737,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_zxz() {
-        let a = EulerAngles::ZXZ(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZXZ);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, 0.4619397662556433);
@@ -748,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_from_zyz() {
-        let a = EulerAngles::ZYZ(Angles::new(PI / 2.0, PI / 3.0, PI / 4.0));
+        let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZYZ);
         let result = Quaternion::from(a);
 
         assert_approx_eq!(result.x, -0.1913417161825449);
@@ -759,7 +724,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_transform_x() {
-        let a = EulerAngles::XYZ(Angles::new(PI / 4.0, 0.0, 0.0));
+        let a = EulerAngles::new(PI / 4.0, 0.0, 0.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(0.0, 1.0, 0.0);
         let result = q.transform(v);
@@ -771,7 +736,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_rotate_x() {
-        let a = EulerAngles::XYZ(Angles::new(PI / 4.0, 0.0, 0.0));
+        let a = EulerAngles::new(PI / 4.0, 0.0, 0.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(0.0, 1.0, 0.0);
         let result = q.rotate(v);
@@ -783,7 +748,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_transform_y() {
-        let a = EulerAngles::XYZ(Angles::new(0.0, PI / 4.0, 0.0));
+        let a = EulerAngles::new(0.0, PI / 4.0, 0.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.transform(v);
@@ -795,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_rotate_y() {
-        let a = EulerAngles::XYZ(Angles::new(0.0, PI / 4.0, 0.0));
+        let a = EulerAngles::new(0.0, PI / 4.0, 0.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.rotate(v);
@@ -807,7 +772,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_transform_z() {
-        let a = EulerAngles::XYZ(Angles::new(0.0, 0.0, PI / 4.0));
+        let a = EulerAngles::new(0.0, 0.0, PI / 4.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.transform(v);
@@ -819,7 +784,7 @@ mod tests {
 
     #[test]
     fn test_quaternion_rotate_z() {
-        let a = EulerAngles::XYZ(Angles::new(0.0, 0.0, PI / 4.0));
+        let a = EulerAngles::new(0.0, 0.0, PI / 4.0, EulerSequence::XYZ);
         let q = Quaternion::from(a);
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.rotate(v);

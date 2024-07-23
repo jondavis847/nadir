@@ -2,6 +2,7 @@ use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use utilities::{generate_unique_id, unique_strings};
+use linear_algebra::matrix3::Matrix3;
 
 use crate::multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
 use crate::ui::{
@@ -13,7 +14,10 @@ use crate::ui::{
 };
 use crate::{
     ui::{
-        dummies::{DummyComponent, GeometryPickList},
+        dummies::{
+            DummyComponent, GeometryPickList, RotationPickList, TransformFields,
+            TranslationPickList,
+        },
         modals::ActiveModal,
         sim_tab::{
             canvas::{
@@ -26,7 +30,12 @@ use crate::{
     Message,
 };
 use geometry::Geometry;
-use multibody::{joint::Joint, result::MultibodyResult, MultibodyTrait};
+use multibody::{
+    joint::{Joint, JointTrait},
+    result::MultibodyResult,
+    MultibodyTrait,
+};
+use rotations::{quaternion::Quaternion, Rotation};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -257,12 +266,46 @@ impl AppState {
                 }
                 DummyComponent::Revolute => {
                     let joint = self.graph.system.joints.get(&component_id).unwrap();
-                    match joint {
+                    let dummy = match joint {
                         Joint::Revolute(revolute) => {
                             self.nodebar.dummies.revolute.get_values_from(revolute);
                             dummy_type = DummyComponent::Revolute;
+                            self.nodebar.dummies.revolute
                         }
                         _ => panic!("should not be possible to another joint"),
+                    };
+                    let connections = joint.get_connections();
+                    if let Some(inner_body) = connections.inner_body {
+                        let transform = inner_body.transform;
+                        let mut transform_fields = TransformFields::default();
+
+                        let mut rotation_is_identity = false;
+                        let mut translation_is_identity = false;
+
+                        match transform.rotation {
+                            Rotation::Quaternion(quaternion) => {
+                                transform_fields.rotation = RotationPickList::Quaternion;
+                                if quaternion == Quaternion::IDENTITY {                                    
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar.dummies.quaternion.get_values_from(&quaternion);
+                            }
+                            Rotation::RotationMatrix(matrix) => {
+                                transform_fields.rotation = RotationPickList::RotationMatrix;
+                                if matrix.0 == Matrix3::IDENTITY {                                    
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar.dummies.rotation_matrix.get_values_from(&matrix);
+                            }
+
+                            Rotation::EulerAngles(euler_angles) => {
+                                transform_fields.rotation = RotationPickList::EulerAngles;                                
+                                if Quaternion::from(euler_angles) == Quaternion::IDENTITY {                                    
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar.dummies.euler_angles.get_values_from(&euler_angles);
+                            }
+                        }
                     }
                 }
                 DummyComponent::Prismatic => {

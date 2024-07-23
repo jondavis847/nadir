@@ -1,4 +1,5 @@
 use geometry::cuboid::Cuboid;
+use linear_algebra::matrix3::Matrix3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,
@@ -10,6 +11,12 @@ use multibody::{
     },
     MultibodyTrait,
 };
+use rotations::{
+    axes::Axis,
+    euler_angles::{EulerAngles, EulerSequence},
+    quaternion::Quaternion,
+    rotation_matrix::RotationMatrix,
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct Dummies {
@@ -18,6 +25,10 @@ pub struct Dummies {
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
     pub cuboid: DummyCuboid,
+    pub quaternion: DummyQuaternion,
+    pub rotation_matrix: DummyRotationMatrix,
+    pub euler_angles: DummyEulerAngles,
+    pub aligned_axes: DummyAlignedAxes,
 }
 
 /// DummyComponents are like MultibodyComponents but with String fields
@@ -140,6 +151,38 @@ impl DummyBody {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
+pub enum TransformPickList {
+    #[default]
+    Identity,
+    Custom(TransformFields),
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct TransformFields {
+    pub rotation: RotationPickList,
+    pub translation: TranslationPickList,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub enum RotationPickList {
+    #[default]
+    Identity,
+    AlignedAxes,
+    EulerAngles,
+    Quaternion,
+    RotationMatrix,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub enum TranslationPickList {
+    #[default]
+    Zero,
+    Cartesian,
+    Cylindrical,
+    Spherical,
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct DummyRevolute {
     pub constant_force: String,
@@ -148,6 +191,8 @@ pub struct DummyRevolute {
     pub omega: String,
     pub spring_constant: String,
     pub theta: String,
+    pub inner_transform: TransformPickList,
+    pub outer_transform: TransformPickList,
 }
 
 impl DummyRevolute {
@@ -158,6 +203,7 @@ impl DummyRevolute {
         self.spring_constant = String::new();
         self.damping = String::new();
         self.constant_force = String::new();
+        self.inner_transform = TransformPickList::Identity;
     }
     pub fn get_values_from(&mut self, rev: &Revolute) {
         self.name = rev.get_name().to_string();
@@ -316,5 +362,186 @@ impl std::fmt::Display for GeometryPickList {
                 GeometryPickList::Cuboid => "Cuboid",
             }
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum DummyRotations {
+    Quaternion(DummyQuaternion),
+    RotationMatrix(DummyRotationMatrix),
+    EulerAngles(DummyEulerAngles),
+    AlignedAxes(DummyAlignedAxes),
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct DummyQuaternion {
+    pub w: String,
+    pub x: String,
+    pub y: String,
+    pub z: String,
+}
+
+impl DummyQuaternion {
+    pub fn new() -> Self {
+        Self {
+            w: String::new(),
+            x: String::new(),
+            y: String::new(),
+            z: String::new(),
+        }
+    }
+    pub fn clear(&mut self) {
+        self.w = String::new();
+        self.x = String::new();
+        self.y = String::new();
+        self.z = String::new();
+    }
+
+    pub fn get_values_from(&mut self, quaternion: &Quaternion) {
+        self.w = quaternion.s.to_string();
+        self.x = quaternion.x.to_string();
+        self.y = quaternion.y.to_string();
+        self.z = quaternion.z.to_string();
+    }
+
+    pub fn set_values_for(&self, quaternion: &mut Quaternion) {
+        quaternion.s = self.w.parse::<f64>().unwrap();
+        quaternion.x = self.x.parse::<f64>().unwrap();
+        quaternion.y = self.y.parse::<f64>().unwrap();
+        quaternion.z = self.z.parse::<f64>().unwrap();
+    }
+
+    pub fn to_quaternion(&self) -> Quaternion {
+        // ensure that either all entries are empty or all entries are full
+        let all_empty =
+            self.w.is_empty() && self.x.is_empty() && self.y.is_empty() && self.z.is_empty();
+        let all_full =
+            !self.w.is_empty() && !self.x.is_empty() && !self.y.is_empty() && !self.z.is_empty();
+
+        if !all_empty && !all_full {
+            panic!("quaternion values must either be all empty or all provided");
+        }
+
+        let w = self.w.parse::<f64>().unwrap_or(1.0);
+        let x = self.x.parse::<f64>().unwrap_or(0.0);
+        let y = self.y.parse::<f64>().unwrap_or(0.0);
+        let z = self.z.parse::<f64>().unwrap_or(0.0);
+
+        Quaternion::new(x, y, z, w)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct DummyRotationMatrix {
+    pub e11: String,
+    pub e12: String,
+    pub e13: String,
+    pub e21: String,
+    pub e22: String,
+    pub e23: String,
+    pub e31: String,
+    pub e32: String,
+    pub e33: String,
+}
+
+impl DummyRotationMatrix {
+    pub fn clear(&mut self) {
+        self.e11 = String::new();
+        self.e12 = String::new();
+        self.e13 = String::new();
+        self.e21 = String::new();
+        self.e22 = String::new();
+        self.e23 = String::new();
+        self.e31 = String::new();
+        self.e32 = String::new();
+        self.e33 = String::new();
+    }
+
+    pub fn get_values_from(&mut self, rotation: &RotationMatrix) {
+        self.e11 = rotation.0.e11.to_string();
+        self.e12 = rotation.0.e12.to_string();
+        self.e13 = rotation.0.e13.to_string();
+        self.e21 = rotation.0.e21.to_string();
+        self.e22 = rotation.0.e22.to_string();
+        self.e23 = rotation.0.e23.to_string();
+        self.e31 = rotation.0.e31.to_string();
+        self.e32 = rotation.0.e32.to_string();
+        self.e33 = rotation.0.e33.to_string();
+    }
+
+    pub fn set_values_for(&self, rotation: &mut RotationMatrix) {
+        rotation.0.e11 = self.e11.parse::<f64>().unwrap_or(1.0);
+        rotation.0.e12 = self.e12.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e13 = self.e13.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e21 = self.e21.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e22 = self.e22.parse::<f64>().unwrap_or(1.0);
+        rotation.0.e23 = self.e23.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e31 = self.e31.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e32 = self.e32.parse::<f64>().unwrap_or(0.0);
+        rotation.0.e33 = self.e33.parse::<f64>().unwrap_or(1.0);
+    }
+
+    pub fn to_rotation_matrix(&self) -> RotationMatrix {
+        let mut rotation = RotationMatrix(Matrix3::IDENTITY);
+        self.set_values_for(&mut rotation);
+        rotation
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct DummyEulerAngles {
+    pub phi: String,
+    pub theta: String,
+    pub psi: String,
+    pub sequence: EulerSequence,
+}
+impl DummyEulerAngles {
+    pub fn clear(&mut self) {
+        self.phi = String::new();
+        self.theta = String::new();
+        self.psi = String::new();
+        self.sequence = EulerSequence::ZYX;
+    }
+
+    pub fn get_values_from(&mut self, euler_angles: &EulerAngles) {
+        self.phi = euler_angles.phi.to_string();
+        self.theta = euler_angles.theta.to_string();
+        self.psi = euler_angles.psi.to_string();
+        self.sequence = euler_angles.sequence;
+    }
+
+    pub fn set_values_for(&self, euler_angles: &mut EulerAngles) {
+        euler_angles.phi = self.phi.parse::<f64>().unwrap();
+        euler_angles.theta = self.theta.parse::<f64>().unwrap();
+        euler_angles.psi = self.psi.parse::<f64>().unwrap();
+        euler_angles.sequence = self.sequence;
+    }
+
+    pub fn to_euler_angles(&self) -> EulerAngles {
+        let phi = self.phi.parse::<f64>().unwrap_or(0.0);
+        let theta = self.theta.parse::<f64>().unwrap_or(0.0);
+        let psi = self.psi.parse::<f64>().unwrap_or(0.0);
+        let sequence = self.sequence;
+
+        EulerAngles::new(phi, theta, psi, sequence)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DummyAlignedAxes {
+    pub primary_from: Axis,
+    pub primary_to: Axis,
+    pub secondary_from: Axis,
+    pub secondary_to: Axis,
+}
+
+impl Default for DummyAlignedAxes {
+    fn default() -> Self {
+        Self {
+            primary_from: Axis::Xp,
+            primary_to: Axis::Xp,
+            secondary_from: Axis::Yp,
+            secondary_to: Axis::Yp,
+        }
     }
 }
