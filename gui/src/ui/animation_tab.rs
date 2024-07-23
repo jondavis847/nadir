@@ -71,7 +71,7 @@ impl AnimationTab {
             .into()
     }
 
-    pub fn left_button_pressed(&self, position: Point) {
+    pub fn left_button_pressed(&self, _position: Point) {
         //Nothing for now
     }
 

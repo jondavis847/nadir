@@ -1,5 +1,3 @@
-use super::{Rotation, RotationMatrix};
-use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
 use std::ops::Neg;
 
 #[derive(Debug, Clone, Copy)]

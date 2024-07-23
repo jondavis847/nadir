@@ -1,4 +1,4 @@
-use iced::{application, widget::text_input::StyleSheet, Border, Color};
+use iced::{application, Border, Color};
 
 macro_rules! color {
     ($red:expr, $green:expr, $blue:expr) => {
@@ -116,7 +116,7 @@ impl iced::widget::scrollable::StyleSheet for Theme {
     }
     fn hovered(
         &self,
-        style: &Self::Style,
+        _style: &Self::Style,
         _is_mouse_over_scrollber: bool,
     ) -> iced::widget::scrollable::Appearance {
         let mut border = iced::Border::with_radius(2.0);
@@ -405,7 +405,7 @@ impl iced::widget::pick_list::StyleSheet for Theme {
             border: Border::default(),
         }
     }
-    fn hovered(&self, style: &Self::Style) -> iced::widget::pick_list::Appearance {
+    fn hovered(&self, _style: &Self::Style) -> iced::widget::pick_list::Appearance {
         iced::widget::pick_list::Appearance {
             text_color: self.text,
             placeholder_color: self.greyed,
@@ -420,7 +420,7 @@ impl iced::widget::overlay::menu::StyleSheet for Theme {
     type Style = ();
 
     // Required method
-    fn appearance(&self, style: &Self::Style) -> iced::widget::overlay::menu::Appearance {
+    fn appearance(&self, _style: &Self::Style) -> iced::widget::overlay::menu::Appearance {
         iced::widget::overlay::menu::Appearance {
             text_color: self.text,
             background: self.background.into(),

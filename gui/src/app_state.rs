@@ -1,4 +1,3 @@
-use iced::advanced::graphics::text::cosmic_text::rustybuzz::script::GEORGIAN;
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -14,7 +13,7 @@ use crate::ui::{
 };
 use crate::{
     ui::{
-        dummies::{DummyComponent, DummyCuboid, DummyGeometry, GeometryPickList},
+        dummies::{DummyComponent, GeometryPickList},
         modals::ActiveModal,
         sim_tab::{
             canvas::{
@@ -81,13 +80,13 @@ impl AppState {
                 };
             }
             AppTabs::Animation => {
-                if let Some(result) = &self.animation_tab.result {
+                if self.animation_tab.result.is_some() {
                     self.animation_tab.animate(instant);
                 }
             }
             AppTabs::Plot => {}
         }
-        
+
         Command::none()
     }
 

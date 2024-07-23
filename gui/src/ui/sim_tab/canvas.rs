@@ -1,4 +1,3 @@
-use graph::Graph;
 use iced::{
     mouse::{self, Cursor},
     widget::canvas::{

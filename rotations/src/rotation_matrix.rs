@@ -1,5 +1,5 @@
 use super::*;
-use axes::{AlignedAxes, Axis, AxisPair};
+use axes::{AlignedAxes, Axis};
 use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
 use std::ops::Mul;
 
@@ -304,7 +304,8 @@ impl Mul<RotationMatrix> for RotationMatrix {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
+    use axes::AxisPair;
+    use linear_algebra::matrix3::Matrix3;
 
     #[test]
     fn test_rotation_from_aligned_axes_1() {

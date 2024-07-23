@@ -1,4 +1,4 @@
-use geometry::{cuboid::Cuboid, Geometry};
+use geometry::cuboid::Cuboid;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,
