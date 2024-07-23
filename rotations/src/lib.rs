@@ -1,13 +1,16 @@
 use std::ops::Mul;
+pub mod axes;
 pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
+use axes::AlignedAxes;
 use euler_angles::EulerAngles;
 use linear_algebra::vector3::Vector3;
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
 
 pub mod prelude {
+    pub use crate::axes::*;
     pub use crate::euler_angles::*;
     pub use crate::quaternion::*;
     pub use crate::rotation_matrix::*;
@@ -17,7 +20,6 @@ pub mod prelude {
 
 /// Trait defining rotation and transformation operations.
 pub trait RotationTrait {
-
     /// Rotates a vector by the rotation.
     ///
     /// # Arguments
@@ -106,6 +108,23 @@ impl From<EulerAngles> for Rotation {
     fn from(euler: EulerAngles) -> Self {
         let quaternion = Quaternion::from(euler);
         Rotation::Quaternion(quaternion)
+    }
+}
+
+impl From<AlignedAxes> for Rotation {
+    /// Converts Aligned Axes to a rotation by converting to rotation matrix.
+    /// TODO: Should we just go all the way to quaternion?
+    ///
+    /// # Arguments
+    ///
+    /// * `aligned_axes` - The Aligned Axes to be converted.
+    ///
+    /// # Returns
+    ///
+    /// A new `Rotation` instance representing the converted quaternion.
+    fn from(aligned_axes: AlignedAxes) -> Self {
+        let rotation_matrix = RotationMatrix::from(aligned_axes);
+        Rotation::RotationMatrix(rotation_matrix)
     }
 }
 

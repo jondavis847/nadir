@@ -2,7 +2,7 @@ use super::matrix3::Matrix3;
 /// A 3-dimensional vector.
 use rand::Rng;
 use std::fmt;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub, Index, IndexMut};
 use utilities::format_number;
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -156,6 +156,30 @@ impl Div<f64> for Vector3 {
     type Output = Self;
     fn div(self, f: f64) -> Self {
         Vector3::new(self.e1 / f, self.e2 / f, self.e3 / f)
+    }
+}
+
+impl Index<usize> for Vector3 {
+    type Output = f64;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.e1,
+            1 => &self.e2,
+            2 => &self.e3,
+            _ => panic!("Index out of bounds"),
+        }
+    }
+}
+
+impl IndexMut<usize> for Vector3 {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        match index {
+            0 => &mut self.e1,
+            1 => &mut self.e2,
+            2 => &mut self.e3,
+            _ => panic!("Index out of bounds"),
+        }
     }
 }
 

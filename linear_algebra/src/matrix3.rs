@@ -1,7 +1,7 @@
 use super::vector3::Vector3;
 use rand::Rng;
 use std::fmt;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub, Index, IndexMut};
 use utilities::format_number;
 
 /// A 3x3 matrix.
@@ -19,6 +19,18 @@ pub struct Matrix3 {
 }
 
 impl Matrix3 {
+    pub const ZERO: Self = Self {
+        e11: 0.0,
+        e12: 0.0,
+        e13: 0.0,
+        e21: 0.0,
+        e22: 0.0,
+        e23: 0.0,
+        e31: 0.0,
+        e32: 0.0,
+        e33: 0.0,
+    };
+
     pub fn new(
         e11: f64,
         e12: f64,
@@ -222,6 +234,42 @@ impl Mul<f64> for Matrix3 {
             self.e32 * f,
             self.e33 * f,
         )
+    }
+}
+
+impl Index<(usize, usize)> for Matrix3 {
+    type Output = f64;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        match index {
+            (0, 0) => &self.e11,
+            (0, 1) => &self.e12,
+            (0, 2) => &self.e13,
+            (1, 0) => &self.e21,
+            (1, 1) => &self.e22,
+            (1, 2) => &self.e23,
+            (2, 0) => &self.e31,
+            (2, 1) => &self.e32,
+            (2, 2) => &self.e33,
+            _ => panic!("invalid index - make sure 0 based"),
+        }
+    }
+}
+
+impl IndexMut<(usize, usize)> for Matrix3 {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        match index {
+            (0, 0) => &mut self.e11,
+            (0, 1) => &mut self.e12,
+            (0, 2) => &mut self.e13,
+            (1, 0) => &mut self.e21,
+            (1, 1) => &mut self.e22,
+            (1, 2) => &mut self.e23,
+            (2, 0) => &mut self.e31,
+            (2, 1) => &mut self.e32,
+            (2, 2) => &mut self.e33,
+            _ => panic!("invalid index - make sure 0 based"),
+        }
     }
 }
 

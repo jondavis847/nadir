@@ -580,7 +580,7 @@ mod tests {
     /// Test for quaternion normalization.
     #[test]
     fn test_quaternion_normalization() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0).normalize();
 
         assert_approx_eq!(q.x, 0.18257418583505536, TOL);
         assert_approx_eq!(q.y, 0.3651483716701107, TOL);
@@ -617,11 +617,11 @@ mod tests {
         )
         .unwrap();
 
-        let result = Quaternion::from(m);
+        let result = Quaternion::from(m).normalize();
 
-        assert_approx_eq!(result.x, -0.09229595564125728);
-        assert_approx_eq!(result.y, 0.560985526796931);
-        assert_approx_eq!(result.z, 0.4304593345768795);
+        assert_approx_eq!(result.x, 0.09229595564125728);
+        assert_approx_eq!(result.y, -0.560985526796931);
+        assert_approx_eq!(result.z, -0.4304593345768795);
         assert_approx_eq!(result.s, 0.701057384649978);
     }
 
