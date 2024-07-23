@@ -25,6 +25,7 @@ use ui::{
         GeometryPickList,
     },
     errors::Errors,
+    modals::create_base_modal,
     sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
     theme::Theme,
@@ -387,30 +388,6 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     modal(underlay, overlay)
         .on_esc(Message::CloseModal)
         .align_y(alignment::Vertical::Center)
-        .into()
-}
-
-fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, Theme> {
-    let content = Column::new();
-    let footer = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(
-            button("Cancel")
-                .width(Length::Fill)
-                .on_press(Message::CloseModal),
-        )
-        .push(
-            button("Ok")
-                .width(Length::Fill)
-                .on_press(Message::SaveComponent),
-        );
-
-    //title doesnt work yet
-    card("Base Information", content)
-        .foot(footer)
-        .max_width(500.0)
         .into()
 }
 
