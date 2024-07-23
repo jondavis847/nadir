@@ -402,7 +402,11 @@ impl iced::widget::pick_list::StyleSheet for Theme {
             placeholder_color: self.greyed,
             handle_color: self.primary,
             background: self.background.into(),
-            border: Border::default(),
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
         }
     }
     fn hovered(&self, _style: &Self::Style) -> iced::widget::pick_list::Appearance {
@@ -411,7 +415,11 @@ impl iced::widget::pick_list::StyleSheet for Theme {
             placeholder_color: self.greyed,
             handle_color: self.primary,
             background: self.background.into(),
-            border: Border::default(),
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
         }
     }
 }

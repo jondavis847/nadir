@@ -58,6 +58,7 @@ pub fn create_body_modal<'a>(
     let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
         Row::new()
             .spacing(10)
+            .padding(5)
             .push(text(label).width(Length::FillPortion(1)))
             .push(
                 text_input(label, value)
@@ -124,11 +125,21 @@ pub fn create_body_modal<'a>(
             &body.iyz,
             Message::BodyIyzInputChanged,
         ))
-        .push(pick_list(
-            &GeometryPickList::ALL[..],
-            Some(body.geometry),
-            Message::GeometrySelected,
-        ));
+        .push(
+            Row::new()
+                .spacing(10)
+                .padding(5)
+                .push(text("Geometry").width(Length::FillPortion(1)))
+                .push(
+                    pick_list(
+                        &GeometryPickList::ALL[..],
+                        Some(body.geometry),
+                        Message::GeometrySelected,
+                    )
+                    .width(Length::FillPortion(1)),
+                )
+                .width(Length::Fill),
+        );
 
     let content = match body.geometry {
         GeometryPickList::None => content, //nothing to do
