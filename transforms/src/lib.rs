@@ -6,7 +6,8 @@ use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use std::ops::Mul;
 
-pub mod prelude {
+pub mod prelude {  
+    pub use crate::Transform;  
     pub use coordinate_systems::prelude::*;
     pub use rotations::prelude::*;
 }
@@ -20,6 +21,11 @@ pub struct Transform {
 }
 
 impl Transform {
+    pub const IDENTITY: Self = Self {
+        rotation: Rotation::IDENTITY,
+        translation: CoordinateSystem::ZERO,
+    };
+
     pub fn new(rotation: Rotation, translation: CoordinateSystem) -> Self {
         Self {
             rotation,

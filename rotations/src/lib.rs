@@ -65,6 +65,11 @@ impl Default for Rotation {
         Rotation::Quaternion(Quaternion::identity())
     }
 }
+
+impl Rotation {
+    pub const IDENTITY: Self = Rotation::Quaternion(Quaternion::IDENTITY);
+}
+
 impl From<Quaternion> for Rotation {
     /// Converts Quaternion to a Rotation.
     ///

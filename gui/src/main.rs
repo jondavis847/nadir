@@ -256,12 +256,10 @@ impl Application for GadgtGui {
                 Message::EnterPressed => state.enter_pressed(),
                 Message::TabPressed => state.tab_pressed(),
                 Message::InnerTransformSelected(transform) => {
-                    println!("{} selected", transform);
-                    Command::none()
+                    state.inner_transform_selected(transform)
                 }
                 Message::OuterTransformSelected(transform) => {
-                    println!("{} selected", transform);
-                    Command::none()
+                    state.outer_transform_selected(transform)
                 }
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),

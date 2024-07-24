@@ -35,6 +35,8 @@ impl Default for CoordinateSystem {
 }
 
 impl CoordinateSystem {
+    pub const ZERO: Self = CoordinateSystem::Cartesian(Cartesian::ZERO);
+
     pub fn vec(&self) -> Vector3 {
         match self {
             CoordinateSystem::Cartesian(cs) => cs.vec(),

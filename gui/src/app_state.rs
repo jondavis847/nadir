@@ -159,16 +159,33 @@ impl AppState {
     }
 
     pub fn geometry_selected(&mut self, geometry: GeometryPickList) -> Command<Message> {
-        match geometry {
-            GeometryPickList::None => self.nodebar.dummies.body.geometry = GeometryPickList::None,
-            GeometryPickList::Cuboid => {
-                self.nodebar.dummies.body.geometry = GeometryPickList::Cuboid
-            }
-        }
-
+        self.nodebar.dummies.body.geometry = geometry;
         Command::none()
     }
-
+    pub fn inner_transform_selected(&mut self, transform: TransformPickList) -> Command<Message> {
+        if let Some(modal) = self.modal {
+            match modal.dummy_type {
+                DummyComponent::Revolute => self.nodebar.dummies.revolute.inner_transform = transform,
+                DummyComponent::Prismatic => self.nodebar.dummies.prismatic.inner_transform = transform,
+                _ => panic!("should not be possible to get here if active modal is not a joint (need to change for sensors/actuators")
+            }
+        } else {
+            panic!("should not be possible to get here without an active modal")
+        };
+        Command::none()
+    }
+    pub fn outer_transform_selected(&mut self, transform: TransformPickList) -> Command<Message> {
+        if let Some(modal) = self.modal {
+            match modal.dummy_type {
+                DummyComponent::Revolute => self.nodebar.dummies.revolute.outer_transform = transform,
+                DummyComponent::Prismatic => self.nodebar.dummies.prismatic.outer_transform = transform,
+                _ => panic!("should not be possible to get here if active modal is not a joint (need to change for sensors/actuators")
+            }
+        } else {
+            panic!("should not be possible to get here without an active modal")
+        };
+        Command::none()
+    }
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         self.left_clicked_time_1 = self.left_clicked_time_2;
         self.left_clicked_time_2 = Some(Instant::now());
@@ -266,18 +283,80 @@ impl AppState {
                     dummy_type = DummyComponent::Body;
                 }
                 DummyComponent::Revolute => {
-                    let joint = self.graph.system.joints.get(&component_id).unwrap();
+                    let joint = self.graph.system.joints.get(&component_id).unwrap();                    
                     let dummy = match joint {
                         Joint::Revolute(revolute) => {
                             self.nodebar.dummies.revolute.get_values_from(revolute);
                             dummy_type = DummyComponent::Revolute;
                             &mut self.nodebar.dummies.revolute
                         }
-                        _ => panic!("should not be possible to another joint"),
+                        _ => panic!("should not be possible to be another joint"),
                     };
                     let connections = joint.get_connections();
                     if let Some(inner_body) = &connections.inner_body {
                         let transform = inner_body.transform;
+
+                        let mut dummy_transform = DummyTransform::default();
+
+                        let mut rotation_is_identity = false;
+                        let mut translation_is_zero = false;
+
+                        match transform.rotation {
+                            Rotation::Quaternion(quaternion) => {
+                                dummy_transform.rotation = RotationPickList::Quaternion;
+                                if quaternion == Quaternion::IDENTITY {
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar.dummies.quaternion.get_values_from(&quaternion);
+                            }
+                            Rotation::RotationMatrix(matrix) => {
+                                dummy_transform.rotation = RotationPickList::RotationMatrix;
+                                if matrix.0 == Matrix3::IDENTITY {
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar
+                                    .dummies
+                                    .rotation_matrix
+                                    .get_values_from(&matrix);
+                            }
+
+                            Rotation::EulerAngles(euler_angles) => {
+                                dummy_transform.rotation = RotationPickList::EulerAngles;
+                                if Quaternion::from(euler_angles) == Quaternion::IDENTITY {
+                                    rotation_is_identity = true;
+                                }
+                                self.nodebar
+                                    .dummies
+                                    .euler_angles
+                                    .get_values_from(&euler_angles);
+                            }
+                        }
+
+                        if rotation_is_identity {
+                            dummy_transform.rotation = RotationPickList::Identity;
+                        }
+                        match transform.translation {
+                            CoordinateSystem::Cartesian(cartesian) => {
+                                dummy_transform.translation = TranslationPickList::Cartesian;
+                                if cartesian == Cartesian::ZERO {
+                                    translation_is_zero = true;
+                                }
+                                self.nodebar.dummies.cartesian.get_values_from(&cartesian);
+                            }
+                            _ => panic!("should not be possible yet"),
+                        }
+                        if translation_is_zero {
+                            dummy_transform.translation = TranslationPickList::Zero;
+                        }
+                        match rotation_is_identity && translation_is_zero {
+                            true => dummy.inner_transform = TransformPickList::Identity,
+                            false => dummy.inner_transform = TransformPickList::Custom,
+                        }
+                    } else {
+                        dummy.inner_transform = TransformPickList::Identity;
+                    }
+                    if let Some(outer_body) = &connections.outer_body {
+                        let transform = outer_body.transform;
 
                         let mut dummy_transform = DummyTransform::default();
 
@@ -624,7 +703,62 @@ impl AppState {
                         let joint = self.graph.system.joints.get_mut(&id).unwrap();
                         match joint {
                             Joint::Revolute(revolute) => {
-                                self.nodebar.dummies.revolute.set_values_for(revolute);
+                                let dummy = &self.nodebar.dummies.revolute;
+                                dummy.set_values_for(revolute);
+                                if let Some(inner_body) = &mut revolute.common.connection.inner_body {
+                                    match dummy.inner_transform {
+                                        TransformPickList::Identity => {
+                                            inner_body.transform = Transform::IDENTITY
+                                        }
+                                        TransformPickList::Custom => {
+                                            let transform =
+                                                &self.nodebar.dummies.joint_inner_transform;
+                                            let rotation = match transform.rotation {
+                                                RotationPickList::Identity => Rotation::IDENTITY,
+                                                RotationPickList::AlignedAxes => {
+                                                    Rotation::from(RotationMatrix::from(
+                                                        self.nodebar
+                                                            .dummies
+                                                            .aligned_axes
+                                                            .to_aligned_axes(),
+                                                    ))
+                                                }
+                                                RotationPickList::Quaternion => Rotation::from(
+                                                    self.nodebar.dummies.quaternion.to_quaternion(),
+                                                ),
+                                                RotationPickList::RotationMatrix => Rotation::from(
+                                                    self.nodebar
+                                                        .dummies
+                                                        .rotation_matrix
+                                                        .to_rotation_matrix(),
+                                                ),
+                                                RotationPickList::EulerAngles => Rotation::from(
+                                                    self.nodebar
+                                                        .dummies
+                                                        .euler_angles
+                                                        .to_euler_angles(),
+                                                ),
+                                            };
+                                            let translation = match transform.translation {
+                                                TranslationPickList::Zero => CoordinateSystem::ZERO,
+                                                TranslationPickList::Cartesian => {
+                                                    CoordinateSystem::from(
+                                                        self.nodebar
+                                                            .dummies
+                                                            .cartesian
+                                                            .to_cartesian(),
+                                                    )
+                                                }
+                                                _ => panic!(
+                                                    "need to add other coordinate system dummies"
+                                                ),
+                                            };
+
+                                            inner_body.transform =
+                                                Transform::new(rotation, translation);
+                                        }
+                                    }
+                                }
                                 let graph_node = self.graph.nodes.get_mut(&id).unwrap();
                                 graph_node.node.label = revolute.get_name().to_string();
                             }

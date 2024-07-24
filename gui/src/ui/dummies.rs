@@ -199,6 +199,7 @@ impl TransformPickList {
         };
         content.into()
     }
+    
 }
 
 impl std::fmt::Display for TransformPickList {
@@ -303,6 +304,8 @@ pub struct DummyPrismatic {
     pub position: String,
     pub spring_constant: String,
     pub velocity: String,
+    pub inner_transform: TransformPickList,
+    pub outer_transform: TransformPickList,
 }
 
 impl DummyPrismatic {
@@ -313,6 +316,8 @@ impl DummyPrismatic {
         self.spring_constant = String::new();
         self.damping = String::new();
         self.constant_force = String::new();
+        self.inner_transform = TransformPickList::Identity;
+        self.outer_transform = TransformPickList::Identity
     }
     pub fn get_values_from(&mut self, rev: &Prismatic) {
         self.name = rev.get_name().to_string();
