@@ -1,6 +1,7 @@
 use super::dummies::{
-    DummyBase, DummyBody, DummyComponent, DummyCuboid, DummyPrismatic, DummyRevolute,
-    GeometryPickList, TransformPickList,
+    DummyAlignedAxes, DummyBase, DummyBody, DummyComponent, DummyCuboid, DummyEulerAngles,
+    DummyPrismatic, DummyQuaternion, DummyRevolute, DummyRotationMatrix, DummyTransform,
+    GeometryPickList, RotationPickList, TransformPickList, TranslationPickList,
 };
 use crate::{
     ui::{errors::Errors, theme::Theme},
@@ -11,6 +12,7 @@ use iced::{
     Element, Length,
 };
 use iced_aw::widgets::card;
+use lyon_geom::Rotation;
 use uuid::Uuid;
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveModal {
@@ -313,5 +315,118 @@ pub fn create_error_modal(error: Errors) -> Element<'static, Message, Theme> {
         .foot(footer)
         .max_width(500.0)
         .style(crate::ui::theme::Card::Error)
+        .into()
+}
+
+pub fn create_transform_modal<'a>(
+    transform: &'a DummyTransform,
+    aligned_axes: &'a DummyAlignedAxes,
+    euler_angles: &'a DummyEulerAngles,
+    quaternion: &'a DummyQuaternion,
+    rotation_matrix: &'a DummyRotationMatrix,
+) -> Element<'a, Message, Theme> {
+    let content = Column::new().push(
+        Row::new()
+            .spacing(10)
+            .padding(5)
+            .push(text("Type").width(Length::FillPortion(1)))
+            .push(
+                pick_list(
+                    &TransformPickList::ALL[..],
+                    Some(transform.transform_type),
+                    Message::TransformSelected,
+                )
+                .width(Length::FillPortion(1)),
+            )
+            .width(Length::Fill),
+    );
+
+    let content = match transform.transform_type {
+        TransformPickList::Identity => content, // no further content needed
+        TransformPickList::Custom => {
+            // add rotation pick list
+            let content = content.push(
+                Row::new()
+                    .spacing(10)
+                    .padding(5)
+                    .push(text("Rotation").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &RotationPickList::ALL[..],
+                            Some(transform.rotation),
+                            Message::TransformRotationSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    )
+                    .width(Length::Fill),
+            );
+
+            // add content based on the rotation
+            let content = match transform.rotation {
+                RotationPickList::Identity => content, //no further content needed
+                RotationPickList::Quaternion => content.push(quaternion.content()),
+                RotationPickList::RotationMatrix => content.push(rotation_matrix.content()),
+                RotationPickList::AlignedAxes => content.push(aligned_axes.content()),
+                RotationPickList::EulerAngles => content.push(euler_angles.content()),
+            };
+
+            // add translation pick list
+            let content = content.push(
+                Row::new()
+                    .spacing(10)
+                    .padding(5)
+                    .push(text("Translation").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &TranslationPickList::ALL[..],
+                            Some(transform.translation),
+                            Message::TransformTranslationSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    )
+                    .width(Length::Fill),
+            );
+
+            content.into()
+        }
+    };
+
+    let footer = Row::new()
+        .spacing(10)
+        .padding(5)
+        .width(Length::Fill)
+        .push(
+            button("Cancel")
+                .width(Length::Fill)
+                .on_press(crate::Message::CloseModal),
+        )
+        .push(
+            button("Ok")
+                .width(Length::Fill)
+                .on_press(crate::Message::SaveComponent),
+        );
+
+    card("Transform Information", content)
+        .foot(footer)
+        .max_width(500.0)
+        .into()
+}
+
+pub fn create_text_input<'a>(
+    label: &'a str,
+    value: &'a str,
+    on_input: fn(String) -> Message,
+) -> Element<'a, Message, Theme> {
+    Row::new()
+        .spacing(10)
+        .padding(5)
+        .push(text(label).width(Length::FillPortion(1)))
+        .push(
+            text_input(label, value)
+                .on_input(on_input)
+                .on_submit(Message::SaveComponent)
+                .width(Length::FillPortion(4)),
+        )
+        .width(Length::Fill)
         .into()
 }

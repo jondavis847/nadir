@@ -10,6 +10,7 @@ use iced::{
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription, Vector,
 };
 use iced_aw::modal;
+use rotations::{axes::Axis, euler_angles::EulerSequence};
 use std::{env, path::Path};
 
 mod app_state;
@@ -17,10 +18,15 @@ mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
-use multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
+use multibody_ui::{
+    BodyField, CuboidField, EulerAnglesField, PrismaticField, QuaternionField, RevoluteField,
+    RotationMatrixField,
+};
 
 use ui::{
-    dummies::{DummyComponent, GeometryPickList, TransformPickList},
+    dummies::{
+        DummyComponent, GeometryPickList, RotationPickList, TransformPickList, TranslationPickList,
+    },
     modals::{
         create_base_modal, create_body_modal, create_error_modal, create_prismatic_modal,
         create_revolute_modal,
@@ -59,6 +65,10 @@ fn main() -> iced::Result {
 enum Message {
     AnimationSimSelected(String),
     AnimationTick(Instant),
+    AxisPrimaryFromSelected(Axis),
+    AxisPrimaryToSelected(Axis),
+    AxisSecondaryFromSelected(Axis),
+    AxisSecondaryToSelected(Axis),
     BodyNameInputChanged(String),
     BodyMassInputChanged(String),
     BodyCmxInputChanged(String),
@@ -87,6 +97,23 @@ enum Message {
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
+    EulerAngleSequenceChanged(EulerSequence),
+    EulerAnglePhiChanged(String),
+    EulerAngleThetaChanged(String),
+    EulerAnglePsiChanged(String),
+    QuaternionWChanged(String),
+    QuaternionXChanged(String),
+    QuaternionYChanged(String),
+    QuaternionZChanged(String),
+    RotationMatrixE11Changed(String),
+    RotationMatrixE12Changed(String),
+    RotationMatrixE13Changed(String),
+    RotationMatrixE21Changed(String),
+    RotationMatrixE22Changed(String),
+    RotationMatrixE23Changed(String),
+    RotationMatrixE31Changed(String),
+    RotationMatrixE32Changed(String),
+    RotationMatrixE33Changed(String),
     SimDtChanged(String),
     SimNameChanged(String),
     SimStartTimeChanged(String),
@@ -99,7 +126,9 @@ enum Message {
     TabAnimationCameraRotation(Vector),
     TabPlotPressed,
     TabSimulationPressed,
-    TransformSelected(TransformPickList),    
+    TransformSelected(TransformPickList),
+    TransformRotationSelected(RotationPickList),
+    TransformTranslationSelected(TranslationPickList),
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -159,6 +188,12 @@ impl Application for GadgtGui {
             GadgtGui::Loaded(state) => match message {
                 Message::AnimationSimSelected(string) => state.animation_sim_selected(string),
                 Message::AnimationTick(instant) => state.animation(instant),
+                Message::AxisPrimaryFromSelected(value) => state.axis_primary_from_selected(value),
+                Message::AxisPrimaryToSelected(value) => state.axis_primary_to_selected(value),
+                Message::AxisSecondaryFromSelected(value) => {
+                    state.axis_secondary_from_selected(value)
+                }
+                Message::AxisSecondaryToSelected(value) => state.axis_secondary_to_selected(value),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
                 Message::BodyNameInputChanged(value) => {
@@ -195,13 +230,13 @@ impl Application for GadgtGui {
                     state.update_body_field(BodyField::Iyz, &value)
                 }
                 Message::CuboidLengthInputChanged(value) => {
-                    state.update_cuboid_field(CuboidField::Length, &value)
+                    state.update_cuboid_field(CuboidField::Length, value)
                 }
                 Message::CuboidWidthInputChanged(value) => {
-                    state.update_cuboid_field(CuboidField::Width, &value)
+                    state.update_cuboid_field(CuboidField::Width, value)
                 }
                 Message::CuboidHeightInputChanged(value) => {
-                    state.update_cuboid_field(CuboidField::Height, &value)
+                    state.update_cuboid_field(CuboidField::Height, value)
                 }
                 Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
                 Message::RevoluteConstantForceInputChanged(value) => {
@@ -241,7 +276,57 @@ impl Application for GadgtGui {
                 Message::PrismaticPositionInputChanged(value) => {
                     state.update_prismatic_field(PrismaticField::Position, value)
                 }
-
+                Message::EulerAngleSequenceChanged(sequence) => {
+                    state.update_euler_angle_sequence(sequence)
+                }
+                Message::EulerAnglePhiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Phi, value)
+                }
+                Message::EulerAngleThetaChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Theta, value)
+                }
+                Message::EulerAnglePsiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Psi, value)
+                }
+                Message::QuaternionWChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::W, value)
+                }
+                Message::QuaternionXChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::X, value)
+                }
+                Message::QuaternionYChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::Y, value)
+                }
+                Message::QuaternionZChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::Z, value)
+                }
+                Message::RotationMatrixE11Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E11, value)
+                }
+                Message::RotationMatrixE12Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E12, value)
+                }
+                Message::RotationMatrixE13Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E13, value)
+                }
+                Message::RotationMatrixE21Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E21, value)
+                }
+                Message::RotationMatrixE22Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E22, value)
+                }
+                Message::RotationMatrixE23Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E23, value)
+                }
+                Message::RotationMatrixE31Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E31, value)
+                }
+                Message::RotationMatrixE32Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E32, value)
+                }
+                Message::RotationMatrixE33Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E33, value)
+                }
                 Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                 Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
                 Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
@@ -253,7 +338,7 @@ impl Application for GadgtGui {
                 Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
                 Message::DeletePressed => state.delete_pressed(),
                 Message::EnterPressed => state.enter_pressed(),
-                Message::TabPressed => state.tab_pressed(),                
+                Message::TabPressed => state.tab_pressed(),
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
@@ -286,6 +371,12 @@ impl Application for GadgtGui {
                 }
                 Message::ResultSelected(_) => Command::none(),
                 Message::TransformSelected(transform) => state.transform_selected(transform),
+                Message::TransformTranslationSelected(transform) => {
+                    state.transform_translation_selected(transform)
+                }
+                Message::TransformRotationSelected(transform) => {
+                    state.transform_rotation_selected(transform)
+                }
             },
         }
     }

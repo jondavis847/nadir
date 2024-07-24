@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 use transforms::prelude::*;
 use utilities::{generate_unique_id, unique_strings};
 
-use crate::multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
+use crate::multibody_ui::{
+    BodyField, CuboidField, EulerAnglesField, PrismaticField, QuaternionField, RevoluteField,
+    RotationMatrixField,
+};
 use crate::ui::dummies::TransformPickList;
 use crate::ui::{
     animation_tab::AnimationTab,
@@ -105,6 +108,24 @@ impl AppState {
         self.animation_tab.sim_selected(result);
         Command::none()
     }
+
+    pub fn axis_primary_from_selected(&mut self, axis: Axis) -> Command<Message> {
+        self.nodebar.dummies.aligned_axes.primary_from = axis;
+        Command::none()
+    }
+    pub fn axis_primary_to_selected(&mut self, axis: Axis) -> Command<Message> {
+        self.nodebar.dummies.aligned_axes.primary_to = axis;
+        Command::none()
+    }
+    pub fn axis_secondary_from_selected(&mut self, axis: Axis) -> Command<Message> {
+        self.nodebar.dummies.aligned_axes.secondary_from = axis;
+        Command::none()
+    }
+    pub fn axis_secondary_to_selected(&mut self, axis: Axis) -> Command<Message> {
+        self.nodebar.dummies.aligned_axes.secondary_to = axis;
+        Command::none()
+    }
+
     pub fn close_error(&mut self) -> Command<Message> {
         self.active_error = None;
         Command::none()
@@ -659,6 +680,17 @@ impl AppState {
         Command::none()
     }
 
+    pub fn transform_translation_selected(
+        &mut self,
+        transform: TranslationPickList,
+    ) -> Command<Message> {
+        Command::none()
+    }
+
+    pub fn transform_rotation_selected(&mut self, transform: RotationPickList) -> Command<Message> {
+        Command::none()
+    }
+
     pub fn update_body_field(&mut self, field: BodyField, value: &str) -> Command<Message> {
         let dummy_body = &mut self.nodebar.dummies.body;
 
@@ -679,13 +711,33 @@ impl AppState {
         Command::none()
     }
 
-    pub fn update_cuboid_field(&mut self, field: CuboidField, value: &str) -> Command<Message> {
+    pub fn update_cuboid_field(&mut self, field: CuboidField, string: String) -> Command<Message> {
         let dummy = &mut self.nodebar.dummies.cuboid;
 
         match field {
-            CuboidField::Length => dummy.length = value.to_string(),
-            CuboidField::Width => dummy.width = value.to_string(),
-            CuboidField::Height => dummy.height = value.to_string(),
+            CuboidField::Length => dummy.length = string,
+            CuboidField::Width => dummy.width = string,
+            CuboidField::Height => dummy.height = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_euler_angle_sequence(&mut self, sequence: EulerSequence) -> Command<Message> {
+        self.nodebar.dummies.euler_angles.sequence = sequence;
+        Command::none()
+    }
+
+    pub fn update_euler_angle_field(
+        &mut self,
+        field: EulerAnglesField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.euler_angles;
+        match field {
+            EulerAnglesField::Phi => dummy.phi = string,
+            EulerAnglesField::Theta => dummy.theta = string,
+            EulerAnglesField::Psi => dummy.psi = string,
         }
 
         Command::none()
@@ -722,6 +774,43 @@ impl AppState {
             PrismaticField::Velocity => dummy_prismatic.velocity = string,
             PrismaticField::SpringConstant => dummy_prismatic.spring_constant = string,
             PrismaticField::Position => dummy_prismatic.position = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_quaternion_field(
+        &mut self,
+        field: QuaternionField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy_quaternion = &mut self.nodebar.dummies.quaternion;
+        match field {
+            QuaternionField::W => dummy_quaternion.w = string,
+            QuaternionField::X => dummy_quaternion.x = string,
+            QuaternionField::Y => dummy_quaternion.y = string,
+            QuaternionField::Z => dummy_quaternion.z = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_rotation_matrix_field(
+        &mut self,
+        field: RotationMatrixField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.rotation_matrix;
+        match field {
+            RotationMatrixField::E11 => dummy.e11 = string,
+            RotationMatrixField::E12 => dummy.e12 = string,
+            RotationMatrixField::E13 => dummy.e13 = string,
+            RotationMatrixField::E21 => dummy.e21 = string,
+            RotationMatrixField::E22 => dummy.e22 = string,
+            RotationMatrixField::E23 => dummy.e23 = string,
+            RotationMatrixField::E31 => dummy.e31 = string,
+            RotationMatrixField::E32 => dummy.e32 = string,
+            RotationMatrixField::E33 => dummy.e33 = string,
         }
 
         Command::none()

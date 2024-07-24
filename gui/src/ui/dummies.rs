@@ -19,9 +19,12 @@ use rotations::{
     rotation_matrix::RotationMatrix,
 };
 
-use crate::{ui::theme::Theme, Message};
+use crate::{
+    ui::{modals::create_text_input, theme::Theme},
+    Message,
+};
 use iced::{
-    widget::{pick_list, text, Row},
+    widget::{pick_list, text, text_input, Column, Row},
     Element, Length,
 };
 
@@ -209,11 +212,12 @@ impl std::fmt::Display for TransformPickList {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct DummyTransform {
+    pub transform_type: TransformPickList,
     pub rotation: RotationPickList,
     pub translation: TranslationPickList,
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub enum RotationPickList {
     #[default]
     Identity,
@@ -223,13 +227,63 @@ pub enum RotationPickList {
     RotationMatrix,
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+impl RotationPickList {
+    pub const ALL: [RotationPickList; 5] = [
+        RotationPickList::Identity,
+        RotationPickList::AlignedAxes,
+        RotationPickList::EulerAngles,
+        RotationPickList::Quaternion,
+        RotationPickList::RotationMatrix,
+    ];
+}
+
+impl std::fmt::Display for RotationPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                RotationPickList::Identity => "Identity",
+                RotationPickList::AlignedAxes => "Aligned Axes",
+                RotationPickList::EulerAngles => "Euler Angles",
+                RotationPickList::Quaternion => "Quaternion",
+                RotationPickList::RotationMatrix => "Rotation Matrix",
+            }
+        )
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub enum TranslationPickList {
     #[default]
     Zero,
     Cartesian,
     Cylindrical,
     Spherical,
+}
+
+impl TranslationPickList {
+    pub const ALL: [TranslationPickList; 4] = [
+        TranslationPickList::Zero,
+        TranslationPickList::Cartesian,
+        TranslationPickList::Cylindrical,
+        TranslationPickList::Spherical,
+    ];
+}
+
+impl std::fmt::Display for TranslationPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TranslationPickList::Zero => "Zero",
+                TranslationPickList::Cartesian => "Cartesian",
+                TranslationPickList::Cylindrical => "Cylindrical",
+                TranslationPickList::Spherical => "Spherical",
+            }
+        )
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -443,6 +497,31 @@ impl DummyQuaternion {
         self.z = String::new();
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "w",
+                self.w.as_str(),
+                Message::QuaternionWChanged,
+            ))
+            .push(create_text_input(
+                "x",
+                self.x.as_str(),
+                Message::QuaternionXChanged,
+            ))
+            .push(create_text_input(
+                "y",
+                self.y.as_str(),
+                Message::QuaternionYChanged,
+            ))
+            .push(create_text_input(
+                "z",
+                self.z.as_str(),
+                Message::QuaternionZChanged,
+            ))
+            .into()
+    }
+
     pub fn get_values_from(&mut self, quaternion: &Quaternion) {
         self.w = quaternion.s.to_string();
         self.x = quaternion.x.to_string();
@@ -503,6 +582,65 @@ impl DummyRotationMatrix {
         self.e33 = String::new();
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(
+                Row::new()
+                    .push(
+                        text_input("1,1", &self.e11)
+                            .on_input(Message::RotationMatrixE11Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("1,2", &self.e12)
+                            .on_input(Message::RotationMatrixE12Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("1,3", &self.e13)
+                            .on_input(Message::RotationMatrixE13Changed)
+                            .width(Length::FillPortion(3)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .push(
+                        text_input("2,1", &self.e21)
+                            .on_input(Message::RotationMatrixE21Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("2,2", &self.e22)
+                            .on_input(Message::RotationMatrixE22Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("2,3", &self.e23)
+                            .on_input(Message::RotationMatrixE23Changed)
+                            .width(Length::FillPortion(3)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .push(
+                        text_input("3,1", &self.e31)
+                            .on_input(Message::RotationMatrixE31Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("3,2", &self.e32)
+                            .on_input(Message::RotationMatrixE32Changed)
+                            .width(Length::FillPortion(3)),
+                    )
+                    .push(
+                        text_input("3,3", &self.e33)
+                            .on_input(Message::RotationMatrixE33Changed)
+                            .width(Length::FillPortion(3)),
+                    ),
+            )
+            .into()
+    }
+
     pub fn get_values_from(&mut self, rotation: &RotationMatrix) {
         self.e11 = rotation.0.e11.to_string();
         self.e12 = rotation.0.e12.to_string();
@@ -541,6 +679,7 @@ pub struct DummyEulerAngles {
     pub psi: String,
     pub sequence: EulerSequence,
 }
+
 impl DummyEulerAngles {
     pub fn clear(&mut self) {
         self.phi = String::new();
@@ -549,18 +688,46 @@ impl DummyEulerAngles {
         self.sequence = EulerSequence::ZYX;
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "phi",
+                self.phi.as_str(),
+                Message::EulerAnglePhiChanged,
+            ))
+            .push(create_text_input(
+                "theta",
+                self.phi.as_str(),
+                Message::EulerAngleThetaChanged,
+            ))
+            .push(create_text_input(
+                "psi",
+                self.phi.as_str(),
+                Message::EulerAnglePsiChanged,
+            ))
+            .push(
+                pick_list(
+                    &EulerSequence::ALL[..],
+                    Some(self.sequence),
+                    Message::EulerAngleSequenceChanged,
+                )
+                .width(Length::FillPortion(1)),
+            )
+            .into()
+    }
+
     pub fn get_values_from(&mut self, euler_angles: &EulerAngles) {
         self.phi = euler_angles.phi.to_string();
         self.theta = euler_angles.theta.to_string();
         self.psi = euler_angles.psi.to_string();
-        self.sequence = euler_angles.sequence;
+        self.sequence = euler_angles.sequence.into();
     }
 
     pub fn set_values_for(&self, euler_angles: &mut EulerAngles) {
         euler_angles.phi = self.phi.parse::<f64>().unwrap();
         euler_angles.theta = self.theta.parse::<f64>().unwrap();
         euler_angles.psi = self.psi.parse::<f64>().unwrap();
-        euler_angles.sequence = self.sequence;
+        euler_angles.sequence = self.sequence.into();
     }
 
     pub fn to_euler_angles(&self) -> EulerAngles {
@@ -600,6 +767,53 @@ impl DummyAlignedAxes {
         self.secondary_to = Axis::Yp;
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(
+                Row::new()
+                    .push(text("from").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &Axis::ALL[..],
+                            Some(self.primary_from),
+                            Message::AxisPrimaryFromSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    )
+                    .push(text("to").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &Axis::ALL[..],
+                            Some(self.primary_to),
+                            Message::AxisPrimaryToSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    ),
+            )
+            .push(
+                Row::new()
+                    .push(text("from").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &Axis::ALL[..],
+                            Some(self.secondary_from),
+                            Message::AxisSecondaryFromSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    )
+                    .push(text("to").width(Length::FillPortion(1)))
+                    .push(
+                        pick_list(
+                            &Axis::ALL[..],
+                            Some(self.secondary_to),
+                            Message::AxisSecondaryToSelected,
+                        )
+                        .width(Length::FillPortion(1)),
+                    ),
+            )
+            .into()
+    }
+
     pub fn get_values_from(&mut self, axes: &AlignedAxes) {
         self.primary_from = axes.primary.old;
         self.primary_to = axes.primary.new;
@@ -637,20 +851,20 @@ impl DummyCartesian {
 
     pub fn get_values_from(&mut self, cart: &Cartesian) {
         self.x = cart.x.to_string();
-        self.y = cart.x.to_string();
-        self.z = cart.x.to_string();
+        self.y = cart.y.to_string();
+        self.z = cart.z.to_string();
     }
 
     pub fn set_values_for(&self, cart: &mut Cartesian) {
         cart.x = self.x.parse::<f64>().unwrap_or(0.0);
-        cart.y = self.z.parse::<f64>().unwrap_or(0.0);
+        cart.y = self.y.parse::<f64>().unwrap_or(0.0);
         cart.z = self.z.parse::<f64>().unwrap_or(0.0);
     }
 
     pub fn to_cartesian(&self) -> Cartesian {
         Cartesian::new(
             self.x.parse::<f64>().unwrap_or(0.0),
-            self.z.parse::<f64>().unwrap_or(0.0),
+            self.y.parse::<f64>().unwrap_or(0.0),
             self.z.parse::<f64>().unwrap_or(0.0),
         )
     }

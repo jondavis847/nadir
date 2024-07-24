@@ -9,6 +9,28 @@ pub enum Axis {
     Zp,
     Zn,
 }
+// needed for iced pick_list
+//TODO just put this in gui as EulerSequencePickList or something
+impl Axis {
+    pub const ALL: [Axis; 6] = [Axis::Xp, Axis::Yp, Axis::Zp, Axis::Xn, Axis::Yn, Axis::Zn];
+}
+
+impl std::fmt::Display for Axis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Axis::Xp => "+X",
+                Axis::Yp => "+Y",
+                Axis::Zp => "+Z",
+                Axis::Xn => "-X",
+                Axis::Yn => "-Y",
+                Axis::Zn => "-Z",
+            }
+        )
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AxisPair {

@@ -20,6 +20,47 @@ pub enum EulerSequence {
     ZYZ,
 }
 
+// needed for iced pick_list
+impl EulerSequence {
+    pub const ALL: [EulerSequence; 12] = [
+        EulerSequence::XYZ,
+        EulerSequence::XZY,
+        EulerSequence::YXZ,
+        EulerSequence::YZX,
+        EulerSequence::ZXY,
+        EulerSequence::ZYX,
+        EulerSequence::XYX,
+        EulerSequence::XZX,
+        EulerSequence::YXY,
+        EulerSequence::YZY,
+        EulerSequence::ZXZ,
+        EulerSequence::ZYZ,
+    ];
+}
+
+impl std::fmt::Display for EulerSequence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                EulerSequence::XYZ => "XYZ",
+                EulerSequence::XZY => "XZY",
+                EulerSequence::YXZ => "YXZ",
+                EulerSequence::YZX => "YZX",
+                EulerSequence::ZXY => "ZXY",
+                EulerSequence::ZYX => "ZYX",
+                EulerSequence::XYX => "XYX",
+                EulerSequence::XZX => "XZX",
+                EulerSequence::YXY => "YXY",
+                EulerSequence::YZY => "YZY",
+                EulerSequence::ZXZ => "ZXZ",
+                EulerSequence::ZYZ => "ZYZ",
+            }
+        )
+    }
+}
+
 /// Struct representing Euler angles with a specific rotation sequence.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct EulerAngles {

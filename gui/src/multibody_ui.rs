@@ -38,3 +38,34 @@ pub enum CuboidField {
     Width,
     Height,
 }
+
+pub enum QuaternionField {
+    W,
+    X,
+    Y,
+    Z,
+}
+
+pub enum EulerAnglesField {
+    Phi,
+    Theta,
+    Psi,
+}
+
+pub enum RotationMatrixField {
+    E11,
+    E12,
+    E13,
+    E21,
+    E22,
+    E23,
+    E31,
+    E32,
+    E33,
+}
+
+pub enum CartesianField {
+    X,
+    Y,
+    Z,
+}
