@@ -60,7 +60,7 @@ pub struct Graph {
 impl Default for Graph {
     fn default() -> Self {
         Self {
-            bounds: Rectangle::new(Point::new(150.0, 0.0), Size::new(2000.0, 1000.0)), // this is too big and in consequential since the container is Length::Fill
+            bounds: Rectangle::new(Point::new(150.0, 0.0), Size::new(1280.0-150.0, 720.0)), // this is too big and in consequential since the container is Length::Fill
             system: MultibodySystem::new(),
             current_edge: None,
             edges: HashMap::new(),
