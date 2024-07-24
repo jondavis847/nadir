@@ -99,8 +99,7 @@ enum Message {
     TabAnimationCameraRotation(Vector),
     TabPlotPressed,
     TabSimulationPressed,
-    OuterTransformSelected(TransformPickList),
-    InnerTransformSelected(TransformPickList),
+    TransformSelected(TransformPickList),    
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -254,13 +253,7 @@ impl Application for GadgtGui {
                 Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
                 Message::DeletePressed => state.delete_pressed(),
                 Message::EnterPressed => state.enter_pressed(),
-                Message::TabPressed => state.tab_pressed(),
-                Message::InnerTransformSelected(transform) => {
-                    state.inner_transform_selected(transform)
-                }
-                Message::OuterTransformSelected(transform) => {
-                    state.outer_transform_selected(transform)
-                }
+                Message::TabPressed => state.tab_pressed(),                
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
@@ -292,6 +285,7 @@ impl Application for GadgtGui {
                     Command::none()
                 }
                 Message::ResultSelected(_) => Command::none(),
+                Message::TransformSelected(transform) => state.transform_selected(transform),
             },
         }
     }

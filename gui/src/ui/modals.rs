@@ -220,11 +220,6 @@ pub fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
             |string| Message::RevoluteSpringConstantInputChanged(string),
         ));
 
-    //add inner transform
-    let content = content.push(joint.inner_transform.content(true));
-    //add outer transform
-    let content = content.push(joint.inner_transform.content(false));
-
     let footer = Row::new()
         .spacing(10)
         .padding(5)

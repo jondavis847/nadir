@@ -29,8 +29,7 @@ use iced::{
 pub struct Dummies {
     pub base: DummyBase,
     pub body: DummyBody,
-    pub joint_inner_transform: DummyTransform,
-    pub joint_outer_transform: DummyTransform,
+    pub transform: DummyTransform,
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
     pub cartesian: DummyCartesian,
@@ -172,23 +171,17 @@ impl TransformPickList {
     pub const ALL: [TransformPickList; 2] =
         [TransformPickList::Identity, TransformPickList::Custom];
 
-    pub fn content(&self, is_inner: bool) -> Element<Message, crate::ui::theme::Theme> {
-        let label = match is_inner {
-            true => "Inner Transform",
-            false => "Outer Transform",
-        };
-
+    pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
         let content = Row::new()
             .spacing(10)
             .padding(5)
-            .push(text(label).width(Length::FillPortion(1)))
+            .push(text("Transform Type").width(Length::FillPortion(1)))
             .push(
-                pick_list(&TransformPickList::ALL[..], Some(*self), {
-                    match is_inner {
-                        true => Message::InnerTransformSelected,
-                        false => Message::OuterTransformSelected,
-                    }
-                })
+                pick_list(
+                    &TransformPickList::ALL[..],
+                    Some(*self),
+                    Message::TransformSelected,
+                )
                 .width(Length::FillPortion(1)),
             )
             .width(Length::Fill);
@@ -199,7 +192,6 @@ impl TransformPickList {
         };
         content.into()
     }
-    
 }
 
 impl std::fmt::Display for TransformPickList {
@@ -248,8 +240,6 @@ pub struct DummyRevolute {
     pub omega: String,
     pub spring_constant: String,
     pub theta: String,
-    pub inner_transform: TransformPickList,
-    pub outer_transform: TransformPickList,
 }
 
 impl DummyRevolute {
@@ -260,8 +250,6 @@ impl DummyRevolute {
         self.spring_constant = String::new();
         self.damping = String::new();
         self.constant_force = String::new();
-        self.inner_transform = TransformPickList::Identity;
-        self.outer_transform = TransformPickList::Identity;
     }
     pub fn get_values_from(&mut self, rev: &Revolute) {
         self.name = rev.get_name().to_string();
@@ -304,8 +292,6 @@ pub struct DummyPrismatic {
     pub position: String,
     pub spring_constant: String,
     pub velocity: String,
-    pub inner_transform: TransformPickList,
-    pub outer_transform: TransformPickList,
 }
 
 impl DummyPrismatic {
@@ -316,8 +302,6 @@ impl DummyPrismatic {
         self.spring_constant = String::new();
         self.damping = String::new();
         self.constant_force = String::new();
-        self.inner_transform = TransformPickList::Identity;
-        self.outer_transform = TransformPickList::Identity
     }
     pub fn get_values_from(&mut self, rev: &Prismatic) {
         self.name = rev.get_name().to_string();
