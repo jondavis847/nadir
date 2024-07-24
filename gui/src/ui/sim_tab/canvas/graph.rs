@@ -289,15 +289,6 @@ impl Graph {
                     self.left_clicked_node = Some(*id);
                 }
             }
-
-            // Clear the nodes' selected flags and determine the clicked node
-            for (id, edge) in &mut self.edges {
-                if edge.is_clicked(canvas_cursor_position, &self.nodes) {
-                    edge.is_selected = !edge.is_selected;
-                } else {
-                    edge.is_selected = false;
-                }
-            }
         }
 
         // Update selected_node based on whether a node was clicked
@@ -350,6 +341,39 @@ impl Graph {
             self.selected_node = None;
         }
         self.left_clicked_node = None;
+
+        // Logic for edges
+        match release_event {
+            MouseButtonReleaseEvents::DoubleClick => {
+                // Clear the nodes' selected flags and determine the clicked edge
+                for (_, edge) in &mut self.edges {
+                    if edge.is_clicked(canvas_cursor_position, &self.nodes) {
+                        //double click logic
+                        println!("double clicked");
+                        edge.is_selected = true; // always select for double click, only toggle for single click?
+                    } else {
+                        edge.is_selected = false;
+                    }
+                }
+            }
+            MouseButtonReleaseEvents::SingleClick => {
+                // Clear the nodes' selected flags and determine the clicked edge
+                for (id, edge) in &mut self.edges {
+                    if edge.is_clicked(canvas_cursor_position, &self.nodes) {
+                        edge.is_selected = !edge.is_selected;
+                    } else {
+                        edge.is_selected = false;
+                    }
+                    if edge.is_selected {
+                        self.left_clicked_edge = Some(*id);
+                    }
+                }
+            }
+            MouseButtonReleaseEvents::Held | MouseButtonReleaseEvents::Nothing => {
+                //probably just dragging the canvas, do nothing
+            }
+        }
+
         message
     }
 
