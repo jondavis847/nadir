@@ -1,10 +1,12 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
+use linear_algebra::matrix3::Matrix3;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use transforms::prelude::*;
 use utilities::{generate_unique_id, unique_strings};
-use linear_algebra::matrix3::Matrix3;
 
 use crate::multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
+use crate::ui::dummies::TransformPickList;
 use crate::ui::{
     animation_tab::AnimationTab,
     errors::Errors,
@@ -15,8 +17,7 @@ use crate::ui::{
 use crate::{
     ui::{
         dummies::{
-            DummyComponent, GeometryPickList, RotationPickList, TransformFields,
-            TranslationPickList,
+            DummyComponent, DummyTransform, GeometryPickList, RotationPickList, TranslationPickList,
         },
         modals::ActiveModal,
         sim_tab::{
@@ -31,7 +32,7 @@ use crate::{
 };
 use geometry::Geometry;
 use multibody::{
-    joint::{Joint, JointTrait},
+    joint::{Connection, Joint, JointTrait},
     result::MultibodyResult,
     MultibodyTrait,
 };
@@ -270,42 +271,72 @@ impl AppState {
                         Joint::Revolute(revolute) => {
                             self.nodebar.dummies.revolute.get_values_from(revolute);
                             dummy_type = DummyComponent::Revolute;
-                            self.nodebar.dummies.revolute
+                            &mut self.nodebar.dummies.revolute
                         }
                         _ => panic!("should not be possible to another joint"),
                     };
                     let connections = joint.get_connections();
-                    if let Some(inner_body) = connections.inner_body {
+                    if let Some(inner_body) = &connections.inner_body {
                         let transform = inner_body.transform;
-                        let mut transform_fields = TransformFields::default();
+
+                        let mut dummy_transform = DummyTransform::default();
 
                         let mut rotation_is_identity = false;
-                        let mut translation_is_identity = false;
+                        let mut translation_is_zero = false;
 
                         match transform.rotation {
                             Rotation::Quaternion(quaternion) => {
-                                transform_fields.rotation = RotationPickList::Quaternion;
-                                if quaternion == Quaternion::IDENTITY {                                    
+                                dummy_transform.rotation = RotationPickList::Quaternion;
+                                if quaternion == Quaternion::IDENTITY {
                                     rotation_is_identity = true;
                                 }
                                 self.nodebar.dummies.quaternion.get_values_from(&quaternion);
                             }
                             Rotation::RotationMatrix(matrix) => {
-                                transform_fields.rotation = RotationPickList::RotationMatrix;
-                                if matrix.0 == Matrix3::IDENTITY {                                    
+                                dummy_transform.rotation = RotationPickList::RotationMatrix;
+                                if matrix.0 == Matrix3::IDENTITY {
                                     rotation_is_identity = true;
                                 }
-                                self.nodebar.dummies.rotation_matrix.get_values_from(&matrix);
+                                self.nodebar
+                                    .dummies
+                                    .rotation_matrix
+                                    .get_values_from(&matrix);
                             }
 
                             Rotation::EulerAngles(euler_angles) => {
-                                transform_fields.rotation = RotationPickList::EulerAngles;                                
-                                if Quaternion::from(euler_angles) == Quaternion::IDENTITY {                                    
+                                dummy_transform.rotation = RotationPickList::EulerAngles;
+                                if Quaternion::from(euler_angles) == Quaternion::IDENTITY {
                                     rotation_is_identity = true;
                                 }
-                                self.nodebar.dummies.euler_angles.get_values_from(&euler_angles);
+                                self.nodebar
+                                    .dummies
+                                    .euler_angles
+                                    .get_values_from(&euler_angles);
                             }
                         }
+
+                        if rotation_is_identity {
+                            dummy_transform.rotation = RotationPickList::Identity;
+                        }
+                        match transform.translation {
+                            CoordinateSystem::Cartesian(cartesian) => {
+                                dummy_transform.translation = TranslationPickList::Cartesian;
+                                if cartesian == Cartesian::ZERO {
+                                    translation_is_zero = true;
+                                }
+                                self.nodebar.dummies.cartesian.get_values_from(&cartesian);
+                            }
+                            _ => panic!("should not be possible yet"),
+                        }
+                        if translation_is_zero {
+                            dummy_transform.translation = TranslationPickList::Zero;
+                        }
+                        match rotation_is_identity && translation_is_zero {
+                            true => dummy.inner_transform = TransformPickList::Identity,
+                            false => dummy.inner_transform = TransformPickList::Custom,
+                        }
+                    } else {
+                        dummy.inner_transform = TransformPickList::Identity;
                     }
                 }
                 DummyComponent::Prismatic => {
@@ -421,6 +452,73 @@ impl AppState {
 
         self.plot();
         Command::none()
+    }
+
+    fn process_dummy_transform(
+        &mut self,
+        connection: &Connection,
+        is_inner: bool,
+    ) -> TransformPickList {
+        let transform = connection.transform;
+        let dummy = match is_inner {
+            true => &mut self.nodebar.dummies.joint_inner_transform,
+            false => &mut self.nodebar.dummies.joint_outer_transform,
+        };
+
+        let mut rotation_is_identity = false;
+        let mut translation_is_zero = false;
+
+        match transform.rotation {
+            Rotation::Quaternion(quaternion) => {
+                dummy.rotation = RotationPickList::Quaternion;
+                if quaternion == Quaternion::IDENTITY {
+                    rotation_is_identity = true;
+                }
+                self.nodebar.dummies.quaternion.get_values_from(&quaternion);
+            }
+            Rotation::RotationMatrix(matrix) => {
+                dummy.rotation = RotationPickList::RotationMatrix;
+                if matrix.0 == Matrix3::IDENTITY {
+                    rotation_is_identity = true;
+                }
+                self.nodebar
+                    .dummies
+                    .rotation_matrix
+                    .get_values_from(&matrix);
+            }
+
+            Rotation::EulerAngles(euler_angles) => {
+                dummy.rotation = RotationPickList::EulerAngles;
+                if Quaternion::from(euler_angles) == Quaternion::IDENTITY {
+                    rotation_is_identity = true;
+                }
+                self.nodebar
+                    .dummies
+                    .euler_angles
+                    .get_values_from(&euler_angles);
+            }
+        }
+
+        if rotation_is_identity {
+            dummy.rotation = RotationPickList::Identity;
+        }
+        match transform.translation {
+            CoordinateSystem::Cartesian(cartesian) => {
+                dummy.translation = TranslationPickList::Cartesian;
+                if cartesian == Cartesian::ZERO {
+                    translation_is_zero = true;
+                }
+                self.nodebar.dummies.cartesian.get_values_from(&cartesian);
+            }
+            _ => panic!("should not be possible yet"),
+        }
+        if translation_is_zero {
+            dummy.translation = TranslationPickList::Zero;
+        }
+        match rotation_is_identity && translation_is_zero {
+            true => TransformPickList::Identity,
+            false => TransformPickList::Custom,
+        }
     }
 
     pub fn right_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {

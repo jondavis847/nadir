@@ -1482,6 +1482,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "chrono",
+ "coordinate_systems",
  "geometry",
  "glam 0.28.0",
  "iced",

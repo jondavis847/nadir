@@ -1,3 +1,4 @@
+use coordinate_systems::cartesian::Cartesian;
 use geometry::cuboid::Cuboid;
 use linear_algebra::matrix3::Matrix3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
@@ -12,18 +13,27 @@ use multibody::{
     MultibodyTrait,
 };
 use rotations::{
-    axes::Axis,
+    axes::{AlignedAxes, Axis, AxisPair},
     euler_angles::{EulerAngles, EulerSequence},
     quaternion::Quaternion,
     rotation_matrix::RotationMatrix,
+};
+
+use crate::{ui::theme::Theme, Message};
+use iced::{
+    widget::{pick_list, text, Row},
+    Element, Length,
 };
 
 #[derive(Debug, Default, Clone)]
 pub struct Dummies {
     pub base: DummyBase,
     pub body: DummyBody,
+    pub joint_inner_transform: DummyTransform,
+    pub joint_outer_transform: DummyTransform,
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
+    pub cartesian: DummyCartesian,
     pub cuboid: DummyCuboid,
     pub quaternion: DummyQuaternion,
     pub rotation_matrix: DummyRotationMatrix,
@@ -151,15 +161,61 @@ impl DummyBody {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub enum TransformPickList {
     #[default]
     Identity,
-    Custom(TransformFields),
+    Custom,
+}
+
+impl TransformPickList {
+    pub const ALL: [TransformPickList; 2] =
+        [TransformPickList::Identity, TransformPickList::Custom];
+
+    pub fn content(&self, is_inner: bool) -> Element<Message, crate::ui::theme::Theme> {
+        let label = match is_inner {
+            true => "Inner Transform",
+            false => "Outer Transform",
+        };
+
+        let content = Row::new()
+            .spacing(10)
+            .padding(5)
+            .push(text(label).width(Length::FillPortion(1)))
+            .push(
+                pick_list(&TransformPickList::ALL[..], Some(*self), {
+                    match is_inner {
+                        true => Message::InnerTransformSelected,
+                        false => Message::OuterTransformSelected,
+                    }
+                })
+                .width(Length::FillPortion(1)),
+            )
+            .width(Length::Fill);
+
+        let content = match self {
+            TransformPickList::Identity => content,
+            TransformPickList::Custom => content,
+        };
+        content.into()
+    }
+}
+
+impl std::fmt::Display for TransformPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TransformPickList::Identity => "Identity",
+                TransformPickList::Custom => "Custom",
+            }
+        )
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct TransformFields {
+pub struct DummyTransform {
     pub rotation: RotationPickList,
     pub translation: TranslationPickList,
 }
@@ -204,6 +260,7 @@ impl DummyRevolute {
         self.damping = String::new();
         self.constant_force = String::new();
         self.inner_transform = TransformPickList::Identity;
+        self.outer_transform = TransformPickList::Identity;
     }
     pub fn get_values_from(&mut self, rev: &Revolute) {
         self.name = rev.get_name().to_string();
@@ -543,5 +600,69 @@ impl Default for DummyAlignedAxes {
             secondary_from: Axis::Yp,
             secondary_to: Axis::Yp,
         }
+    }
+}
+
+impl DummyAlignedAxes {
+    pub fn clear(&mut self) {
+        self.primary_from = Axis::Xp;
+        self.primary_to = Axis::Xp;
+        self.secondary_from = Axis::Yp;
+        self.secondary_to = Axis::Yp;
+    }
+
+    pub fn get_values_from(&mut self, axes: &AlignedAxes) {
+        self.primary_from = axes.primary.old;
+        self.primary_to = axes.primary.new;
+        self.secondary_from = axes.secondary.old;
+        self.secondary_to = axes.secondary.new;
+    }
+
+    pub fn set_values_for(&self, axes: &mut AlignedAxes) {
+        axes.primary.old = self.primary_from;
+        axes.primary.new = self.primary_to;
+        axes.secondary.old = self.secondary_from;
+        axes.secondary.new = self.secondary_to;
+    }
+
+    pub fn to_aligned_axes(&self) -> AlignedAxes {
+        AlignedAxes::new(
+            AxisPair::new(self.primary_from, self.primary_to),
+            AxisPair::new(self.secondary_from, self.secondary_to),
+        )
+    }
+}
+#[derive(Debug, Clone, Default)]
+pub struct DummyCartesian {
+    pub x: String,
+    pub y: String,
+    pub z: String,
+}
+
+impl DummyCartesian {
+    pub fn clear(&mut self) {
+        self.x = String::new();
+        self.y = String::new();
+        self.z = String::new();
+    }
+
+    pub fn get_values_from(&mut self, cart: &Cartesian) {
+        self.x = cart.x.to_string();
+        self.y = cart.x.to_string();
+        self.z = cart.x.to_string();
+    }
+
+    pub fn set_values_for(&self, cart: &mut Cartesian) {
+        cart.x = self.x.parse::<f64>().unwrap_or(0.0);
+        cart.y = self.z.parse::<f64>().unwrap_or(0.0);
+        cart.z = self.z.parse::<f64>().unwrap_or(0.0);
+    }
+
+    pub fn to_cartesian(&self) -> Cartesian {
+        Cartesian::new(
+            self.x.parse::<f64>().unwrap_or(0.0),
+            self.z.parse::<f64>().unwrap_or(0.0),
+            self.z.parse::<f64>().unwrap_or(0.0),
+        )
     }
 }

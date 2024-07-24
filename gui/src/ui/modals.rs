@@ -1,6 +1,6 @@
 use super::dummies::{
     DummyBase, DummyBody, DummyComponent, DummyCuboid, DummyPrismatic, DummyRevolute,
-    GeometryPickList,
+    GeometryPickList, TransformPickList,
 };
 use crate::{
     ui::{errors::Errors, theme::Theme},
@@ -220,25 +220,10 @@ pub fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
             |string| Message::RevoluteSpringConstantInputChanged(string),
         ));
 
-        let content = match joint.inner_transform {
-            GeometryPickList::None => content, //nothing to do
-            GeometryPickList::Cuboid => content
-                .push(create_text_input(
-                    "length",
-                    &cuboid.length,
-                    Message::CuboidLengthInputChanged,
-                ))
-                .push(create_text_input(
-                    "width",
-                    &cuboid.width,
-                    Message::CuboidWidthInputChanged,
-                ))
-                .push(create_text_input(
-                    "height",
-                    &cuboid.height,
-                    Message::CuboidHeightInputChanged,
-                )),
-        };
+    //add inner transform
+    let content = content.push(joint.inner_transform.content(true));
+    //add outer transform
+    let content = content.push(joint.inner_transform.content(false));
 
     let footer = Row::new()
         .spacing(10)

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+coordinate_systems = {path = "../coordinate_systems"}
 geometry = {path = "../geometry"}
 iced = { version = "0.12.1", features = ["canvas","tokio"] }
 iced_aw = { version = "0.9.3", features = ["card", "modal", "selection_list"] }

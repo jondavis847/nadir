@@ -3,7 +3,7 @@ use linear_algebra::vector3::Vector3;
 use std::ops::{Add, Neg};
 
 /// Represents a point in Cartesian coordinates.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Cartesian {
     pub x: f64,
     pub y: f64,
@@ -11,6 +11,12 @@ pub struct Cartesian {
 }
 
 impl Cartesian {
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+
     /// Creates a new `Cartesian` instance with the given x, y, and z components.
     ///
     /// # Arguments

@@ -20,7 +20,7 @@ use app_state::AppState;
 use multibody_ui::{BodyField, CuboidField, PrismaticField, RevoluteField};
 
 use ui::{
-    dummies::{DummyComponent, GeometryPickList},
+    dummies::{DummyComponent, GeometryPickList, TransformPickList},
     modals::{
         create_base_modal, create_body_modal, create_error_modal, create_prismatic_modal,
         create_revolute_modal,
@@ -99,6 +99,8 @@ enum Message {
     TabAnimationCameraRotation(Vector),
     TabPlotPressed,
     TabSimulationPressed,
+    OuterTransformSelected(TransformPickList),
+    InnerTransformSelected(TransformPickList),
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -253,6 +255,14 @@ impl Application for GadgtGui {
                 Message::DeletePressed => state.delete_pressed(),
                 Message::EnterPressed => state.enter_pressed(),
                 Message::TabPressed => state.tab_pressed(),
+                Message::InnerTransformSelected(transform) => {
+                    println!("{} selected", transform);
+                    Command::none()
+                }
+                Message::OuterTransformSelected(transform) => {
+                    println!("{} selected", transform);
+                    Command::none()
+                }
                 Message::SaveComponent => state.save_component(),
                 Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),

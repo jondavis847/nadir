@@ -15,7 +15,11 @@ pub struct AxisPair {
     pub old: Axis,
     pub new: Axis,
 }
-
+impl AxisPair {
+    pub fn new(old: Axis, new: Axis) -> Self {
+        Self { old, new }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AlignedAxes {
     pub primary: AxisPair,
