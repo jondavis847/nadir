@@ -47,6 +47,7 @@ pub struct Graph {
     pub is_clicked: bool,
     cursor_position_previous: Option<Point>,
     left_clicked_node: Option<Uuid>,
+    left_clicked_edge: Option<Uuid>,
     pub nodes: HashMap<Uuid, GraphNode>,
     right_clicked_node: Option<Uuid>,
     selected_node: Option<Uuid>,
@@ -60,13 +61,14 @@ pub struct Graph {
 impl Default for Graph {
     fn default() -> Self {
         Self {
-            bounds: Rectangle::new(Point::new(150.0, 0.0), Size::new(1280.0-150.0, 720.0)), // this is too big and in consequential since the container is Length::Fill
+            bounds: Rectangle::new(Point::new(150.0, 0.0), Size::new(1280.0 - 150.0, 720.0)), // this is too big and in consequential since the container is Length::Fill
             system: MultibodySystem::new(),
             current_edge: None,
             edges: HashMap::new(),
             is_clicked: false,
             cursor_position_previous: None,
             left_clicked_node: None,
+            left_clicked_edge: None,
             nodes: HashMap::new(),
             right_clicked_node: None,
             selected_node: None,
@@ -270,6 +272,7 @@ impl Graph {
 
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) {
         self.left_clicked_node = None;
+        self.left_clicked_edge = None;
 
         if self.bounds.contains(canvas_cursor_position) {
             self.is_clicked = true;
@@ -284,6 +287,15 @@ impl Graph {
                 if node.is_left_clicked {
                     node.is_selected = true;
                     self.left_clicked_node = Some(*id);
+                }
+            }
+
+            // Clear the nodes' selected flags and determine the clicked node
+            for (id, edge) in &mut self.edges {
+                if edge.is_clicked(canvas_cursor_position, &self.nodes) {
+                    edge.is_selected = !edge.is_selected;
+                } else {
+                    edge.is_selected = false;
                 }
             }
         }
