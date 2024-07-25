@@ -1,4 +1,9 @@
-use coordinate_systems::cartesian::Cartesian;
+use coordinate_systems::{
+    cartesian::Cartesian,
+    cylindrical::{self, Cylindrical},
+    spherical::Spherical,
+    CoordinateSystem,
+};
 use geometry::cuboid::Cuboid;
 use linear_algebra::matrix3::Matrix3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
@@ -17,14 +22,18 @@ use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     quaternion::Quaternion,
     rotation_matrix::RotationMatrix,
+    Rotation,
 };
+use transforms::Transform;
 
 use crate::{
     ui::{modals::create_text_input, theme::Theme},
     Message,
 };
 use iced::{
-    widget::{pick_list, text, text_input, Column, Row},
+    widget::{
+        pick_list, shader::wgpu::naga::back::msl::sampler::Coord, text, text_input, Column, Row,
+    },
     Element, Length,
 };
 
@@ -36,6 +45,8 @@ pub struct Dummies {
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
     pub cartesian: DummyCartesian,
+    pub cylindrical: DummyCylindrical,
+    pub spherical: DummySpherical,
     pub cuboid: DummyCuboid,
     pub quaternion: DummyQuaternion,
     pub rotation_matrix: DummyRotationMatrix,
@@ -51,6 +62,7 @@ pub enum DummyComponent {
     Body,
     Revolute,
     Prismatic,
+    Transform,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -215,6 +227,118 @@ pub struct DummyTransform {
     pub transform_type: TransformPickList,
     pub rotation: RotationPickList,
     pub translation: TranslationPickList,
+}
+impl DummyTransform {
+    pub fn clear(&mut self) {
+        self.transform_type = TransformPickList::Identity;
+        self.rotation = RotationPickList::Identity;
+        self.translation = TranslationPickList::Zero;
+    }
+
+    pub fn get_values_from(
+        &mut self,
+        transform: &Transform,        
+        dummy_cartesian: &mut DummyCartesian,
+        dummy_cylindrical: &mut DummyCylindrical,
+        dummy_euler_angles: &mut DummyEulerAngles,
+        dummy_quaternion: &mut DummyQuaternion,
+        dummy_rotation_matrix: &mut DummyRotationMatrix,
+        dummy_spherical: &mut DummySpherical,
+    ) {
+        match transform.rotation {
+            Rotation::EulerAngles(euler_angles) => {
+                self.rotation = RotationPickList::EulerAngles;
+                dummy_euler_angles.get_values_from(&euler_angles);
+            }
+            Rotation::Quaternion(quaternion) => {
+                self.rotation = RotationPickList::Quaternion;
+                dummy_quaternion.get_values_from(&quaternion);
+            }
+            Rotation::RotationMatrix(rotation_matrix) => {
+                self.rotation = RotationPickList::RotationMatrix;
+                dummy_rotation_matrix.get_values_from(&rotation_matrix);
+            }
+        };
+
+        match transform.translation {
+            CoordinateSystem::Cartesian(cartesian) => {
+                self.translation = TranslationPickList::Cartesian;
+                dummy_cartesian.get_values_from(&cartesian);
+            }
+            CoordinateSystem::Cylindrical(cylindrical) => {
+                self.translation = TranslationPickList::Cylindrical;
+                dummy_cylindrical.get_values_from(&cylindrical);
+            }
+            CoordinateSystem::Spherical(spherical) => {
+                self.translation = TranslationPickList::Spherical;
+                dummy_spherical.get_values_from(&spherical);
+            }
+        }
+    }
+
+    pub fn set_values_for(&self, transform: &mut Transform, dummies: &Dummies) {
+        match self.transform_type {
+            TransformPickList::Identity => *transform = Transform::IDENTITY,
+            TransformPickList::Custom => {
+                let rotation = match self.rotation {
+                    RotationPickList::Identity => Rotation::IDENTITY,
+                    RotationPickList::Quaternion => {
+                        Rotation::from(dummies.quaternion.to_quaternion())
+                    }
+                    RotationPickList::RotationMatrix => {
+                        Rotation::from(dummies.rotation_matrix.to_rotation_matrix())
+                    }
+                    RotationPickList::AlignedAxes => {
+                        Rotation::from(dummies.aligned_axes.to_aligned_axes())
+                    }
+                    RotationPickList::EulerAngles => {
+                        Rotation::from(dummies.euler_angles.to_euler_angles())
+                    }
+                };
+
+                let translation = match self.translation {
+                    TranslationPickList::Zero => CoordinateSystem::ZERO,
+                    TranslationPickList::Cartesian => {
+                        CoordinateSystem::from(dummies.cartesian.to_cartesian())
+                    }
+                    TranslationPickList::Cylindrical => {
+                        CoordinateSystem::from(dummies.cylindrical.to_cylindrical())
+                    }
+                    TranslationPickList::Spherical => {
+                        CoordinateSystem::from(dummies.spherical.to_spherical())
+                    }
+                };
+
+                *transform = Transform::new(rotation, translation);
+            }
+        }
+    }
+
+    pub fn to_transform(&self, dummies: &Dummies) -> Transform {
+        match self.transform_type {
+            TransformPickList::Identity => Transform::IDENTITY,
+            TransformPickList::Custom => {
+                let rotation: Rotation = match self.rotation {
+                    RotationPickList::Identity => Rotation::IDENTITY,
+                    RotationPickList::AlignedAxes => dummies.aligned_axes.to_aligned_axes().into(),
+                    RotationPickList::EulerAngles => dummies.euler_angles.to_euler_angles().into(),
+                    RotationPickList::Quaternion => dummies.quaternion.to_quaternion().into(),
+                    RotationPickList::RotationMatrix => {
+                        dummies.rotation_matrix.to_rotation_matrix().into()
+                    }
+                };
+
+                let translation: CoordinateSystem = match self.translation {
+                    TranslationPickList::Zero => CoordinateSystem::ZERO,
+                    TranslationPickList::Cartesian => dummies.cartesian.to_cartesian().into(),
+                    TranslationPickList::Cylindrical => dummies.cylindrical.to_cylindrical().into(),
+                    TranslationPickList::Spherical => dummies.spherical.to_spherical().into(),
+                };
+
+                Transform::new(rotation, translation)
+            }
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
@@ -866,6 +990,76 @@ impl DummyCartesian {
             self.x.parse::<f64>().unwrap_or(0.0),
             self.y.parse::<f64>().unwrap_or(0.0),
             self.z.parse::<f64>().unwrap_or(0.0),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DummyCylindrical {
+    pub radius: String,
+    pub azimuth: String,
+    pub height: String,
+}
+
+impl DummyCylindrical {
+    pub fn clear(&mut self) {
+        self.radius = String::new();
+        self.azimuth = String::new();
+        self.height = String::new();
+    }
+
+    pub fn get_values_from(&mut self, cyl: &Cylindrical) {
+        self.radius = cyl.radius.to_string();
+        self.azimuth = cyl.azimuth.to_string();
+        self.height = cyl.height.to_string();
+    }
+
+    pub fn set_values_for(&self, cyl: &mut Cylindrical) {
+        cyl.radius = self.radius.parse::<f64>().unwrap_or(0.0);
+        cyl.azimuth = self.azimuth.parse::<f64>().unwrap_or(0.0);
+        cyl.height = self.height.parse::<f64>().unwrap_or(0.0);
+    }
+
+    pub fn to_cylindrical(&self) -> Cylindrical {
+        Cylindrical::new(
+            self.radius.parse::<f64>().unwrap_or(0.0),
+            self.azimuth.parse::<f64>().unwrap_or(0.0),
+            self.height.parse::<f64>().unwrap_or(0.0),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DummySpherical {
+    pub radius: String,
+    pub azimuth: String,
+    pub inclination: String,
+}
+
+impl DummySpherical {
+    pub fn clear(&mut self) {
+        self.radius = String::new();
+        self.azimuth = String::new();
+        self.inclination = String::new();
+    }
+
+    pub fn get_values_from(&mut self, cyl: &Spherical) {
+        self.radius = cyl.radius.to_string();
+        self.azimuth = cyl.azimuth.to_string();
+        self.inclination = cyl.inclination.to_string();
+    }
+
+    pub fn set_values_for(&self, cyl: &mut Spherical) {
+        cyl.radius = self.radius.parse::<f64>().unwrap_or(0.0);
+        cyl.azimuth = self.azimuth.parse::<f64>().unwrap_or(0.0);
+        cyl.inclination = self.inclination.parse::<f64>().unwrap_or(0.0);
+    }
+
+    pub fn to_spherical(&self) -> Spherical {
+        Spherical::new(
+            self.radius.parse::<f64>().unwrap_or(0.0),
+            self.azimuth.parse::<f64>().unwrap_or(0.0),
+            self.inclination.parse::<f64>().unwrap_or(0.0),
         )
     }
 }

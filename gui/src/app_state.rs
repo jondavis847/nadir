@@ -10,6 +10,7 @@ use crate::multibody_ui::{
     RotationMatrixField,
 };
 use crate::ui::dummies::TransformPickList;
+use crate::ui::sim_tab::canvas::edge::EdgeConnection;
 use crate::ui::{
     animation_tab::AnimationTab,
     errors::Errors,
@@ -250,59 +251,146 @@ impl AppState {
                     DummyComponent::Prismatic => {
                         self.modal = Some(active_modal);
                     }
+                    //TODO: Transform and othe modals probably don't belong in DummyComponent?
+                    DummyComponent::Transform => {
+                        panic!("should not be possible")
+                    }
                 }
             }
         }
-        if let Some(GraphMessage::EditComponent((component_type, component_id))) = self
+        if let Some(message) = self
             .graph
             .left_button_released(&release_event, canvas_cursor_position)
         {
-            let dummy_type;
-            match component_type {
-                DummyComponent::Base => {
-                    let base = self.graph.system.base.as_ref().unwrap();
-                    self.nodebar.dummies.base.get_values_from(base);
-                    dummy_type = DummyComponent::Base;
-                }
-                DummyComponent::Body => {
-                    let dummy = &mut self.nodebar.dummies.body;
-                    let body = self.graph.system.bodies.get(&component_id).unwrap();
-                    dummy.get_values_from(body);
-                    if let Some(geometry) = &body.geometry {
-                        match geometry {
-                            Geometry::Cuboid(cuboid) => {
-                                dummy.geometry = GeometryPickList::Cuboid;
-                                self.nodebar.dummies.cuboid.get_values_from(cuboid)
+            //if let Some(GraphMessage::EditComponent((component_type, component_id))) = self
+            //.graph
+            //.left_button_released(&release_event, canvas_cursor_position)
+            //{
+            match message {
+                GraphMessage::EditComponent((component_type, component_id)) => {
+                    let dummy_type;
+                    match component_type {
+                        DummyComponent::Base => {
+                            let base = self.graph.system.base.as_ref().unwrap();
+                            self.nodebar.dummies.base.get_values_from(base);
+                            dummy_type = DummyComponent::Base;
+                        }
+                        DummyComponent::Body => {
+                            let dummy = &mut self.nodebar.dummies.body;
+                            let body = self.graph.system.bodies.get(&component_id).unwrap();
+                            dummy.get_values_from(body);
+                            if let Some(geometry) = &body.geometry {
+                                match geometry {
+                                    Geometry::Cuboid(cuboid) => {
+                                        dummy.geometry = GeometryPickList::Cuboid;
+                                        self.nodebar.dummies.cuboid.get_values_from(cuboid)
+                                    }
+                                }
+                            } else {
+                                dummy.geometry = GeometryPickList::None;
+                            }
+                            dummy_type = DummyComponent::Body;
+                        }
+                        DummyComponent::Revolute => {
+                            let joint = self.graph.system.joints.get(&component_id).unwrap();
+                            let dummy = match joint {
+                                Joint::Revolute(revolute) => {
+                                    self.nodebar.dummies.revolute.get_values_from(revolute);
+                                    dummy_type = DummyComponent::Revolute;
+                                    &mut self.nodebar.dummies.revolute
+                                }
+                                _ => panic!("should not be possible to be another joint"),
+                            };
+                        }
+                        DummyComponent::Prismatic => {
+                            let joint = self.graph.system.joints.get(&component_id).unwrap();
+                            match joint {
+                                Joint::Prismatic(prismatic) => {
+                                    self.nodebar.dummies.prismatic.get_values_from(prismatic);
+                                    dummy_type = DummyComponent::Prismatic;
+                                }
+                                _ => panic!("should not be possible to another joint"),
                             }
                         }
-                    } else {
-                        dummy.geometry = GeometryPickList::None;
-                    }
-                    dummy_type = DummyComponent::Body;
-                }
-                DummyComponent::Revolute => {
-                    let joint = self.graph.system.joints.get(&component_id).unwrap();
-                    let dummy = match joint {
-                        Joint::Revolute(revolute) => {
-                            self.nodebar.dummies.revolute.get_values_from(revolute);
-                            dummy_type = DummyComponent::Revolute;
-                            &mut self.nodebar.dummies.revolute
+                        DummyComponent::Transform => {
+                            panic!("should not be possible")
                         }
-                        _ => panic!("should not be possible to be another joint"),
+                    }
+                    self.modal = Some(ActiveModal::new(dummy_type, Some(component_id)));
+                }
+                GraphMessage::EditEdge(edge_id) => {
+                    let edge = self.graph.edges.get(&edge_id).unwrap();
+                    let from_node = match edge.from {
+                        EdgeConnection::Node(node_id) => self.graph.nodes.get(&node_id).unwrap(),
+                        EdgeConnection::Point(_) => {
+                            panic!("should not be possible to be a point while editing edge")
+                        }
                     };
-                }
-                DummyComponent::Prismatic => {
-                    let joint = self.graph.system.joints.get(&component_id).unwrap();
-                    match joint {
-                        Joint::Prismatic(prismatic) => {
-                            self.nodebar.dummies.prismatic.get_values_from(prismatic);
-                            dummy_type = DummyComponent::Prismatic;
+
+                    let to_node = match edge.to {
+                        EdgeConnection::Node(node_id) => self.graph.nodes.get(&node_id).unwrap(),
+                        EdgeConnection::Point(_) => {
+                            panic!("should not be possible to be a point while editing edge")
                         }
-                        _ => panic!("should not be possible to another joint"),
-                    }
+                    };
+
+                    let transform = match (from_node.dummy_type, to_node.dummy_type) {
+                        (
+                            DummyComponent::Base | DummyComponent::Body,
+                            DummyComponent::Prismatic | DummyComponent::Revolute,
+                        ) => {
+                            //transform is for the joint inner frame to the base frame
+                            let joint =
+                                self.graph.system.joints.get(&to_node.component_id).unwrap();
+                            let connection = joint.get_connections();
+                            let transform = {
+                                if let Some(inner_body) = &connection.inner_body {
+                                    inner_body.transform
+                                } else {
+                                    panic!("should not be possible for there not to be a transform if there was an edge")
+                                }
+                            };
+                            transform
+                        }
+                        (
+                            DummyComponent::Prismatic | DummyComponent::Revolute,
+                            DummyComponent::Body,
+                        ) => {
+                            //transform is for the joint outer frame to the body frame
+                            let joint =
+                                self.graph.system.joints.get(&to_node.component_id).unwrap();
+                            let connection = joint.get_connections();
+                            let transform = {
+                                if let Some(outer_body) = &connection.outer_body {
+                                    outer_body.transform
+                                } else {
+                                    panic!("should not be possible for there not to be a transform if there was an edge")
+                                }
+                            };
+                            transform
+                        }
+                        _ => panic!("shouldn't be another patterns"),
+                    };
+
+                    let dummy_cartesian = &mut self.nodebar.dummies.cartesian;
+                    let dummy_cylindrical = &mut self.nodebar.dummies.cylindrical;
+                    let dummy_euler_angles = &mut self.nodebar.dummies.euler_angles;
+                    let dummy_quaternion = &mut self.nodebar.dummies.quaternion;
+                    let dummy_rotation_matrix = &mut self.nodebar.dummies.rotation_matrix;
+                    let dummy_spherical = &mut self.nodebar.dummies.spherical;
+
+                    self.nodebar.dummies.transform.get_values_from(
+                        &transform,
+                        dummy_cartesian,
+                        dummy_cylindrical,
+                        dummy_euler_angles,
+                        dummy_quaternion,
+                        dummy_rotation_matrix,
+                        dummy_spherical,
+                    );
+                    self.modal = Some(ActiveModal::new(DummyComponent::Transform, Some(edge_id)));
                 }
             }
-            self.modal = Some(ActiveModal::new(dummy_type, Some(component_id)));
         }
 
         self.cache.clear();
@@ -623,6 +711,9 @@ impl AppState {
                 }
 
                 self.nodebar.dummies.prismatic.clear();
+            }
+            DummyComponent::Transform => {
+                panic!("should not be possible")
             }
         }
 

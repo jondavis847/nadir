@@ -29,7 +29,7 @@ use ui::{
     },
     modals::{
         create_base_modal, create_body_modal, create_error_modal, create_prismatic_modal,
-        create_revolute_modal,
+        create_revolute_modal, create_transform_modal,
     },
     sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
@@ -471,6 +471,13 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             DummyComponent::Prismatic => {
                 Some(create_prismatic_modal(&state.nodebar.dummies.prismatic))
             }
+            DummyComponent::Transform => Some(create_transform_modal(
+                &state.nodebar.dummies.transform,
+                &state.nodebar.dummies.aligned_axes,
+                &state.nodebar.dummies.euler_angles,
+                &state.nodebar.dummies.quaternion,
+                &state.nodebar.dummies.rotation_matrix,
+            )),
         }
     } else {
         None

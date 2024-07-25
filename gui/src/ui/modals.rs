@@ -12,7 +12,7 @@ use iced::{
     Element, Length,
 };
 use iced_aw::widgets::card;
-use lyon_geom::Rotation;
+
 use uuid::Uuid;
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveModal {

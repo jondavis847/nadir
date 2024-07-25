@@ -13,6 +13,7 @@ use crate::ui::mouse::{MouseButton, MouseButtonReleaseEvents};
 
 pub enum GraphMessage {
     EditComponent((DummyComponent, Uuid)),
+    EditEdge(Uuid),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -233,6 +234,9 @@ impl Graph {
                             body.delete_outer_joint(&selected_node.component_id)
                         }
                     }
+                    DummyComponent::Transform => {
+                        panic!("should not be possible");
+                    }
                 };
             }
         }
@@ -346,11 +350,10 @@ impl Graph {
         match release_event {
             MouseButtonReleaseEvents::DoubleClick => {
                 // Clear the nodes' selected flags and determine the clicked edge
-                for (_, edge) in &mut self.edges {
+                for (id, edge) in &mut self.edges {
                     if edge.is_clicked(canvas_cursor_position, &self.nodes) {
-                        //double click logic
-                        println!("double clicked");
                         edge.is_selected = true; // always select for double click, only toggle for single click?
+                        message = Some(GraphMessage::EditEdge(*id));
                     } else {
                         edge.is_selected = false;
                     }
