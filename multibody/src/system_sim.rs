@@ -45,7 +45,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             let outer_joint_ids = base.get_outer_joints();
             for id in outer_joint_ids {
                 if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone());
+                    let joint_sim = JointSim::from(joint.clone());                    
                     let joint_index = jointsims.len();
 
                     jointsims.push(joint_sim);

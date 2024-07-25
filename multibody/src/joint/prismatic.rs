@@ -101,6 +101,10 @@ impl JointTrait for Prismatic {
         &self.common.connection
     }
 
+    fn get_connections_mut(&mut self) -> &mut JointConnection {
+        &mut self.common.connection
+    }
+
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match &self.common.connection.inner_body {
             Some(connection) => Some(&connection.body_id),
@@ -149,6 +153,22 @@ pub struct PrismaticSim {
 
 impl From<Prismatic> for PrismaticSim {
     fn from(prismatic: Prismatic) -> Self {
+        // update the joints to body transforms
+        let mut transforms = JointTransforms::default();
+        if let Some(inner_body) = &prismatic.common.connection.inner_body {
+            transforms.jif_from_ib = inner_body.transform.into();
+            transforms.ib_from_jif = inner_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
+        if let Some(outer_body) = &prismatic.common.connection.outer_body {
+            transforms.jof_from_ob = outer_body.transform.into();
+            transforms.ob_from_jof = outer_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
         PrismaticSim {
             aba: PrismaticAbaCache::default(),
             id: *prismatic.get_id(),

@@ -30,6 +30,7 @@ pub trait JointTrait: MultibodyTrait {
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_connections(&self) -> &JointConnection;
+    fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
     fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
@@ -140,6 +141,13 @@ impl JointTrait for Joint {
         match self {
             Joint::Prismatic(joint) => joint.get_connections(),
             Joint::Revolute(joint) => joint.get_connections(),
+        }
+    }
+
+    fn get_connections_mut(&mut self) -> &mut JointConnection {
+        match self {
+            Joint::Prismatic(joint) => joint.get_connections_mut(),
+            Joint::Revolute(joint) => joint.get_connections_mut(),
         }
     }
 

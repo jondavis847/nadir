@@ -69,3 +69,14 @@ pub enum CartesianField {
     Y,
     Z,
 }
+
+pub enum CylindricalField {
+    Azimuth,
+    Height,
+    Radius,
+}
+pub enum SphericalField {
+    Azimuth,
+    Inclination,
+    Radius,
+}

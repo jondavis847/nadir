@@ -103,6 +103,11 @@ impl JointTrait for Revolute {
     fn get_connections(&self) -> &JointConnection {
         &self.common.connection
     }
+
+    fn get_connections_mut(&mut self) -> &mut JointConnection {
+        &mut self.common.connection
+    }
+
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match &self.common.connection.inner_body {
             Some(connection) => Some(&connection.body_id),
@@ -151,12 +156,30 @@ pub struct RevoluteSim {
 
 impl From<Revolute> for RevoluteSim {
     fn from(revolute: Revolute) -> Self {
+
+
+        // update the joints to body transforms
+        let mut transforms = JointTransforms::default();
+        if let Some(inner_body) = &revolute.common.connection.inner_body {
+            transforms.jif_from_ib = inner_body.transform.into();
+            transforms.ib_from_jif = inner_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
+        if let Some(outer_body) = &revolute.common.connection.outer_body {
+            transforms.jof_from_ob = outer_body.transform.into();
+            transforms.ob_from_jof = outer_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
         RevoluteSim {
             aba: RevoluteAbaCache::default(),
             id: *revolute.get_id(),
             parameters: revolute.parameters,
             state: revolute.state,
-            transforms: JointTransforms::default(),
+            transforms,
         }
     }
 }
@@ -271,7 +294,7 @@ impl JointSimTrait for RevoluteSim {
     fn get_transforms_mut(&mut self) -> &mut JointTransforms {
         &mut self.transforms
     }
-    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {        
+    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
         let euler_angles = EulerAngles::new(0.0, 0.0, self.state.theta, EulerSequence::ZYX);
         let rotation = Rotation::EulerAngles(euler_angles);
         let translation = CoordinateSystem::default();

@@ -1,7 +1,8 @@
 use super::dummies::{
-    DummyAlignedAxes, DummyBase, DummyBody, DummyComponent, DummyCuboid, DummyEulerAngles,
-    DummyPrismatic, DummyQuaternion, DummyRevolute, DummyRotationMatrix, DummyTransform,
-    GeometryPickList, RotationPickList, TransformPickList, TranslationPickList,
+    DummyAlignedAxes, DummyBase, DummyBody, DummyCartesian, DummyComponent, DummyCuboid,
+    DummyCylindrical, DummyEulerAngles, DummyPrismatic, DummyQuaternion, DummyRevolute,
+    DummyRotationMatrix, DummySpherical, DummyTransform, GeometryPickList, RotationPickList,
+    TransformPickList, TranslationPickList,
 };
 use crate::{
     ui::{errors::Errors, theme::Theme},
@@ -321,9 +322,12 @@ pub fn create_error_modal(error: Errors) -> Element<'static, Message, Theme> {
 pub fn create_transform_modal<'a>(
     transform: &'a DummyTransform,
     aligned_axes: &'a DummyAlignedAxes,
+    cartesian: &'a DummyCartesian,
+    cylindrical: &'a DummyCylindrical,
     euler_angles: &'a DummyEulerAngles,
     quaternion: &'a DummyQuaternion,
     rotation_matrix: &'a DummyRotationMatrix,
+    spherical: &'a DummySpherical,
 ) -> Element<'a, Message, Theme> {
     let content = Column::new().push(
         Row::new()
@@ -386,6 +390,14 @@ pub fn create_transform_modal<'a>(
                     )
                     .width(Length::Fill),
             );
+
+            // add content based on the rotation
+            let content = match transform.translation {
+                TranslationPickList::Zero => content, //no further content needed
+                TranslationPickList::Cartesian => content.push(cartesian.content()),
+                TranslationPickList::Cylindrical => content.push(cylindrical.content()),
+                TranslationPickList::Spherical => content.push(spherical.content()),
+            };
 
             content.into()
         }

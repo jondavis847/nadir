@@ -19,8 +19,8 @@ mod ui;
 
 use app_state::AppState;
 use multibody_ui::{
-    BodyField, CuboidField, EulerAnglesField, PrismaticField, QuaternionField, RevoluteField,
-    RotationMatrixField,
+    BodyField, CartesianField, CuboidField, CylindricalField, EulerAnglesField, PrismaticField,
+    QuaternionField, RevoluteField, RotationMatrixField, SphericalField,
 };
 
 use ui::{
@@ -80,9 +80,15 @@ enum Message {
     BodyIxyInputChanged(String),
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
+    CartesianXChanged(String),
+    CartesianYChanged(String),
+    CartesianZChanged(String),
     CuboidLengthInputChanged(String),
     CuboidWidthInputChanged(String),
     CuboidHeightInputChanged(String),
+    CylindricalAzimuthChanged(String),
+    CylindricalHeightChanged(String),
+    CylindricalRadiusChanged(String),
     GeometrySelected(GeometryPickList),
     ResultSelected(String),
     PrismaticConstantForceInputChanged(String),
@@ -119,6 +125,9 @@ enum Message {
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
     Simulate,
+    SphericalAzimuthChanged(String),
+    SphericalInclinationChanged(String),
+    SphericalRadiusChanged(String),
     PlotSimSelected(String),
     PlotStateSelected(String),
     PlotComponentSelected(String),
@@ -229,6 +238,15 @@ impl Application for GadgtGui {
                 Message::BodyIyzInputChanged(value) => {
                     state.update_body_field(BodyField::Iyz, &value)
                 }
+                Message::CartesianXChanged(value) => {
+                    state.update_cartesian_field(CartesianField::X, value)
+                }
+                Message::CartesianYChanged(value) => {
+                    state.update_cartesian_field(CartesianField::Y, value)
+                }
+                Message::CartesianZChanged(value) => {
+                    state.update_cartesian_field(CartesianField::Z, value)
+                }
                 Message::CuboidLengthInputChanged(value) => {
                     state.update_cuboid_field(CuboidField::Length, value)
                 }
@@ -237,6 +255,15 @@ impl Application for GadgtGui {
                 }
                 Message::CuboidHeightInputChanged(value) => {
                     state.update_cuboid_field(CuboidField::Height, value)
+                }
+                Message::CylindricalAzimuthChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Azimuth, value)
+                }
+                Message::CylindricalHeightChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Height, value)
+                }
+                Message::CylindricalRadiusChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Radius, value)
                 }
                 Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
                 Message::RevoluteConstantForceInputChanged(value) => {
@@ -349,6 +376,15 @@ impl Application for GadgtGui {
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
+                Message::SphericalAzimuthChanged(value) => {
+                    state.update_spherical_field(SphericalField::Azimuth, value)
+                }
+                Message::SphericalInclinationChanged(value) => {
+                    state.update_spherical_field(SphericalField::Inclination, value)
+                }
+                Message::SphericalRadiusChanged(value) => {
+                    state.update_spherical_field(SphericalField::Radius, value)
+                }
                 Message::TabAnimationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Animation;
                     Command::none()
@@ -474,9 +510,12 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             DummyComponent::Transform => Some(create_transform_modal(
                 &state.nodebar.dummies.transform,
                 &state.nodebar.dummies.aligned_axes,
+                &state.nodebar.dummies.cartesian,
+                &state.nodebar.dummies.cylindrical,
                 &state.nodebar.dummies.euler_angles,
                 &state.nodebar.dummies.quaternion,
                 &state.nodebar.dummies.rotation_matrix,
+                &state.nodebar.dummies.spherical,
             )),
         }
     } else {

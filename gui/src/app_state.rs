@@ -6,8 +6,8 @@ use transforms::prelude::*;
 use utilities::{generate_unique_id, unique_strings};
 
 use crate::multibody_ui::{
-    BodyField, CuboidField, EulerAnglesField, PrismaticField, QuaternionField, RevoluteField,
-    RotationMatrixField,
+    BodyField, CartesianField, CuboidField, CylindricalField, EulerAnglesField, PrismaticField,
+    QuaternionField, RevoluteField, RotationMatrixField, SphericalField,
 };
 use crate::ui::dummies::TransformPickList;
 use crate::ui::sim_tab::canvas::edge::EdgeConnection;
@@ -253,7 +253,7 @@ impl AppState {
                     }
                     //TODO: Transform and othe modals probably don't belong in DummyComponent?
                     DummyComponent::Transform => {
-                        panic!("should not be possible")
+                        // don't do anything for transform, edges shouldnt drawable on the nodebar
                     }
                 }
             }
@@ -313,12 +313,14 @@ impl AppState {
                             }
                         }
                         DummyComponent::Transform => {
-                            panic!("should not be possible")
+                            panic!("should not be possible, see edit Edge")
                         }
                     }
                     self.modal = Some(ActiveModal::new(dummy_type, Some(component_id)));
                 }
                 GraphMessage::EditEdge(edge_id) => {
+                    // gets the  data from the edge to populate the transform modal
+
                     let edge = self.graph.edges.get(&edge_id).unwrap();
                     let from_node = match edge.from {
                         EdgeConnection::Node(node_id) => self.graph.nodes.get(&node_id).unwrap(),
@@ -358,7 +360,7 @@ impl AppState {
                         ) => {
                             //transform is for the joint outer frame to the body frame
                             let joint =
-                                self.graph.system.joints.get(&to_node.component_id).unwrap();
+                                self.graph.system.joints.get(&from_node.component_id).unwrap();
                             let connection = joint.get_connections();
                             let transform = {
                                 if let Some(outer_body) = &connection.outer_body {
@@ -485,8 +487,7 @@ impl AppState {
         Command::none()
     }
 
-    pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {
-        dbg!(&state_name);
+    pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {        
         self.plot_tab.state_menu.option_selected(&state_name);
         self.plot_tab.selected_states = self.plot_tab.state_menu.get_selected_options();
 
@@ -713,7 +714,85 @@ impl AppState {
                 self.nodebar.dummies.prismatic.clear();
             }
             DummyComponent::Transform => {
-                panic!("should not be possible")
+                // find the component with the transform and set it's values from the dummy
+                match modal.component_id {
+                    Some(edge_id) => {
+                        // edge exists, just edit it
+                        let edge = self.graph.edges.get(&edge_id).unwrap();
+                        let from_node = match edge.from {
+                            EdgeConnection::Node(node_id) => {
+                                self.graph.nodes.get(&node_id).unwrap()
+                            }
+                            EdgeConnection::Point(_) => {
+                                panic!("should not be possible to be a point while editing edge")
+                            }
+                        };
+
+                        let to_node = match edge.to {
+                            EdgeConnection::Node(node_id) => {
+                                self.graph.nodes.get(&node_id).unwrap()
+                            }
+                            EdgeConnection::Point(_) => {
+                                panic!("should not be possible to be a point while editing edge")
+                            }
+                        };
+
+                        let transform = match (from_node.dummy_type, to_node.dummy_type) {
+                            (
+                                DummyComponent::Base | DummyComponent::Body,
+                                DummyComponent::Prismatic | DummyComponent::Revolute,
+                            ) => {
+                                //transform is for the joint inner frame to the base frame
+                                let joint = self
+                                    .graph
+                                    .system
+                                    .joints
+                                    .get_mut(&to_node.component_id)
+                                    .unwrap();
+                                let connection = joint.get_connections_mut();
+                                let transform = {
+                                    if let Some(inner_body) = &mut connection.inner_body {
+                                        &mut inner_body.transform
+                                    } else {
+                                        panic!("should not be possible for there not to be a transform if there was an edge")
+                                    }
+                                };
+                                transform
+                            }
+                            (
+                                DummyComponent::Prismatic | DummyComponent::Revolute,
+                                DummyComponent::Body,
+                            ) => {
+                                //transform is for the joint outer frame to the body frame
+                                let joint = self
+                                    .graph
+                                    .system
+                                    .joints
+                                    .get_mut(&from_node.component_id)
+                                    .unwrap();
+                                let connection = joint.get_connections_mut();
+                                let transform = {
+                                    if let Some(outer_body) = &mut connection.outer_body {
+                                        &mut outer_body.transform
+                                    } else {
+                                        panic!("should not be possible for there not to be a transform if there was an edge")
+                                    }
+                                };
+                                transform
+                            }
+                            _ => panic!("shouldn't be another patterns"),
+                        };
+
+                        self.nodebar
+                            .dummies
+                            .transform
+                            .set_values_for(transform, &self.nodebar.dummies);
+                     
+                    }
+                    None => {
+                        // new edge, save it
+                    }
+                }
             }
         }
 
@@ -768,6 +847,7 @@ impl AppState {
     }
 
     pub fn transform_selected(&mut self, transform: TransformPickList) -> Command<Message> {
+        self.nodebar.dummies.transform.transform_type = transform;
         Command::none()
     }
 
@@ -775,10 +855,12 @@ impl AppState {
         &mut self,
         transform: TranslationPickList,
     ) -> Command<Message> {
+        self.nodebar.dummies.transform.translation = transform;
         Command::none()
     }
 
     pub fn transform_rotation_selected(&mut self, transform: RotationPickList) -> Command<Message> {
+        self.nodebar.dummies.transform.rotation = transform;
         Command::none()
     }
 
@@ -802,6 +884,22 @@ impl AppState {
         Command::none()
     }
 
+    pub fn update_cartesian_field(
+        &mut self,
+        field: CartesianField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.cartesian;
+
+        match field {
+            CartesianField::X => dummy.x = string,
+            CartesianField::Y => dummy.y = string,
+            CartesianField::Z => dummy.z = string,
+        }
+
+        Command::none()
+    }
+
     pub fn update_cuboid_field(&mut self, field: CuboidField, string: String) -> Command<Message> {
         let dummy = &mut self.nodebar.dummies.cuboid;
 
@@ -809,6 +907,22 @@ impl AppState {
             CuboidField::Length => dummy.length = string,
             CuboidField::Width => dummy.width = string,
             CuboidField::Height => dummy.height = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_cylindrical_field(
+        &mut self,
+        field: CylindricalField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.cylindrical;
+
+        match field {
+            CylindricalField::Radius => dummy.radius = string,
+            CylindricalField::Azimuth => dummy.azimuth = string,
+            CylindricalField::Height => dummy.height = string,
         }
 
         Command::none()
@@ -902,6 +1016,22 @@ impl AppState {
             RotationMatrixField::E31 => dummy.e31 = string,
             RotationMatrixField::E32 => dummy.e32 = string,
             RotationMatrixField::E33 => dummy.e33 = string,
+        }
+
+        Command::none()
+    }
+
+    pub fn update_spherical_field(
+        &mut self,
+        field: SphericalField,
+        string: String,
+    ) -> Command<Message> {
+        let dummy = &mut self.nodebar.dummies.spherical;
+
+        match field {
+            SphericalField::Radius => dummy.radius = string,
+            SphericalField::Azimuth => dummy.azimuth = string,
+            SphericalField::Inclination => dummy.inclination = string,
         }
 
         Command::none()

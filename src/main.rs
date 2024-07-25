@@ -48,8 +48,7 @@ fn main() {
 
     let result = sim.simulate("sim_test".to_string(), 0.0, 10.0, 0.1);
 
-    let joint1 = result.get_component("joint1");
-    dbg!(joint1);
+    let joint1 = result.get_component("joint1");    
     let body1_rate = result.get_component_state(
         "body1",
         vec![
@@ -68,7 +67,5 @@ fn main() {
             "attitude_base_z",
         ],
     );
-
-    dbg!(body1_rate);
-    dbg!(body1_quat);
+    
 }

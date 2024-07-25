@@ -32,7 +32,7 @@ use crate::{
 };
 use iced::{
     widget::{
-        pick_list, shader::wgpu::naga::back::msl::sampler::Coord, text, text_input, Column, Row,
+        pick_list, text, text_input, Column, Row,
     },
     Element, Length,
 };
@@ -821,12 +821,12 @@ impl DummyEulerAngles {
             ))
             .push(create_text_input(
                 "theta",
-                self.phi.as_str(),
+                self.theta.as_str(),
                 Message::EulerAngleThetaChanged,
             ))
             .push(create_text_input(
                 "psi",
-                self.phi.as_str(),
+                self.psi.as_str(),
                 Message::EulerAnglePsiChanged,
             ))
             .push(
@@ -973,6 +973,26 @@ impl DummyCartesian {
         self.z = String::new();
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "x",
+                self.x.as_str(),
+                Message::CartesianXChanged,
+            ))
+            .push(create_text_input(
+                "y",
+                self.y.as_str(),
+                Message::CartesianYChanged,
+            ))
+            .push(create_text_input(
+                "z",
+                self.z.as_str(),
+                Message::CartesianZChanged,
+            ))     
+            .into()
+    }
+
     pub fn get_values_from(&mut self, cart: &Cartesian) {
         self.x = cart.x.to_string();
         self.y = cart.y.to_string();
@@ -1008,6 +1028,26 @@ impl DummyCylindrical {
         self.height = String::new();
     }
 
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "radius",
+                self.radius.as_str(),
+                Message::CylindricalRadiusChanged,
+            ))
+            .push(create_text_input(
+                "azimuth",
+                self.azimuth.as_str(),
+                Message::CylindricalAzimuthChanged,
+            ))
+            .push(create_text_input(
+                "height",
+                self.height.as_str(),
+                Message::CylindricalHeightChanged,
+            ))     
+            .into()
+    }
+
     pub fn get_values_from(&mut self, cyl: &Cylindrical) {
         self.radius = cyl.radius.to_string();
         self.azimuth = cyl.azimuth.to_string();
@@ -1041,6 +1081,26 @@ impl DummySpherical {
         self.radius = String::new();
         self.azimuth = String::new();
         self.inclination = String::new();
+    }
+
+    pub fn content<'a>(&'a self) -> Element<'a, Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "radius",
+                self.radius.as_str(),
+                Message::SphericalRadiusChanged,
+            ))
+            .push(create_text_input(
+                "azimuth",
+                self.azimuth.as_str(),
+                Message::SphericalAzimuthChanged,
+            ))
+            .push(create_text_input(
+                "inclination",
+                self.inclination.as_str(),
+                Message::SphericalInclinationChanged,
+            ))     
+            .into()
     }
 
     pub fn get_values_from(&mut self, cyl: &Spherical) {
