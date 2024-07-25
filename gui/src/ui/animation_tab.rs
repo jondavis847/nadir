@@ -80,6 +80,8 @@ impl AnimationTab {
         // maybe do RC<RefCell<>> just for this?
         self.result = Some(result.clone());
 
+        let mut cuboids = Vec::<Cuboid>::new();
+
         let sys = &result.system;
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
@@ -89,7 +91,6 @@ impl AnimationTab {
             let position = glam::vec3(r.e1 as f32, r.e2 as f32, r.e3 as f32);
             let body_name = &sys.body_names[i];
 
-            let mut cuboids = Vec::<Cuboid>::new();
             if let Some(geometry) = body.geometry {
                 match geometry {
                     Geometry::Cuboid(cuboid) => {
@@ -105,8 +106,8 @@ impl AnimationTab {
                     }
                 }
             }
-            self.scene.cuboids = cuboids;
         }
+        self.scene.cuboids = cuboids;
         let t = &result.sim_time;
 
         let start_time = t[0] as f32;
