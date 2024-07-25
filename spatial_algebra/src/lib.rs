@@ -1,3 +1,4 @@
+
 use linear_algebra::{
     matrix3::Matrix3, matrix6::Matrix6, matrix6x1::Matrix6x1, vector3::Vector3, vector6::Vector6,
 };
@@ -101,7 +102,7 @@ impl Sub<SpatialVector> for SpatialVector {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MotionVector(SpatialVector);
+pub struct MotionVector(pub SpatialVector);
 
 impl MotionVector {
     #[inline]
@@ -152,7 +153,7 @@ impl Sub<MotionVector> for MotionVector {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Velocity(MotionVector);
+pub struct Velocity(pub MotionVector);
 
 impl Velocity {
     #[inline]
@@ -232,9 +233,10 @@ impl Sub<Velocity> for Velocity {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Acceleration(MotionVector);
+pub struct Acceleration(pub MotionVector);
 
 impl Acceleration {
+
     #[inline]
     pub fn vector(&self) -> Vector6 {
         self.0.vector()
@@ -649,5 +651,41 @@ impl Mul<Acceleration> for SpatialInertia {
     type Output = Force;
     fn mul(self, acceleration: Acceleration) -> Force {
         Force(self * acceleration.0)
+    }
+}
+
+//TODO: MORE TESTS!
+#[cfg(test)]
+mod tests {
+    use rotations::Rotation;
+    use coordinate_systems::cartesian::Cartesian;
+
+    use super::*;
+    const TOL: f64 = 1e-12;
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < TOL,
+            "Expected: {}, Actual: {}",
+            expected,
+            actual
+        );
+    }
+
+    /// Tests the conversion from a `Vector3` to a `Cartesian` coordinate.
+    #[test]
+    fn test_transform_mul_acceleration() {
+        let accel = Acceleration::from(Vector6::new(-1.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        let translation = Cartesian::new(0.0, 0.0, -1.0);
+        let transform = Transform::new(Rotation::IDENTITY, translation.into());
+        let spatial_transform = SpatialTransform::from(transform);
+        let result = spatial_transform * accel;
+
+        assert_close(result.vector().e1, -1.0);
+        assert_close(result.vector().e2, 0.0);
+        assert_close(result.vector().e3, 0.0);
+        assert_close(result.vector().e4, 0.0);
+        assert_close(result.vector().e5, -1.0);
+        assert_close(result.vector().e6, 0.0);
     }
 }

@@ -156,8 +156,6 @@ pub struct RevoluteSim {
 
 impl From<Revolute> for RevoluteSim {
     fn from(revolute: Revolute) -> Self {
-
-
         // update the joints to body transforms
         let mut transforms = JointTransforms::default();
         if let Some(inner_body) = &revolute.common.connection.inner_body {
@@ -230,7 +228,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.q_ddot =
             aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
         aba.common.a = aba.common.a_prime
-            + Acceleration::from(Vector6::new(0.0, 0.0, aba.q_ddot, 0.0, 0.0, 0.0));
+            + Acceleration::from(Vector6::new(aba.q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
     fn get_aba_derivative(&self) -> JointState {

@@ -76,7 +76,7 @@ impl Vector3 {
     /// A `Matrix3` representing the skew-symmetric matrix.
     pub fn skew(&self) -> Matrix3 {
         Matrix3::new(
-            0.0, self.e3, -self.e2, -self.e3, 0.0, self.e1, self.e2, -self.e1, 0.0,
+            0.0, -self.e3, self.e2, self.e3, 0.0, -self.e1, -self.e2, self.e1, 0.0,
         )
     }
 
