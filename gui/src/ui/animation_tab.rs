@@ -43,7 +43,7 @@ impl AnimationTab {
                 let (attitude, position) = result
                     .get_body_state_at_time_interp(&cuboid.name, self.animator.current_time as f64);
                 cuboid.position =
-                    glam::vec3(position.e1 as f32, position.e2 as f32, position.e3 as f32);
+                    glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32);
                 cuboid.rotation = glam::quat(
                     attitude.x as f32,
                     attitude.y as f32,
@@ -88,7 +88,7 @@ impl AnimationTab {
             let q = body.state.attitude_base;
             let r = body.state.position_base;
             let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
-            let position = glam::vec3(r.e1 as f32, r.e2 as f32, r.e3 as f32);
+            let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
             let body_name = &sys.body_names[i];
 
             if let Some(geometry) = body.geometry {

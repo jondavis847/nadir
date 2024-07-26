@@ -22,3 +22,4 @@ polars = "0.41.3"
 chrono = "0.4.38"
 glam = { version = "0.28.0", features = ["bytemuck"] }
 bytemuck = "1.16.1"
+nalgebra = "0.33.0"

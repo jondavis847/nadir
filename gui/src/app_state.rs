@@ -1,5 +1,5 @@
 use iced::{mouse::ScrollDelta, widget::canvas::Cache, Command, Point, Size};
-use linear_algebra::matrix3::Matrix3;
+use nalgebra::Matrix3;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use transforms::prelude::*;
@@ -512,7 +512,7 @@ impl AppState {
             }
             Rotation::RotationMatrix(matrix) => {
                 dummy.rotation = RotationPickList::RotationMatrix;
-                if matrix.0 == Matrix3::IDENTITY {
+                if matrix.0 == Matrix3::identity() {
                     rotation_is_identity = true;
                 }
                 self.nodebar

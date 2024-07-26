@@ -5,7 +5,6 @@ use coordinate_systems::{
     CoordinateSystem,
 };
 use geometry::cuboid::Cuboid;
-use linear_algebra::matrix3::Matrix3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,
@@ -17,6 +16,7 @@ use multibody::{
     },
     MultibodyTrait,
 };
+use nalgebra::Matrix3;
 use rotations::{
     axes::{AlignedAxes, Axis, AxisPair},
     euler_angles::{EulerAngles, EulerSequence},
@@ -31,9 +31,7 @@ use crate::{
     Message,
 };
 use iced::{
-    widget::{
-        pick_list, text, text_input, Column, Row,
-    },
+    widget::{pick_list, text, text_input, Column, Row},
     Element, Length,
 };
 
@@ -237,7 +235,7 @@ impl DummyTransform {
 
     pub fn get_values_from(
         &mut self,
-        transform: &Transform,        
+        transform: &Transform,
         dummy_cartesian: &mut DummyCartesian,
         dummy_cylindrical: &mut DummyCylindrical,
         dummy_euler_angles: &mut DummyEulerAngles,
@@ -766,31 +764,31 @@ impl DummyRotationMatrix {
     }
 
     pub fn get_values_from(&mut self, rotation: &RotationMatrix) {
-        self.e11 = rotation.0.e11.to_string();
-        self.e12 = rotation.0.e12.to_string();
-        self.e13 = rotation.0.e13.to_string();
-        self.e21 = rotation.0.e21.to_string();
-        self.e22 = rotation.0.e22.to_string();
-        self.e23 = rotation.0.e23.to_string();
-        self.e31 = rotation.0.e31.to_string();
-        self.e32 = rotation.0.e32.to_string();
-        self.e33 = rotation.0.e33.to_string();
+        self.e11 = rotation.0[(0, 0)].to_string();
+        self.e12 = rotation.0[(0, 1)].to_string();
+        self.e13 = rotation.0[(0, 2)].to_string();
+        self.e21 = rotation.0[(1, 0)].to_string();
+        self.e22 = rotation.0[(1, 1)].to_string();
+        self.e23 = rotation.0[(1, 2)].to_string();
+        self.e31 = rotation.0[(2, 0)].to_string();
+        self.e32 = rotation.0[(2, 1)].to_string();
+        self.e33 = rotation.0[(2, 2)].to_string();
     }
 
     pub fn set_values_for(&self, rotation: &mut RotationMatrix) {
-        rotation.0.e11 = self.e11.parse::<f64>().unwrap_or(1.0);
-        rotation.0.e12 = self.e12.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e13 = self.e13.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e21 = self.e21.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e22 = self.e22.parse::<f64>().unwrap_or(1.0);
-        rotation.0.e23 = self.e23.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e31 = self.e31.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e32 = self.e32.parse::<f64>().unwrap_or(0.0);
-        rotation.0.e33 = self.e33.parse::<f64>().unwrap_or(1.0);
+        rotation.0[(0, 0)] = self.e11.parse::<f64>().unwrap_or(1.0);
+        rotation.0[(0, 1)] = self.e12.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(0, 2)] = self.e13.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(1, 0)] = self.e21.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(1, 1)] = self.e22.parse::<f64>().unwrap_or(1.0);
+        rotation.0[(1, 2)] = self.e23.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(2, 0)] = self.e31.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(2, 1)] = self.e32.parse::<f64>().unwrap_or(0.0);
+        rotation.0[(2, 2)] = self.e33.parse::<f64>().unwrap_or(1.0);
     }
 
     pub fn to_rotation_matrix(&self) -> RotationMatrix {
-        let mut rotation = RotationMatrix(Matrix3::IDENTITY);
+        let mut rotation = RotationMatrix(Matrix3::identity());
         self.set_values_for(&mut rotation);
         rotation
     }
@@ -989,7 +987,7 @@ impl DummyCartesian {
                 "z",
                 self.z.as_str(),
                 Message::CartesianZChanged,
-            ))     
+            ))
             .into()
     }
 
@@ -1044,7 +1042,7 @@ impl DummyCylindrical {
                 "height",
                 self.height.as_str(),
                 Message::CylindricalHeightChanged,
-            ))     
+            ))
             .into()
     }
 
@@ -1099,7 +1097,7 @@ impl DummySpherical {
                 "inclination",
                 self.inclination.as_str(),
                 Message::SphericalInclinationChanged,
-            ))     
+            ))
             .into()
     }
 

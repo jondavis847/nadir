@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 use rotations::{quaternion::Quaternion, RotationTrait};
 use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
 use std::collections::{HashMap, HashSet};
@@ -55,50 +55,50 @@ impl MultibodyResult {
                     "position_base_x",
                     body.position_base
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<f64>>(),
                 );
                 let position_base_y = Series::new(
                     "position_base_y",
-                    body.position_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                    body.position_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
                 );
                 let position_base_z = Series::new(
                     "position_base_z",
-                    body.position_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                    body.position_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
                 );
 
                 let velocity_base_x = Series::new(
                     "velocity_base_x",
-                    body.velocity_base.iter().map(|v| v.e1).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[0]).collect::<Vec<_>>(),
                 );
                 let velocity_base_y = Series::new(
                     "velocity_base_y",
-                    body.velocity_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
                 );
                 let velocity_base_z = Series::new(
                     "velocity_base_z",
-                    body.velocity_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
                 );
 
                 let acceleration_base_x = Series::new(
                     "acceleration_base_x",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_base_y = Series::new(
                     "acceleration_base_y",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_base_z = Series::new(
                     "acceleration_base_z",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -106,21 +106,21 @@ impl MultibodyResult {
                     "acceleration_body_x",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_body_y = Series::new(
                     "acceleration_body_y",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_body_z = Series::new(
                     "acceleration_body_z",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -128,21 +128,21 @@ impl MultibodyResult {
                     "angular_accel_body_x",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let angular_accel_body_y = Series::new(
                     "angular_accel_body_y",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let angular_accel_body_z = Series::new(
                     "angular_accel_body_z",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -150,21 +150,21 @@ impl MultibodyResult {
                     "angular_rate_body_x",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let angular_rate_body_y = Series::new(
                     "angular_rate_body_y",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let angular_rate_body_z = Series::new(
                     "angular_rate_body_z",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -189,21 +189,21 @@ impl MultibodyResult {
                     "external_force_body_x",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let external_force_body_y = Series::new(
                     "external_force_body_y",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let external_force_body_z = Series::new(
                     "external_force_body_z",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -211,21 +211,21 @@ impl MultibodyResult {
                     "external_torque_body_x",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let external_torque_body_y = Series::new(
                     "external_torque_body_y",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let external_torque_body_z = Series::new(
                     "external_torque_body_z",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -332,7 +332,7 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3) {
+    pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3<f64>) {
         let body = match self.result.get(body_name).unwrap() {
             ResultEntry::Body(body) => body,
             _ => panic!("should not be possible"),
