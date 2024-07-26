@@ -2050,16 +2050,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linear_algebra"
-version = "0.1.0"
-dependencies = [
- "approx_eq",
- "rand",
- "sim_value",
- "utilities",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4207,8 +4197,8 @@ name = "spatial_algebra"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
- "linear_algebra",
  "mass_properties",
+ "nalgebra",
  "rotations",
  "transforms",
 ]
@@ -4611,8 +4601,8 @@ dependencies = [
  "approx",
  "approx_eq",
  "coordinate_systems",
- "linear_algebra",
  "mass_properties",
+ "nalgebra",
  "rotations",
  "sim_value",
 ]

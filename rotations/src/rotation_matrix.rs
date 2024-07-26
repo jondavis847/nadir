@@ -113,7 +113,7 @@ impl From<Quaternion> for RotationMatrix {
         let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;
 
         // Create the `RotationMatrix` from the computed elements.
-        RotationMatrix::new(e11, e21, e31, e12, e22, e32, e13, e23, e33).unwrap()
+        RotationMatrix::new(e11, e12, e13, e21, e22, e23, e31, e32, e33).unwrap()
     }
 }
 
