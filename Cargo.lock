@@ -2285,7 +2285,6 @@ dependencies = [
  "coordinate_systems",
  "differential_equations",
  "geometry",
- "linear_algebra",
  "mass_properties",
  "polars",
  "rotations",
@@ -3867,7 +3866,7 @@ version = "0.1.0"
 dependencies = [
  "approx_eq",
  "coordinate_systems",
- "linear_algebra",
+ "nalgebra",
  "rand",
 ]
 

@@ -1,5 +1,5 @@
 use super::*;
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 use rand::prelude::*;
 use std::fmt;
 use std::ops::{Add, Mul, Neg, Sub};
@@ -66,9 +66,9 @@ impl Quaternion {
         let exp_s = self.s.exp();
 
         Quaternion {
-            x: exp_s * u.e1 * sin_v,
-            y: exp_s * u.e2 * sin_v,
-            z: exp_s * u.e3 * sin_v,
+            x: exp_s * u[0] * sin_v,
+            y: exp_s * u[1] * sin_v,
+            z: exp_s * u[2] * sin_v,
             s: exp_s * cos_v,
         }
     }
@@ -80,9 +80,9 @@ impl Quaternion {
         let u = v.normalize();
 
         Quaternion {
-            x: theta * u.e1,
-            y: theta * u.e2,
-            z: theta * u.e3,
+            x: theta * u[0],
+            y: theta * u[1],
+            z: theta * u[2],
             s: 0.0,
         }
     }
@@ -99,7 +99,7 @@ impl Quaternion {
 
         let s = pow_theta.cos();
         let v = u * pow_theta.sin();
-        Quaternion::new(v.e1, v.e2, v.e3, s)
+        Quaternion::new(v[0], v[1], v[2], s)
     }
 
     pub fn normalize(&self) -> Self {
@@ -215,20 +215,20 @@ impl RotationTrait for Quaternion {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3 {
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.s);
 
-        let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v.e1
-            + 2.0 * (q1 * q2 - q3 * q4) * v.e2
-            + 2.0 * (q1 * q3 + q2 * q4) * v.e3;
+        let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
+            + 2.0 * (q1 * q2 - q3 * q4) * v[1]
+            + 2.0 * (q1 * q3 + q2 * q4) * v[2];
 
-        let out2 = 2.0 * (q2 * q1 + q3 * q4) * v.e1
-            + (-q1 * q1 + q2 * q2 - q3 * q3 + q4 * q4) * v.e2
-            + 2.0 * (q2 * q3 - q1 * q4) * v.e3;
+        let out2 = 2.0 * (q2 * q1 + q3 * q4) * v[0]
+            + (-q1 * q1 + q2 * q2 - q3 * q3 + q4 * q4) * v[1]
+            + 2.0 * (q2 * q3 - q1 * q4) * v[2];
 
-        let out3 = 2.0 * (q3 * q1 - q2 * q4) * v.e1
-            + 2.0 * (q3 * q2 + q1 * q4) * v.e2
-            + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v.e3;
+        let out3 = 2.0 * (q3 * q1 - q2 * q4) * v[0]
+            + 2.0 * (q3 * q2 + q1 * q4) * v[1]
+            + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v[2];
 
         Vector3::new(out1, out2, out3)
     }
@@ -246,20 +246,20 @@ impl RotationTrait for Quaternion {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3 {
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.s);
 
-        let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v.e1
-            + 2.0 * (q1 * q2 + q3 * q4) * v.e2
-            + 2.0 * (q1 * q3 - q2 * q4) * v.e3;
+        let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
+            + 2.0 * (q1 * q2 + q3 * q4) * v[1]
+            + 2.0 * (q1 * q3 - q2 * q4) * v[2];
 
-        let out2 = 2.0 * (q2 * q1 - q3 * q4) * v.e1
-            + (-q1 * q1 + q2 * q2 - q3 * q3 + q4 * q4) * v.e2
-            + 2.0 * (q2 * q3 + q1 * q4) * v.e3;
+        let out2 = 2.0 * (q2 * q1 - q3 * q4) * v[0]
+            + (-q1 * q1 + q2 * q2 - q3 * q3 + q4 * q4) * v[1]
+            + 2.0 * (q2 * q3 + q1 * q4) * v[2];
 
-        let out3 = 2.0 * (q3 * q1 + q2 * q4) * v.e1
-            + 2.0 * (q3 * q2 - q1 * q4) * v.e2
-            + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v.e3;
+        let out3 = 2.0 * (q3 * q1 + q2 * q4) * v[0]
+            + 2.0 * (q3 * q2 - q1 * q4) * v[1]
+            + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v[2];
 
         Vector3::new(out1, out2, out3)
     }
@@ -487,38 +487,38 @@ impl From<RotationMatrix> for Quaternion {
     /// The corresponding `Quaternion`.
     fn from(matrix: RotationMatrix) -> Self {
         let m = matrix.get_value();
-        let trace = m.e11 + m.e22 + m.e33;
+        let trace = m[(0,0)] + m[(1,1)] + m[(2,2)];
 
         if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
             Quaternion {
                 s: 0.25 * s,
-                x: (m.e32 - m.e23) / s,
-                y: (m.e13 - m.e31) / s,
-                z: (m.e21 - m.e12) / s,
+                x: (m[(2,1)] - m[(1,2)]) / s,
+                y: (m[(0,2)] - m[(2,0)]) / s,
+                z: (m[(1,0)] - m[(0,1)]) / s,
             }
-        } else if (m.e11 > m.e22) && (m.e11 > m.e33) {
-            let s = (1.0_f64 + m.e11 - m.e22 - m.e33).sqrt() * 2.0;
+        } else if (m[(0,0)] > m[(1,1)]) && (m[(0,0)] > m[(2,2)]) {
+            let s = (1.0_f64 + m[(0,0)] - m[(1,1)] - m[(2,2)]).sqrt() * 2.0;
             Quaternion {
-                s: (m.e32 - m.e23) / s,
+                s: (m[(2,1)] - m[(1,2)]) / s,
                 x: 0.25 * s,
-                y: (m.e12 + m.e21) / s,
-                z: (m.e13 + m.e31) / s,
+                y: (m[(0,1)] + m[(1,0)]) / s,
+                z: (m[(0,2)] + m[(2,0)]) / s,
             }
-        } else if m.e22 > m.e33 {
-            let s = (1.0_f64 + m.e22 - m.e11 - m.e33).sqrt() * 2.0;
+        } else if m[(1,1)] > m[(2,2)] {
+            let s = (1.0_f64 + m[(1,1)] - m[(0,0)] - m[(2,2)]).sqrt() * 2.0;
             Quaternion {
-                s: (m.e13 - m.e31) / s,
-                x: (m.e12 + m.e21) / s,
+                s: (m[(0,2)] - m[(2,0)]) / s,
+                x: (m[(0,1)] + m[(1,0)]) / s,
                 y: 0.25 * s,
-                z: (m.e23 + m.e32) / s,
+                z: (m[(1,2)] + m[(2,1)]) / s,
             }
         } else {
-            let s = (1.0_f64 + m.e33 - m.e11 - m.e22).sqrt() * 2.0;
+            let s = (1.0_f64 + m[(2,2)] - m[(0,0)] - m[(1,1)]).sqrt() * 2.0;
             Quaternion {
-                s: (m.e21 - m.e12) / s,
-                x: (m.e13 + m.e31) / s,
-                y: (m.e23 + m.e32) / s,
+                s: (m[(1,0)] - m[(0,1)]) / s,
+                x: (m[(0,2)] + m[(2,0)]) / s,
+                y: (m[(1,2)] + m[(2,1)]) / s,
                 z: 0.25 * s,
             }
         }
@@ -729,9 +729,9 @@ mod tests {
         let v = Vector3::new(0.0, 1.0, 0.0);
         let result = q.transform(v);
 
-        assert_approx_eq!(result.e1, 0.0);
-        assert_approx_eq!(result.e2, 0.7071067811865475);
-        assert_approx_eq!(result.e3, -0.7071067811865476);
+        assert_approx_eq!(result[0], 0.0);
+        assert_approx_eq!(result[1], 0.7071067811865475);
+        assert_approx_eq!(result[2], -0.7071067811865476);
     }
 
     #[test]
@@ -741,9 +741,9 @@ mod tests {
         let v = Vector3::new(0.0, 1.0, 0.0);
         let result = q.rotate(v);
 
-        assert_approx_eq!(result.e1, 0.0);
-        assert_approx_eq!(result.e2, 0.7071067811865475);
-        assert_approx_eq!(result.e3, 0.7071067811865476);
+        assert_approx_eq!(result[0], 0.0);
+        assert_approx_eq!(result[1], 0.7071067811865475);
+        assert_approx_eq!(result[2], 0.7071067811865476);
     }
 
     #[test]
@@ -753,9 +753,9 @@ mod tests {
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.transform(v);
 
-        assert_approx_eq!(result.e1, 0.7071067811865475);
-        assert_approx_eq!(result.e2, 0.0);
-        assert_approx_eq!(result.e3, 0.7071067811865476);
+        assert_approx_eq!(result[0], 0.7071067811865475);
+        assert_approx_eq!(result[1], 0.0);
+        assert_approx_eq!(result[2], 0.7071067811865476);
     }
 
     #[test]
@@ -765,9 +765,9 @@ mod tests {
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.rotate(v);
 
-        assert_approx_eq!(result.e1, 0.7071067811865475);
-        assert_approx_eq!(result.e2, 0.0);
-        assert_approx_eq!(result.e3, -0.7071067811865476);
+        assert_approx_eq!(result[0], 0.7071067811865475);
+        assert_approx_eq!(result[1], 0.0);
+        assert_approx_eq!(result[2], -0.7071067811865476);
     }
 
     #[test]
@@ -777,9 +777,9 @@ mod tests {
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.transform(v);
 
-        assert_approx_eq!(result.e1, 0.7071067811865475);
-        assert_approx_eq!(result.e2, -0.7071067811865476);
-        assert_approx_eq!(result.e3, 0.0);
+        assert_approx_eq!(result[0], 0.7071067811865475);
+        assert_approx_eq!(result[1], -0.7071067811865476);
+        assert_approx_eq!(result[2], 0.0);
     }
 
     #[test]
@@ -789,9 +789,9 @@ mod tests {
         let v = Vector3::new(1.0, 0.0, 0.0);
         let result = q.rotate(v);
 
-        assert_approx_eq!(result.e1, 0.7071067811865475);
-        assert_approx_eq!(result.e2, 0.7071067811865476);
-        assert_approx_eq!(result.e3, 0.0);
+        assert_approx_eq!(result[0], 0.7071067811865475);
+        assert_approx_eq!(result[1], 0.7071067811865476);
+        assert_approx_eq!(result[2], 0.0);
     }
 
     #[test]
