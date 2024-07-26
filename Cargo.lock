@@ -1487,7 +1487,6 @@ dependencies = [
  "iced",
  "iced_aw",
  "image",
- "linear_algebra",
  "lyon_geom",
  "lyon_path",
  "mass_properties",
@@ -2191,7 +2190,7 @@ dependencies = [
 name = "mass_properties"
 version = "0.1.0"
 dependencies = [
- "linear_algebra",
+ "nalgebra",
 ]
 
 [[package]]
