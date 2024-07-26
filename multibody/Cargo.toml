@@ -8,7 +8,6 @@ transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 differential_equations = {path = "../differential_equations"}
 geometry = {path = "../geometry"}
-linear_algebra = {path = "../linear_algebra"}
 rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}
 mass_properties = {path = "../mass_properties"}
@@ -16,3 +15,4 @@ uuid = { version = "1.8.0", features = ["v4"] }
 utilities = {path = "../utilities"}
 polars = "0.41.2"
 chrono = "0.4.38"
+nalgebra = "0.33.0"

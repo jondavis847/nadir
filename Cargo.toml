@@ -5,8 +5,7 @@ edition = "2021"
 
 [workspace]
 members = [ "benchmarks",    
-    "coordinate_systems", "differential_equations", "geometry","gui",
-    "linear_algebra", "mass_properties",
+    "coordinate_systems", "differential_equations", "geometry","gui", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
     "transforms", "utilities",    
@@ -17,6 +16,7 @@ coordinate_systems = {path = "./coordinate_systems"}
 differential_equations = {path = "./differential_equations"}
 mass_properties = {path = "./mass_properties"}
 multibody = { path = "./multibody" }
+nalgebra = "0.33.0"
 rotations = { path = "./rotations" }
 transforms = { path = "./transforms" }
 

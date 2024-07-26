@@ -1,6 +1,6 @@
 use super::MultibodyTrait;
 use geometry::Geometry;
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use rotations::quaternion::Quaternion;
 use spatial_algebra::Force;
@@ -142,27 +142,27 @@ impl BodySim {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BodyState {
-    pub position_base: Vector3,
-    pub velocity_base: Vector3,
-    pub acceleration_base: Vector3,
-    pub acceleration_body: Vector3,
+    pub position_base: Vector3<f64>,
+    pub velocity_base: Vector3<f64>,
+    pub acceleration_base: Vector3<f64>,
+    pub acceleration_body: Vector3<f64>,
     pub attitude_base: Quaternion,
-    pub angular_rate_body: Vector3,
-    pub angular_accel_body: Vector3,
+    pub angular_rate_body: Vector3<f64>,
+    pub angular_accel_body: Vector3<f64>,
     pub external_force: Force,         //used for calculations
-    pub external_force_body: Vector3,  //use for reporting
-    pub external_torque_body: Vector3, //use for reporting
+    pub external_force_body: Vector3<f64>,  //use for reporting
+    pub external_torque_body: Vector3<f64>, //use for reporting
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BodyResult {
-    pub position_base: Vec<Vector3>,
-    pub velocity_base: Vec<Vector3>,
-    pub acceleration_base: Vec<Vector3>,
-    pub acceleration_body: Vec<Vector3>,
+    pub position_base: Vec<Vector3<f64>>,
+    pub velocity_base: Vec<Vector3<f64>>,
+    pub acceleration_base: Vec<Vector3<f64>>,
+    pub acceleration_body: Vec<Vector3<f64>>,
     pub attitude_base: Vec<Quaternion>,
-    pub angular_rate_body: Vec<Vector3>,
-    pub angular_accel_body: Vec<Vector3>,
-    pub external_force_body: Vec<Vector3>,
-    pub external_torque_body: Vec<Vector3>,
+    pub angular_rate_body: Vec<Vector3<f64>>,
+    pub angular_accel_body: Vec<Vector3<f64>>,
+    pub external_force_body: Vec<Vector3<f64>>,
+    pub external_torque_body: Vec<Vector3<f64>>,
 }

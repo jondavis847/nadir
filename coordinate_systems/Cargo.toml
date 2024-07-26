@@ -4,6 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sim_value = {path = "../sim_value"}
-linear_algebra = { path = "../linear_algebra" }
-regex = "1.10.5"
+nalgebra = "0.33.0"

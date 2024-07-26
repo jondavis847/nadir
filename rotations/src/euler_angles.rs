@@ -1,6 +1,6 @@
 //use super::{quaternion::Quaternion, RotationTrait};
 use super::*;
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 
 /// Enum representing different Euler angle sequences.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -80,11 +80,11 @@ impl EulerAngles {
     /// # Returns
     ///
     /// A new `Angles` instance.
-    pub fn from_vec(v: &Vector3) -> Self {
+    pub fn from_vec(v: &Vector3<f64>) -> Self {
         Self {
-            phi: v.e1,
-            theta: v.e2,
-            psi: v.e3,
+            phi: v[0],
+            theta: v[1],
+            psi: v[2],
             sequence: EulerSequence::ZYX,
         }
     }
@@ -129,7 +129,7 @@ impl RotationTrait for EulerAngles {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3 {
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
         let quat = Quaternion::from(*self);
         quat.rotate(v)
     }
@@ -143,7 +143,7 @@ impl RotationTrait for EulerAngles {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3 {
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
         let quat = Quaternion::from(*self);
         quat.transform(v)
     }

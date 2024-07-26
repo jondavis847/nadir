@@ -11,7 +11,6 @@ iced_aw = { version = "0.9.3", features = ["card", "modal", "selection_list"] }
 uuid = "1.9.1"
 mass_properties = {path = "../mass_properties"}
 multibody = {path = "../multibody"}
-linear_algebra = {path = "../linear_algebra"}
 lyon_geom = "1.0.5"
 lyon_path = "1.0.5"
 rotations = {path = "../rotations"}
@@ -23,3 +22,4 @@ polars = "0.41.3"
 chrono = "0.4.38"
 glam = { version = "0.28.0", features = ["bytemuck"] }
 bytemuck = "1.16.1"
+nalgebra = "0.33.0"

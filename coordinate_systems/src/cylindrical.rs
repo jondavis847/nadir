@@ -1,7 +1,6 @@
 use super::{cartesian::Cartesian, spherical::Spherical};
-use linear_algebra::vector3::Vector3;
 use std::ops::{Add, Neg};
-
+use nalgebra::Vector3;
 /// Represents a point in cylindrical coordinates.  Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0.
 /// Unique values are not enforced (all values can be negative and are unbounded). This is so
@@ -38,12 +37,12 @@ impl Cylindrical {
     /// # Returns
     ///
     /// A `Vector3` instance.
-    pub fn vec(&self) -> Vector3 {
+    pub fn vec(&self) -> Vector3<f64> {
         Vector3::new(self.radius, self.azimuth, self.height)
     }
 }
 
-impl From<Vector3> for Cylindrical {
+impl From<Vector3<f64>> for Cylindrical {
     /// Creates a new `Cylindrical` instance from a `Vector3`.
     ///
     /// # Arguments
@@ -53,8 +52,8 @@ impl From<Vector3> for Cylindrical {
     /// # Returns
     ///
     /// A `Cylindrical` instance.
-    fn from(v: Vector3) -> Cylindrical {
-        Cylindrical::new(v.e1, v.e2, v.e3)
+    fn from(v: Vector3<f64>) -> Cylindrical {
+        Cylindrical::new(v[0], v[1], v[2])
     }
 }
 

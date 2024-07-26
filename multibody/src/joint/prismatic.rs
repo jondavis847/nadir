@@ -8,7 +8,7 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
+use nalgebra::{Matrix6x1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
@@ -137,7 +137,7 @@ struct PrismaticAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
-    big_u: Matrix6x1,
+    big_u: Matrix6x1<f64>,
     q_ddot: f64,
     tau: f64,
 }
@@ -198,9 +198,9 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         // assum prismatic is in x for now
-        aba.big_u = inertia_articulated_matrix.get_column(4).unwrap();
-        aba.big_d_inv = 1.0 / aba.big_u.e41;
-        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap());
+        aba.big_u = inertia_articulated_matrix.column(3).into();
+        aba.big_d_inv = 1.0 / aba.big_u[3];
+        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap()); //note force is 1 indexed, so 4
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -224,7 +224,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
         aba.q_ddot =
-            aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
+            aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
         aba.common.a = aba.common.a_prime
             + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, aba.q_ddot, 0.0, 0.0));
     }

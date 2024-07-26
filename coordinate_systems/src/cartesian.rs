@@ -1,5 +1,5 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 use std::ops::{Add, Neg};
 
 /// Represents a point in Cartesian coordinates.
@@ -37,12 +37,12 @@ impl Cartesian {
     /// # Returns
     ///
     /// A `Vector3` instance.
-    pub fn vec(&self) -> Vector3 {
+    pub fn vec(&self) -> Vector3<f64> {
         Vector3::new(self.x, self.y, self.z)
     }
 }
 
-impl From<Vector3> for Cartesian {
+impl From<Vector3<f64>> for Cartesian {
     /// Creates a new `Cartesian` instance from a `Vector3`.
     ///
     /// # Arguments
@@ -52,8 +52,8 @@ impl From<Vector3> for Cartesian {
     /// # Returns
     ///
     /// A `Cartesian` instance.
-    fn from(v: Vector3) -> Cartesian {
-        Cartesian::new(v.e1, v.e2, v.e3)
+    fn from(v: Vector3<f64>) -> Cartesian {
+        Cartesian::new(v[0], v[1], v[2])
     }
 }
 

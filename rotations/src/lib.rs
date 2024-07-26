@@ -5,7 +5,8 @@ pub mod quaternion;
 pub mod rotation_matrix;
 use axes::AlignedAxes;
 use euler_angles::{EulerAngles, EulerSequence};
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
+
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
 
@@ -15,7 +16,6 @@ pub mod prelude {
     pub use crate::quaternion::*;
     pub use crate::rotation_matrix::*;
     pub use crate::{Rotation, RotationTrait};
-    pub use linear_algebra::vector3::Vector3;
 }
 
 /// Trait defining rotation and transformation operations.
@@ -29,7 +29,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3;
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64>;
 
     /// Transforms a vector by the rotation.
     ///
@@ -40,7 +40,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3;
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64>;
 
     fn inv(&self) -> Self;
 
@@ -169,7 +169,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3 {
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.rotate(v),
             Rotation::RotationMatrix(rotation) => rotation.rotate(v),
@@ -186,7 +186,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3 {
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.transform(v),
             Rotation::RotationMatrix(rotation) => rotation.transform(v),

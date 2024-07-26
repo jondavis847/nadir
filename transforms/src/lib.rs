@@ -4,7 +4,7 @@ use coordinate_systems::{
     spherical::Spherical,
     CoordinateSystem,
 };
-use linear_algebra::vector3::Vector3;
+use nalgebra::Vector3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use std::ops::Mul;
@@ -60,12 +60,12 @@ impl Transform {
     }
 }
 
-impl Mul<Vector3> for Transform {
-    type Output = Vector3;
+impl Mul<Vector3<f64>> for Transform {
+    type Output = Vector3<f64>;
     /// T is a transform from A to B
     /// v is assumed to be values referenced in A
     /// the output should be v referenced in B
-    fn mul(self, v_a: Vector3) -> Vector3 {
+    fn mul(self, v_a: Vector3<f64>) -> Vector3<f64> {
         // the translation of T is referenced in A, so just add the translation
         // translation is from A to B, so we need to take the negative since this is a transform, not motion
         let v_a_translated_to_b = v_a - Cartesian::from(self.translation).vec();
@@ -131,9 +131,9 @@ impl Mul<MassProperties> for Transform {
         let rotated_translation = self.rotation.transform(translation);
 
         // apply parallel axis theorem
-        let dx = rotated_translation.e1;
-        let dy = rotated_translation.e2;
-        let dz = rotated_translation.e3;
+        let dx = rotated_translation[0];
+        let dy = rotated_translation[1];
+        let dz = rotated_translation[2];
 
         let dx2 = dx * dx;
         let dy2 = dy * dy;
@@ -156,8 +156,7 @@ impl Mul<MassProperties> for Transform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
-    use linear_algebra::vector3::Vector3;
+    use approx_eq::assert_approx_eq;    
     use rotations::{
         euler_angles::{EulerAngles, EulerSequence},
         quaternion::Quaternion,
@@ -172,7 +171,7 @@ mod tests {
         translation2: Cartesian,
         expected_angles: EulerAngles,
         expected_translation: Cartesian,
-        expected_vector: Vector3,
+        expected_vector: Vector3<f64>,
     ) {
         let rotation1 = angles1.into();
         let transform1 = Transform::new(rotation1, translation1.into());
@@ -197,9 +196,9 @@ mod tests {
         assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
         assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
         assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
-        assert_approx_eq!(result_vector.e1, expected_vector.e1, TOL);
-        assert_approx_eq!(result_vector.e2, expected_vector.e2, TOL);
-        assert_approx_eq!(result_vector.e3, expected_vector.e3, TOL);
+        assert_approx_eq!(result_vector[0], expected_vector[0], TOL);
+        assert_approx_eq!(result_vector[1], expected_vector[1], TOL);
+        assert_approx_eq!(result_vector[2], expected_vector[2], TOL);
     }
 
     fn assert_transform_mul3(
@@ -211,7 +210,7 @@ mod tests {
         translation3: Cartesian,
         expected_angles: EulerAngles,
         expected_translation: Cartesian,
-        expected_vector: Vector3,
+        expected_vector: Vector3<f64>,
     ) {
         let rotation1 = angles1.into();
         let transform1 = Transform::new(rotation1, translation1.into());
@@ -239,9 +238,9 @@ mod tests {
         assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
         assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
         assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
-        assert_approx_eq!(result_vector.e1, expected_vector.e1, TOL);
-        assert_approx_eq!(result_vector.e2, expected_vector.e2, TOL);
-        assert_approx_eq!(result_vector.e3, expected_vector.e3, TOL);
+        assert_approx_eq!(result_vector[0], expected_vector[0], TOL);
+        assert_approx_eq!(result_vector[1], expected_vector[1], TOL);
+        assert_approx_eq!(result_vector[2], expected_vector[2], TOL);
     }
 
     #[test]
