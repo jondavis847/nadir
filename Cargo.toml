@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "benchmarks",    
+members = [ "aerospace", "benchmarks",    
     "coordinate_systems", "differential_equations", "geometry","gui", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",

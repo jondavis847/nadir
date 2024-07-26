@@ -1,10 +1,9 @@
+use nalgebra::Vector6;
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Instant, SystemTime};
 use utilities::generate_unique_id;
 use uuid::Uuid;
-use gravity::{GravityEnum, Gravity};
-use linear_algebra::vector6::Vector6;
 
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
@@ -43,11 +42,11 @@ impl From<MultibodySystem> for MultibodySystemSim {
         let mut jointnames = Vec::new();
         let mut parent_joint_indeces = Vec::new();
 
-        if let Some(base) = sys.base {
+        if let Some(base) = &sys.base {
             let outer_joint_ids = base.get_outer_joints();
             for id in outer_joint_ids {
                 if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone());                    
+                    let joint_sim = JointSim::from(joint.clone());
                     let joint_index = jointsims.len();
 
                     jointsims.push(joint_sim);
@@ -75,11 +74,19 @@ impl From<MultibodySystem> for MultibodySystemSim {
             }
         }
 
+        // push base gravity to all bodies if there is one
+        if let Some(base) = &sys.base {
+            if let Some(gravity) = &base.gravity {
+                bodysims
+                    .iter_mut()
+                    .for_each(|body| body.gravity.push(gravity.clone()));
+            }
+        }
+
         MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             body_names: bodynames,
-            gravity: sys.gravity,
             joints: jointsims,
             joint_names: jointnames,
             parent_joint_indeces: parent_joint_indeces,
@@ -193,7 +200,7 @@ impl MultibodySystemSim {
         }
 
         // Convert to a multibody result
-        let mut result_hm = HashMap::<String, ResultEntry>::new();        
+        let mut result_hm = HashMap::<String, ResultEntry>::new();
 
         for joint_state in &joint_states {
             for (i, joint) in joint_state.0.iter().enumerate() {
@@ -267,17 +274,9 @@ impl MultibodySystemSim {
     }
 
     fn update_body_forces(&mut self) {
-        for i in 0..self.bodies.len(){
-            let body = &mut self.bodies[i];
-            body.state.external_force = Vector6::ZERO.into();
-            if let Some(gravity) = &self.gravity{
-                let position = body.state.position_base;
-                let g = gravity.calculate(position);
-                let f_gravity = Vector6::new(0.0, 0.0, 0.0, g.e1, g.e2, g.e3);
-                body.state.external_force = body.state.external_force + f_gravity.into();
-        }
-    }
-        
+        self.bodies
+            .iter_mut()
+            .for_each(|body| body.calculate_external_force());
         //pub external_force: Force, //used for calculations
         //pub external_force_body: Vector3, //use for reporting
         //pub external_torque_body: Vector3, //use for reporting

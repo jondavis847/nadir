@@ -1,4 +1,4 @@
-use gravity::{ConstantGravity, GravityEnum};
+use aerospace::gravity::Gravity;
 
 use super::{
     algorithms::MultibodyAlgorithm,
@@ -15,12 +15,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 
-pub struct MultibodySystem{
-
+pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
-    pub gravity: Option<GravityEnum>, 
     pub joints: HashMap<Uuid, Joint>,
 }
 
@@ -30,7 +28,6 @@ impl MultibodySystem {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: None,
             bodies: HashMap::new(),
-            gravity: None,
             joints: HashMap::new(),
         }
     }
