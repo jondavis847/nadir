@@ -31,7 +31,7 @@ impl SimTab {
         Row::new()
             .push(sim_div)
             .push(graph_container)
-            .height(Length::FillPortion(17))
+            .height(Length::FillPortion(15))
             .width(Length::Fill)
             .into()
     }

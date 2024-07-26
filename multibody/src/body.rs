@@ -1,5 +1,6 @@
 use super::MultibodyTrait;
-use linear_algebra::vector3::Vector3;
+use geometry::Geometry;
+use nalgebra::Vector3;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use rotations::quaternion::Quaternion;
 use spatial_algebra::Force;
@@ -31,6 +32,7 @@ pub struct Body {
     pub mass_properties: MassProperties,
     pub name: String,
     pub outer_joints: Vec<Uuid>,
+    pub geometry: Option<Geometry>,
     //sensors: Vec<BodySensorConnection>,
 }
 
@@ -62,12 +64,18 @@ impl Body {
         }
         Ok(Self {
             //actuators: Vec::new(),
+            geometry: None,
             id: Uuid::new_v4(),
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
         })
+    }
+
+    pub fn with_geometry(mut self, geometry: Geometry) -> Self {
+        self.geometry = Some(geometry);
+        self
     }
 }
 
@@ -113,17 +121,20 @@ impl MultibodyTrait for Body {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BodySim {
     pub state: BodyState,
+    pub geometry: Option<Geometry>,
 }
 
 impl From<Body> for BodySim {
-    fn from(_body: Body) -> Self {
+    fn from(body: Body) -> Self {
         let state = BodyState::default();
-        Self { state }
+        Self {
+            state,
+            geometry: body.geometry,
+        }
     }
 }
 
-impl BodySim {    
-
+impl BodySim {
     pub fn get_external_force(&self) -> &Force {
         &self.state.external_force
     }
@@ -131,27 +142,27 @@ impl BodySim {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BodyState {
-    pub position_base: Vector3,
-    pub velocity_base: Vector3,
-    pub acceleration_base: Vector3,
-    pub acceleration_body: Vector3,
+    pub position_base: Vector3<f64>,
+    pub velocity_base: Vector3<f64>,
+    pub acceleration_base: Vector3<f64>,
+    pub acceleration_body: Vector3<f64>,
     pub attitude_base: Quaternion,
-    pub angular_rate_body: Vector3,
-    pub angular_accel_body: Vector3,
+    pub angular_rate_body: Vector3<f64>,
+    pub angular_accel_body: Vector3<f64>,
     pub external_force: Force,         //used for calculations
-    pub external_force_body: Vector3,  //use for reporting
-    pub external_torque_body: Vector3, //use for reporting
+    pub external_force_body: Vector3<f64>,  //use for reporting
+    pub external_torque_body: Vector3<f64>, //use for reporting
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BodyResult {
-    pub position_base: Vec<Vector3>,
-    pub velocity_base: Vec<Vector3>,
-    pub acceleration_base: Vec<Vector3>,
-    pub acceleration_body: Vec<Vector3>,
+    pub position_base: Vec<Vector3<f64>>,
+    pub velocity_base: Vec<Vector3<f64>>,
+    pub acceleration_base: Vec<Vector3<f64>>,
+    pub acceleration_body: Vec<Vector3<f64>>,
     pub attitude_base: Vec<Quaternion>,
-    pub angular_rate_body: Vec<Vector3>,
-    pub angular_accel_body: Vec<Vector3>,
-    pub external_force_body: Vec<Vector3>,
-    pub external_torque_body: Vec<Vector3>,
+    pub angular_rate_body: Vec<Vector3<f64>>,
+    pub angular_accel_body: Vec<Vector3<f64>>,
+    pub external_force_body: Vec<Vector3<f64>>,
+    pub external_torque_body: Vec<Vector3<f64>>,
 }

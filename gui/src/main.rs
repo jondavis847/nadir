@@ -6,10 +6,11 @@ use iced::{
     alignment, font, keyboard,
     mouse::ScrollDelta,
     time::Instant,
-    widget::{button, canvas::Canvas, container, shader::Program, text, text_input, Column, Row},
+    widget::{canvas::Canvas, container, text, Column, Row},
     window, Application, Command, Element, Length, Point, Settings, Size, Subscription, Vector,
 };
-use iced_aw::{card, modal};
+use iced_aw::modal;
+use rotations::{axes::Axis, euler_angles::EulerSequence};
 use std::{env, path::Path};
 
 mod app_state;
@@ -17,11 +18,19 @@ mod multibody_ui;
 mod ui;
 
 use app_state::AppState;
-use multibody_ui::{BodyField, PrismaticField, RevoluteField};
+use multibody_ui::{
+    BodyField, CartesianField, CuboidField, CylindricalField, EulerAnglesField, PrismaticField,
+    QuaternionField, RevoluteField, RotationMatrixField, SphericalField,
+};
 
 use ui::{
-    dummies::{DummyBase, DummyBody, DummyComponent, DummyPrismatic, DummyRevolute},
-    errors::Errors,
+    dummies::{
+        DummyComponent, GeometryPickList, RotationPickList, TransformPickList, TranslationPickList,
+    },
+    modals::{
+        create_base_modal, create_body_modal, create_error_modal, create_prismatic_modal,
+        create_revolute_modal, create_transform_modal,
+    },
     sim_tab::canvas::GraphCanvas,
     tab_bar::AppTabs,
     theme::Theme,
@@ -54,7 +63,12 @@ fn main() -> iced::Result {
 // Define the possible user interactions
 #[derive(Debug, Clone)]
 enum Message {
+    AnimationSimSelected(String),
     AnimationTick(Instant),
+    AxisPrimaryFromSelected(Axis),
+    AxisPrimaryToSelected(Axis),
+    AxisSecondaryFromSelected(Axis),
+    AxisSecondaryToSelected(Axis),
     BodyNameInputChanged(String),
     BodyMassInputChanged(String),
     BodyCmxInputChanged(String),
@@ -66,6 +80,16 @@ enum Message {
     BodyIxyInputChanged(String),
     BodyIxzInputChanged(String),
     BodyIyzInputChanged(String),
+    CartesianXChanged(String),
+    CartesianYChanged(String),
+    CartesianZChanged(String),
+    CuboidLengthInputChanged(String),
+    CuboidWidthInputChanged(String),
+    CuboidHeightInputChanged(String),
+    CylindricalAzimuthChanged(String),
+    CylindricalHeightChanged(String),
+    CylindricalRadiusChanged(String),
+    GeometrySelected(GeometryPickList),
     ResultSelected(String),
     PrismaticConstantForceInputChanged(String),
     PrismaticDampingInputChanged(String),
@@ -79,11 +103,31 @@ enum Message {
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
+    EulerAngleSequenceChanged(EulerSequence),
+    EulerAnglePhiChanged(String),
+    EulerAngleThetaChanged(String),
+    EulerAnglePsiChanged(String),
+    QuaternionWChanged(String),
+    QuaternionXChanged(String),
+    QuaternionYChanged(String),
+    QuaternionZChanged(String),
+    RotationMatrixE11Changed(String),
+    RotationMatrixE12Changed(String),
+    RotationMatrixE13Changed(String),
+    RotationMatrixE21Changed(String),
+    RotationMatrixE22Changed(String),
+    RotationMatrixE23Changed(String),
+    RotationMatrixE31Changed(String),
+    RotationMatrixE32Changed(String),
+    RotationMatrixE33Changed(String),
     SimDtChanged(String),
     SimNameChanged(String),
     SimStartTimeChanged(String),
     SimStopTimeChanged(String),
     Simulate,
+    SphericalAzimuthChanged(String),
+    SphericalInclinationChanged(String),
+    SphericalRadiusChanged(String),
     PlotSimSelected(String),
     PlotStateSelected(String),
     PlotComponentSelected(String),
@@ -91,6 +135,9 @@ enum Message {
     TabAnimationCameraRotation(Vector),
     TabPlotPressed,
     TabSimulationPressed,
+    TransformSelected(TransformPickList),
+    TransformRotationSelected(RotationPickList),
+    TransformTranslationSelected(TranslationPickList),
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     MiddleButtonPressed(Point),
@@ -148,7 +195,14 @@ impl Application for GadgtGui {
                 Command::none()
             }
             GadgtGui::Loaded(state) => match message {
+                Message::AnimationSimSelected(string) => state.animation_sim_selected(string),
                 Message::AnimationTick(instant) => state.animation(instant),
+                Message::AxisPrimaryFromSelected(value) => state.axis_primary_from_selected(value),
+                Message::AxisPrimaryToSelected(value) => state.axis_primary_to_selected(value),
+                Message::AxisSecondaryFromSelected(value) => {
+                    state.axis_secondary_from_selected(value)
+                }
+                Message::AxisSecondaryToSelected(value) => state.axis_secondary_to_selected(value),
                 Message::FontLoaded(_) => Command::none(),
                 Message::Loaded(_) => Command::none(),
                 Message::BodyNameInputChanged(value) => {
@@ -184,6 +238,34 @@ impl Application for GadgtGui {
                 Message::BodyIyzInputChanged(value) => {
                     state.update_body_field(BodyField::Iyz, &value)
                 }
+                Message::CartesianXChanged(value) => {
+                    state.update_cartesian_field(CartesianField::X, value)
+                }
+                Message::CartesianYChanged(value) => {
+                    state.update_cartesian_field(CartesianField::Y, value)
+                }
+                Message::CartesianZChanged(value) => {
+                    state.update_cartesian_field(CartesianField::Z, value)
+                }
+                Message::CuboidLengthInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Length, value)
+                }
+                Message::CuboidWidthInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Width, value)
+                }
+                Message::CuboidHeightInputChanged(value) => {
+                    state.update_cuboid_field(CuboidField::Height, value)
+                }
+                Message::CylindricalAzimuthChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Azimuth, value)
+                }
+                Message::CylindricalHeightChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Height, value)
+                }
+                Message::CylindricalRadiusChanged(value) => {
+                    state.update_cylindrical_field(CylindricalField::Radius, value)
+                }
+                Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
                 Message::RevoluteConstantForceInputChanged(value) => {
                     state.update_revolute_field(RevoluteField::ConstantForce, value)
                 }
@@ -221,7 +303,57 @@ impl Application for GadgtGui {
                 Message::PrismaticPositionInputChanged(value) => {
                     state.update_prismatic_field(PrismaticField::Position, value)
                 }
-
+                Message::EulerAngleSequenceChanged(sequence) => {
+                    state.update_euler_angle_sequence(sequence)
+                }
+                Message::EulerAnglePhiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Phi, value)
+                }
+                Message::EulerAngleThetaChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Theta, value)
+                }
+                Message::EulerAnglePsiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Psi, value)
+                }
+                Message::QuaternionWChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::W, value)
+                }
+                Message::QuaternionXChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::X, value)
+                }
+                Message::QuaternionYChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::Y, value)
+                }
+                Message::QuaternionZChanged(value) => {
+                    state.update_quaternion_field(QuaternionField::Z, value)
+                }
+                Message::RotationMatrixE11Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E11, value)
+                }
+                Message::RotationMatrixE12Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E12, value)
+                }
+                Message::RotationMatrixE13Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E13, value)
+                }
+                Message::RotationMatrixE21Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E21, value)
+                }
+                Message::RotationMatrixE22Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E22, value)
+                }
+                Message::RotationMatrixE23Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E23, value)
+                }
+                Message::RotationMatrixE31Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E31, value)
+                }
+                Message::RotationMatrixE32Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E32, value)
+                }
+                Message::RotationMatrixE33Changed(value) => {
+                    state.update_rotation_matrix_field(RotationMatrixField::E33, value)
+                }
                 Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                 Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
                 Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
@@ -244,6 +376,15 @@ impl Application for GadgtGui {
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
+                Message::SphericalAzimuthChanged(value) => {
+                    state.update_spherical_field(SphericalField::Azimuth, value)
+                }
+                Message::SphericalInclinationChanged(value) => {
+                    state.update_spherical_field(SphericalField::Inclination, value)
+                }
+                Message::SphericalRadiusChanged(value) => {
+                    state.update_spherical_field(SphericalField::Radius, value)
+                }
                 Message::TabAnimationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Animation;
                     Command::none()
@@ -265,6 +406,13 @@ impl Application for GadgtGui {
                     Command::none()
                 }
                 Message::ResultSelected(_) => Command::none(),
+                Message::TransformSelected(transform) => state.transform_selected(transform),
+                Message::TransformTranslationSelected(transform) => {
+                    state.transform_translation_selected(transform)
+                }
+                Message::TransformRotationSelected(transform) => {
+                    state.transform_rotation_selected(transform)
+                }
             },
         }
     }
@@ -334,13 +482,12 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             Row::new()
                 .push(sim_div)
                 .push(graph_container)
-                .height(Length::FillPortion(17))
+                .height(Length::FillPortion(15))
                 .width(Length::Fill)
                 .into()
         }
         AppTabs::Plot => state.plot_tab.content().into(),
         AppTabs::Animation => state.animation_tab.content().into(),
-        _ => Row::new().into(), //nothing for now
     };
 
     let underlay = Column::new().push(tab_bar).push(underlay);
@@ -350,13 +497,26 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     } else if let Some(active_modal) = state.modal {
         match active_modal.dummy_type {
             DummyComponent::Base => Some(create_base_modal(&state.nodebar.dummies.base)),
-            DummyComponent::Body => Some(create_body_modal(&state.nodebar.dummies.body)),
+            DummyComponent::Body => Some(create_body_modal(
+                &state.nodebar.dummies.body,
+                &state.nodebar.dummies.cuboid,
+            )),
             DummyComponent::Revolute => {
                 Some(create_revolute_modal(&state.nodebar.dummies.revolute))
             }
             DummyComponent::Prismatic => {
                 Some(create_prismatic_modal(&state.nodebar.dummies.prismatic))
             }
+            DummyComponent::Transform => Some(create_transform_modal(
+                &state.nodebar.dummies.transform,
+                &state.nodebar.dummies.aligned_axes,
+                &state.nodebar.dummies.cartesian,
+                &state.nodebar.dummies.cylindrical,
+                &state.nodebar.dummies.euler_angles,
+                &state.nodebar.dummies.quaternion,
+                &state.nodebar.dummies.rotation_matrix,
+                &state.nodebar.dummies.spherical,
+            )),
         }
     } else {
         None
@@ -365,255 +525,5 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
     modal(underlay, overlay)
         .on_esc(Message::CloseModal)
         .align_y(alignment::Vertical::Center)
-        .into()
-}
-
-fn create_base_modal(_base: &DummyBase) -> Element<'static, Message, Theme> {
-    let content = Column::new();
-    let footer = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(
-            button("Cancel")
-                .width(Length::Fill)
-                .on_press(Message::CloseModal),
-        )
-        .push(
-            button("Ok")
-                .width(Length::Fill)
-                .on_press(Message::SaveComponent),
-        );
-
-    //title doesnt work yet
-    card("Base Information", content)
-        .foot(footer)
-        .max_width(500.0)
-        .into()
-}
-
-fn create_body_modal(body: &DummyBody) -> Element<Message, Theme> {
-    let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
-        Row::new()
-            .spacing(10)
-            .push(text(label).width(Length::FillPortion(1)))
-            .push(
-                text_input(label, value)
-                    .on_input(on_input)
-                    .on_submit(Message::SaveComponent)
-                    .width(Length::FillPortion(4)),
-            )
-            .width(Length::Fill)
-    };
-
-    let content = Column::new()
-        .push(create_text_input(
-            "name",
-            &body.name,
-            Message::BodyNameInputChanged,
-        ))
-        .push(create_text_input(
-            "mass",
-            &body.mass,
-            Message::BodyMassInputChanged,
-        ))
-        .push(create_text_input(
-            "cmx",
-            &body.cmx,
-            Message::BodyCmxInputChanged,
-        ))
-        .push(create_text_input(
-            "cmy",
-            &body.cmy,
-            Message::BodyCmyInputChanged,
-        ))
-        .push(create_text_input(
-            "cmz",
-            &body.cmz,
-            Message::BodyCmzInputChanged,
-        ))
-        .push(create_text_input(
-            "ixx",
-            &body.ixx,
-            Message::BodyIxxInputChanged,
-        ))
-        .push(create_text_input(
-            "iyy",
-            &body.iyy,
-            Message::BodyIyyInputChanged,
-        ))
-        .push(create_text_input(
-            "izz",
-            &body.izz,
-            Message::BodyIzzInputChanged,
-        ))
-        .push(create_text_input(
-            "ixy",
-            &body.ixy,
-            Message::BodyIxyInputChanged,
-        ))
-        .push(create_text_input(
-            "ixz",
-            &body.ixz,
-            Message::BodyIxzInputChanged,
-        ))
-        .push(create_text_input(
-            "iyz",
-            &body.iyz,
-            Message::BodyIyzInputChanged,
-        ));
-
-    let footer = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(
-            button("Cancel")
-                .width(Length::Fill)
-                .on_press(Message::CloseModal),
-        )
-        .push(
-            button("Ok")
-                .width(Length::Fill)
-                .on_press(Message::SaveComponent),
-        );
-
-    card("Body Information", content)
-        .foot(footer)
-        .max_width(500.0)
-        .into()
-}
-
-fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {
-    let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
-        Row::new()
-            .spacing(10)
-            .push(text(label).width(Length::FillPortion(1)))
-            .push(
-                text_input(label, value)
-                    .on_input(on_input)
-                    .on_submit(Message::SaveComponent)
-                    .width(Length::FillPortion(2)),
-            )
-            .width(Length::Fill)
-    };
-
-    let content = Column::new()
-        .push(create_text_input("name", &joint.name, |string| {
-            Message::RevoluteNameInputChanged(string)
-        }))
-        .push(create_text_input("theta", &joint.theta, |string| {
-            Message::RevoluteThetaInputChanged(string)
-        }))
-        .push(create_text_input("omega", &joint.omega, |string| {
-            Message::RevoluteOmegaInputChanged(string)
-        }))
-        .push(create_text_input(
-            "constant force",
-            &joint.constant_force,
-            |string| Message::RevoluteConstantForceInputChanged(string),
-        ))
-        .push(create_text_input("damping", &joint.damping, |string| {
-            Message::RevoluteDampingInputChanged(string)
-        }))
-        .push(create_text_input(
-            "spring constant",
-            &joint.spring_constant,
-            |string| Message::RevoluteSpringConstantInputChanged(string),
-        ));
-
-    let footer = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(
-            button("Cancel")
-                .width(Length::Fill)
-                .on_press(crate::Message::CloseModal),
-        )
-        .push(
-            button("Ok")
-                .width(Length::Fill)
-                .on_press(crate::Message::SaveComponent),
-        );
-
-    card("Revolute Information", content)
-        .foot(footer)
-        .max_width(500.0)
-        .into()
-}
-
-fn create_prismatic_modal(joint: &DummyPrismatic) -> Element<Message, Theme> {
-    let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
-        Row::new()
-            .spacing(10)
-            .push(text(label).width(Length::FillPortion(1)))
-            .push(
-                text_input(label, value)
-                    .on_input(on_input)
-                    .on_submit(Message::SaveComponent)
-                    .width(Length::FillPortion(2)),
-            )
-            .width(Length::Fill)
-    };
-
-    let content = Column::new()
-        .push(create_text_input("name", &joint.name, |string| {
-            Message::PrismaticNameInputChanged(string)
-        }))
-        .push(create_text_input("position", &joint.position, |string| {
-            Message::PrismaticPositionInputChanged(string)
-        }))
-        .push(create_text_input("velocity", &joint.velocity, |string| {
-            Message::PrismaticVelocityInputChanged(string)
-        }))
-        .push(create_text_input(
-            "constant force",
-            &joint.constant_force,
-            |string| Message::PrismaticConstantForceInputChanged(string),
-        ))
-        .push(create_text_input("damping", &joint.damping, |string| {
-            Message::PrismaticDampingInputChanged(string)
-        }))
-        .push(create_text_input(
-            "spring constant",
-            &joint.spring_constant,
-            |string| Message::PrismaticSpringConstantInputChanged(string),
-        ));
-
-    let footer = Row::new()
-        .spacing(10)
-        .padding(5)
-        .width(Length::Fill)
-        .push(
-            button("Cancel")
-                .width(Length::Fill)
-                .on_press(crate::Message::CloseModal),
-        )
-        .push(
-            button("Ok")
-                .width(Length::Fill)
-                .on_press(crate::Message::SaveComponent),
-        );
-
-    card("Prismatic Information", content)
-        .foot(footer)
-        .max_width(500.0)
-        .into()
-}
-
-fn create_error_modal(error: Errors) -> Element<'static, Message, Theme> {
-    let text = text(error.get_error_message());
-    let content = Column::new().push(text);
-    let footer = Row::new().spacing(10).padding(5).width(Length::Fill).push(
-        button("Ok")
-            .width(Length::Fill)
-            .on_press(Message::CloseError),
-    );
-
-    card("Error!", content)
-        .foot(footer)
-        .max_width(500.0)
-        .style(ui::theme::Card::Error)
         .into()
 }

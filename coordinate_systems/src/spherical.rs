@@ -1,7 +1,6 @@
 use super::{cartesian::Cartesian, cylindrical::Cylindrical};
-use linear_algebra::vector3::Vector3;
 use std::ops::{Add, Neg};
-
+use nalgebra::Vector3;
 /// Represents a point in spherical coordinates. Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0, and inclination is the angle
 /// from the +z axis.
@@ -39,12 +38,12 @@ impl Spherical {
     /// # Returns
     ///
     /// A `Vector3` instance.
-    pub fn vec(&self) -> Vector3 {
+    pub fn vec(&self) -> Vector3<f64> {
         Vector3::new(self.radius, self.azimuth, self.inclination)
     }
 }
 
-impl From<Vector3> for Spherical {
+impl From<Vector3<f64>> for Spherical {
     /// Creates a new `Spherical` instance from a `Vector3`.
     ///
     /// # Arguments
@@ -54,8 +53,8 @@ impl From<Vector3> for Spherical {
     /// # Returns
     ///
     /// A `Spherical` instance.
-    fn from(v: Vector3) -> Spherical {
-        Spherical::new(v.e1, v.e2, v.e3)
+    fn from(v: Vector3<f64>) -> Spherical {
+        Spherical::new(v[0], v[1], v[2])
     }
 }
 

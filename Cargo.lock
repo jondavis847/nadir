@@ -717,9 +717,7 @@ dependencies = [
 name = "coordinate_systems"
 version = "0.1.0"
 dependencies = [
- "linear_algebra",
- "regex",
- "sim_value",
+ "nalgebra",
 ]
 
 [[package]]
@@ -1312,9 +1310,14 @@ dependencies = [
  "differential_equations",
  "mass_properties",
  "multibody",
+ "nalgebra",
  "rotations",
  "transforms",
 ]
+
+[[package]]
+name = "geometry"
+version = "0.1.0"
 
 [[package]]
 name = "gethostname"
@@ -1485,6 +1488,8 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "chrono",
+ "coordinate_systems",
+ "geometry",
  "glam 0.28.0",
  "iced",
  "iced_aw",
@@ -1493,7 +1498,9 @@ dependencies = [
  "lyon_path",
  "mass_properties",
  "multibody",
+ "nalgebra",
  "polars",
+ "rotations",
  "transforms",
  "utilities",
  "uuid",
@@ -2051,16 +2058,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linear_algebra"
-version = "0.1.0"
-dependencies = [
- "approx_eq",
- "rand",
- "sim_value",
- "utilities",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2191,7 +2188,17 @@ dependencies = [
 name = "mass_properties"
 version = "0.1.0"
 dependencies = [
- "linear_algebra",
+ "nalgebra",
+]
+
+[[package]]
+name = "matrixmultiply"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7574c1cf36da4798ab73da5b215bbf444f50718207754cb522201d78d1cd0ff2"
+dependencies = [
+ "autocfg",
+ "rawpointer",
 ]
 
 [[package]]
@@ -2275,9 +2282,9 @@ dependencies = [
  "chrono",
  "coordinate_systems",
  "differential_equations",
- "gravity",
- "linear_algebra",
+ "geometry",
  "mass_properties",
+ "nalgebra",
  "polars",
  "rotations",
  "spatial_algebra",
@@ -2326,6 +2333,33 @@ dependencies = [
  "termcolor",
  "thiserror",
  "unicode-xid",
+]
+
+[[package]]
+name = "nalgebra"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c4b5f057b303842cf3262c27e465f4c303572e7f6b0648f60e16248ac3397f4"
+dependencies = [
+ "approx",
+ "matrixmultiply",
+ "nalgebra-macros",
+ "num-complex",
+ "num-rational",
+ "num-traits",
+ "simba",
+ "typenum",
+]
+
+[[package]]
+name = "nalgebra-macros"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.68",
 ]
 
 [[package]]
@@ -2429,6 +2463,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
+dependencies = [
  "num-traits",
 ]
 
@@ -3681,6 +3724,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
 
 [[package]]
+name = "rawpointer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
+
+[[package]]
 name = "rayon"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3816,7 +3865,7 @@ version = "0.1.0"
 dependencies = [
  "approx_eq",
  "coordinate_systems",
- "linear_algebra",
+ "nalgebra",
  "rand",
 ]
 
@@ -3879,6 +3928,15 @@ name = "ryu"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
+
+[[package]]
+name = "safe_arch"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3460605018fdc9612bce72735cba0d27efbcd9904780d44c7e3a9948f96148a"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "same-file"
@@ -3978,6 +4036,19 @@ name = "sim_value"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "simba"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3a386a501cd104797982c15ae17aafe8b9261315b5d07e3ec803f2ea26be0fa"
+dependencies = [
+ "approx",
+ "num-complex",
+ "num-traits",
+ "paste",
+ "wide",
 ]
 
 [[package]]
@@ -4135,8 +4206,8 @@ name = "spatial_algebra"
 version = "0.1.0"
 dependencies = [
  "coordinate_systems",
- "linear_algebra",
  "mass_properties",
+ "nalgebra",
  "rotations",
  "transforms",
 ]
@@ -4539,8 +4610,8 @@ dependencies = [
  "approx",
  "approx_eq",
  "coordinate_systems",
- "linear_algebra",
  "mass_properties",
+ "nalgebra",
  "rotations",
  "sim_value",
 ]
@@ -4562,6 +4633,12 @@ name = "ttf-parser"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8686b91785aff82828ed725225925b33b4fde44c4bb15876e5f7c832724c420a"
+
+[[package]]
+name = "typenum"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
 name = "unicode-bidi"
@@ -5015,6 +5092,16 @@ dependencies = [
  "bitflags 2.6.0",
  "js-sys",
  "web-sys",
+]
+
+[[package]]
+name = "wide"
+version = "0.7.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "901e8597c777fa042e9e245bd56c0dc4418c5db3f845b6ff94fbac732c6a0692"
+dependencies = [
+ "bytemuck",
+ "safe_arch",
 ]
 
 [[package]]

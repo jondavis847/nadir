@@ -1,18 +1,21 @@
 use std::ops::Mul;
+pub mod axes;
 pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
-use euler_angles::EulerAngles;
-use linear_algebra::vector3::Vector3;
+use axes::AlignedAxes;
+use euler_angles::{EulerAngles, EulerSequence};
+use nalgebra::Vector3;
+
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
 
 pub mod prelude {
+    pub use crate::axes::*;
     pub use crate::euler_angles::*;
     pub use crate::quaternion::*;
     pub use crate::rotation_matrix::*;
     pub use crate::{Rotation, RotationTrait};
-    pub use linear_algebra::vector3::Vector3;
 }
 
 /// Trait defining rotation and transformation operations.
@@ -26,7 +29,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3;
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64>;
 
     /// Transforms a vector by the rotation.
     ///
@@ -37,7 +40,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3;
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64>;
 
     fn inv(&self) -> Self;
 
@@ -62,6 +65,11 @@ impl Default for Rotation {
         Rotation::Quaternion(Quaternion::identity())
     }
 }
+
+impl Rotation {
+    pub const IDENTITY: Self = Rotation::Quaternion(Quaternion::IDENTITY);
+}
+
 impl From<Quaternion> for Rotation {
     /// Converts Quaternion to a Rotation.
     ///
@@ -108,6 +116,23 @@ impl From<EulerAngles> for Rotation {
     }
 }
 
+impl From<AlignedAxes> for Rotation {
+    /// Converts Aligned Axes to a rotation by converting to rotation matrix.
+    /// TODO: Should we just go all the way to quaternion?
+    ///
+    /// # Arguments
+    ///
+    /// * `aligned_axes` - The Aligned Axes to be converted.
+    ///
+    /// # Returns
+    ///
+    /// A new `Rotation` instance representing the converted quaternion.
+    fn from(aligned_axes: AlignedAxes) -> Self {
+        let rotation_matrix = RotationMatrix::from(aligned_axes);
+        Rotation::RotationMatrix(rotation_matrix)
+    }
+}
+
 impl Mul<Rotation> for Rotation {
     type Output = Self;
 
@@ -144,7 +169,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3) -> Vector3 {
+    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.rotate(v),
             Rotation::RotationMatrix(rotation) => rotation.rotate(v),
@@ -161,7 +186,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3) -> Vector3 {
+    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.transform(v),
             Rotation::RotationMatrix(rotation) => rotation.transform(v),

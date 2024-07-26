@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+coordinate_systems = {path = "../coordinate_systems"}
+geometry = {path = "../geometry"}
 iced = { version = "0.12.1", features = ["canvas","tokio"] }
 iced_aw = { version = "0.9.3", features = ["card", "modal", "selection_list"] }
 uuid = "1.9.1"
@@ -11,6 +13,7 @@ mass_properties = {path = "../mass_properties"}
 multibody = {path = "../multibody"}
 lyon_geom = "1.0.5"
 lyon_path = "1.0.5"
+rotations = {path = "../rotations"}
 transforms = {path = "../transforms"}
 utilities = {path = "../utilities"}
 image = "0.25.1"
@@ -19,3 +22,4 @@ polars = "0.41.3"
 chrono = "0.4.38"
 glam = { version = "0.28.0", features = ["bytemuck"] }
 bytemuck = "1.16.1"
+nalgebra = "0.33.0"

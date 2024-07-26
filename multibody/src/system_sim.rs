@@ -26,9 +26,8 @@ pub struct MultibodyParameters;
 #[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
-    bodies: Vec<BodySim>,
-    body_names: Vec<String>,
-    gravity: Option<GravityEnum>,
+    pub bodies: Vec<BodySim>,
+    pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
     parent_joint_indeces: Vec<usize>,
@@ -48,7 +47,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             let outer_joint_ids = base.get_outer_joints();
             for id in outer_joint_ids {
                 if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone());
+                    let joint_sim = JointSim::from(joint.clone());                    
                     let joint_index = jointsims.len();
 
                     jointsims.push(joint_sim);
@@ -194,8 +193,7 @@ impl MultibodySystemSim {
         }
 
         // Convert to a multibody result
-        let mut result_hm = HashMap::<String, ResultEntry>::new();
-        result_hm.insert("t".to_string(), ResultEntry::VecF64(times));
+        let mut result_hm = HashMap::<String, ResultEntry>::new();        
 
         for joint_state in &joint_states {
             for (i, joint) in joint_state.0.iter().enumerate() {
@@ -259,11 +257,13 @@ impl MultibodySystemSim {
 
         MultibodyResult {
             name: name,
+            sim_time: times,
             result: result_hm,
+            system: self.clone(),
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
-        }                
+        }
     }
 
     fn update_body_forces(&mut self) {

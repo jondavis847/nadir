@@ -1,4 +1,4 @@
-use linear_algebra::{matrix3::Matrix3, vector3::Vector3};
+use nalgebra::{Vector3,Matrix3};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CenterOfMass {
@@ -12,7 +12,7 @@ impl CenterOfMass {
         Self { cmx, cmy, cmz }
     }
 
-    pub fn vector(&self) -> Vector3 {
+    pub fn vector(&self) -> Vector3<f64> {
         Vector3::new(self.cmx, self.cmy, self.cmz)
     }
 
@@ -47,12 +47,12 @@ impl CenterOfMass {
     }
 }
 
-impl From<Vector3> for CenterOfMass {
-    fn from(v: Vector3) -> CenterOfMass {
+impl From<Vector3<f64>> for CenterOfMass {
+    fn from(v: Vector3<f64>) -> CenterOfMass {
         CenterOfMass {
-            cmx: v.e1,
-            cmy: v.e2,
-            cmz: v.e3,
+            cmx: v[0],
+            cmy: v[1],
+            cmz: v[2],
         }
     }
 }
@@ -102,7 +102,7 @@ impl Inertia {
         })
     }
 
-    pub fn matrix(&self) -> Matrix3 {
+    pub fn matrix(&self) -> Matrix3<f64> {
         Matrix3::new(
             self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
             self.izz,
@@ -178,10 +178,10 @@ impl Inertia {
     }
 }
 
-impl From<Matrix3> for Inertia {
-    fn from(m: Matrix3) -> Inertia {
+impl From<Matrix3<f64>> for Inertia {
+    fn from(m: Matrix3<f64>) -> Inertia {
         //TODO add checks on the matrix        
-        Inertia::new(m.e11, m.e22, m.e33, m.e12, m.e13, m.e32).unwrap()
+        Inertia::new(m[(0,0)], m[(1,1)], m[(2,2)], m[(0,1)], m[(0,2)], m[(2,1)]).unwrap()
     }
 }
 

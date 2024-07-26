@@ -1,10 +1,11 @@
+use nalgebra::Vector3;
+
 pub mod cartesian;
 pub mod cylindrical;
 pub mod spherical;
 
 use cartesian::Cartesian;
 use cylindrical::Cylindrical;
-use linear_algebra::vector3::Vector3;
 use spherical::Spherical;
 use std::ops::{Add, Neg};
 
@@ -35,7 +36,9 @@ impl Default for CoordinateSystem {
 }
 
 impl CoordinateSystem {
-    pub fn vec(&self) -> Vector3 {
+    pub const ZERO: Self = CoordinateSystem::Cartesian(Cartesian::ZERO);
+
+    pub fn vec(&self) -> Vector3<f64> {
         match self {
             CoordinateSystem::Cartesian(cs) => cs.vec(),
             CoordinateSystem::Cylindrical(cs) => cs.vec(),

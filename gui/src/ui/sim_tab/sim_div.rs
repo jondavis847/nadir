@@ -25,38 +25,45 @@ impl Default for SimDiv {
 
 impl SimDiv {
     pub fn content(&self) -> Element<Message, crate::ui::theme::Theme> {
-        let create_text_input = |label: &str, value: &str, on_input: fn(String) -> Message| {
-            Row::new()
-                .spacing(10)
-                .push(text(label).width(Length::FillPortion(3)))
-                .push(
-                    text_input(label, value)
-                        .on_input(on_input)
-                        .width(Length::FillPortion(2)),
-                )
-                .width(Length::Fill)
-                .padding(5.0)
-        };
+        let create_text_input =
+            |label: &str, value: &str, placeholder: &str, on_input: fn(String) -> Message| {
+                Row::new()
+                    .spacing(10)
+                    .push(text(label).width(Length::FillPortion(3)))
+                    .push(
+                        text_input(placeholder, value)
+                            .on_input(on_input)
+                            .width(Length::FillPortion(2)),
+                    )
+                    .width(Length::Fill)
+                    .padding(5.0)
+            };
 
         Column::new()
             .push(
                 Column::new()
-                    .push(create_text_input("Sim Name", &self.name, |string| {
-                        Message::SimNameChanged(string)
-                    }))
+                    .push(create_text_input(
+                        "Sim Name",
+                        &self.name,
+                        "enter name",
+                        |string| Message::SimNameChanged(string),
+                    ))
                     .push(create_text_input(
                         "Start Time",
                         &self.start_time.to_string(),
+                        "0.0",
                         |string| Message::SimStartTimeChanged(string),
                     ))
                     .push(create_text_input(
                         "Stop Time",
                         &self.stop_time.to_string(),
+                        "10.0",
                         |string| Message::SimStopTimeChanged(string),
                     ))
                     .push(create_text_input(
                         "Step Size",
                         &self.dt.to_string(),
+                        "1.0",
                         |string| Message::SimDtChanged(string),
                     ))
                     .height(Length::FillPortion(19)),

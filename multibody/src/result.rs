@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
-use rotations::quaternion::Quaternion;
+use nalgebra::Vector3;
+use rotations::{quaternion::Quaternion, RotationTrait};
+use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::{Duration, SystemTime};
@@ -11,11 +13,15 @@ use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
     body::{BodyResult, BodySim},
     joint::{JointResult, JointSim, JointSimTrait},
+    system_sim::MultibodySystemSim,
 };
 
+#[derive(Clone)]
 pub struct MultibodyResult {
     pub name: String,
+    pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
+    pub system: MultibodySystemSim,
     pub time_start: SystemTime,
     pub sim_duration: Duration,
     pub total_duration: Duration,
@@ -26,10 +32,7 @@ impl MultibodyResult {
         let component = self.result.get(component_name).unwrap();
         let mut df = DataFrame::default();
 
-        let t = match self.result.get("t") {
-            Some(ResultEntry::VecF64(vec)) => Series::new("t", vec.clone()),
-            _ => panic!("Could not find `t`, this should not be possible"),
-        };
+        let t = Series::new("t", self.sim_time.clone());
         df.with_column(t).unwrap();
 
         match component {
@@ -52,50 +55,50 @@ impl MultibodyResult {
                     "position_base_x",
                     body.position_base
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<f64>>(),
                 );
                 let position_base_y = Series::new(
                     "position_base_y",
-                    body.position_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                    body.position_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
                 );
                 let position_base_z = Series::new(
                     "position_base_z",
-                    body.position_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                    body.position_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
                 );
 
                 let velocity_base_x = Series::new(
                     "velocity_base_x",
-                    body.velocity_base.iter().map(|v| v.e1).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[0]).collect::<Vec<_>>(),
                 );
                 let velocity_base_y = Series::new(
                     "velocity_base_y",
-                    body.velocity_base.iter().map(|v| v.e2).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
                 );
                 let velocity_base_z = Series::new(
                     "velocity_base_z",
-                    body.velocity_base.iter().map(|v| v.e3).collect::<Vec<_>>(),
+                    body.velocity_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
                 );
 
                 let acceleration_base_x = Series::new(
                     "acceleration_base_x",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_base_y = Series::new(
                     "acceleration_base_y",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_base_z = Series::new(
                     "acceleration_base_z",
                     body.acceleration_base
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -103,21 +106,21 @@ impl MultibodyResult {
                     "acceleration_body_x",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_body_y = Series::new(
                     "acceleration_body_y",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let acceleration_body_z = Series::new(
                     "acceleration_body_z",
                     body.acceleration_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -125,21 +128,21 @@ impl MultibodyResult {
                     "angular_accel_body_x",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let angular_accel_body_y = Series::new(
                     "angular_accel_body_y",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let angular_accel_body_z = Series::new(
                     "angular_accel_body_z",
                     body.angular_accel_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -147,21 +150,21 @@ impl MultibodyResult {
                     "angular_rate_body_x",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let angular_rate_body_y = Series::new(
                     "angular_rate_body_y",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let angular_rate_body_z = Series::new(
                     "angular_rate_body_z",
                     body.angular_rate_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -186,21 +189,21 @@ impl MultibodyResult {
                     "external_force_body_x",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let external_force_body_y = Series::new(
                     "external_force_body_y",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let external_force_body_z = Series::new(
                     "external_force_body_z",
                     body.external_force_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -208,21 +211,21 @@ impl MultibodyResult {
                     "external_torque_body_x",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e1)
+                        .map(|v| v[0])
                         .collect::<Vec<_>>(),
                 );
                 let external_torque_body_y = Series::new(
                     "external_torque_body_y",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e2)
+                        .map(|v| v[1])
                         .collect::<Vec<_>>(),
                 );
                 let external_torque_body_z = Series::new(
                     "external_torque_body_z",
                     body.external_torque_body
                         .iter()
-                        .map(|v| v.e3)
+                        .map(|v| v[2])
                         .collect::<Vec<_>>(),
                 );
 
@@ -329,12 +332,78 @@ impl MultibodyResult {
         }
     }
 
+    pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3<f64>) {
+        let body = match self.result.get(body_name).unwrap() {
+            ResultEntry::Body(body) => body,
+            _ => panic!("should not be possible"),
+        };
+
+        let position = &body.position_base;
+        let attitude = &body.attitude_base;
+
+        let time = &self.sim_time;
+        match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
+            Ok(i) => {
+                // The target is exactly at index i
+                (attitude[i], position[i])
+            }
+            Err(i) => {
+                if i == 0 {
+                    // The target is smaller than the first element
+                    (attitude[i], position[i])
+                } else if i == time.len() {
+                    // The target is greater than the last element
+                    (attitude[i], position[i])
+                } else {
+                    // The target is between elements at i - 1 and i
+                    let t_prev = time[i - 1];
+                    let t_next = time[i];
+                    let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
+
+                    let position_prev = position[i - 1];
+                    let position_next = position[i];
+                    let interp_position =
+                        Vector3::lerp(&position_prev, &position_next, interp_factor);
+
+                    let attitude_prev = attitude[i - 1];
+                    let mut attitude_next = attitude[i];
+
+                    // Ensure quaternion continuity
+                    if attitude_prev.dot(&attitude_next) < 0.0 {
+                        attitude_next = Quaternion {
+                            x: -attitude_next.x,
+                            y: -attitude_next.y,
+                            z: -attitude_next.z,
+                            s: -attitude_next.s,
+                        };
+                    }
+
+                    let interp_attitude;
+                    if false {
+                        // TODO: fix squad
+                        //if i >= 2 && i < attitude.len() - 1 {
+                        //squad
+                        let q0 = attitude[i - 2];
+                        let q3 = attitude[i + 1];
+                        interp_attitude =
+                            Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
+                    } else {
+                        //slerp
+                        interp_attitude =
+                            Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+                    }
+
+                    (interp_attitude, interp_position)
+                }
+            }
+        }
+    }
     pub fn get_components(&self) -> Vec<String> {
         self.result.keys().cloned().collect()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),
@@ -375,15 +444,30 @@ pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
         let inner_joint = &joints[i];
         let transforms = inner_joint.get_transforms();
         let body_from_joint = transforms.ob_from_jof;
-        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
 
+        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
         let joint_a = inner_joint.get_a();
+
         let body_a = body_from_joint * *joint_a;
-        let body_a_in_base = base_from_body * body_a;
+
+        // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
+        let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
+        let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
+        let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
+            body_a_in_base_rotation,
+            body_a_in_base_translation,
+        )));
 
         let joint_v = inner_joint.get_v();
         let body_v = body_from_joint * *joint_v;
-        let body_v_in_base = base_from_body * body_from_joint * *joint_v;
+
+        // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
+        let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
+        let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
+        let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
+            body_v_in_base_rotation,
+            body_v_in_base_translation,
+        )));
 
         body.state.acceleration_body = *body_a.translation();
         body.state.acceleration_base = *body_a_in_base.translation();
@@ -391,7 +475,7 @@ pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
         body.state.velocity_base = *body_v_in_base.translation();
         body.state.angular_rate_body = *body_v.rotation();
 
-        let body_from_base = base_from_body.0.inv();
+        let body_from_base = base_from_body.0.inv();        
         body.state.position_base = body_from_base.translation.vec();
         body.state.attitude_base = Quaternion::from(body_from_base.rotation);
     }

@@ -2,13 +2,13 @@ use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointErrors, JointParameters, JointSimTrait, JointState,
-        JointTrait, JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
+        JointState, JointTrait, JointTransforms,
     },
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use linear_algebra::{matrix6x1::Matrix6x1, vector6::Vector6};
+use nalgebra::{Matrix6x1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
@@ -97,6 +97,14 @@ impl JointTrait for Prismatic {
         self.parameters.mass_properties = None;
     }
 
+    fn get_connections(&self) -> &JointConnection {
+        &self.common.connection
+    }
+
+    fn get_connections_mut(&mut self) -> &mut JointConnection {
+        &mut self.common.connection
+    }
+
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match &self.common.connection.inner_body {
             Some(connection) => Some(&connection.body_id),
@@ -129,7 +137,7 @@ struct PrismaticAbaCache {
     common: AbaCache,
     lil_u: f64,
     big_d_inv: f64,
-    big_u: Matrix6x1,
+    big_u: Matrix6x1<f64>,
     q_ddot: f64,
     tau: f64,
 }
@@ -145,6 +153,22 @@ pub struct PrismaticSim {
 
 impl From<Prismatic> for PrismaticSim {
     fn from(prismatic: Prismatic) -> Self {
+        // update the joints to body transforms
+        let mut transforms = JointTransforms::default();
+        if let Some(inner_body) = &prismatic.common.connection.inner_body {
+            transforms.jif_from_ib = inner_body.transform.into();
+            transforms.ib_from_jif = inner_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
+        if let Some(outer_body) = &prismatic.common.connection.outer_body {
+            transforms.jof_from_ob = outer_body.transform.into();
+            transforms.ob_from_jof = outer_body.transform.inv().into();
+        } else {
+            panic!("should always be an inner body connected")
+        }
+
         PrismaticSim {
             aba: PrismaticAbaCache::default(),
             id: *prismatic.get_id(),
@@ -174,9 +198,9 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         // assum prismatic is in x for now
-        aba.big_u = inertia_articulated_matrix.get_column(4).unwrap();
-        aba.big_d_inv = 1.0 / aba.big_u.e41;
-        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap());
+        aba.big_u = inertia_articulated_matrix.column(3).into();
+        aba.big_d_inv = 1.0 / aba.big_u[3];
+        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(4).unwrap()); //note force is 1 indexed, so 4
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -200,7 +224,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
         aba.q_ddot =
-            aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
+            aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
         aba.common.a = aba.common.a_prime
             + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, aba.q_ddot, 0.0, 0.0));
     }

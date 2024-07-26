@@ -116,10 +116,39 @@ impl iced::widget::scrollable::StyleSheet for Theme {
     }
     fn hovered(
         &self,
-        style: &Self::Style,
+        _style: &Self::Style,
         _is_mouse_over_scrollber: bool,
     ) -> iced::widget::scrollable::Appearance {
-        self.active(style)
+        let mut border = iced::Border::with_radius(2.0);
+        border.color = self.border;
+        border.width = 2.0;
+
+        let container = {
+            let shadow = iced::Shadow::default();
+
+            iced::widget::container::Appearance {
+                text_color: None,
+                background: Some(self.background.into()),
+                border,
+                shadow,
+            }
+        };
+
+        let scroller = iced::widget::scrollable::Scroller {
+            color: self.dark_background.into(),
+            border,
+        };
+        let scrollbar = iced::widget::scrollable::Scrollbar {
+            background: Some(iced::Background::Color(self.background)),
+            border,
+            scroller,
+        };
+        let gap = None;
+        iced::widget::scrollable::Appearance {
+            container,
+            scrollbar,
+            gap,
+        }
     }
 }
 
@@ -360,6 +389,52 @@ impl iced_aw::style::modal::StyleSheet for Theme {
                 self.background.b,
                 0.95,
             )),
+        }
+    }
+}
+
+impl iced::widget::pick_list::StyleSheet for Theme {
+    type Style = ();
+
+    fn active(&self, _style: &Self::Style) -> iced::widget::pick_list::Appearance {
+        iced::widget::pick_list::Appearance {
+            text_color: self.text,
+            placeholder_color: self.greyed,
+            handle_color: self.primary,
+            background: self.background.into(),
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+        }
+    }
+    fn hovered(&self, _style: &Self::Style) -> iced::widget::pick_list::Appearance {
+        iced::widget::pick_list::Appearance {
+            text_color: self.text,
+            placeholder_color: self.greyed,
+            handle_color: self.primary,
+            background: self.background.into(),
+            border: iced::Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+        }
+    }
+}
+
+impl iced::widget::overlay::menu::StyleSheet for Theme {
+    type Style = ();
+
+    // Required method
+    fn appearance(&self, _style: &Self::Style) -> iced::widget::overlay::menu::Appearance {
+        iced::widget::overlay::menu::Appearance {
+            text_color: self.text,
+            background: self.background.into(),
+            border: Border::default(),
+            selected_text_color: self.border,
+            selected_background: self.highlight.into(),
         }
     }
 }
