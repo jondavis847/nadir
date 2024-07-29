@@ -1,3 +1,4 @@
+use aerospace::gravity::{self, ConstantGravity, Gravity, TwoBodyGravity};
 use coordinate_systems::{
     cartesian::Cartesian,
     cylindrical::{self, Cylindrical},
@@ -39,6 +40,8 @@ use iced::{
 pub struct Dummies {
     pub base: DummyBase,
     pub body: DummyBody,
+    pub constant_gravity: DummyConstantGravity,
+    pub gravity: DummyGravity,
     pub transform: DummyTransform,
     pub prismatic: DummyPrismatic,
     pub revolute: DummyRevolute,
@@ -48,6 +51,8 @@ pub struct Dummies {
     pub cuboid: DummyCuboid,
     pub quaternion: DummyQuaternion,
     pub rotation_matrix: DummyRotationMatrix,
+    pub two_body: DummyTwoBodyGravity,
+    pub two_body_custom: DummyTwoBodyCustom,
     pub euler_angles: DummyEulerAngles,
     pub aligned_axes: DummyAlignedAxes,
 }
@@ -58,6 +63,7 @@ pub struct Dummies {
 pub enum DummyComponent {
     Base,
     Body,
+    Gravity,
     Revolute,
     Prismatic,
     Transform,
@@ -1119,5 +1125,300 @@ impl DummySpherical {
             self.azimuth.parse::<f64>().unwrap_or(0.0),
             self.inclination.parse::<f64>().unwrap_or(0.0),
         )
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum GravityPickList {
+    #[default]
+    None,
+    TwoBody,
+    Constant,
+}
+
+impl GravityPickList {
+    pub const ALL: [GravityPickList; 3] = [
+        GravityPickList::None,
+        GravityPickList::TwoBody,
+        GravityPickList::Constant,
+    ];
+}
+
+impl std::fmt::Display for GravityPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                GravityPickList::None => "None",
+                GravityPickList::Constant => "Constant",
+                GravityPickList::TwoBody => "TwoBody",
+            }
+        )
+    }
+}
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DummyGravity {
+    pub model: GravityPickList,
+}
+
+impl DummyGravity {
+    pub fn clear(&mut self) {
+        self.model = GravityPickList::None;
+    }
+
+    pub fn content<'a>(
+        &'a self,
+        constant_gravity: &'a DummyConstantGravity,
+        two_body: &'a DummyTwoBodyGravity,
+        two_body_custom: &'a DummyTwoBodyCustom,
+    ) -> Element<'a, Message, Theme> {
+        let content = Column::new().push(
+            pick_list(
+                &GravityPickList::ALL[..],
+                Some(self.model),
+                Message::GravityModelSelected,
+            )
+            .width(Length::FillPortion(1)),
+        );
+        let content = match self.model {
+            GravityPickList::None => content,
+            GravityPickList::Constant => content.push(constant_gravity.content()),
+            GravityPickList::TwoBody => content.push(two_body.content(two_body_custom)),
+        };
+        content.into()
+    }
+
+    pub fn get_values_from(
+        &mut self,
+        g: &Gravity,
+        dummy_constant: &mut DummyConstantGravity,
+        dummy_two_body: &mut DummyTwoBodyGravity,
+        dummy_two_body_custom: &mut DummyTwoBodyCustom,
+    ) {
+        match g {
+            Gravity::Constant(constant) => {
+                dummy_constant.get_values_from(constant);
+                self.model = GravityPickList::Constant;
+            }
+            Gravity::TwoBody(two_body) => {
+                dummy_two_body.get_values_from(two_body, dummy_two_body_custom);
+                self.model = GravityPickList::TwoBody;
+            }
+        }
+    }
+
+    pub fn to_gravity(
+        &self,
+        dummy_constant: &DummyConstantGravity,
+        dummy_two_body: &DummyTwoBodyGravity,
+        dummy_two_body_custom: &DummyTwoBodyCustom,
+    ) -> Gravity {
+        match self.model {
+            GravityPickList::None => Gravity::Constant(ConstantGravity::new(0.0, 0.0, 0.0)),
+            GravityPickList::Constant => Gravity::Constant(dummy_constant.to_gravity()),
+            GravityPickList::TwoBody => {
+                Gravity::TwoBody(dummy_two_body.to_gravity(dummy_two_body_custom))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DummyConstantGravity {
+    pub x: String,
+    pub y: String,
+    pub z: String,
+}
+
+impl DummyConstantGravity {
+    pub fn clear(&mut self) {
+        self.x = String::new();
+        self.y = String::new();
+        self.z = String::new();
+    }
+
+    pub fn content(&self) -> Element<Message, Theme> {
+        Column::new()
+            .push(create_text_input(
+                "x",
+                self.x.as_str(),
+                Message::ConstantGravityXChanged,
+            ))
+            .push(create_text_input(
+                "y",
+                self.y.as_str(),
+                Message::ConstantGravityYChanged,
+            ))
+            .push(create_text_input(
+                "z",
+                self.z.as_str(),
+                Message::ConstantGravityZChanged,
+            ))
+            .into()
+    }
+
+    pub fn get_values_from(&mut self, g: &ConstantGravity) {
+        self.x = g.value[0].to_string();
+        self.y = g.value[1].to_string();
+        self.z = g.value[2].to_string();
+    }
+
+    pub fn to_gravity(&self) -> ConstantGravity {
+        ConstantGravity::new(
+            self.x.parse::<f64>().unwrap_or(0.0),
+            self.y.parse::<f64>().unwrap_or(0.0),
+            self.z.parse::<f64>().unwrap_or(0.0),
+        )
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum TwoBodyPickList {
+    #[default]
+    None,
+    Custom,
+    Earth,
+    Moon,
+    Sun,
+    Mercury,
+    Venus,
+    Mars,
+    Jupiter,
+    Saturn,
+    Uranus,
+    Neptune,
+    Pluto,
+}
+
+impl TwoBodyPickList {
+    pub const ALL: [TwoBodyPickList; 13] = [
+        TwoBodyPickList::None,
+        TwoBodyPickList::Custom,
+        TwoBodyPickList::Earth,
+        TwoBodyPickList::Moon,
+        TwoBodyPickList::Sun,
+        TwoBodyPickList::Mercury,
+        TwoBodyPickList::Venus,
+        TwoBodyPickList::Mars,
+        TwoBodyPickList::Jupiter,
+        TwoBodyPickList::Saturn,
+        TwoBodyPickList::Uranus,
+        TwoBodyPickList::Neptune,
+        TwoBodyPickList::Pluto,
+    ];
+}
+
+impl std::fmt::Display for TwoBodyPickList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TwoBodyPickList::None => "None",
+                TwoBodyPickList::Custom => "Custom",
+                TwoBodyPickList::Earth => "Earth",
+                TwoBodyPickList::Moon => "Moon",
+                TwoBodyPickList::Sun => "Sun",
+                TwoBodyPickList::Mercury => "Mercury",
+                TwoBodyPickList::Venus => "Venus",
+                TwoBodyPickList::Mars => "Mars",
+                TwoBodyPickList::Jupiter => "Jupiter",
+                TwoBodyPickList::Saturn => "Saturn",
+                TwoBodyPickList::Uranus => "Uranus",
+                TwoBodyPickList::Neptune => "Neptune",
+                TwoBodyPickList::Pluto => "Pluto",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DummyTwoBodyGravity {
+    pub model: TwoBodyPickList,
+}
+
+impl DummyTwoBodyGravity {
+    pub fn clear(&mut self) {
+        self.model = TwoBodyPickList::None;
+    }
+
+    pub fn content<'a>(
+        &'a self,
+        two_body_custom: &'a DummyTwoBodyCustom,
+    ) -> Element<'a, Message, Theme> {
+        let content = Column::new().push(
+            pick_list(
+                &TwoBodyPickList::ALL[..],
+                Some(self.model),
+                Message::TwoBodyModelSelected,
+            )
+            .width(Length::FillPortion(1)),
+        );
+        let content = match self.model {
+            TwoBodyPickList::Custom => content.push(two_body_custom.content()),
+            _ => content,
+        };
+
+        content.into()
+    }
+
+    pub fn get_values_from(
+        &mut self,
+        g: &TwoBodyGravity,
+        two_body_custom: &mut DummyTwoBodyCustom,
+    ) {
+        self.model = match g.mu {
+            0.0 => TwoBodyPickList::None,
+            gravity::EARTH => TwoBodyPickList::Earth,
+            gravity::SUN => TwoBodyPickList::Sun,
+            gravity::MOON => TwoBodyPickList::Moon,
+            gravity::MERCURY => TwoBodyPickList::Mercury,
+            gravity::VENUS => TwoBodyPickList::Venus,
+            gravity::JUPITER => TwoBodyPickList::Jupiter,
+            gravity::SATURN => TwoBodyPickList::Saturn,
+            gravity::URANUS => TwoBodyPickList::Uranus,
+            gravity::NEPTUNE => TwoBodyPickList::Neptune,
+            gravity::PLUTO => TwoBodyPickList::Pluto,
+            _ => {
+                two_body_custom.mu = g.mu.to_string();
+                TwoBodyPickList::Custom
+            }
+        };
+    }
+
+    pub fn to_gravity(&self, two_body_custom: &DummyTwoBodyCustom) -> TwoBodyGravity {
+        match self.model {
+            TwoBodyPickList::None => TwoBodyGravity::new(0.0),
+            TwoBodyPickList::Earth => TwoBodyGravity::new(gravity::EARTH),
+            TwoBodyPickList::Sun => TwoBodyGravity::new(gravity::SUN),
+            TwoBodyPickList::Moon => TwoBodyGravity::new(gravity::MOON),
+            TwoBodyPickList::Mercury => TwoBodyGravity::new(gravity::MERCURY),
+            TwoBodyPickList::Venus => TwoBodyGravity::new(gravity::VENUS),
+            TwoBodyPickList::Mars => TwoBodyGravity::new(gravity::MARS),
+            TwoBodyPickList::Jupiter => TwoBodyGravity::new(gravity::JUPITER),
+            TwoBodyPickList::Saturn => TwoBodyGravity::new(gravity::SATURN),
+            TwoBodyPickList::Uranus => TwoBodyGravity::new(gravity::URANUS),
+            TwoBodyPickList::Neptune => TwoBodyGravity::new(gravity::NEPTUNE),
+            TwoBodyPickList::Pluto => TwoBodyGravity::new(gravity::PLUTO),
+            TwoBodyPickList::Custom => {
+                TwoBodyGravity::new(two_body_custom.mu.parse::<f64>().unwrap_or(0.0))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DummyTwoBodyCustom {
+    pub mu: String,
+}
+
+impl DummyTwoBodyCustom {
+    pub fn clear(&mut self) {
+        self.mu = String::new();
+    }
+
+    pub fn content(&self) -> Element<Message, Theme> {
+        create_text_input("mu", self.mu.as_str(), Message::TwoBodyCustomMuChanged).into()
     }
 }

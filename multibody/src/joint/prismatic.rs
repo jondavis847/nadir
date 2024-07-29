@@ -274,6 +274,10 @@ impl JointSimTrait for PrismaticSim {
     fn get_id(&self) -> &Uuid {
         &self.id
     }
+
+    fn get_inertia(&self) -> &Option<SpatialInertia> {
+        &self.parameters.mass_properties
+    }
     fn get_state(&self) -> JointState {
         JointState::Prismatic(self.state)
     }

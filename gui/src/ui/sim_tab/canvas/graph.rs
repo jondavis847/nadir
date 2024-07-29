@@ -205,6 +205,9 @@ impl Graph {
                             }
                         }
                     }
+                    DummyComponent::Gravity => {
+                        self.system.delete_gravity(&selected_node.component_id)
+                    }
                     DummyComponent::Revolute => {
                         self.system.joints.remove(&selected_node.component_id);
                         if let Some(base) = &mut self.system.base {
@@ -463,7 +466,7 @@ impl Graph {
             }
         };
 
-        // match valid conections and connect, other wise exit
+        // match valid connections and connect, other wise exit
         match (&from_node.dummy_type, &to_node.dummy_type) {
             (DummyComponent::Base, DummyComponent::Revolute)
             | (DummyComponent::Base, DummyComponent::Prismatic) => {
@@ -488,6 +491,11 @@ impl Graph {
                 joint
                     .connect_outer_body(body, Transform::default())
                     .unwrap();
+            }
+            (DummyComponent::Gravity, DummyComponent::Base)
+            | (DummyComponent::Gravity, DummyComponent::Body) => {
+                self.system
+                    .connect_gravity(&from_node.component_id, &to_node.component_id).unwrap();
             }
             _ => {
                 graceful_exit(self);

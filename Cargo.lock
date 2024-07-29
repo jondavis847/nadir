@@ -307,6 +307,8 @@ dependencies = [
  "arrayvec",
  "criterion",
  "mass_properties",
+ "nalgebra",
+ "uuid",
 ]
 
 [[package]]
@@ -1486,6 +1488,7 @@ dependencies = [
 name = "gui"
 version = "0.1.0"
 dependencies = [
+ "aerospace",
  "bytemuck",
  "chrono",
  "coordinate_systems",
@@ -4716,9 +4719,9 @@ version = "0.1.0"
 
 [[package]]
 name = "uuid"
-version = "1.9.1"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de17fd2f7da591098415cff336e12965a28061ddace43b59cb3c430179c9439"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
  "getrandom",
 ]

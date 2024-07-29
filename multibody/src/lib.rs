@@ -14,6 +14,7 @@ use joint::revolute::RevoluteErrors;
 pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,
+    BodyNotFound,
     Body(BodyErrors),
     BodyMissingInnerJoint(Uuid),
     JointMissingInnerBody(Uuid),

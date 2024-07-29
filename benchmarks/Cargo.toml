@@ -7,7 +7,9 @@ edition = "2021"
 arrayvec = "0.7.4"
 criterion = "0.5.1"
 mass_properties = {path = "../mass_properties"}
+nalgebra = "0.33.0"
+uuid = { version = "1.10.0", features = ["v4"] }
 
 [[bench]]
-name = "array_vs_vec_copy_clone"
+name = "vec_vs_hashmap_lookup"
 harness = false

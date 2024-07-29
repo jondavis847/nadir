@@ -30,7 +30,7 @@ pub trait JointTrait: MultibodyTrait {
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_connections(&self) -> &JointConnection;
-    fn get_connections_mut(&mut self) -> &mut JointConnection;
+    fn get_connections_mut(&mut self) -> &mut JointConnection;    
     fn get_inner_body_id(&self) -> Option<&Uuid>;
     fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
@@ -162,7 +162,7 @@ impl JointTrait for Joint {
             Joint::Prismatic(joint) => joint.get_outer_body_id(),
             Joint::Revolute(joint) => joint.get_outer_body_id(),
         }
-    }
+    }    
 }
 
 impl ArticulatedBodyAlgorithm for JointSim {
@@ -302,6 +302,10 @@ pub struct JointTransforms {
     // base to joint frames - only need outer really
     pub jof_from_base: SpatialTransform,
     pub base_from_jof: SpatialTransform,
+
+    //base to outer body
+    pub base_from_ob: SpatialTransform,
+    pub ob_from_base: SpatialTransform,
 }
 
 impl JointTransforms {
@@ -334,6 +338,8 @@ impl JointTransforms {
         self.ij_jof_from_jof = ij_jof_from_jof;
         self.jof_from_base = jof_from_base;
         self.base_from_jof = jof_from_base.inv();
+        self.ob_from_base = self.ob_from_jof * jof_from_base;
+        self.base_from_ob = self.ob_from_base.inv();
     }
 }
 
@@ -374,7 +380,12 @@ impl JointSimTrait for JointSim {
             JointSim::Revolute(joint) => joint.get_id(),
         }
     }
-
+    fn get_inertia(&self) -> &Option<SpatialInertia> {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_inertia(),
+            JointSim::Revolute(joint) => joint.get_inertia(),
+        }
+    }
     #[inline]
     fn get_state(&self) -> JointState {
         match self {
@@ -419,6 +430,7 @@ pub trait JointSimTrait {
     fn calculate_tau(&mut self);
     fn calculate_vj(&mut self);
     fn get_id(&self) -> &Uuid;
+    fn get_inertia(&self) -> &Option<SpatialInertia>;
     fn get_state(&self) -> JointState;
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;

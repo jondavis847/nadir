@@ -19,6 +19,7 @@ pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
+    pub gravities: HashMap<Uuid, Gravity>,
     pub joints: HashMap<Uuid, Joint>,
 }
 
@@ -28,6 +29,7 @@ impl MultibodySystem {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: None,
             bodies: HashMap::new(),
+            gravities: HashMap::new(),
             joints: HashMap::new(),
         }
     }
@@ -60,6 +62,41 @@ impl MultibodySystem {
 
         self.joints.insert(*joint.get_id(), joint);
         Ok(())
+    }
+
+    pub fn add_gravity(&mut self, gravity: Gravity) -> Uuid {
+        let id = Uuid::new_v4();
+        self.gravities.insert(id, gravity);
+        id
+    }
+
+    pub fn connect_gravity(
+        &mut self,
+        gravity_id: &Uuid,
+        body_id: &Uuid,
+    ) -> Result<(), MultibodyErrors> {
+        let mut result = Err(MultibodyErrors::BodyNotFound);
+        if let Some(base) = &mut self.base {
+            if base.get_id() == body_id {
+                base.gravity.push(*gravity_id);
+                result = Ok(());
+            }
+        }
+        if let Some(body) = self.bodies.get_mut(body_id) {
+            body.gravity.push(*gravity_id);
+            result = Ok(());
+        }
+        result
+    }
+
+    pub fn delete_gravity(&mut self, gravity_id: &Uuid) {
+        if let Some(base) = &mut self.base {
+            base.gravity.retain(|&id| id != *gravity_id);
+        }
+        for (_, body) in &mut self.bodies {
+            body.gravity.retain(|&id| id != *gravity_id);
+        }
+        self.gravities.remove(gravity_id);
     }
 
     fn check_name_taken(&self, name: &str) -> bool {

@@ -4,7 +4,8 @@ use geometry::Geometry;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
 use rotations::quaternion::Quaternion;
-use spatial_algebra::Force;
+use spatial_algebra::{Acceleration, Force, SpatialTransform};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub mod body_enum;
@@ -34,8 +35,8 @@ pub struct Body {
     pub name: String,
     pub outer_joints: Vec<Uuid>,
     pub geometry: Option<Geometry>,
-    pub gravity: Vec<Gravity>, // a vec in case say you want moon and earth or something
-                               //sensors: Vec<BodySensorConnection>,
+    pub gravity: Vec<Uuid>, // a vec in case say you want moon and earth or something
+                            //sensors: Vec<BodySensorConnection>,
 }
 
 impl Body {
@@ -125,7 +126,7 @@ impl MultibodyTrait for Body {
 pub struct BodySim {
     pub state: BodyState,
     pub geometry: Option<Geometry>,
-    pub gravity: Vec<Gravity>,
+    pub gravity: Vec<Uuid>,
 }
 
 impl From<Body> for BodySim {
@@ -140,20 +141,25 @@ impl From<Body> for BodySim {
 }
 
 impl BodySim {
-    pub fn get_external_force(&self) -> &Force {
-        &self.state.external_force
+    pub fn get_external_force_body(&self) -> &Force {
+        &self.state.external_spatial_force_body
     }
 
+    pub fn calculate_gravity_accleration_base(
+        &mut self,
+        gravities: &HashMap<Uuid, Gravity>,
+    ) -> Vector3<f64> {
+        let mut g_vec = Vector3::zeros();
+        self.gravity.iter().for_each(|gravity_id| {
+            let gravity = gravities.get(gravity_id).unwrap();
+            g_vec += gravity.calculate(self.state.position_base);
+        });
+        g_vec
+    }
     pub fn calculate_external_force(&mut self) {
         //reset
-        self.state.external_force = Vector6::zeros().into();
-
-        //gravity
-        self.gravity.iter().for_each(|gravity| {
-            let g = gravity.calculate(self.state.position_base);
-            let g_vec = Vector6::new(0.0, 0.0, 0.0, g[0], g[1], g[2]);
-            self.state.external_force = self.state.external_force + Force::from(g_vec);
-        });
+        self.state.external_spatial_force_body = Vector6::zeros().into();
+        //just add body forces, gravity is treated differently
     }
 }
 
@@ -166,7 +172,8 @@ pub struct BodyState {
     pub attitude_base: Quaternion,
     pub angular_rate_body: Vector3<f64>,
     pub angular_accel_body: Vector3<f64>,
-    pub external_force: Force,              //used for calculations
+    pub external_spatial_force_body: Force, //used for calculations
+    pub external_spatial_force_joint: Force, //used for calculations
     pub external_force_body: Vector3<f64>,  //use for reporting
     pub external_torque_body: Vector3<f64>, //use for reporting
 }

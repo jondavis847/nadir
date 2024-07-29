@@ -1,10 +1,3 @@
-use nalgebra::Vector6;
-use std::collections::HashMap;
-use std::ops::{Add, AddAssign, Div, Mul};
-use std::time::{Instant, SystemTime};
-use utilities::generate_unique_id;
-use uuid::Uuid;
-
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
@@ -16,9 +9,16 @@ use crate::{
     system::MultibodySystem,
     MultibodyTrait,
 };
+use aerospace::gravity::Gravity;
 use differential_equations::solver::{Solver, SolverMethod};
+use nalgebra::Vector6;
+use rotations::RotationTrait;
 use spatial_algebra::{Acceleration, Force, Velocity};
-
+use std::collections::HashMap;
+use std::ops::{Add, AddAssign, Div, Mul};
+use std::time::{Instant, SystemTime};
+use utilities::generate_unique_id;
+use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
@@ -29,6 +29,7 @@ pub struct MultibodySystemSim {
     pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
+    gravity: HashMap<Uuid, Gravity>,
     parent_joint_indeces: Vec<usize>,
 }
 
@@ -76,10 +77,8 @@ impl From<MultibodySystem> for MultibodySystemSim {
 
         // push base gravity to all bodies if there is one
         if let Some(base) = &sys.base {
-            if let Some(gravity) = &base.gravity {
-                bodysims
-                    .iter_mut()
-                    .for_each(|body| body.gravity.push(gravity.clone()));
+            for body in &mut bodysims {
+                body.gravity.extend(base.gravity.clone())
             }
         }
 
@@ -89,6 +88,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             body_names: bodynames,
             joints: jointsims,
             joint_names: jointnames,
+            gravity: sys.gravities,
             parent_joint_indeces: parent_joint_indeces,
         }
     }
@@ -123,8 +123,31 @@ impl MultibodySystemSim {
                         0 => Velocity::zeros(),
                         _ => *self.joints[self.parent_joint_indeces[i]].get_v(),
                     };
-                    let f_ob = self.bodies[i].get_external_force();
-                    self.joints[i].first_pass(v_ij, f_ob);
+                    // get transforms
+                    let transforms = self.joints[i].get_transforms();
+
+                    //get gravity
+                    let gravity_base =
+                        self.bodies[i].calculate_gravity_accleration_base(&self.gravity);
+                    let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
+                    //convert to spatial
+                    let gravity_body = Acceleration::from(Vector6::new(
+                        0.0,
+                        0.0,
+                        0.0,
+                        gravity_body[0],
+                        gravity_body[1],
+                        gravity_body[2],
+                    ));
+                    //transform accel_to joint
+                    let gravity_joint = transforms.jof_from_ob * gravity_body;
+                    //transform to force by multiplying by joint inertia
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
+
+                    let f_ob = gravity_joint
+                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
+                    
+                    self.joints[i].first_pass(v_ij, &f_ob);
                 }
 
                 // Second Pass

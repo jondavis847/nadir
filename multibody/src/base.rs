@@ -11,7 +11,7 @@ pub struct Base {
     id: Uuid,
     name: String,
     outer_joints: Vec<Uuid>,    
-    pub gravity: Option<Gravity>,
+    pub gravity: Vec<Uuid>,
 }
 
 impl Base {
@@ -24,7 +24,7 @@ impl Base {
             id: Uuid::new_v4(),
             name: name.to_string(),
             outer_joints: Vec::new(),            
-            gravity: None,
+            gravity: Vec::new(),
         }
     }
 }
