@@ -546,9 +546,8 @@ impl Mul<SpatialInertia> for SpatialTransform {
     type Output = SpatialInertia;
     fn mul(self, inertia: SpatialInertia) -> SpatialInertia {
         let transform_motion = self.matrix_motion();
-        let transform_force = self.matrix_force();
-
-        SpatialInertia::from(transform_force * inertia.matrix() * transform_motion.transpose())
+        let transform_force = self.matrix_force();        
+        SpatialInertia::from(transform_force * inertia.matrix() * transform_motion.try_inverse().unwrap())
     }
 }
 
@@ -659,8 +658,7 @@ mod tests {
             actual
         );
     }
-
-    /// Tests the conversion from a `Vector3` to a `Cartesian` coordinate.
+    
     #[test]
     fn test_transform_mul_acceleration() {
         let accel = Acceleration::from(Vector6::new(-1.0, 0.0, 0.0, 0.0, 0.0, 0.0));
@@ -675,5 +673,52 @@ mod tests {
         assert_close(result.vector()[3], 0.0);
         assert_close(result.vector()[4], -1.0);
         assert_close(result.vector()[5], 0.0);
+    }
+
+
+    #[test]
+    fn test_transform_mul_inertia() {
+        let inertia = SpatialInertia::from(MassProperties::default());        
+        let translation = Cartesian::new(0.0, 0.0, 1.0);
+        let transform = Transform::new(Rotation::IDENTITY, translation.into());
+        let spatial_transform = SpatialTransform::from(transform);
+        let result = spatial_transform * inertia;
+
+        assert_close(result.0[(0,0)], 2.0);
+        assert_close(result.0[(1,0)], 0.0);
+        assert_close(result.0[(2,0)], 0.0);
+        assert_close(result.0[(3,0)], 0.0);
+        assert_close(result.0[(4,0)], 1.0);
+        assert_close(result.0[(5,0)], 0.0);
+        assert_close(result.0[(0,1)], 0.0);
+        assert_close(result.0[(1,1)], 2.0);
+        assert_close(result.0[(2,1)], 0.0);
+        assert_close(result.0[(3,1)], -1.0);
+        assert_close(result.0[(4,1)], 0.0);
+        assert_close(result.0[(5,1)], 0.0);
+        assert_close(result.0[(0,2)], 0.0);
+        assert_close(result.0[(1,2)], 0.0);
+        assert_close(result.0[(2,2)], 1.0);
+        assert_close(result.0[(3,2)], 0.0);
+        assert_close(result.0[(4,2)], 0.0);
+        assert_close(result.0[(5,2)], 0.0);
+        assert_close(result.0[(0,3)], 0.0);
+        assert_close(result.0[(1,3)], -1.0);
+        assert_close(result.0[(2,3)], 0.0);
+        assert_close(result.0[(3,3)], 1.0);
+        assert_close(result.0[(4,3)], 0.0);
+        assert_close(result.0[(5,3)], 0.0);
+        assert_close(result.0[(0,4)], 1.0);
+        assert_close(result.0[(1,4)], 0.0);
+        assert_close(result.0[(2,4)], 0.0);
+        assert_close(result.0[(3,4)], 0.0);
+        assert_close(result.0[(4,4)], 1.0);
+        assert_close(result.0[(5,4)], 0.0);
+        assert_close(result.0[(0,5)], 0.0);
+        assert_close(result.0[(1,5)], 0.0);
+        assert_close(result.0[(2,5)], 0.0);
+        assert_close(result.0[(3,5)], 0.0);
+        assert_close(result.0[(4,5)], 0.0);
+        assert_close(result.0[(5,5)], 1.0);
     }
 }

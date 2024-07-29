@@ -13,7 +13,7 @@ use aerospace::gravity::Gravity;
 use differential_equations::solver::{Solver, SolverMethod};
 use nalgebra::Vector6;
 use rotations::RotationTrait;
-use spatial_algebra::{Acceleration, Force, Velocity};
+use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Instant, SystemTime};
@@ -58,6 +58,17 @@ impl From<MultibodySystem> for MultibodySystemSim {
                         if let Some(next_body) = sys.bodies.get(next_body_id) {
                             bodynames.push(next_body.get_name().to_string());
                             bodysims.push(BodySim::from(next_body.clone()));
+
+                            // calculate the joint mass properties
+                            let joint = &mut jointsims[0];
+                            let body_mass_properties = next_body.get_mass_properties();
+                            joint.update_transforms(None);
+                            let transforms = joint.get_transforms();
+                            let jof_from_ob = transforms.jof_from_ob;
+                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);                            
+                            let joint_mass_properties = jof_from_ob * spatial_inertia;                            
+                            joint.set_inertia(Some(joint_mass_properties));
+
                             recursive_sys_creation(
                                 next_body,
                                 joint_index,
@@ -141,12 +152,10 @@ impl MultibodySystemSim {
                     ));
                     //transform accel_to joint
                     let gravity_joint = transforms.jof_from_ob * gravity_body;
-                    //transform to force by multiplying by joint inertia
-                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
-
+                    //transform to force by multiplying by joint inertia                    
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
-                    
                     self.joints[i].first_pass(v_ij, &f_ob);
                 }
 
@@ -352,6 +361,17 @@ fn recursive_sys_creation(
                 if let Some(next_body) = bodies.get(next_body_id) {
                     bodynames.push(next_body.get_name().to_string());
                     bodysims.push(BodySim::from(next_body.clone()));
+
+                    // calculate the joint mass properties
+                    let joint = &mut jointsims[joint_index];
+                    let body_mass_properties = next_body.get_mass_properties();
+                    joint.update_transforms(None);
+                    let transforms = joint.get_transforms();
+                    let jof_from_ob = transforms.jof_from_ob;
+                    let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+                    let joint_mass_properties = jof_from_ob * spatial_inertia;
+                    joint.set_inertia(Some(joint_mass_properties));
+
                     recursive_sys_creation(
                         next_body,
                         joint_index,

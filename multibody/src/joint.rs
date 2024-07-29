@@ -394,6 +394,14 @@ impl JointSimTrait for JointSim {
         }
     }
     #[inline]
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_inertia(inertia),
+            JointSim::Revolute(joint) => joint.set_inertia(inertia),
+        }
+    }
+
+    #[inline]
     fn set_state(&mut self, state: JointState) {
         match self {
             JointSim::Prismatic(joint) => joint.set_state(state),
@@ -432,6 +440,7 @@ pub trait JointSimTrait {
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> &Option<SpatialInertia>;
     fn get_state(&self) -> JointState;
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
