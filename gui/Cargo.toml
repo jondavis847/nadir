@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aerospace = {path = "../aerospace"}
 coordinate_systems = {path = "../coordinate_systems"}
 geometry = {path = "../geometry"}
 iced = { version = "0.12.1", features = ["canvas","tokio"] }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aerospace = {path = "../aerospace"}
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 differential_equations = {path = "../differential_equations"}

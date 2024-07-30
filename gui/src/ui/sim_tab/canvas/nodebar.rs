@@ -70,6 +70,11 @@ impl Default for Nodebar {
         let revolute_node_id = Uuid::new_v4();
         nodes.insert(revolute_node_id, revolute_node);
 
+        let gravity_node =
+            create_default_node("+gravity", &mut count, DummyComponent::Gravity, x);
+        let gravity_node_id = Uuid::new_v4();
+        nodes.insert(gravity_node_id, gravity_node);
+
         let left_clicked_node = None;
 
         let dummies = Dummies::default();

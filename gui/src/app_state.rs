@@ -9,7 +9,7 @@ use crate::multibody_ui::{
     BodyField, CartesianField, CuboidField, CylindricalField, EulerAnglesField, PrismaticField,
     QuaternionField, RevoluteField, RotationMatrixField, SphericalField,
 };
-use crate::ui::dummies::TransformPickList;
+use crate::ui::dummies::{GravityPickList, TransformPickList, TwoBodyPickList};
 use crate::ui::sim_tab::canvas::edge::EdgeConnection;
 use crate::ui::{
     animation_tab::AnimationTab,
@@ -137,6 +137,19 @@ impl AppState {
         Command::none()
     }
 
+    pub fn constant_gravity_x_changed(&mut self, string: String) -> Command<Message> {
+        self.nodebar.dummies.constant_gravity.x = string;
+        Command::none()
+    }
+    pub fn constant_gravity_y_changed(&mut self, string: String) -> Command<Message> {
+        self.nodebar.dummies.constant_gravity.y = string;
+        Command::none()
+    }
+    pub fn constant_gravity_z_changed(&mut self, string: String) -> Command<Message> {
+        self.nodebar.dummies.constant_gravity.z = string;
+        Command::none()
+    }
+
     pub fn cursor_moved(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         match self.tab_bar.state.current_tab {
             AppTabs::Simulation => {
@@ -182,6 +195,11 @@ impl AppState {
 
     pub fn geometry_selected(&mut self, geometry: GeometryPickList) -> Command<Message> {
         self.nodebar.dummies.body.geometry = geometry;
+        Command::none()
+    }
+
+    pub fn gravity_model_selected(&mut self, gravity: GravityPickList) -> Command<Message> {
+        self.nodebar.dummies.gravity.model = gravity;
         Command::none()
     }
 
@@ -234,6 +252,7 @@ impl AppState {
         {
             // Only create a new component if the mouse is over the graph
             if self.graph.bounds.contains(canvas_cursor_position) {
+                // do some checks if you need to depending on the modal type, otherwise set the state modal field
                 match active_modal.dummy_type {
                     DummyComponent::Base => {
                         if self.graph.system.base.is_some() {
@@ -242,22 +261,16 @@ impl AppState {
                             self.modal = Some(active_modal);
                         }
                     }
-                    DummyComponent::Body => {
-                        self.modal = Some(active_modal);
-                    }
-                    DummyComponent::Revolute => {
-                        self.modal = Some(active_modal);
-                    }
-                    DummyComponent::Prismatic => {
-                        self.modal = Some(active_modal);
-                    }
                     //TODO: Transform and othe modals probably don't belong in DummyComponent?
                     DummyComponent::Transform => {
                         // don't do anything for transform, edges shouldnt drawable on the nodebar
                     }
+                    _ => self.modal = Some(active_modal),
                 }
             }
         }
+
+        // let the graph know that button was released and react to it's message if needed
         if let Some(message) = self
             .graph
             .left_button_released(&release_event, canvas_cursor_position)
@@ -291,9 +304,21 @@ impl AppState {
                             }
                             dummy_type = DummyComponent::Body;
                         }
+
+                        DummyComponent::Gravity => {
+                            let dummy = &mut self.nodebar.dummies.gravity;
+                            let gravity = self.graph.system.gravities.get(&component_id).unwrap();
+                            dummy.get_values_from(
+                                gravity,
+                                &mut self.nodebar.dummies.constant_gravity,
+                                &mut self.nodebar.dummies.two_body,
+                                &mut self.nodebar.dummies.two_body_custom,
+                            );
+                            dummy_type = DummyComponent::Gravity;
+                        }
                         DummyComponent::Revolute => {
                             let joint = self.graph.system.joints.get(&component_id).unwrap();
-                            let dummy = match joint {
+                            match joint {
                                 Joint::Revolute(revolute) => {
                                     self.nodebar.dummies.revolute.get_values_from(revolute);
                                     dummy_type = DummyComponent::Revolute;
@@ -352,15 +377,19 @@ impl AppState {
                                     panic!("should not be possible for there not to be a transform if there was an edge")
                                 }
                             };
-                            transform
+                            Some(transform)
                         }
                         (
                             DummyComponent::Prismatic | DummyComponent::Revolute,
                             DummyComponent::Body,
                         ) => {
                             //transform is for the joint outer frame to the body frame
-                            let joint =
-                                self.graph.system.joints.get(&from_node.component_id).unwrap();
+                            let joint = self
+                                .graph
+                                .system
+                                .joints
+                                .get(&from_node.component_id)
+                                .unwrap();
                             let connection = joint.get_connections();
                             let transform = {
                                 if let Some(outer_body) = &connection.outer_body {
@@ -369,28 +398,30 @@ impl AppState {
                                     panic!("should not be possible for there not to be a transform if there was an edge")
                                 }
                             };
-                            transform
+                            Some(transform)
                         }
-                        _ => panic!("shouldn't be another patterns"),
+                        _ => None,
                     };
+                    if let Some(transform) = transform {
+                        let dummy_cartesian = &mut self.nodebar.dummies.cartesian;
+                        let dummy_cylindrical = &mut self.nodebar.dummies.cylindrical;
+                        let dummy_euler_angles = &mut self.nodebar.dummies.euler_angles;
+                        let dummy_quaternion = &mut self.nodebar.dummies.quaternion;
+                        let dummy_rotation_matrix = &mut self.nodebar.dummies.rotation_matrix;
+                        let dummy_spherical = &mut self.nodebar.dummies.spherical;
 
-                    let dummy_cartesian = &mut self.nodebar.dummies.cartesian;
-                    let dummy_cylindrical = &mut self.nodebar.dummies.cylindrical;
-                    let dummy_euler_angles = &mut self.nodebar.dummies.euler_angles;
-                    let dummy_quaternion = &mut self.nodebar.dummies.quaternion;
-                    let dummy_rotation_matrix = &mut self.nodebar.dummies.rotation_matrix;
-                    let dummy_spherical = &mut self.nodebar.dummies.spherical;
-
-                    self.nodebar.dummies.transform.get_values_from(
-                        &transform,
-                        dummy_cartesian,
-                        dummy_cylindrical,
-                        dummy_euler_angles,
-                        dummy_quaternion,
-                        dummy_rotation_matrix,
-                        dummy_spherical,
-                    );
-                    self.modal = Some(ActiveModal::new(DummyComponent::Transform, Some(edge_id)));
+                        self.nodebar.dummies.transform.get_values_from(
+                            &transform,
+                            dummy_cartesian,
+                            dummy_cylindrical,
+                            dummy_euler_angles,
+                            dummy_quaternion,
+                            dummy_rotation_matrix,
+                            dummy_spherical,
+                        );
+                        self.modal =
+                            Some(ActiveModal::new(DummyComponent::Transform, Some(edge_id)));
+                    }
                 }
             }
         }
@@ -487,7 +518,7 @@ impl AppState {
         Command::none()
     }
 
-    pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {        
+    pub fn plot_state_selected(&mut self, state_name: String) -> Command<Message> {
         self.plot_tab.state_menu.option_selected(&state_name);
         self.plot_tab.selected_states = self.plot_tab.state_menu.get_selected_options();
 
@@ -646,6 +677,30 @@ impl AppState {
                 }
                 self.nodebar.dummies.body.clear();
             }
+            DummyComponent::Gravity => {
+                let dummy = &self.nodebar.dummies.gravity;
+                let gravity = dummy.to_gravity(
+                    &self.nodebar.dummies.constant_gravity,
+                    &self.nodebar.dummies.two_body,
+                    &self.nodebar.dummies.two_body_custom,
+                );
+                match modal.component_id {
+                    Some(id) => {
+                        let gravity_ref = self.graph.system.gravities.get_mut(&id).unwrap();
+                        *gravity_ref = gravity;
+                    }
+                    None => {
+                        let gravity_id = self.graph.system.add_gravity(gravity);
+                        self.graph
+                            .save_component(&modal.dummy_type, gravity_id, "Gravity".to_string())
+                            .unwrap();
+                    }
+                }
+                self.nodebar.dummies.gravity.clear();
+                self.nodebar.dummies.constant_gravity.clear();
+                self.nodebar.dummies.two_body.clear();
+                self.nodebar.dummies.two_body_custom.clear();
+            }
             DummyComponent::Revolute => {
                 if self.nodebar.dummies.revolute.name.is_empty() {
                     self.counter_revolute += 1;
@@ -787,7 +842,6 @@ impl AppState {
                             .dummies
                             .transform
                             .set_values_for(transform, &self.nodebar.dummies);
-                     
                     }
                     None => {
                         // new edge, save it
@@ -861,6 +915,16 @@ impl AppState {
 
     pub fn transform_rotation_selected(&mut self, transform: RotationPickList) -> Command<Message> {
         self.nodebar.dummies.transform.rotation = transform;
+        Command::none()
+    }
+
+    pub fn two_body_custom_mu_changed(&mut self, value: String) -> Command<Message> {
+        self.nodebar.dummies.two_body_custom.mu = value;
+        Command::none()
+    }
+
+    pub fn two_body_model_changed(&mut self, model: TwoBodyPickList) -> Command<Message> {
+        self.nodebar.dummies.two_body.model = model;
         Command::none()
     }
 

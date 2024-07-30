@@ -1,3 +1,4 @@
+use aerospace::gravity::Gravity;
 use super::{
     body::{BodyErrors, BodyTrait},
     joint::JointTrait,
@@ -10,6 +11,7 @@ pub struct Base {
     id: Uuid,
     name: String,
     outer_joints: Vec<Uuid>,    
+    pub gravity: Vec<Uuid>,
 }
 
 impl Base {
@@ -22,6 +24,7 @@ impl Base {
             id: Uuid::new_v4(),
             name: name.to_string(),
             outer_joints: Vec::new(),            
+            gravity: Vec::new(),
         }
     }
 }

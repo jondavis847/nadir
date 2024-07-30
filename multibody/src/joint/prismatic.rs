@@ -73,11 +73,12 @@ impl JointTrait for Prismatic {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
-        let body_mass_properties = body.get_mass_properties();
-        let spatial_transform = SpatialTransform::from(transform);
-        let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-        let joint_mass_properties = spatial_transform * spatial_inertia;
-        self.parameters.mass_properties = Some(joint_mass_properties);
+        // we now only do this when we sim incase the transform gets updated
+        //let body_mass_properties = body.get_mass_properties();
+        //let spatial_transform = SpatialTransform::from(transform);
+        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+        //let joint_mass_properties = spatial_transform * spatial_inertia;
+        //self.parameters.mass_properties = Some(joint_mass_properties);
         body.connect_inner_joint(self).unwrap();
         let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -212,7 +213,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 
             let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
 
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_big_a;
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
         } else {
             None
@@ -274,6 +275,10 @@ impl JointSimTrait for PrismaticSim {
     fn get_id(&self) -> &Uuid {
         &self.id
     }
+
+    fn get_inertia(&self) -> &Option<SpatialInertia> {
+        &self.parameters.mass_properties
+    }
     fn get_state(&self) -> JointState {
         JointState::Prismatic(self.state)
     }
@@ -282,6 +287,9 @@ impl JointSimTrait for PrismaticSim {
             JointState::Prismatic(prismatic_state) => self.state = prismatic_state,
             _ => panic!("Can't set a different joints state to Prismatic"),
         }
+    }
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+        self.parameters.mass_properties = inertia;
     }
     fn get_transforms(&self) -> &JointTransforms {
         &self.transforms

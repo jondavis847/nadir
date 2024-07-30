@@ -76,11 +76,11 @@ impl JointTrait for Revolute {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
-        let body_mass_properties = body.get_mass_properties();
-        let spatial_transform = SpatialTransform::from(transform);
-        let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-        let joint_mass_properties = spatial_transform * spatial_inertia;
-        self.parameters.mass_properties = Some(joint_mass_properties);
+        //let body_mass_properties = body.get_mass_properties();        
+        //let spatial_transform = SpatialTransform::from(transform);        
+        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);                
+        //let joint_mass_properties = spatial_transform * spatial_inertia;        
+        //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
         body.connect_inner_joint(self).unwrap();
         let connection = Connection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -192,7 +192,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.common.c = aba.common.v.cross_motion(aba.common.vj); // + cj
         aba.common.inertia_articulated = joint_inertia;
         aba.common.p_big_a =
-            aba.common.v.cross_force(joint_inertia * aba.common.v) - transforms.jof_from_ob * *f_ob;
+            aba.common.v.cross_force(joint_inertia * aba.common.v) - *f_ob;
     }
 
     fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -214,7 +214,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 
             let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
 
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_big_a;
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
         } else {
             None
@@ -276,8 +276,14 @@ impl JointSimTrait for RevoluteSim {
     fn get_id(&self) -> &Uuid {
         &self.id
     }
+    fn get_inertia(&self) -> &Option<SpatialInertia> {
+        &self.parameters.mass_properties
+    }
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
+    }
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+        self.parameters.mass_properties = inertia;
     }
     fn set_state(&mut self, state: JointState) {
         match state {

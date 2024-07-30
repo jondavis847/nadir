@@ -25,10 +25,11 @@ use multibody_ui::{
 
 use ui::{
     dummies::{
-        DummyComponent, GeometryPickList, RotationPickList, TransformPickList, TranslationPickList,
+        DummyComponent, GeometryPickList, GravityPickList, RotationPickList, TransformPickList,
+        TranslationPickList, TwoBodyPickList,
     },
     modals::{
-        create_base_modal, create_body_modal, create_error_modal, create_prismatic_modal,
+        create_base_modal, create_body_modal, create_error_modal, create_gravity_modal, create_prismatic_modal,
         create_revolute_modal, create_transform_modal,
     },
     sim_tab::canvas::GraphCanvas,
@@ -83,34 +84,53 @@ enum Message {
     CartesianXChanged(String),
     CartesianYChanged(String),
     CartesianZChanged(String),
+    CloseError,
+    CloseModal,
+    ConstantGravityXChanged(String),
+    ConstantGravityYChanged(String),
+    ConstantGravityZChanged(String),
     CuboidLengthInputChanged(String),
     CuboidWidthInputChanged(String),
     CuboidHeightInputChanged(String),
+    CursorMoved(Point),
     CylindricalAzimuthChanged(String),
     CylindricalHeightChanged(String),
     CylindricalRadiusChanged(String),
+    DeletePressed,
+    EnterPressed,
+    EulerAngleSequenceChanged(EulerSequence),
+    EulerAnglePhiChanged(String),
+    EulerAngleThetaChanged(String),
+    EulerAnglePsiChanged(String),
+    FontLoaded(Result<(), font::Error>),
     GeometrySelected(GeometryPickList),
-    ResultSelected(String),
+    GravityModelSelected(GravityPickList),
+    LeftButtonPressed(Point),
+    LeftButtonReleased(Point),
+    Loaded(Result<(), String>),
+    MiddleButtonPressed(Point),
+    PlotSimSelected(String),
+    PlotStateSelected(String),
+    PlotComponentSelected(String),
     PrismaticConstantForceInputChanged(String),
     PrismaticDampingInputChanged(String),
     PrismaticVelocityInputChanged(String),
     PrismaticNameInputChanged(String),
     PrismaticSpringConstantInputChanged(String),
     PrismaticPositionInputChanged(String),
+    QuaternionWChanged(String),
+    QuaternionXChanged(String),
+    QuaternionYChanged(String),
+    QuaternionZChanged(String),
+    ResultSelected(String),
     RevoluteConstantForceInputChanged(String),
     RevoluteDampingInputChanged(String),
     RevoluteOmegaInputChanged(String),
     RevoluteNameInputChanged(String),
     RevoluteSpringConstantInputChanged(String),
     RevoluteThetaInputChanged(String),
-    EulerAngleSequenceChanged(EulerSequence),
-    EulerAnglePhiChanged(String),
-    EulerAngleThetaChanged(String),
-    EulerAnglePsiChanged(String),
-    QuaternionWChanged(String),
-    QuaternionXChanged(String),
-    QuaternionYChanged(String),
-    QuaternionZChanged(String),
+    RightButtonPressed(Point),
+    RightButtonReleased(Point),
     RotationMatrixE11Changed(String),
     RotationMatrixE12Changed(String),
     RotationMatrixE13Changed(String),
@@ -120,6 +140,7 @@ enum Message {
     RotationMatrixE31Changed(String),
     RotationMatrixE32Changed(String),
     RotationMatrixE33Changed(String),
+    SaveComponent,
     SimDtChanged(String),
     SimNameChanged(String),
     SimStartTimeChanged(String),
@@ -128,31 +149,17 @@ enum Message {
     SphericalAzimuthChanged(String),
     SphericalInclinationChanged(String),
     SphericalRadiusChanged(String),
-    PlotSimSelected(String),
-    PlotStateSelected(String),
-    PlotComponentSelected(String),
     TabAnimationPressed,
     TabAnimationCameraRotation(Vector),
     TabPlotPressed,
+    TabPressed,
     TabSimulationPressed,
     TransformSelected(TransformPickList),
     TransformRotationSelected(RotationPickList),
     TransformTranslationSelected(TranslationPickList),
-    LeftButtonPressed(Point),
-    LeftButtonReleased(Point),
-    MiddleButtonPressed(Point),
-    RightButtonPressed(Point),
-    RightButtonReleased(Point),
-    CursorMoved(Point),
+    TwoBodyCustomMuChanged(String),
+    TwoBodyModelSelected(TwoBodyPickList),
     WheelScrolled(ScrollDelta),
-    CloseError,
-    CloseModal,
-    DeletePressed,
-    EnterPressed,
-    TabPressed,
-    FontLoaded(Result<(), font::Error>),
-    Loaded(Result<(), String>),
-    SaveComponent,
     WindowResized(Size),
 }
 
@@ -203,8 +210,7 @@ impl Application for GadgtGui {
                     state.axis_secondary_from_selected(value)
                 }
                 Message::AxisSecondaryToSelected(value) => state.axis_secondary_to_selected(value),
-                Message::FontLoaded(_) => Command::none(),
-                Message::Loaded(_) => Command::none(),
+
                 Message::BodyNameInputChanged(value) => {
                     state.update_body_field(BodyField::Name, &value)
                 }
@@ -247,6 +253,18 @@ impl Application for GadgtGui {
                 Message::CartesianZChanged(value) => {
                     state.update_cartesian_field(CartesianField::Z, value)
                 }
+                Message::CloseError => state.close_error(),
+                Message::CloseModal => state.close_modal(),
+                Message::ConstantGravityXChanged(string) => {
+                    state.constant_gravity_x_changed(string)
+                }
+                Message::ConstantGravityYChanged(string) => {
+                    state.constant_gravity_y_changed(string)
+                }
+                Message::ConstantGravityZChanged(string) => {
+                    state.constant_gravity_z_changed(string)
+                }
+                Message::CursorMoved(cursor) => state.cursor_moved(cursor),
                 Message::CuboidLengthInputChanged(value) => {
                     state.update_cuboid_field(CuboidField::Length, value)
                 }
@@ -265,25 +283,32 @@ impl Application for GadgtGui {
                 Message::CylindricalRadiusChanged(value) => {
                     state.update_cylindrical_field(CylindricalField::Radius, value)
                 }
+                Message::DeletePressed => state.delete_pressed(),
+                Message::EnterPressed => state.enter_pressed(),
+                Message::EulerAngleSequenceChanged(sequence) => {
+                    state.update_euler_angle_sequence(sequence)
+                }
+                Message::EulerAnglePhiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Phi, value)
+                }
+                Message::EulerAngleThetaChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Theta, value)
+                }
+                Message::EulerAnglePsiChanged(value) => {
+                    state.update_euler_angle_field(EulerAnglesField::Psi, value)
+                }
+                Message::FontLoaded(_) => Command::none(),
                 Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
-                Message::RevoluteConstantForceInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::ConstantForce, value)
-                }
-                Message::RevoluteDampingInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Damping, value)
-                }
-                Message::RevoluteNameInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Name, value)
-                }
-                Message::RevoluteOmegaInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Omega, value)
-                }
-                Message::RevoluteSpringConstantInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::SpringConstant, value)
-                }
-                Message::RevoluteThetaInputChanged(value) => {
-                    state.update_revolute_field(RevoluteField::Theta, value)
-                }
+                Message::GravityModelSelected(gravity) => state.gravity_model_selected(gravity),
+                Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
+                Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
+
+                Message::Loaded(_) => Command::none(),
+                Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
+
+                Message::PlotSimSelected(string) => state.plot_sim_selected(string),
+                Message::PlotStateSelected(string) => state.plot_state_selected(string),
+                Message::PlotComponentSelected(string) => state.plot_component_selected(string),
 
                 Message::PrismaticConstantForceInputChanged(value) => {
                     state.update_prismatic_field(PrismaticField::ConstantForce, value)
@@ -303,18 +328,7 @@ impl Application for GadgtGui {
                 Message::PrismaticPositionInputChanged(value) => {
                     state.update_prismatic_field(PrismaticField::Position, value)
                 }
-                Message::EulerAngleSequenceChanged(sequence) => {
-                    state.update_euler_angle_sequence(sequence)
-                }
-                Message::EulerAnglePhiChanged(value) => {
-                    state.update_euler_angle_field(EulerAnglesField::Phi, value)
-                }
-                Message::EulerAngleThetaChanged(value) => {
-                    state.update_euler_angle_field(EulerAnglesField::Theta, value)
-                }
-                Message::EulerAnglePsiChanged(value) => {
-                    state.update_euler_angle_field(EulerAnglesField::Psi, value)
-                }
+
                 Message::QuaternionWChanged(value) => {
                     state.update_quaternion_field(QuaternionField::W, value)
                 }
@@ -327,6 +341,27 @@ impl Application for GadgtGui {
                 Message::QuaternionZChanged(value) => {
                     state.update_quaternion_field(QuaternionField::Z, value)
                 }
+                Message::ResultSelected(_) => Command::none(),
+                Message::RevoluteConstantForceInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::ConstantForce, value)
+                }
+                Message::RevoluteDampingInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::Damping, value)
+                }
+                Message::RevoluteNameInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::Name, value)
+                }
+                Message::RevoluteOmegaInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::Omega, value)
+                }
+                Message::RevoluteSpringConstantInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::SpringConstant, value)
+                }
+                Message::RevoluteThetaInputChanged(value) => {
+                    state.update_revolute_field(RevoluteField::Theta, value)
+                }
+                Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
+                Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
                 Message::RotationMatrixE11Changed(value) => {
                     state.update_rotation_matrix_field(RotationMatrixField::E11, value)
                 }
@@ -354,25 +389,10 @@ impl Application for GadgtGui {
                 Message::RotationMatrixE33Changed(value) => {
                     state.update_rotation_matrix_field(RotationMatrixField::E33, value)
                 }
-                Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
-                Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
-                Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
-                Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
-                Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
-                Message::CloseError => state.close_error(),
-                Message::CloseModal => state.close_modal(),
-                Message::CursorMoved(cursor) => state.cursor_moved(cursor),
-                Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
-                Message::DeletePressed => state.delete_pressed(),
-                Message::EnterPressed => state.enter_pressed(),
-                Message::TabPressed => state.tab_pressed(),
+
                 Message::SaveComponent => state.save_component(),
-                Message::WindowResized(size) => state.window_resized(size),
                 Message::SimDtChanged(string) => state.simdiv.dt_changed(string),
                 Message::SimStartTimeChanged(string) => state.simdiv.start_time_changed(string),
-                Message::PlotSimSelected(string) => state.plot_sim_selected(string),
-                Message::PlotStateSelected(string) => state.plot_state_selected(string),
-                Message::PlotComponentSelected(string) => state.plot_component_selected(string),
                 Message::SimStopTimeChanged(string) => state.simdiv.stop_time_changed(string),
                 Message::SimNameChanged(string) => state.simdiv.name_changed(string),
                 Message::Simulate => state.simulate(),
@@ -385,6 +405,7 @@ impl Application for GadgtGui {
                 Message::SphericalRadiusChanged(value) => {
                     state.update_spherical_field(SphericalField::Radius, value)
                 }
+                Message::TabPressed => state.tab_pressed(),
                 Message::TabAnimationPressed => {
                     state.tab_bar.state.current_tab = AppTabs::Animation;
                     Command::none()
@@ -405,7 +426,6 @@ impl Application for GadgtGui {
                     state.tab_bar.state.current_tab = AppTabs::Simulation;
                     Command::none()
                 }
-                Message::ResultSelected(_) => Command::none(),
                 Message::TransformSelected(transform) => state.transform_selected(transform),
                 Message::TransformTranslationSelected(transform) => {
                     state.transform_translation_selected(transform)
@@ -413,6 +433,11 @@ impl Application for GadgtGui {
                 Message::TransformRotationSelected(transform) => {
                     state.transform_rotation_selected(transform)
                 }
+                Message::TwoBodyCustomMuChanged(string) => state.two_body_custom_mu_changed(string),
+                Message::TwoBodyModelSelected(model) => state.two_body_model_changed(model),
+                Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
+
+                Message::WindowResized(size) => state.window_resized(size),
             },
         }
     }
@@ -500,6 +525,12 @@ fn loaded_view(state: &AppState) -> Element<Message, Theme> {
             DummyComponent::Body => Some(create_body_modal(
                 &state.nodebar.dummies.body,
                 &state.nodebar.dummies.cuboid,
+            )),
+            DummyComponent::Gravity => Some(create_gravity_modal(
+                &state.nodebar.dummies.gravity,
+                &state.nodebar.dummies.constant_gravity,
+                &state.nodebar.dummies.two_body,
+                &state.nodebar.dummies.two_body_custom,
             )),
             DummyComponent::Revolute => {
                 Some(create_revolute_modal(&state.nodebar.dummies.revolute))

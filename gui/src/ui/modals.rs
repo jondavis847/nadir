@@ -1,8 +1,9 @@
 use super::dummies::{
-    DummyAlignedAxes, DummyBase, DummyBody, DummyCartesian, DummyComponent, DummyCuboid,
-    DummyCylindrical, DummyEulerAngles, DummyPrismatic, DummyQuaternion, DummyRevolute,
-    DummyRotationMatrix, DummySpherical, DummyTransform, GeometryPickList, RotationPickList,
-    TransformPickList, TranslationPickList,
+    DummyAlignedAxes, DummyBase, DummyBody, DummyCartesian, DummyComponent, DummyConstantGravity,
+    DummyCuboid, DummyCylindrical, DummyEulerAngles, DummyGravity, DummyPrismatic, DummyQuaternion,
+    DummyRevolute, DummyRotationMatrix, DummySpherical, DummyTransform, DummyTwoBodyCustom,
+    DummyTwoBodyGravity, GeometryPickList, RotationPickList, TransformPickList,
+    TranslationPickList,
 };
 use crate::{
     ui::{errors::Errors, theme::Theme},
@@ -28,6 +29,28 @@ impl ActiveModal {
             component_id,
         }
     }
+}
+
+fn create_modal<'a>(
+    header: &'a str,
+    content: Element<'a, Message, Theme>,
+) -> Element<'a, Message, Theme> {
+    let footer = Row::new()
+        .spacing(10)
+        .padding(5)
+        .width(Length::Fill)
+        .push(
+            button("Cancel")
+                .width(Length::Fill)
+                .on_press(crate::Message::CloseModal),
+        )
+        .push(
+            button("Ok")
+                .width(Length::Fill)
+                .on_press(crate::Message::SaveComponent),
+        );
+
+    card(header, content).foot(footer).max_width(500.0).into()
 }
 
 pub fn create_base_modal(_base: &DummyBase) -> Element<Message, Theme> {
@@ -183,6 +206,18 @@ pub fn create_body_modal<'a>(
         .foot(footer)
         .max_width(500.0)
         .into()
+}
+
+pub fn create_gravity_modal<'a>(
+    dummy_gravity: &'a DummyGravity,
+    dummy_constant: &'a DummyConstantGravity,
+    dummy_two_body: &'a DummyTwoBodyGravity,
+    dummy_two_body_custom: &'a DummyTwoBodyCustom,
+) -> Element<'a, Message, Theme> {
+    create_modal(
+        "Gravity",
+        dummy_gravity.content(dummy_constant, dummy_two_body, dummy_two_body_custom),
+    )
 }
 
 pub fn create_revolute_modal(joint: &DummyRevolute) -> Element<Message, Theme> {

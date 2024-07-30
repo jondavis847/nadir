@@ -13,6 +13,7 @@ pub struct Vector6 {
 }
 
 impl Vector6 {
+    pub const ZERO:Vector6 = Vector6{e1:0.0, e2:0.0, e3:0.0, e4:0.0, e5:0.0, e6:0.0};
     pub fn new(e1: f64, e2: f64, e3: f64, e4: f64, e5: f64, e6: f64) -> Self {
         Self {
             e1,

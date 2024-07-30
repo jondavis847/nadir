@@ -1,9 +1,3 @@
-use std::collections::HashMap;
-use std::ops::{Add, AddAssign, Div, Mul};
-use std::time::{Instant, SystemTime};
-use utilities::generate_unique_id;
-use uuid::Uuid;
-
 use crate::{
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
@@ -15,9 +9,16 @@ use crate::{
     system::MultibodySystem,
     MultibodyTrait,
 };
+use aerospace::gravity::Gravity;
 use differential_equations::solver::{Solver, SolverMethod};
-use spatial_algebra::{Acceleration, Velocity};
-
+use nalgebra::Vector6;
+use rotations::RotationTrait;
+use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
+use std::collections::HashMap;
+use std::ops::{Add, AddAssign, Div, Mul};
+use std::time::{Instant, SystemTime};
+use utilities::generate_unique_id;
+use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
@@ -28,6 +29,7 @@ pub struct MultibodySystemSim {
     pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
+    gravity: HashMap<Uuid, Gravity>,
     parent_joint_indeces: Vec<usize>,
 }
 
@@ -41,11 +43,11 @@ impl From<MultibodySystem> for MultibodySystemSim {
         let mut jointnames = Vec::new();
         let mut parent_joint_indeces = Vec::new();
 
-        if let Some(base) = sys.base {
+        if let Some(base) = &sys.base {
             let outer_joint_ids = base.get_outer_joints();
             for id in outer_joint_ids {
                 if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone());                    
+                    let joint_sim = JointSim::from(joint.clone());
                     let joint_index = jointsims.len();
 
                     jointsims.push(joint_sim);
@@ -56,6 +58,17 @@ impl From<MultibodySystem> for MultibodySystemSim {
                         if let Some(next_body) = sys.bodies.get(next_body_id) {
                             bodynames.push(next_body.get_name().to_string());
                             bodysims.push(BodySim::from(next_body.clone()));
+
+                            // calculate the joint mass properties
+                            let joint = &mut jointsims[0];
+                            let body_mass_properties = next_body.get_mass_properties();
+                            joint.update_transforms(None);
+                            let transforms = joint.get_transforms();
+                            let jof_from_ob = transforms.jof_from_ob;
+                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);                            
+                            let joint_mass_properties = jof_from_ob * spatial_inertia;                            
+                            joint.set_inertia(Some(joint_mass_properties));
+
                             recursive_sys_creation(
                                 next_body,
                                 joint_index,
@@ -73,12 +86,20 @@ impl From<MultibodySystem> for MultibodySystemSim {
             }
         }
 
+        // push base gravity to all bodies if there is one
+        if let Some(base) = &sys.base {
+            for body in &mut bodysims {
+                body.gravity.extend(base.gravity.clone())
+            }
+        }
+
         MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             body_names: bodynames,
             joints: jointsims,
             joint_names: jointnames,
+            gravity: sys.gravities,
             parent_joint_indeces: parent_joint_indeces,
         }
     }
@@ -113,8 +134,29 @@ impl MultibodySystemSim {
                         0 => Velocity::zeros(),
                         _ => *self.joints[self.parent_joint_indeces[i]].get_v(),
                     };
-                    let f_ob = self.bodies[i].get_external_force();
-                    self.joints[i].first_pass(v_ij, f_ob);
+                    // get transforms
+                    let transforms = self.joints[i].get_transforms();
+
+                    //get gravity
+                    let gravity_base =
+                        self.bodies[i].calculate_gravity_accleration_base(&self.gravity);
+                    let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
+                    //convert to spatial
+                    let gravity_body = Acceleration::from(Vector6::new(
+                        0.0,
+                        0.0,
+                        0.0,
+                        gravity_body[0],
+                        gravity_body[1],
+                        gravity_body[2],
+                    ));
+                    //transform accel_to joint
+                    let gravity_joint = transforms.jof_from_ob * gravity_body;
+                    //transform to force by multiplying by joint inertia                    
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
+                    let f_ob = gravity_joint
+                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
+                    self.joints[i].first_pass(v_ij, &f_ob);
                 }
 
                 // Second Pass
@@ -123,7 +165,7 @@ impl MultibodySystemSim {
                         0 => true,
                         _ => false,
                     };
-                    // we split up the updating the parent to avoid borrowing issues
+                    // we split up updating the parent to avoid borrowing issues
                     if let Some((parent_ia, parent_pa)) = self.joints[i].second_pass(inner_is_base)
                     {
                         self.joints[self.parent_joint_indeces[i]]
@@ -190,7 +232,7 @@ impl MultibodySystemSim {
         }
 
         // Convert to a multibody result
-        let mut result_hm = HashMap::<String, ResultEntry>::new();        
+        let mut result_hm = HashMap::<String, ResultEntry>::new();
 
         for joint_state in &joint_states {
             for (i, joint) in joint_state.0.iter().enumerate() {
@@ -264,6 +306,9 @@ impl MultibodySystemSim {
     }
 
     fn update_body_forces(&mut self) {
+        self.bodies
+            .iter_mut()
+            .for_each(|body| body.calculate_external_force());
         //pub external_force: Force, //used for calculations
         //pub external_force_body: Vector3, //use for reporting
         //pub external_torque_body: Vector3, //use for reporting
@@ -316,6 +361,17 @@ fn recursive_sys_creation(
                 if let Some(next_body) = bodies.get(next_body_id) {
                     bodynames.push(next_body.get_name().to_string());
                     bodysims.push(BodySim::from(next_body.clone()));
+
+                    // calculate the joint mass properties
+                    let joint = &mut jointsims[joint_index];
+                    let body_mass_properties = next_body.get_mass_properties();
+                    joint.update_transforms(None);
+                    let transforms = joint.get_transforms();
+                    let jof_from_ob = transforms.jof_from_ob;
+                    let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+                    let joint_mass_properties = jof_from_ob * spatial_inertia;
+                    joint.set_inertia(Some(joint_mass_properties));
+
                     recursive_sys_creation(
                         next_body,
                         joint_index,
