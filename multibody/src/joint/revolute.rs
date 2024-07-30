@@ -214,7 +214,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 
             let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
 
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_big_a;
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
         } else {
             None

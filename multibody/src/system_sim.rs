@@ -165,7 +165,7 @@ impl MultibodySystemSim {
                         0 => true,
                         _ => false,
                     };
-                    // we split up the updating the parent to avoid borrowing issues
+                    // we split up updating the parent to avoid borrowing issues
                     if let Some((parent_ia, parent_pa)) = self.joints[i].second_pass(inner_is_base)
                     {
                         self.joints[self.parent_joint_indeces[i]]
