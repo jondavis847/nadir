@@ -1,4 +1,4 @@
-use super::MultibodyTrait;
+use super::{aerospace::MultibodyGravity, MultibodyTrait};
 use aerospace::gravity::{Gravity, GravityTrait};
 use geometry::Geometry;
 use mass_properties::{MassProperties, MassPropertiesErrors};
@@ -21,6 +21,7 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait: MultibodyTrait {
+    fn connect_gravity(&mut self, gravity: &MultibodyGravity);
     fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
     fn delete_outer_joint(&mut self, joint_id: &Uuid);
     fn get_outer_joints(&self) -> &Vec<Uuid>;
@@ -102,6 +103,10 @@ impl BodyTrait for Body {
     fn get_outer_joints(&self) -> &Vec<Uuid> {
         &self.outer_joints
     }
+
+    fn connect_gravity(&mut self, gravity: &MultibodyGravity) {
+        self.gravity.push(*gravity.get_id())
+    }
 }
 
 impl MultibodyTrait for Body {
@@ -147,12 +152,12 @@ impl BodySim {
 
     pub fn calculate_gravity_accleration_base(
         &mut self,
-        gravities: &HashMap<Uuid, Gravity>,
+        gravities: &HashMap<Uuid, MultibodyGravity>,
     ) -> Vector3<f64> {
         let mut g_vec = Vector3::zeros();
         self.gravity.iter().for_each(|gravity_id| {
             let gravity = gravities.get(gravity_id).unwrap();
-            g_vec += gravity.calculate(self.state.position_base);
+            g_vec += gravity.gravity.calculate(self.state.position_base);
         });
         g_vec
     }

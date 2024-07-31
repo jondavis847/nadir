@@ -1,6 +1,8 @@
+pub mod aerospace;
 pub mod algorithms;
 pub mod base;
 pub mod body;
+pub mod component;
 pub mod joint;
 pub mod result;
 pub mod system;
@@ -10,18 +12,21 @@ use uuid::Uuid;
 use body::BodyErrors;
 use joint::revolute::RevoluteErrors;
 
-#[derive(Debug, Copy,Clone)]
+#[derive(Debug,Clone)]
 pub enum MultibodyErrors {    
     BaseAlreadyExists,
     BaseMissingOuterJoint,
     BodyNotFound,
     Body(BodyErrors),
     BodyMissingInnerJoint(Uuid),
+    ComponentNotFound(String),
+    InvalidConnection,
     JointMissingInnerBody(Uuid),
     JointMissingOuterBody(Uuid),
     JointNotFound,
     NameTaken,
     NoBaseFound,
+    NoTransformFound,
     Revolute(RevoluteErrors),
     TooManyBasesFound,
 }

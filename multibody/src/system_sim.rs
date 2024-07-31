@@ -1,4 +1,5 @@
 use crate::{
+    aerospace::MultibodyGravity,
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
     joint::{
@@ -9,7 +10,7 @@ use crate::{
     system::MultibodySystem,
     MultibodyTrait,
 };
-use aerospace::gravity::Gravity;
+
 use differential_equations::solver::{Solver, SolverMethod};
 use nalgebra::Vector6;
 use rotations::RotationTrait;
@@ -29,7 +30,7 @@ pub struct MultibodySystemSim {
     pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
-    gravity: HashMap<Uuid, Gravity>,
+    gravity: HashMap<Uuid, MultibodyGravity>,
     parent_joint_indeces: Vec<usize>,
 }
 
@@ -65,8 +66,8 @@ impl From<MultibodySystem> for MultibodySystemSim {
                             joint.update_transforms(None);
                             let transforms = joint.get_transforms();
                             let jof_from_ob = transforms.jof_from_ob;
-                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);                            
-                            let joint_mass_properties = jof_from_ob * spatial_inertia;                            
+                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+                            let joint_mass_properties = jof_from_ob * spatial_inertia;
                             joint.set_inertia(Some(joint_mass_properties));
 
                             recursive_sys_creation(
@@ -152,8 +153,8 @@ impl MultibodySystemSim {
                     ));
                     //transform accel_to joint
                     let gravity_joint = transforms.jof_from_ob * gravity_body;
-                    //transform to force by multiplying by joint inertia                    
-                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
+                    //transform to force by multiplying by joint inertia
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
                     self.joints[i].first_pass(v_ij, &f_ob);

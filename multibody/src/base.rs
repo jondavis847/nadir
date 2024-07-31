@@ -1,5 +1,5 @@
-use aerospace::gravity::Gravity;
 use super::{
+    aerospace::MultibodyGravity,
     body::{BodyErrors, BodyTrait},
     joint::JointTrait,
     MultibodyTrait,
@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Base {
     id: Uuid,
     name: String,
-    outer_joints: Vec<Uuid>,    
+    outer_joints: Vec<Uuid>,
     pub gravity: Vec<Uuid>,
 }
 
@@ -23,14 +23,17 @@ impl Base {
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
-            outer_joints: Vec::new(),            
+            outer_joints: Vec::new(),
             gravity: Vec::new(),
         }
     }
 }
 
 impl BodyTrait for Base {
-    fn connect_outer_joint<T:JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
+    fn connect_gravity(&mut self, gravity: &MultibodyGravity) {
+        self.gravity.push(*gravity.get_id())
+    }
+    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints
         if self.outer_joints.iter().any(|id| id == joint_id) {

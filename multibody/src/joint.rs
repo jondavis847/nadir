@@ -1,6 +1,7 @@
 use super::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::Body, MultibodyTrait,
 };
+use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
 
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};

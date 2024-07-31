@@ -1,6 +1,9 @@
-use aerospace::gravity::Gravity;
+use aerospace::gravity::{self, Gravity};
+
+use crate::component::MultibodyComponent;
 
 use super::{
+    aerospace::MultibodyGravity,
     algorithms::MultibodyAlgorithm,
     base::Base,
     body::{Body, BodyTrait},
@@ -10,7 +13,8 @@ use super::{
     MultibodyErrors, MultibodyTrait,
 };
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Mul};
+use transforms::Transform;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -19,7 +23,7 @@ pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
-    pub gravities: HashMap<Uuid, Gravity>,
+    pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
 }
 
@@ -64,10 +68,8 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn add_gravity(&mut self, gravity: Gravity) -> Uuid {
-        let id = Uuid::new_v4();
-        self.gravities.insert(id, gravity);
-        id
+    pub fn add_gravity(&mut self, gravity: MultibodyGravity) {
+        self.gravities.insert(*gravity.get_id(), gravity);
     }
 
     pub fn connect_gravity(
@@ -87,6 +89,121 @@ impl MultibodySystem {
             result = Ok(());
         }
         result
+    }
+
+    pub fn connect(
+        &mut self,
+        from_name: &str,
+        to_name: &str,
+        transform: Option<Transform>,
+    ) -> Result<(), MultibodyErrors> {
+        // logic for the base
+        if let Some(base) = &mut self.base {
+            // if the base is the 'from' component
+            if base.get_name() == from_name {
+                // look for valid 'to' components (only joints for now)
+                for (_, joint) in &mut self.joints {
+                    if joint.get_name() == to_name {
+                        if transform.is_none() {
+                            return Err(MultibodyErrors::NoTransformFound);
+                        }
+                        joint.connect_inner_body(base, transform.unwrap()); // unwrap should be safe since we early returned
+                        return Ok(());
+                    }
+                }
+                // if no joint found, return TODO: InvalidConnection or ComponentNotFound?
+                return Err(MultibodyErrors::InvalidConnection);
+            }
+
+            // if the base is the 'to' component
+            if base.get_name() == to_name {
+                // look for valid 'to' components (only gravity for now)
+                for (_, gravity) in &mut self.gravities {
+                    if gravity.get_name() == from_name {
+                        base.connect_gravity(gravity);
+                        return Ok(());
+                    }
+                }
+
+                // if no gravity found, return TODO: InvalidConnection or ComponentNotFound?
+                return Err(MultibodyErrors::InvalidConnection);
+            }
+        }
+
+        // logic for bodies
+        for (_, body) in &mut self.bodies {
+            // if the body is the 'from' component
+            if body.get_name() == from_name {
+                if transform.is_none() {
+                    return Err(MultibodyErrors::NoTransformFound);
+                }
+
+                // look for valid 'to' components (only joints for now)
+                for (_, joint) in &mut self.joints {
+                    if joint.get_name() == to_name {
+                        joint.connect_inner_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        return Ok(());
+                    }
+                }
+                // valid connections found
+                return Err(MultibodyErrors::InvalidConnection);
+            }
+
+            // if the body is the 'to' component
+            if body.get_name() == to_name {
+                // look for valid 'to' components (only joints, gravity for now, will need sensor and actuators too)
+
+                // joints
+                for (_, joint) in &mut self.joints {
+                    if joint.get_name() == from_name {
+                        // transform is required
+                        if transform.is_none() {
+                            return Err(MultibodyErrors::NoTransformFound);
+                        }                        
+                        joint.connect_outer_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        return Ok(());
+                    }
+                }
+
+                // body specific gravity
+                for (_, gravity) in &mut self.gravities {
+                    if gravity.get_name() == from_name {
+                        body.connect_gravity(gravity);
+                        return Ok(());
+                    }
+                }
+
+                // no valid connections found
+                return Err(MultibodyErrors::InvalidConnection);
+            }
+        }
+
+        // components were not found
+        return Err(MultibodyErrors::InvalidConnection);
+    }
+
+    pub fn get_from_name(&self, name: &str) -> Option<(MultibodyComponent, Uuid)> {
+        if let Some(base) = &self.base {
+            if base.get_name() == name {
+                return Some((MultibodyComponent::Base, *base.get_id()));
+            }
+        }
+        for (_, body) in &self.bodies {
+            if body.get_name() == name {
+                return Some((MultibodyComponent::Body, *body.get_id()));
+            }
+        }
+        for (_, joint) in &self.joints {
+            if joint.get_name() == name {
+                return Some((MultibodyComponent::Joint, *joint.get_id()));
+            }
+        }
+        for (_, gravity) in &self.gravities {
+            if gravity.get_name() == name {
+                return Some((MultibodyComponent::Gravity, *gravity.get_id()));
+            }
+        }
+        None
     }
 
     pub fn delete_gravity(&mut self, gravity_id: &Uuid) {
@@ -212,4 +329,19 @@ impl MultibodySystem {
         println!("All joints inner and outer bodies exist in the map.");
         println!("System validation complete!");
     }
+}
+
+macro_rules! connect {
+    ($name1:expr, $name2:expr, $system:expr) => {{
+        fn inner_macro(
+            name1: &str,
+            name2: &str,
+            system: &mut MultibodySystem,
+        ) -> Result<(), MultibodyErrors> {
+            // Implement the logic here
+            Ok(())
+        }
+
+        inner_macro($name1, $name2, $system)
+    }};
 }

@@ -203,6 +203,11 @@ impl AppState {
         Command::none()
     }
 
+    pub fn gravity_name_changed(&mut self, string: String) -> Command<Message> {
+        self.nodebar.dummies.gravity.name = string;
+        Command::none()
+    }
+
     pub fn left_button_pressed(&mut self, canvas_cursor_position: Point) -> Command<Message> {
         self.left_clicked_time_1 = self.left_clicked_time_2;
         self.left_clicked_time_2 = Some(Instant::now());
@@ -309,7 +314,7 @@ impl AppState {
                             let dummy = &mut self.nodebar.dummies.gravity;
                             let gravity = self.graph.system.gravities.get(&component_id).unwrap();
                             dummy.get_values_from(
-                                gravity,
+                                &gravity.gravity,
                                 &mut self.nodebar.dummies.constant_gravity,
                                 &mut self.nodebar.dummies.two_body,
                                 &mut self.nodebar.dummies.two_body_custom,
@@ -690,9 +695,11 @@ impl AppState {
                         *gravity_ref = gravity;
                     }
                     None => {
-                        let gravity_id = self.graph.system.add_gravity(gravity);
+                        let id = *gravity.get_id();
+                        let label = gravity.get_name().to_string();
+                        self.graph.system.add_gravity(gravity);
                         self.graph
-                            .save_component(&modal.dummy_type, gravity_id, "Gravity".to_string())
+                            .save_component(&modal.dummy_type, id, label)
                             .unwrap();
                     }
                 }
