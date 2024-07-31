@@ -44,9 +44,9 @@ fn main() {
     sys.add_joint(joint1.into()).unwrap();
     sys.add_body(body1).unwrap();
 
-    let mut sim = MultibodySystemSim::from(sys);
+    let mut sim = MultibodySystemSim::try_from(sys).unwrap();
 
-    let result = sim.simulate("sim_test".to_string(), 0.0, 10.0, 0.1);
+    let result = sim.simulate("sim_test".to_string(), 0.0, 10.0, 0.1).unwrap();
 
     let joint1 = result.get_component("joint1");    
     let body1_rate = result.get_component_state(

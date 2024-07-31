@@ -10,11 +10,12 @@ use multibody::{
         Joint, JointParameters,
     },
     system::MultibodySystem,
-    MultibodyErrors,
+    result::MultibodyResult,
 };
 use rotations::{Rotation, quaternion::Quaternion, rotation_matrix::RotationMatrix, euler_angles::{EulerAngles,EulerSequence},axes::AlignedAxes};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use transforms::Transform;
+use uuid::Uuid;
 
 use rustyline::{
     completion::Completer, error::ReadlineError, highlight::Highlighter, hint::Hinter,
@@ -43,12 +44,16 @@ enum Commands {
     /// Exit the program
     Exit,
     /// View the MultibodySystem or a Component by its name
-    View { name: String },
+    View { component: String , name: String },
     /// Add a new Component to a MultibodySystem
     Add {
         system_name: String,
         #[arg(value_enum)]
         component: Components,
+    },
+    /// Simulate the MultibodySystem
+    Simulate {
+        system_name: String
     },
 }
 
@@ -61,12 +66,13 @@ enum Components {
 
 fn main() -> Result<(), ReadlineError> {
     let mut systems = HashMap::<String, MultibodySystem>::new();
+    let mut results = HashMap::<String, MultibodyResult>::new();
 
     // Create an editor for reading lines from the user
     let mut rl = DefaultEditor::new()?;
 
     loop {
-        let prompt = "Multibody>>".to_string();
+        let prompt = "Multibody>> ".to_string();
         let readline = rl.readline(&prompt);
         match readline {
             Ok(input) => {
@@ -94,10 +100,7 @@ fn main() -> Result<(), ReadlineError> {
                 // Execute the command
                 if let Some(command) = args.command {
                     match command {
-                        Commands::Create { name } => {
-                            systems.insert((&name).into(), MultibodySystem::new());
-                            println!("{} added to systems", name)
-                        }
+                        
                         Commands::Connect {
                             sys_name,
                             from_name,
@@ -147,12 +150,30 @@ fn main() -> Result<(), ReadlineError> {
                                 println!("{}", e)
                             }
                         }
+                        Commands::Create { name } => {
+                            systems.insert((&name).into(), MultibodySystem::new());
+                            println!("{} added to systems", name)
+                        }
                         Commands::Exit => {
                             break;
                         }
-                        Commands::View { name } => {
-                            if let Some(sys) = systems.get(&name) {
-                                println!("{:#?}", sys);
+                        Commands::View { component, name } => {
+                            match component.as_str() {
+                                "system" => { 
+                                    if let Some(sys) = systems.get(&name) {
+                                        println!("{:#?}", sys);
+                                    } else {
+                                        eprintln!("Error: system '{}' not found ", name);
+                                    }
+                                }                
+                                "result" => { 
+                                    if let Some(res) = results.get(&name) {
+                                        println!("{:#?}", res);
+                                    } else {
+                                        eprintln!("Error: result '{}' not found ", name);
+                                    }
+                                }    
+                                _ => println!("Error: invalid component - options are ['system','result']")         
                             }
                         }
                         Commands::Add {
@@ -247,7 +268,29 @@ fn main() -> Result<(), ReadlineError> {
                                 }
                             }
                         }
+                        Commands::Simulate {system_name} => {
+                            if let Some(system) = systems.get_mut(&system_name) {
+                                match system.validate() {
+                                    Ok(_)=> {
+                                        let (name, start_time,stop_time, dt) = prompt_simulation();
+                                        let result = system.simulate(name,start_time,stop_time,dt);
+                                        match result {
+                                            Ok(result) => {results.insert(result.name.clone(),result);},
+                                            Err(e) => eprintln!("{:#?}",e)
+                                        }
+                                        
+                                    }
+                                    Err(e) => {
+                                        eprintln!("{:#?}",e)
+                                    }
+                                }
+                                
+                            } else {
+                                println!("System '{}' not found.", system_name);
+                            }
+                        }
                     }
+                    
                 } else {
                     println!("Unrecognized command");
                 }
@@ -296,6 +339,9 @@ enum Prompts {
     QuaternionX,
     QuaternionY,
     QuaternionZ,
+    SimulationDt,
+    SimulationStart,
+    SimulationStop,
     SphericalR,
     SphericalA,
     SphericalI,
@@ -333,6 +379,9 @@ impl Prompts {
             Prompts::QuaternionX => "Quaternion X (units: None, default: 0.0): ",
             Prompts::QuaternionY => "Quaternion Y (units: None, default: 0.0): ",
             Prompts::QuaternionZ => "Quaternion Z (units: None, default: 0.0): ",
+            Prompts::SimulationDt => "dt (units: sec, default: 0.1)",
+            Prompts::SimulationStart => "start_time (units: sec, default: 0.0)",
+            Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)",            
             Prompts::SphericalR => "Spherical radius (units: m, default: 0.0): ",
             Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0): ",
             Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0): ",            
@@ -342,11 +391,17 @@ impl Prompts {
         }
     }
 
-    fn validate_loop(&self) -> String {        
+    fn validate_loop(&self, default: &str) -> String {        
         loop {
             let s = self.prompt();
             match self.validate(&s) {
-                Ok(_) => return s,
+                Ok(_) => {
+                    if s.is_empty() {
+                        return default.to_string()
+                    } else {
+                        return s
+                    }
+                },
                 Err(e) => {
                     eprintln!("{}",e);                    
                 }
@@ -475,7 +530,7 @@ impl std::fmt::Display for InputErrors {
 }
 
 fn prompt_transform() -> Transform {
-    let transform = Prompts::Transform.validate_loop();    
+    let transform = Prompts::Transform.validate_loop("i");    
     
     match transform.as_str() {
         "i" => Transform::IDENTITY,
@@ -485,12 +540,12 @@ fn prompt_transform() -> Transform {
             Transform::new(rotation,translation)
         }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")
-        }
     }
+}
 
 
 fn prompt_rotation() -> Rotation {
-    let rotation = Prompts::TransformRotation.validate_loop();                        
+    let rotation = Prompts::TransformRotation.validate_loop("i");                        
     match rotation.as_str() {
         "i" => Rotation::IDENTITY,
         "q" => Rotation::from(prompt_quaternion()),    
@@ -500,16 +555,16 @@ fn prompt_rotation() -> Rotation {
 
 fn prompt_quaternion() -> Quaternion {
 
-    let w = Prompts::QuaternionW.validate_loop();               
+    let w = Prompts::QuaternionW.validate_loop("1");               
     let w = w.parse::<f64>().unwrap_or(1.0);
 
-    let x = Prompts::QuaternionX.validate_loop();               
+    let x = Prompts::QuaternionX.validate_loop("0");               
     let x = x.parse::<f64>().unwrap_or(0.0);
 
-    let y = Prompts::QuaternionY.validate_loop();               
+    let y = Prompts::QuaternionY.validate_loop("0");               
     let y = y.parse::<f64>().unwrap_or(0.0);
 
-    let z = Prompts::QuaternionZ.validate_loop();               
+    let z = Prompts::QuaternionZ.validate_loop("0");               
     let z = z.parse::<f64>().unwrap_or(0.0);
     
     let q = Quaternion::new(x,y,z,w);
@@ -518,7 +573,7 @@ fn prompt_quaternion() -> Quaternion {
 }
 
 fn prompt_translation() -> CoordinateSystem {
-    let translation = Prompts::TransformTranslation.validate_loop();                        
+    let translation = Prompts::TransformTranslation.validate_loop("z");                        
     match translation.as_str() {
         "z" => CoordinateSystem::ZERO,
         "cart" => CoordinateSystem::from(prompt_cartesian()),    
@@ -527,13 +582,13 @@ fn prompt_translation() -> CoordinateSystem {
 }
 
 fn prompt_cartesian() -> Cartesian {
-    let x = Prompts::CartesianX.validate_loop();               
+    let x = Prompts::CartesianX.validate_loop("0");               
     let x = x.parse::<f64>().unwrap_or(0.0);
 
-    let y = Prompts::CartesianY.validate_loop();               
+    let y = Prompts::CartesianY.validate_loop("0");               
     let y = y.parse::<f64>().unwrap_or(0.0);
 
-    let z = Prompts::CartesianZ.validate_loop();               
+    let z = Prompts::CartesianZ.validate_loop("0");               
     let z = z.parse::<f64>().unwrap_or(0.0);
 
     let cartesian = Cartesian::new(x,y,z);
@@ -541,3 +596,17 @@ fn prompt_cartesian() -> Cartesian {
     cartesian
 }
 
+fn prompt_simulation() -> (String, f64,f64,f64) {    
+
+        let name = Prompts::Name.validate_loop(Uuid::new_v4().to_string().as_str());
+
+        let start_time = Prompts::SimulationStart.validate_loop("0");
+        let start_time = start_time.parse::<f64>().unwrap_or(0.0);
+
+        let stop_time = Prompts::SimulationStop.validate_loop("10");
+        let stop_time = stop_time.parse::<f64>().unwrap_or(10.0);
+        
+        let dt = Prompts::SimulationDt.validate_loop("0.1");
+        let dt = dt.parse::<f64>().unwrap_or(0.1);
+        (name, start_time,stop_time,dt)
+}

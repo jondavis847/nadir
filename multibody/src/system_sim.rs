@@ -8,7 +8,7 @@ use crate::{
     },
     result::{update_body_states, MultibodyResult, ResultEntry},
     system::MultibodySystem,
-    MultibodyTrait,
+    MultibodyErrors, MultibodyTrait,
 };
 
 use differential_equations::solver::{Solver, SolverMethod};
@@ -34,9 +34,11 @@ pub struct MultibodySystemSim {
     parent_joint_indeces: Vec<usize>,
 }
 
-impl From<MultibodySystem> for MultibodySystemSim {
-    fn from(sys: MultibodySystem) -> Self {
-        sys.validate();
+impl TryFrom<MultibodySystem> for MultibodySystemSim {
+    type Error = MultibodyErrors;
+
+    fn try_from(sys: MultibodySystem) -> Result<Self, MultibodyErrors> {
+        sys.validate()?;
 
         let mut bodysims = Vec::new();
         let mut bodynames = Vec::new();
@@ -94,7 +96,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             }
         }
 
-        MultibodySystemSim {
+        Ok(MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             body_names: bodynames,
@@ -102,7 +104,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             joint_names: jointnames,
             gravity: sys.gravities,
             parent_joint_indeces: parent_joint_indeces,
-        }
+        })
     }
 }
 
@@ -195,7 +197,13 @@ impl MultibodySystemSim {
         }
     }
 
-    pub fn simulate(&mut self, name: String, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+    pub fn simulate(
+        &mut self,
+        name: String,
+        tstart: f64,
+        tstop: f64,
+        dt: f64,
+    ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
 
@@ -295,7 +303,7 @@ impl MultibodySystemSim {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        MultibodyResult {
+        Ok(MultibodyResult {
             name: name,
             sim_time: times,
             result: result_hm,
@@ -303,7 +311,7 @@ impl MultibodySystemSim {
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
-        }
+        })
     }
 
     fn update_body_forces(&mut self) {

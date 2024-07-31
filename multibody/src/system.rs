@@ -159,7 +159,7 @@ impl MultibodySystem {
                         // transform is required
                         if transform.is_none() {
                             return Err(MultibodyErrors::NoTransformFound);
-                        }                        
+                        }
                         joint.connect_outer_body(body, transform.unwrap()); //unwrap should be safe since we early returned
                         return Ok(());
                     }
@@ -238,110 +238,78 @@ impl MultibodySystem {
         false
     }
 
-    pub fn simulate(&self, name: String, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
-        let mut sim = MultibodySystemSim::from(self.clone());
+    pub fn simulate(&self, name: String, tstart: f64, tstop: f64, dt: f64) -> Result<MultibodyResult, MultibodyErrors> {
+        let mut sim = MultibodySystemSim::try_from(self.clone())?;
         sim.simulate(name, tstart, tstop, dt)
     }
 
-    pub fn validate(&self) {
+    pub fn validate(&self) -> Result<(), MultibodyErrors> {
         // check that there's a base
         let base = &self.base;
 
         if base.is_none() {
-            panic!("No base found.")
+            return Err(MultibodyErrors::NoBaseFound);
         };
-
-        println!("Found exactly 1 base.");
 
         // check that the base has an outer joint
         if let Some(base) = base {
             let base_outer_joints = base.get_outer_joints();
             if base_outer_joints.is_empty() {
-                panic!("Base missing any outer joints.")
+                return Err(MultibodyErrors::BaseMissingOuterJoint);
             }
-
-            println!("Base has at least 1 outer joint.");
 
             // check that all base outer joints exist
             for id in base_outer_joints {
                 if !self.joints.contains_key(id) {
-                    panic!("Invalid base outer joint ID: {}", id);
+                    return Err(MultibodyErrors::JointNotFound);
                 }
             }
-            println!("All base outer joint IDs exist in the map.");
         }
 
         // check that every body has an inner joint
         for (id, body) in &self.bodies {
             if body.get_inner_joint_id().is_none() {
-                panic!("Body ({}) does not have an inner joint.", id);
+                return Err(MultibodyErrors::BodyMissingInnerJoint(*id));
             }
         }
-        println!("All bodies have an inner joint ID.");
 
         // check that all body inner joints exist
-        for (body_id, body) in &self.bodies {
+        for (_, body) in &self.bodies {
             if let Some(joint_id) = body.get_inner_joint_id() {
                 if !self.joints.contains_key(joint_id) {
-                    panic!(
-                        "Invalid inner joint ID ({}) for body ({}).",
-                        joint_id, body_id
-                    );
+                    return Err(MultibodyErrors::JointNotFound);
                 }
             }
         }
-        println!("All inner joint IDs exist in the map.");
 
         // check that every joint has an inner and outer body connection
         for (id, joint) in &self.joints {
             if joint.get_inner_body_id().is_none() {
-                panic!("Joint ({}) does not have an inner body.", id);
+                return Err(MultibodyErrors::JointMissingInnerBody(*id));
             }
             if joint.get_outer_body_id().is_none() {
-                panic!("Joint ({}) does not have an outer body.", id);
+                return Err(MultibodyErrors::JointMissingOuterBody(*id));
             }
         }
-        println!("All joints have an inner and outer body.");
 
         // check that every joint inner and outer body exists
-        for (joint_id, joint) in &self.joints {
+        for (_, joint) in &self.joints {
             if let Some(body_id) = joint.get_inner_body_id() {
                 if !self.bodies.contains_key(body_id) {
                     if let Some(base) = &self.base {
                         if base.get_id() != body_id {
-                            panic!(
-                                "Invalid inner body ID ({}) for joint ({}).",
-                                body_id, joint_id
-                            );
+                            return Err(MultibodyErrors::BodyNotFound);
                         }
                     }
                 }
             }
             if let Some(body_id) = joint.get_outer_body_id() {
                 if !self.bodies.contains_key(body_id) {
-                    panic!(
-                        "Invalid outer body ID ({}) for joint ({}).",
-                        body_id, joint_id
-                    );
+                    return Err(MultibodyErrors::BodyNotFound);
                 }
             }
         }
-        println!("All joints inner and outer bodies exist in the map.");
         println!("System validation complete!");
+        Ok(())
     }
-}
-
-macro_rules! connect {
-    ($name1:expr, $name2:expr, $system:expr) => {{
-        fn inner_macro(
-            name1: &str,
-            name2: &str,
-            system: &mut MultibodySystem,
-        ) -> Result<(), MultibodyErrors> {
-            // Implement the logic here
-            Ok(())
-        }
-
-        inner_macro($name1, $name2, $system)
-    }};
 }

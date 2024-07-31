@@ -889,7 +889,7 @@ impl AppState {
         }
 
         let result = sys.simulate(name.clone(), start_time, stop_time, dt);
-        self.results.insert(name.clone(), result);
+        self.results.insert(name.clone(), result.unwrap()); //TODO: handle this result
         self.cache.clear();
 
         self.plot_tab.sim_menu.add_option(name.clone());
