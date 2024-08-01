@@ -105,6 +105,7 @@ enum Message {
     FontLoaded(Result<(), font::Error>),
     GeometrySelected(GeometryPickList),
     GravityModelSelected(GravityPickList),
+    GravityNameChanged(String),
     LeftButtonPressed(Point),
     LeftButtonReleased(Point),
     Loaded(Result<(), String>),
@@ -300,6 +301,7 @@ impl Application for GadgtGui {
                 Message::FontLoaded(_) => Command::none(),
                 Message::GeometrySelected(geometry) => state.geometry_selected(geometry),
                 Message::GravityModelSelected(gravity) => state.gravity_model_selected(gravity),
+                Message::GravityNameChanged(string) => state.gravity_name_changed(string),
                 Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                 Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
 

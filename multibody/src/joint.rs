@@ -1,6 +1,7 @@
 use super::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::Body, MultibodyTrait,
 };
+use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
 
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -30,7 +31,7 @@ pub trait JointTrait: MultibodyTrait {
     fn delete_inner_body_id(&mut self);
     fn delete_outer_body_id(&mut self);
     fn get_connections(&self) -> &JointConnection;
-    fn get_connections_mut(&mut self) -> &mut JointConnection;    
+    fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
     fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
@@ -40,13 +41,38 @@ pub enum JointErrors {
     InnerBodyExists,
     OuterBodyExists,
 }
+impl fmt::Display for JointErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            JointErrors::InnerBodyExists => writeln!(f, "Error: inner body exists"),
+            JointErrors::OuterBodyExists => writeln!(f, "Error: outer body exists"),
+        }
+    }
+}
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct JointCommon {
     pub id: Uuid,
     pub name: String,
     pub connection: JointConnection,
     pub transforms: JointTransforms,
+}
+
+impl fmt::Debug for JointCommon {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "name: {:#?}", self.name)?;
+        writeln!(f, "id: {:#?}", self.id)?;
+        writeln!(f, "connection: {:#?}", self.connection)?;
+        writeln!(f, "transforms: <hidden>")
+    }
+}
+impl fmt::Display for JointCommon {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "name: {}", self.name)?;
+        writeln!(f, "id: {}", self.id)?;
+        //writeln!(f, "connection: {}", self.connection);
+        writeln!(f, "transforms: <hidden>")
+    }
 }
 
 impl JointCommon {
@@ -66,6 +92,21 @@ pub enum Joint {
     Prismatic(Prismatic),
     Revolute(Revolute),
     //Spherical,
+}
+
+impl fmt::Display for Joint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Joint::Prismatic(_prismatic) => {
+                writeln!(f, "Joint: Prismatic")
+                //writeln!(f, "\t{}", prismatic)
+            }
+            Joint::Revolute(_revolute) => {
+                writeln!(f, "Joint: Revolute")
+                //writeln!(f, "\t{}", revolute)
+            }
+        }
+    }
 }
 
 impl From<Revolute> for Joint {
@@ -162,7 +203,7 @@ impl JointTrait for Joint {
             Joint::Prismatic(joint) => joint.get_outer_body_id(),
             Joint::Revolute(joint) => joint.get_outer_body_id(),
         }
-    }    
+    }
 }
 
 impl ArticulatedBodyAlgorithm for JointSim {

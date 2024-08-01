@@ -1,4 +1,5 @@
 use crate::{
+    aerospace::MultibodyGravity,
     algorithms::{articulated_body_algorithm::ArticulatedBodyAlgorithm, MultibodyAlgorithm},
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
     joint::{
@@ -7,9 +8,9 @@ use crate::{
     },
     result::{update_body_states, MultibodyResult, ResultEntry},
     system::MultibodySystem,
-    MultibodyTrait,
+    MultibodyErrors, MultibodyTrait,
 };
-use aerospace::gravity::Gravity;
+
 use differential_equations::solver::{Solver, SolverMethod};
 use nalgebra::Vector6;
 use rotations::RotationTrait;
@@ -29,13 +30,15 @@ pub struct MultibodySystemSim {
     pub body_names: Vec<String>,
     joints: Vec<JointSim>,
     joint_names: Vec<String>,
-    gravity: HashMap<Uuid, Gravity>,
+    gravity: HashMap<Uuid, MultibodyGravity>,
     parent_joint_indeces: Vec<usize>,
 }
 
-impl From<MultibodySystem> for MultibodySystemSim {
-    fn from(sys: MultibodySystem) -> Self {
-        sys.validate();
+impl TryFrom<MultibodySystem> for MultibodySystemSim {
+    type Error = MultibodyErrors;
+
+    fn try_from(sys: MultibodySystem) -> Result<Self, MultibodyErrors> {
+        sys.validate()?;
 
         let mut bodysims = Vec::new();
         let mut bodynames = Vec::new();
@@ -65,8 +68,8 @@ impl From<MultibodySystem> for MultibodySystemSim {
                             joint.update_transforms(None);
                             let transforms = joint.get_transforms();
                             let jof_from_ob = transforms.jof_from_ob;
-                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);                            
-                            let joint_mass_properties = jof_from_ob * spatial_inertia;                            
+                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+                            let joint_mass_properties = jof_from_ob * spatial_inertia;
                             joint.set_inertia(Some(joint_mass_properties));
 
                             recursive_sys_creation(
@@ -93,7 +96,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             }
         }
 
-        MultibodySystemSim {
+        Ok(MultibodySystemSim {
             algorithm: sys.algorithm,
             bodies: bodysims,
             body_names: bodynames,
@@ -101,7 +104,7 @@ impl From<MultibodySystem> for MultibodySystemSim {
             joint_names: jointnames,
             gravity: sys.gravities,
             parent_joint_indeces: parent_joint_indeces,
-        }
+        })
     }
 }
 
@@ -152,8 +155,8 @@ impl MultibodySystemSim {
                     ));
                     //transform accel_to joint
                     let gravity_joint = transforms.jof_from_ob * gravity_body;
-                    //transform to force by multiplying by joint inertia                    
-                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
+                    //transform to force by multiplying by joint inertia
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
                     self.joints[i].first_pass(v_ij, &f_ob);
@@ -194,7 +197,13 @@ impl MultibodySystemSim {
         }
     }
 
-    pub fn simulate(&mut self, name: String, tstart: f64, tstop: f64, dt: f64) -> MultibodyResult {
+    pub fn simulate(
+        &mut self,
+        name: String,
+        tstart: f64,
+        tstop: f64,
+        dt: f64,
+    ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
 
@@ -294,7 +303,7 @@ impl MultibodySystemSim {
             name = format!("sim_{}", generate_unique_id());
         }
 
-        MultibodyResult {
+        Ok(MultibodyResult {
             name: name,
             sim_time: times,
             result: result_hm,
@@ -302,7 +311,7 @@ impl MultibodySystemSim {
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
-        }
+        })
     }
 
     fn update_body_forces(&mut self) {

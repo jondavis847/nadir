@@ -8,14 +8,11 @@ use coordinate_systems::{
 use geometry::cuboid::Cuboid;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base,
-    body::Body,
-    joint::{
+    aerospace::MultibodyGravity, base::Base, body::Body, joint::{
         prismatic::{Prismatic, PrismaticState},
         revolute::{Revolute, RevoluteState},
         Joint, JointParameters,
-    },
-    MultibodyTrait,
+    }, MultibodyTrait
 };
 use nalgebra::Matrix3;
 use rotations::{
@@ -1157,13 +1154,15 @@ impl std::fmt::Display for GravityPickList {
         )
     }
 }
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct DummyGravity {
+    pub name: String,
     pub model: GravityPickList,
 }
 
 impl DummyGravity {
     pub fn clear(&mut self) {
+        self.name = String::new();
         self.model = GravityPickList::None;
     }
 
@@ -1173,14 +1172,20 @@ impl DummyGravity {
         two_body: &'a DummyTwoBodyGravity,
         two_body_custom: &'a DummyTwoBodyCustom,
     ) -> Element<'a, Message, Theme> {
-        let content = Column::new().push(
-            pick_list(
-                &GravityPickList::ALL[..],
-                Some(self.model),
-                Message::GravityModelSelected,
-            )
-            .width(Length::FillPortion(1)),
-        );
+        let content = Column::new()
+            .push(create_text_input(
+                "name",
+                self.name.as_str(),
+                Message::GravityNameChanged,
+            ))
+            .push(
+                pick_list(
+                    &GravityPickList::ALL[..],
+                    Some(self.model),
+                    Message::GravityModelSelected,
+                )
+                .width(Length::FillPortion(1)),
+            );
         let content = match self.model {
             GravityPickList::None => content,
             GravityPickList::Constant => content.push(constant_gravity.content()),
@@ -1213,14 +1218,16 @@ impl DummyGravity {
         dummy_constant: &DummyConstantGravity,
         dummy_two_body: &DummyTwoBodyGravity,
         dummy_two_body_custom: &DummyTwoBodyCustom,
-    ) -> Gravity {
-        match self.model {
+    ) -> MultibodyGravity {
+        let name = self.name.clone();
+        let gravity = match self.model {
             GravityPickList::None => Gravity::Constant(ConstantGravity::new(0.0, 0.0, 0.0)),
             GravityPickList::Constant => Gravity::Constant(dummy_constant.to_gravity()),
             GravityPickList::TwoBody => {
                 Gravity::TwoBody(dummy_two_body.to_gravity(dummy_two_body_custom))
             }
-        }
+        };
+        MultibodyGravity::new(&name,gravity)
     }
 }
 
