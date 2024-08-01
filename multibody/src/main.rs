@@ -1,16 +1,12 @@
+use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::*;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base,
-    body::Body,
-    component::MultibodyComponent,
-    joint::{
+    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors}, component::MultibodyComponent, joint::{
         revolute::{Revolute, RevoluteState},
         Joint, JointParameters,
-    },
-    system::MultibodySystem,
-    result::MultibodyResult,
+    }, result::MultibodyResult, system::MultibodySystem, MultibodyTrait
 };
 use rotations::{Rotation, quaternion::Quaternion, rotation_matrix::RotationMatrix, euler_angles::{EulerAngles,EulerSequence},axes::AlignedAxes};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -61,6 +57,7 @@ enum Commands {
 enum Components {
     Base,
     Body,
+    Gravity,
     Revolute,
 }
 
@@ -180,93 +177,55 @@ fn main() -> Result<(), ReadlineError> {
                             system_name,
                             component,
                         } => {
-                            match component {
-                                Components::Base => {
-                                    if let Some(system) = systems.get_mut(&system_name) {
-                                        let name = Prompts::Name.prompt();
-                                        let base = Base::new(&name);
-                                        system.add_base(base);
-                                        println!("{} added to {}", &name, system_name);
-                                    } else {
-                                        println!("System '{}' not found.", system_name);
+                            if let Some(system) = systems.get_mut(&system_name) {
+                                match component {
+                                    Components::Base => {                                        
+                                           let base = prompt_base();                                           
+                                           let name = base.get_name().to_string();
+                                            let r = system.add_base(base);
+                                            match r {
+                                                Ok(_) => println!("{} added to {}", &name, system_name),
+                                                Err(e) => eprintln!("{:?}",e)
+                                            }
+                                        
                                     }
-                                }
-                                Components::Body => {
-                                    if let Some(system) = systems.get_mut(&system_name) {
-                                        let name = Prompts::Name.prompt();
-                                        let mass =
-                                            Prompts::Mass.prompt().parse::<f64>().unwrap_or(1.0);
-                                        let cmx =
-                                            Prompts::Cmx.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let cmy =
-                                            Prompts::Cmy.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let cmz =
-                                            Prompts::Cmz.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let ixx =
-                                            Prompts::Ixx.prompt().parse::<f64>().unwrap_or(1.0);
-                                        let iyy =
-                                            Prompts::Iyy.prompt().parse::<f64>().unwrap_or(1.0);
-                                        let izz =
-                                            Prompts::Izz.prompt().parse::<f64>().unwrap_or(1.0);
-                                        let ixy =
-                                            Prompts::Ixy.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let ixz =
-                                            Prompts::Ixz.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let iyz =
-                                            Prompts::Iyz.prompt().parse::<f64>().unwrap_or(0.0);
-
-                                        let com = CenterOfMass::new(cmx, cmy, cmz);
-                                        let inertia =
-                                            Inertia::new(ixx, iyy, izz, ixy, ixz, iyz).unwrap();
-                                        let mass_properties =
-                                            MassProperties::new(mass, com, inertia).unwrap();
-                                        let body = Body::new(&name, mass_properties).unwrap();
-
-                                        let body_name = body.name.clone();
-                                        system.add_body(body); // Assuming you have a method to add a body to the system
-                                        println!("{} added to {}", body_name, system_name);
-                                    } else {
-                                        println!("System '{}' not found.", system_name);
+                                    Components::Body => {
+                                        let body = prompt_body();
+                                        match body {
+                                            Ok(body) => {
+                                                let name = body.name.clone();
+                                                let r = system.add_body(body); 
+                                                match r {
+                                                    Ok(_) => println!("{} added to {}", &name, system_name),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }                                                
+                                            }
+                                            Err(e) => eprintln!("{:?}",e)
+                                        }
                                     }
-                                }
-                                Components::Revolute => {
-                                    if let Some(system) = systems.get_mut(&system_name) {
-                                        let name = Prompts::Name.prompt();
-                                        let angle =
-                                            Prompts::Angle.prompt().parse::<f64>().unwrap_or(0.0);
-                                        let angular_rate = Prompts::AngularRate
-                                            .prompt()
-                                            .parse::<f64>()
-                                            .unwrap_or(0.0);
-
-                                        let state = RevoluteState::new(angle, angular_rate);
-                                        let force = Prompts::JointForce
-                                            .prompt()
-                                            .parse::<f64>()
-                                            .unwrap_or(0.0);
-                                        let spring = Prompts::JointSpring
-                                            .prompt()
-                                            .parse::<f64>()
-                                            .unwrap_or(0.0);
-                                        let damping = Prompts::JointDamping
-                                            .prompt()
-                                            .parse::<f64>()
-                                            .unwrap_or(0.0);
-                                        let parameters =
-                                            JointParameters::new(force, damping, spring);
-
-                                        let revolute = Revolute::new(&name, parameters, state);
-                                        let joint = Joint::Revolute(revolute);
-                                        system.add_joint(joint);
-                                        println!("{} added to {}", name, system_name);
-                                    } else {
-                                        println!("System '{}' not found.", system_name);
+                                    Components::Gravity => {
+                                        let gravity = prompt_gravity();
+                                        let name = gravity.get_name().to_string();
+                                        let r = system.add_gravity(gravity);
+                                        match r {
+                                            Ok(_) => println!("{} added to {}", &name, system_name),
+                                            Err(e) => eprintln!("{:?}",e)
+                                        }                                         
                                     }
+                                    Components::Revolute => {                                        
+                                            let revolute = prompt_revolute();
+                                            let joint = Joint::Revolute(revolute);
+                                            let name = joint.get_name().to_string();
+                                            let r = system.add_joint(joint);
+                                            match r {
+                                                Ok(_) => println!("{} added to {}", &name, system_name),
+                                                Err(e) => eprintln!("{:?}",e)
+                                            }                                           
+                                    }                                    
                                 }
-                                _ => {
-                                    println!("Invalid component for adding.");
-                                }
-                            }
+                            } else {
+                                println!("System '{}' not found.", system_name);
+                            }    
                         }
                         Commands::Simulate {system_name} => {
                             if let Some(system) = systems.get_mut(&system_name) {
@@ -330,6 +289,11 @@ enum Prompts {
     Ixy,
     Ixz,
     Iyz,
+    GravityType,
+    GravityConstantX,
+    GravityConstantY,
+    GravityConstantZ,
+    GravityTwoBodyMu,
     JointDamping,
     JointForce,
     JointSpring,
@@ -364,6 +328,11 @@ impl Prompts {
             Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0): ",
             Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0): ",
             Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0): ",
+            Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
+            Prompts::GravityConstantX => "Constant gravity X (m/sec^2) :",
+            Prompts::GravityConstantY => "Constant gravity Y (m/sec^2) :",
+            Prompts::GravityConstantZ => "Constant gravity Z (m/sec^2) :",
+            Prompts::GravityTwoBodyMu => "Two body gravity mu (m^3/sec^2):",
             Prompts::Ixx => "Ixx (units: kg-m^2, default: 1.0): ",
             Prompts::Iyy => "Iyy (units: kg-m^2, default: 1.0): ",
             Prompts::Izz => "Izz (units: kg-m^2, default: 1.0): ",
@@ -437,6 +406,9 @@ impl Prompts {
             | Prompts::Cmx
             | Prompts::Cmy
             | Prompts::Cmz
+            | Prompts::GravityConstantX
+            | Prompts::GravityConstantY
+            | Prompts::GravityConstantZ
             | Prompts::Ixy
             | Prompts::Ixz
             | Prompts::Iyz
@@ -457,7 +429,7 @@ impl Prompts {
                 Ok(())
             }
             // Non-numeric and > 0
-            Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
+            Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
                     return Ok(())
@@ -470,7 +442,19 @@ impl Prompts {
                 }
                 Ok(())
             }
-            // Yes/No values
+            //Gravity
+            Prompts::GravityType => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = ["c", "2"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidGravity);
+                }
+                Ok(())
+            }
+            // Transform
             Prompts::Transform => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
@@ -507,6 +491,7 @@ impl Prompts {
 
 #[derive(Debug)]
 pub enum InputErrors {
+    InvalidGravity,
     InvalidRotation,
     InvalidTransform,
     NonNumeric,
@@ -519,6 +504,7 @@ pub enum InputErrors {
 impl std::fmt::Display for InputErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
             InputErrors::InvalidRotation => write!(f,"Error: input must be ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]"),
             InputErrors::InvalidTransform => write!(f,"Error: input must be ['i' (identity), 'c' (custom)]"),
             InputErrors::NonNumeric => write!(f,"Error: input must be numeric"),
@@ -527,6 +513,94 @@ impl std::fmt::Display for InputErrors {
             
         }
     }
+}
+
+fn prompt_base() -> Base {
+    let name = Prompts::Name.prompt();
+    Base::new(&name)
+}
+
+fn prompt_body() -> Result<Body, BodyErrors> {
+    let name = Prompts::Name.prompt();
+    let mass =
+        Prompts::Mass.prompt().parse::<f64>().unwrap_or(1.0);
+    let cmx =
+        Prompts::Cmx.prompt().parse::<f64>().unwrap_or(0.0);
+    let cmy =
+        Prompts::Cmy.prompt().parse::<f64>().unwrap_or(0.0);
+    let cmz =
+        Prompts::Cmz.prompt().parse::<f64>().unwrap_or(0.0);
+    let ixx =
+        Prompts::Ixx.prompt().parse::<f64>().unwrap_or(1.0);
+    let iyy =
+        Prompts::Iyy.prompt().parse::<f64>().unwrap_or(1.0);
+    let izz =
+        Prompts::Izz.prompt().parse::<f64>().unwrap_or(1.0);
+    let ixy =
+        Prompts::Ixy.prompt().parse::<f64>().unwrap_or(0.0);
+    let ixz =
+        Prompts::Ixz.prompt().parse::<f64>().unwrap_or(0.0);
+    let iyz =
+        Prompts::Iyz.prompt().parse::<f64>().unwrap_or(0.0);
+
+    let com = CenterOfMass::new(cmx, cmy, cmz);
+    let inertia =
+        Inertia::new(ixx, iyy, izz, ixy, ixz, iyz).unwrap();
+    let mass_properties =
+        MassProperties::new(mass, com, inertia).unwrap();
+    Body::new(&name, mass_properties)
+}
+
+fn prompt_gravity() -> MultibodyGravity {
+    let name = Prompts::Name.prompt();
+    let gravity_type = Prompts::GravityType.validate_loop("c");
+    let gravity = match gravity_type.as_str() {
+        "c" => {
+            let x = Prompts::GravityConstantX.validate_loop("0").parse::<f64>().unwrap_or(0.0);
+            let y = Prompts::GravityConstantY.validate_loop("0").parse::<f64>().unwrap_or(0.0);
+            let z = Prompts::GravityConstantZ.validate_loop("0").parse::<f64>().unwrap_or(0.0);
+            Gravity::Constant(ConstantGravity::new(x,y,z))            
+        }
+        "2" => {
+            let earth = aerospace::gravity::EARTH;
+            let earth_string = earth.to_string();            
+            let mu = Prompts::GravityTwoBodyMu.validate_loop(&earth_string).parse::<f64>().unwrap_or(earth);
+            Gravity::TwoBody(TwoBodyGravity::new(mu))
+        }
+        _ => panic!("shouldn't be possible. other characters caught in validation loop")
+    };
+    MultibodyGravity::new(&name,gravity)
+
+}
+
+fn prompt_revolute() -> Revolute {
+    let name = Prompts::Name.prompt();
+
+    let angle = Prompts::Angle.validate_loop("0").parse::<f64>().unwrap_or(0.0);
+
+    let angular_rate = Prompts::AngularRate.validate_loop("0")
+        .parse::<f64>()
+        .unwrap_or(0.0);
+
+    let state = RevoluteState::new(angle, angular_rate);
+
+
+    let force = Prompts::JointForce
+        .validate_loop("0")
+        .parse::<f64>()
+        .unwrap_or(0.0);
+    let spring = Prompts::JointSpring
+        .validate_loop("0")
+        .parse::<f64>()
+        .unwrap_or(0.0);
+    let damping = Prompts::JointDamping
+        .validate_loop("0")
+        .parse::<f64>()
+        .unwrap_or(0.0);
+    let parameters =
+        JointParameters::new(force, damping, spring);
+
+    Revolute::new(&name, parameters, state)
 }
 
 fn prompt_transform() -> Transform {

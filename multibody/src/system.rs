@@ -68,8 +68,13 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn add_gravity(&mut self, gravity: MultibodyGravity) {
+    pub fn add_gravity(&mut self, gravity: MultibodyGravity) -> Result<(), MultibodyErrors>{
+         // Return if a component with this name already exists
+         if self.check_name_taken(gravity.get_name()) {
+            return Err(MultibodyErrors::NameTaken);
+        }
         self.gravities.insert(*gravity.get_id(), gravity);
+        Ok(())
     }
 
     pub fn connect_gravity(
