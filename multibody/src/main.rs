@@ -40,7 +40,7 @@ enum Commands {
     /// Exit the program
     Exit,
     /// View the MultibodySystem or a Component by its name
-    View { component: String , name: String },
+    View { sys_or_res: String , name: String,  component: Option<String>},
     /// Add a new Component to a MultibodySystem
     Add {
         system_name: String,
@@ -97,7 +97,61 @@ fn main() -> Result<(), ReadlineError> {
                 // Execute the command
                 if let Some(command) = args.command {
                     match command {
-                        
+                        Commands::Add {
+                            system_name,
+                            component,
+                        } => {
+                            if let Some(system) = systems.get_mut(&system_name) {
+                                match component {
+                                    Components::Base => {                                        
+                                           let base = prompt_base();                                           
+                                           let name = base.get_name().to_string();
+                                            let r = system.add_base(base);
+                                            match r {
+                                                Ok(_) => println!("{} added to {}", &name, system_name),
+                                                Err(e) => eprintln!("{:?}",e)
+                                            }
+                                        
+                                    }
+                                    Components::Body => {
+                                        let body = prompt_body();
+                                        match body {
+                                            Ok(body) => {
+                                                let name = body.name.clone();
+                                                let r = system.add_body(body); 
+                                                match r {
+                                                    Ok(_) => println!("{} added to {}", &name, system_name),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }                                                
+                                            }
+                                            Err(e) => eprintln!("{:?}",e)
+                                        }
+                                    }
+                                    Components::Gravity => {
+                                        let gravity = prompt_gravity();
+                                        let name = gravity.get_name().to_string();
+                                        let r = system.add_gravity(gravity);
+                                        match r {
+                                            Ok(_) => println!("{} added to {}", &name, system_name),
+                                            Err(e) => eprintln!("{:?}",e)
+                                        }                                         
+                                    }
+                                    Components::Revolute => {                                        
+                                            let revolute = prompt_revolute();
+                                            let joint = Joint::Revolute(revolute);
+                                            let name = joint.get_name().to_string();
+                                            let r = system.add_joint(joint);
+                                            match r {
+                                                Ok(_) => println!("{} added to {}", &name, system_name),
+                                                Err(e) => eprintln!("{:?}",e)
+                                            }                                           
+                                    }                                    
+                                }
+                            } else {
+                                println!("System '{}' not found.", system_name);
+                            }    
+                        }
+
                         Commands::Connect {
                             sys_name,
                             from_name,
@@ -154,8 +208,8 @@ fn main() -> Result<(), ReadlineError> {
                         Commands::Exit => {
                             break;
                         }
-                        Commands::View { component, name } => {
-                            match component.as_str() {
+                        Commands::View { sys_or_res, name, component,} => {
+                            match sys_or_res.as_str() {
                                 "system" => { 
                                     if let Some(sys) = systems.get(&name) {
                                         println!("{:#?}", sys);
@@ -165,7 +219,12 @@ fn main() -> Result<(), ReadlineError> {
                                 }                
                                 "result" => { 
                                     if let Some(res) = results.get(&name) {
-                                        println!("{:#?}", res);
+                                        if let Some(component) = component {
+                                            let res = res.get_component(&component);
+                                            println!("{:#?}", res);
+                                        } else {
+                                            println!("{:#?}", res);
+                                        }
                                     } else {
                                         eprintln!("Error: result '{}' not found ", name);
                                     }
@@ -173,61 +232,7 @@ fn main() -> Result<(), ReadlineError> {
                                 _ => println!("Error: invalid component - options are ['system','result']")         
                             }
                         }
-                        Commands::Add {
-                            system_name,
-                            component,
-                        } => {
-                            if let Some(system) = systems.get_mut(&system_name) {
-                                match component {
-                                    Components::Base => {                                        
-                                           let base = prompt_base();                                           
-                                           let name = base.get_name().to_string();
-                                            let r = system.add_base(base);
-                                            match r {
-                                                Ok(_) => println!("{} added to {}", &name, system_name),
-                                                Err(e) => eprintln!("{:?}",e)
-                                            }
-                                        
-                                    }
-                                    Components::Body => {
-                                        let body = prompt_body();
-                                        match body {
-                                            Ok(body) => {
-                                                let name = body.name.clone();
-                                                let r = system.add_body(body); 
-                                                match r {
-                                                    Ok(_) => println!("{} added to {}", &name, system_name),
-                                                    Err(e) => eprintln!("{:?}",e)
-                                                }                                                
-                                            }
-                                            Err(e) => eprintln!("{:?}",e)
-                                        }
-                                    }
-                                    Components::Gravity => {
-                                        let gravity = prompt_gravity();
-                                        let name = gravity.get_name().to_string();
-                                        let r = system.add_gravity(gravity);
-                                        match r {
-                                            Ok(_) => println!("{} added to {}", &name, system_name),
-                                            Err(e) => eprintln!("{:?}",e)
-                                        }                                         
-                                    }
-                                    Components::Revolute => {                                        
-                                            let revolute = prompt_revolute();
-                                            let joint = Joint::Revolute(revolute);
-                                            let name = joint.get_name().to_string();
-                                            let r = system.add_joint(joint);
-                                            match r {
-                                                Ok(_) => println!("{} added to {}", &name, system_name),
-                                                Err(e) => eprintln!("{:?}",e)
-                                            }                                           
-                                    }                                    
-                                }
-                            } else {
-                                println!("System '{}' not found.", system_name);
-                            }    
-                        }
-                        Commands::Simulate {system_name} => {
+                                                Commands::Simulate {system_name} => {
                             if let Some(system) = systems.get_mut(&system_name) {
                                 match system.validate() {
                                     Ok(_)=> {
