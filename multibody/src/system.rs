@@ -312,8 +312,7 @@ impl MultibodySystem {
                     return Err(MultibodyErrors::BodyNotFound);
                 }
             }
-        }
-        println!("System validation complete!");
+        }        
         Ok(())
     }
 }

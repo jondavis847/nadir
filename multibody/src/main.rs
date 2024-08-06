@@ -1,6 +1,7 @@
 use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::*;
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors}, component::MultibodyComponent, joint::{
@@ -8,36 +9,26 @@ use multibody::{
         Joint, JointParameters,
     }, result::MultibodyResult, system::MultibodySystem, MultibodyTrait
 };
-use rotations::{Rotation, quaternion::Quaternion};
-use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
+use ratatui::{
+    backend::CrosstermBackend,
+    crossterm::{
+        event::{DisableMouseCapture, EnableMouseCapture},
+        execute,
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+    },    
+    style::Stylize,    
+    terminal::{Frame, Terminal},    
+    widgets::{ Axis, Chart, Dataset, },
+};
 use reedline::{DefaultPrompt, DefaultPromptSegment, FileBackedHistory, Reedline, Signal};
+use ron::de::from_reader;
+use ron::ser::{to_string_pretty, PrettyConfig};
+use rotations::{Rotation, quaternion::Quaternion};
+use std::collections::HashMap;
+use std::fs::{File,OpenOptions};
+use std::io::{self,Read, Write};
 use transforms::Transform;
 use uuid::Uuid;
-use ron::de::from_reader;
-use std::collections::HashMap;
-use std::{
-    error::Error,
-    io::{self,Read, Write},
-    time::{Duration, Instant},
-};
-
-use ron::ser::{to_string_pretty, PrettyConfig};
-use std::fs::{File,OpenOptions};
-
-use ratatui::{
-    backend::{Backend, CrosstermBackend},
-    crossterm::{
-        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-        execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    },
-    layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Modifier, Style, Stylize},
-    symbols::{self, Marker},
-    terminal::{Frame, Terminal},
-    text::Span,
-    widgets::{block::Title, Axis, Block, Chart, Dataset, GraphType, LegendPosition},
-};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -64,6 +55,8 @@ enum Commands {
     Create { name: String },
     /// Exit the program
     Exit,
+    /// Load a saved MultibodySystem
+    Load { system: String },
     /// Plot a component by its name
     Plot { result: String , component: String, state: String},
     /// Save a MultibodySystem for future use
@@ -142,10 +135,7 @@ fn main() {
                                                         let name = base.get_name().to_string();
                                                         let r = system.add_base(base);
                                                         match r {                                                            
-                                                            Ok(_) => {
-                                                                let str = format!("{} added to {}!", &name, system_name).green();
-                                                                println!("{}",str)
-                                                            }
+                                                            Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                             Err(e) => eprintln!("{:?}",e)
                                                         }
                                                     }
@@ -163,10 +153,7 @@ fn main() {
                                                         let name = body.name.clone();
                                                         let r = system.add_body(body); 
                                                         match r {
-                                                            Ok(_) => {
-                                                                let str = format!("{} added to {}!", &name, system_name).green();
-                                                                println!("{}",str)
-                                                            },
+                                                            Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                             Err(e) => eprintln!("{:?}",e)
                                                         }                                                                                                        
                                                     }
@@ -182,10 +169,7 @@ fn main() {
                                                         let name = gravity.get_name().to_string();
                                                         let r = system.add_gravity(gravity);
                                                         match r {
-                                                            Ok(_) => {
-                                                                let str = format!("{} added to {}!", &name, system_name).green();
-                                                                println!("{}",str)
-                                                            },
+                                                            Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                             Err(e) => eprintln!("{:?}",e)
                                                         }                                         
                                                     } 
@@ -208,10 +192,7 @@ fn main() {
                                                     let name = joint.get_name().to_string();
                                                     let r = system.add_joint(joint);
                                                     match r {
-                                                        Ok(_) => {
-                                                            let str = format!("{} added to {}!", &name, system_name).green();
-                                                            println!("{}",str)
-                                                        },
+                                                        Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                         Err(e) => eprintln!("{:?}",e)
                                                     }                                           
                                             }                                    
@@ -230,7 +211,7 @@ fn main() {
                                         let from_component_data = match sys.get_from_name(&from_name) {
                                             Some(component_data) => component_data,
                                             None => {
-                                                eprintln!("Error: 'From' name not found");
+                                                error("Error: 'From' name not found");                                                
                                                 continue;
                                             }
                                         };
@@ -296,17 +277,44 @@ fn main() {
                                 Commands::Exit => {
                                     break;
                                 },
+                                Commands::Load {system} => {      
+                                    let file_path = "systems.ron";                              
+                                    let mut file = match File::open(file_path) {
+                                        Ok(file) => file,
+                                        Err(e) => {eprintln!("{}",e); continue},
+                                    };
+                                    let mut content = String::new();
+                                    
+                                    match file.read_to_string(&mut content) {
+                                        Ok(_) => {},
+                                        Err(e) => {eprintln!("{}",e); continue},
+                                    }
+
+                                    // Deserialize the RON content into a hashmap
+                                    let saved_systems: HashMap<String, MultibodySystem> = match from_reader(content.as_bytes()) {
+                                        Ok(s) => s,
+                                        Err(e) => {eprintln!("{}",e); continue},
+                                    };
+
+                                    let sys = match saved_systems.get(&system) {
+                                        Some(sys) => sys,
+                                        None => {eprintln!("Error: system not found"); continue},
+                                    };
+                                    systems.insert(system.clone(),sys.clone());                  
+
+                                    let p = colored::Colorize::green(format!("System '{}' successuflly loaded!", system).as_str());
+                                    println!("{}",p);
+                                }
+
                                 Commands::Plot { result, component, state} => {
 
                                     if let Some(result) = results.get(&result) {
                                         let df = result.get_component_state(&component, vec![&state]);
                                         let t = df.column("t").unwrap().f64().unwrap();
-                                        let column_names = df.get_column_names();
-                                        
+                                                                                
                                         let data = df.column(&state).unwrap().f64().unwrap();
                                         assert_eq!(t.len(), data.len());
                                         
-
                                         let points: Vec<(f64,f64)> = t
                                             .into_iter()
                                             .zip(data.into_iter())
@@ -434,10 +442,11 @@ fn main() {
                                         _ => println!("Error: invalid component - options are ['system','result']")         
                                     }
                                 }
-                                                        Commands::Simulate {system_name} => {
+                                Commands::Simulate {system_name} => {
                                     if let Some(system) = systems.get_mut(&system_name) {
                                         match system.validate() {
                                             Ok(_)=> {
+                                                success("System validated!");                                                
                                                 match prompt_simulation() {
                                                     Ok((name, start_time,stop_time, dt)) => {
                                                         let result = system.simulate(name,start_time,stop_time,dt);
@@ -864,4 +873,12 @@ fn prompt_simulation() -> Result<(String, f64,f64,f64),InputErrors> {
         let stop_time = Prompts::SimulationStop.validate_loop("10")?.parse::<f64>().unwrap_or(10.0);        
         let dt = Prompts::SimulationDt.validate_loop("0.1")?.parse::<f64>().unwrap_or(0.1);
         Ok((name, start_time,stop_time,dt))
+}
+
+fn success(s: &str) {
+    println!("{}",colored::Colorize::green(s))
+}
+
+fn error(s: &str) {
+    eprintln!("{:?}",colored::Colorize::red(s))
 }

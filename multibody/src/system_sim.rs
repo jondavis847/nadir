@@ -38,8 +38,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
     type Error = MultibodyErrors;
 
     fn try_from(sys: MultibodySystem) -> Result<Self, MultibodyErrors> {
-        sys.validate()?;
-
+        
         let mut bodysims = Vec::new();
         let mut bodynames = Vec::new();
         let mut jointsims = Vec::new();
