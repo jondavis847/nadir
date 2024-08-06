@@ -1,5 +1,5 @@
-b
-c
-cart
-0.5
-sim1
+connect pend gravity base
+connect pend base revolute
+connect pend revolute body
+simulate pend
+save pend

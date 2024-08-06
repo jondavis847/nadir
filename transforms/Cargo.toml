@@ -11,3 +11,4 @@ mass_properties = {path = "../mass_properties"}
 approx = "0.5.1"
 approx_eq = "0.1.8"
 nalgebra = "0.33.0"
+serde = "1.0.204"

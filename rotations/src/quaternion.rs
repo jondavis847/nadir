@@ -1,11 +1,12 @@
 use super::*;
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 use rand::prelude::*;
 use std::fmt;
 use std::ops::{Add, Mul, Neg, Sub};
 
 /// A struct representing a quaternion for 3D rotations.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,

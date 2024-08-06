@@ -7,6 +7,7 @@ use rotations::quaternion::Quaternion;
 use spatial_algebra::{Acceleration, Force, SpatialTransform};
 use std::collections::HashMap;
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
 pub mod body_enum;
 use super::joint::JointTrait;
@@ -27,7 +28,7 @@ pub trait BodyTrait: MultibodyTrait {
     fn get_outer_joints(&self) -> &Vec<Uuid>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,Serialize, Deserialize)]
 pub struct Body {
     //actuators: Vec<BodyActuatorConnection>,
     pub id: Uuid,

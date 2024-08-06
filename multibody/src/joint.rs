@@ -8,6 +8,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 
 use super::body::BodyTrait;
 
+use serde::{Deserialize, Serialize};
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -50,7 +51,7 @@ impl fmt::Display for JointErrors {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct JointCommon {
     pub id: Uuid,
     pub name: String,
@@ -86,7 +87,7 @@ impl JointCommon {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Joint {
     //Floating,
     Prismatic(Prismatic),
@@ -278,7 +279,7 @@ impl ArticulatedBodyAlgorithm for JointSim {
 // We also choose to make the transform be from the body frame to the joint frame.
 // This is because the location of things like actuators or other components are typically expressed in the body frame.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Connection {
     pub body_id: Uuid,
     pub transform: Transform,
@@ -289,13 +290,13 @@ impl Connection {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointConnection {
     pub inner_body: Option<Connection>,
     pub outer_body: Option<Connection>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct JointParameters {
     pub constant_force: f64,
     pub damping: f64,
@@ -323,7 +324,7 @@ impl JointParameters {
 /// outer_body: the "body frame" of the body on the tip side of the joint
 /// jif: the "joint inner frame"
 /// jof: the "joint outer frame"
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct JointTransforms {
     // joint frame
     pub jif_from_jof: SpatialTransform, // my-joint-inner-frame from my-joint-outer-frame

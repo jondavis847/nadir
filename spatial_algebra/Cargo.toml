@@ -9,3 +9,4 @@ rotations = {path = "../rotations"}
 transforms = {path = "../transforms"}
 mass_properties = {path = "../mass_properties"}
 nalgebra = "0.33.0"
+serde = "1.0.204"

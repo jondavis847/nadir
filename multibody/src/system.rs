@@ -12,13 +12,12 @@ use super::{
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
-
+use serde::{Serialize, Deserialize};
 use std::{collections::HashMap, ops::Mul};
 use transforms::Transform;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,

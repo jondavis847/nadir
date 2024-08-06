@@ -1,6 +1,7 @@
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use nalgebra::{Matrix3, Matrix6, Matrix6x1, Vector3, Vector6};
 use rotations::rotation_matrix::RotationMatrix;
+use serde::{Serialize, Deserialize};
 use std::ops::{Add, Mul, Sub};
 use transforms::Transform;
 
@@ -419,7 +420,7 @@ impl Sub<Force> for Force {
 }
 
 // we only need this as wrapper on Transform, other wise we cant impl Mul<Motion> for Transform since it's not in this crate :(
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct SpatialTransform(pub Transform);
 
 impl SpatialTransform {
@@ -551,7 +552,7 @@ impl Mul<SpatialInertia> for SpatialTransform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct SpatialInertia(pub Matrix6<f64>);
 
 impl SpatialInertia {

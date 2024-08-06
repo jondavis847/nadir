@@ -16,12 +16,13 @@ use rotations::{
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
+use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone)]
 pub enum RevoluteErrors {}
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct RevoluteState {
     pub theta: f64,
     pub omega: f64,
@@ -34,7 +35,7 @@ impl RevoluteState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Revolute {
     pub common: JointCommon,
     pub parameters: JointParameters,

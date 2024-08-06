@@ -1,9 +1,10 @@
 //use super::{quaternion::Quaternion, RotationTrait};
 use super::*;
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 
 /// Enum representing different Euler angle sequences.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub enum EulerSequence {
     XYZ,
     XZY,
@@ -62,7 +63,7 @@ impl std::fmt::Display for EulerSequence {
 }
 
 /// Struct representing Euler angles with a specific rotation sequence.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct EulerAngles {
     pub phi: f64,
     pub theta: f64,

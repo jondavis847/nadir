@@ -1,12 +1,13 @@
 use super::{cartesian::Cartesian, cylindrical::Cylindrical};
 use std::ops::{Add, Neg};
+use serde::{Serialize, Deserialize};
 use nalgebra::Vector3;
 /// Represents a point in spherical coordinates. Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0, and inclination is the angle
 /// from the +z axis.
 /// Unique values are not enforced (all values can be negative and are unbounded). This is so
 /// that instabilites are easily detectable without rolling over.
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
 pub struct Spherical {
     pub radius: f64,
     pub azimuth: f64,

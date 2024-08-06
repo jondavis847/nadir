@@ -14,11 +14,12 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct PrismaticState {
     pub position: f64,
     pub velocity: f64,
@@ -31,7 +32,7 @@ impl PrismaticState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prismatic {
     pub common: JointCommon,
     pub parameters: JointParameters,

@@ -2,9 +2,10 @@ use super::*;
 use axes::{AlignedAxes, Axis};
 use nalgebra::{Matrix3, Vector3};
 use std::ops::Mul;
+use serde::{Serialize, Deserialize};
 
 /// A struct representing a 3x3 rotation matrix.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq,Serialize, Deserialize)]
 pub struct RotationMatrix(pub Matrix3<f64>);
 
 /// Errors that can occur when creating a `RotationMatrix`.

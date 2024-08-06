@@ -1,4 +1,5 @@
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 
 pub const EARTH: f64 = 3.986004418e14;
 
@@ -26,13 +27,13 @@ pub trait GravityTrait {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Gravity {
     Constant(ConstantGravity),
     TwoBody(TwoBodyGravity),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstantGravity {
     pub value: Vector3<f64>,
 }
@@ -44,7 +45,7 @@ impl ConstantGravity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TwoBodyGravity {
     pub mu: f64,
 }

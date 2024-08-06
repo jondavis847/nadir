@@ -1,6 +1,7 @@
 use nalgebra::{Vector3,Matrix3};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct CenterOfMass {
     cmx: f64,
     cmy: f64,
@@ -57,7 +58,7 @@ impl From<Vector3<f64>> for CenterOfMass {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Inertia {
     pub ixx: f64,
     pub ixy: f64,
@@ -187,7 +188,7 @@ impl From<Matrix3<f64>> for Inertia {
 
 /// Represents the mass properties of an object
 /// Mass, Center of Mass, Inertia
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct MassProperties {
     pub center_of_mass: CenterOfMass,
     pub mass: f64,

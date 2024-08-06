@@ -5,8 +5,9 @@ use super::{
     MultibodyTrait,
 };
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug,Serialize, Deserialize)]
 pub struct Base {
     id: Uuid,
     name: String,

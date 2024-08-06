@@ -1,0 +1,260 @@
+{
+    "pend": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
+            name: "base",
+            outer_joints: [
+                "43e81877-eaae-4227-af3b-ade69082c6ce",
+            ],
+            gravity: [
+                "efc7684d-8dd3-4ae1-be52-50eed332642e",
+            ],
+        )),
+        bodies: {
+            "7e488e3e-849a-44c7-85dc-b37929c7e1a3": (
+                id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
+                inner_joint: Some("43e81877-eaae-4227-af3b-ade69082c6ce"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "body",
+                outer_joints: [],
+                geometry: None,
+                gravity: [],
+            ),
+        },
+        gravities: {
+            "efc7684d-8dd3-4ae1-be52-50eed332642e": (
+                id: "efc7684d-8dd3-4ae1-be52-50eed332642e",
+                name: "gravity",
+                gravity: Constant((
+                    value: (0.0, 0.0, -9.8),
+                )),
+            ),
+        },
+        joints: {
+            "43e81877-eaae-4227-af3b-ade69082c6ce": Revolute((
+                common: (
+                    id: "43e81877-eaae-4227-af3b-ade69082c6ce",
+                    name: "revolute",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    transforms: (
+                        jif_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_jif: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jif_from_ib: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ib_from_jif: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_ob: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ob_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_ij_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ij_jof_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_base: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        base_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        base_from_ob: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ob_from_base: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                    ),
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    mass_properties: None,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 1.0,
+                    omega: 0.0,
+                ),
+            )),
+        },
+    ),
+}

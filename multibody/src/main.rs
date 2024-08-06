@@ -13,7 +13,31 @@ use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use reedline::{DefaultPrompt, DefaultPromptSegment, FileBackedHistory, Reedline, Signal};
 use transforms::Transform;
 use uuid::Uuid;
+use ron::de::from_reader;
 use std::collections::HashMap;
+use std::{
+    error::Error,
+    io::{self,Read, Write},
+    time::{Duration, Instant},
+};
+
+use ron::ser::{to_string_pretty, PrettyConfig};
+use std::fs::{File,OpenOptions};
+
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    crossterm::{
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    },
+    layout::{Alignment, Constraint, Layout, Rect},
+    style::{Color, Modifier, Style, Stylize},
+    symbols::{self, Marker},
+    terminal::{Frame, Terminal},
+    text::Span,
+    widgets::{block::Title, Axis, Block, Chart, Dataset, GraphType, LegendPosition},
+};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -24,6 +48,12 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Add a new Component to a MultibodySystem
+    Add {
+        system_name: String,
+        #[arg(value_enum)]
+        component: Components,
+    },
     /// Make a connection from one component to another
     Connect {
         sys_name: String,
@@ -34,18 +64,16 @@ enum Commands {
     Create { name: String },
     /// Exit the program
     Exit,
-    /// View the MultibodySystem or a Component by its name
-    View { sys_or_res: String , name: String,  component: Option<String>},
-    /// Add a new Component to a MultibodySystem
-    Add {
-        system_name: String,
-        #[arg(value_enum)]
-        component: Components,
-    },
+    /// Plot a component by its name
+    Plot { result: String , component: String, state: String},
+    /// Save a MultibodySystem for future use
+    Save { system: String },
     /// Simulate the MultibodySystem
     Simulate {
         system_name: String
     },
+    /// View the MultibodySystem or a Component by its name
+    View { sys_or_res: String , name: String,  component: Option<String>},
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -66,7 +94,7 @@ fn main() {
           .expect("Error configuring history with file"),
       );
     let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
-    let prompt_string = "GADGT".blue().to_string();
+    let prompt_string = colored::Colorize::blue("GADGT").to_string();
     let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
     
     rl.clear_screen().unwrap();    
@@ -256,7 +284,7 @@ fn main() {
 
                                         sys.connect(&from_name, &to_name, transform);
                                     } else {
-                                        let e = "System not found".red();
+                                        let e = colored::Colorize::red("System not found");
                                         println!("{}", e)
                                     }
                                 }
@@ -267,15 +295,129 @@ fn main() {
                                 }
                                 Commands::Exit => {
                                     break;
+                                },
+                                Commands::Plot { result, component, state} => {
+
+                                    if let Some(result) = results.get(&result) {
+                                        let df = result.get_component_state(&component, vec![&state]);
+                                        let t = df.column("t").unwrap().f64().unwrap();
+                                        let column_names = df.get_column_names();
+                                        
+                                        let data = df.column(&state).unwrap().f64().unwrap();
+                                        assert_eq!(t.len(), data.len());
+                                        
+
+                                        let points: Vec<(f64,f64)> = t
+                                            .into_iter()
+                                            .zip(data.into_iter())
+                                            .map(|(x, y)| (x.unwrap_or_default(),y.unwrap_or_default())
+                                            )
+                                            .collect();
+                
+                                        let dataset = Dataset::default()
+                                        .name(state)
+                                        .marker(ratatui::symbols::Marker::Dot)
+                                        .style(ratatui::style::Style::default())
+                                        .data(&points);
+
+                                        // Create the X axis and define its properties
+                                        let x_title = colored::Colorize::red("X Axis").to_string();
+                                        let x_axis = Axis::default()
+                                            .title(x_title)
+                                            .style(ratatui::style::Style::default())
+                                            .bounds([0.0, 10.0])
+                                            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+
+                                        // Create the Y axis and define its properties
+                                        let y_title = colored::Colorize::red("Y Axis").to_string();
+                                        let y_axis = Axis::default()
+                                            .title(y_title)
+                                            .style(ratatui::style::Style::default())
+                                            .bounds([0.0, 10.0])
+                                            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+
+                                        // Create the chart and link all the parts together
+                                        let chart = Chart::new(vec![dataset])
+                                            .block(ratatui::widgets::block::Block::new().title("Chart"))
+                                            .x_axis(x_axis.into())
+                                            .y_axis(y_axis.into());
+
+                                        
+                                        // setup terminal                                        
+                                        let mut stdout = io::stdout();
+                                        execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
+                                        let backend = CrosstermBackend::new(stdout);
+                                        let mut terminal = Terminal::new(backend).unwrap();
+
+                                        
+
+                                        loop {
+                                            // set up required closure
+                                            let f = |frame: &mut Frame| {
+                                                let area = frame.size();
+                                                frame.render_widget(&chart,area);
+                                            };                                        
+                                            terminal.draw(f);
+                                        }
+                                        execute!(
+                                            terminal.backend_mut(),
+                                            LeaveAlternateScreen,
+                                            DisableMouseCapture
+                                        );
+                                        terminal.show_cursor();
+                                        
+                                    }else {
+                                        eprintln!("Error: system '{}' not found ", result);
+                                    }
                                 }
+                                Commands::Save { system } => {
+                                    if let Some(sys) = systems.get(&system) {                 
+
+                                        let file_path = "systems.ron";
+
+                                         // Open the file, creating it if it doesn't exist, or appending to it if it does exist
+                                        let file = OpenOptions::new()
+                                            .read(true)                                            
+                                            .open(file_path);
+
+                                        // Initialize or load the hashmap
+                                        let mut systems: HashMap<String, MultibodySystem> = match file {
+                                            Ok(mut file) => {
+                                                let mut content = String::new();
+                                                file.read_to_string(&mut content).unwrap();
+                                                from_reader(content.as_bytes()).unwrap()
+                                            },
+                                            Err(_) => HashMap::new(),
+                                        };                                           // Add a new entry to the hashmap
+                                        
+                                        systems.insert(system, sys.clone());
+
+                                        let ron_string = match to_string_pretty(&systems,PrettyConfig::new()) {
+                                            Ok(string) => string,
+                                            Err(e) => {eprintln!("{}", e); continue}
+                                        };
+
+                                        //handle result
+                                        let mut file = match File::create(file_path) {
+                                            Ok(file) => file,
+                                            Err(e) => {eprintln!("{}", e); continue},
+                                        };
+
+                                        // Write the RON string to the file
+                                        let res = file.write_all(ron_string.as_bytes());
+                                        match res {
+                                            Ok(_) => {},
+                                            Err(e) => eprintln!("{}", e)
+                                        }
+                                    }
+                                }
+
                                 Commands::View { sys_or_res, name, component,} => {
                                     match sys_or_res.as_str() {
                                         "system" => { 
                                             if let Some(sys) = systems.get(&name) {
                                                 println!("{:#?}", sys);
-                                            } else {
-                                                eprintln!("Error: system '{}' not found ", name);
-                                            }
+                                            } 
                                         }                
                                         "result" => { 
                                             if let Some(res) = results.get(&name) {
@@ -449,7 +591,7 @@ impl Prompts {
               .expect("Error configuring history with file"),
           );
         let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
-        let prompt_string = self.get_string().cyan().to_string();
+        let prompt_string = colored::Colorize::cyan(self.get_string()).to_string();
         let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
         loop {
             let result = rl.read_line(&prompt);

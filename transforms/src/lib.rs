@@ -8,6 +8,7 @@ use nalgebra::Vector3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use std::ops::Mul;
+use serde::{Serialize, Deserialize};
 
 pub mod prelude {
     pub use crate::Transform;
@@ -17,7 +18,7 @@ pub mod prelude {
 
 /// Represents the rotational and translational
 /// Transform between two Frames
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
 pub struct Transform {
     pub rotation: Rotation,
     pub translation: CoordinateSystem,
