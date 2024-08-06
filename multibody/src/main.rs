@@ -12,13 +12,13 @@ use multibody::{
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        event::{DisableMouseCapture, EnableMouseCapture},
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
         execute,
-        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{disable_raw_mode, enable_raw_mode,EnterAlternateScreen, LeaveAlternateScreen},
     },    
     style::Stylize,    
     terminal::{Frame, Terminal},    
-    widgets::{ Axis, Chart, Dataset, },
+    widgets::{ Axis, Chart, Dataset, GraphType },
 };
 use reedline::{DefaultPrompt, DefaultPromptSegment, FileBackedHistory, Reedline, Signal};
 use ron::de::from_reader;
@@ -311,7 +311,7 @@ fn main() {
                                     if let Some(result) = results.get(&result) {
                                         let df = result.get_component_state(&component, vec![&state]);
                                         let t = df.column("t").unwrap().f64().unwrap();
-                                                                                
+                                                                                                                        
                                         let data = df.column(&state).unwrap().f64().unwrap();
                                         assert_eq!(t.len(), data.len());
                                         
@@ -323,43 +323,57 @@ fn main() {
                                             .collect();
                 
                                         let dataset = Dataset::default()
-                                        .name(state)
-                                        .marker(ratatui::symbols::Marker::Dot)
-                                        .style(ratatui::style::Style::default())
-                                        .data(&points);
+                                            .name(state.clone())
+                                            .graph_type(GraphType::Line)
+                                            .marker(ratatui::symbols::Marker::Braille)
+                                            .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan))
+                                            .data(&points);
+
+                                        let bounds_0 = t.get(0).unwrap();
+                                        let bounds_2 = t.get(t.len()-1).unwrap();
+                                        let bounds_1 = (bounds_0 + bounds_2) /2.0;                                        
 
                                         // Create the X axis and define its properties
-                                        let x_title = colored::Colorize::red("X Axis").to_string();
+                                        let x_title = colored::Colorize::red("time (sec)").to_string();
                                         let x_axis = Axis::default()
                                             .title(x_title)
                                             .style(ratatui::style::Style::default())
-                                            .bounds([0.0, 10.0])
-                                            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+                                            .bounds([bounds_0, bounds_2])
+                                            .labels(vec![bounds_0.to_string().into(), bounds_1.to_string().into(), bounds_2.to_string().into()]);
+
+                                        let bounds_0 = df.column(&state).unwrap().min().unwrap().unwrap();
+                                        let bounds_2 = df.column(&state).unwrap().max().unwrap().unwrap();
+                                        let bounds_1 = (bounds_0 + bounds_2) /2.0;                                        
 
                                         // Create the Y axis and define its properties
-                                        let y_title = colored::Colorize::red("Y Axis").to_string();
+                                        //let y_title = colored::Colorize::red("Y Axis").to_string();
                                         let y_axis = Axis::default()
-                                            .title(y_title)
+                                          //  .title(y_title)
                                             .style(ratatui::style::Style::default())
-                                            .bounds([0.0, 10.0])
-                                            .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+                                            .bounds([bounds_0, bounds_2])
+                                            .labels(vec![bounds_0.to_string().into(), bounds_1.to_string().into(), bounds_2.to_string().into()]);
 
                                         // Create the chart and link all the parts together
                                         let chart = Chart::new(vec![dataset])
-                                            .block(ratatui::widgets::block::Block::new().title("Chart"))
+                                            .block(ratatui::widgets::block::Block::new().title(format!("{}: {}", component,state)))
                                             .x_axis(x_axis.into())
                                             .y_axis(y_axis.into());
 
                                         
-                                        // setup terminal                                        
+                                        // setup terminal                     
+                                        //enable_raw_mode();                   
                                         let mut stdout = io::stdout();
                                         execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
                                         let backend = CrosstermBackend::new(stdout);
                                         let mut terminal = Terminal::new(backend).unwrap();
 
-                                        
-
-                                        loop {
+                                        loop {                                            
+                                            if let Event::Key(key) = event::read().unwrap() {
+                                                if key.code == KeyCode::Char('c') && key.modifiers == KeyModifiers::CONTROL {
+                                                    break;
+                                                }
+                                            }
+                                            
                                             // set up required closure
                                             let f = |frame: &mut Frame| {
                                                 let area = frame.size();
@@ -368,10 +382,11 @@ fn main() {
                                             terminal.draw(f);
                                         }
                                         execute!(
-                                            terminal.backend_mut(),
-                                            LeaveAlternateScreen,
-                                            DisableMouseCapture
+                                        terminal.backend_mut(),
+                                        LeaveAlternateScreen,
+                                        DisableMouseCapture
                                         );
+                                        disable_raw_mode();                   
                                         terminal.show_cursor();
                                         
                                     }else {
@@ -451,7 +466,11 @@ fn main() {
                                                     Ok((name, start_time,stop_time, dt)) => {
                                                         let result = system.simulate(name,start_time,stop_time,dt);
                                                         match result {
-                                                            Ok(result) => {results.insert(result.name.clone(),result);},
+                                                            Ok(result) => {
+                                                                let s = format!("Simulation completed in {:#?}!", result.total_duration);
+                                                                results.insert(result.name.clone(),result);                                                                
+                                                                success(&s);
+                                                            },
                                                             Err(e) => eprintln!("{:#?}",e)
                                                         }
                                                     }

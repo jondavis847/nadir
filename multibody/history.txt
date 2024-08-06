@@ -1,5 +1,5 @@
-simulate pend
-save pend
 load pend
-sim1
 simulate pend
+plot sim1 revolute theta
+plot sim1 revolute omega
+Sim1
