@@ -64,7 +64,7 @@ enum Commands {
     /// Simulate the MultibodySystem
     Simulate,
     /// View the MultibodySystem or a Component by its name
-    View { sys_or_res: String , name: String,  component: Option<String>},
+    View { sys_or_res: String , name: String,  component: Option<String>, state: Option<String>},
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -465,7 +465,7 @@ fn main() {
                                     }
                                 }
 
-                                Commands::View { sys_or_res, name, component,} => {
+                                Commands::View { sys_or_res, name, component, state} => {
                                     match sys_or_res.as_str() {
                                         "system" => { 
                                             if let Some(sys) = systems.get(&name) {
@@ -476,7 +476,14 @@ fn main() {
                                             if let Some(res) = results.get(&name) {
                                                 if let Some(component) = component {
                                                     let res = res.get_component(&component);
-                                                    println!("{:#?}", res);
+                                                    if let Some(state) = state {
+                                                        match res.column(&state) {
+                                                            Ok(res) => println!("{}", res),
+                                                            Err(e) => eprintln!("{}", e),
+                                                        }
+                                                    } else {
+                                                        println!("{:#?}", res);
+                                                    }
                                                 } else {
                                                     println!("{:#?}", res);
                                                 }

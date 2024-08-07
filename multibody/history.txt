@@ -1,5 +1,5 @@
-plot sim1 body acceleration_base_y
-plot sim1 body position_base_y
-plot sim1 body velocity_base_y
-history
-help plot
+view
+view system
+view system sys
+simulate
+sim1
