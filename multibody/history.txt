@@ -1,5 +1,5 @@
 load pend
-simulate pend
-plot sim1 revolute theta
-plot sim1 revolute omega
-Sim1
+add pend revolute
+add pend body
+connect pend body r1
+connect pend body r2

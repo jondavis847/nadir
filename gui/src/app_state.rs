@@ -688,11 +688,13 @@ impl AppState {
                     &self.nodebar.dummies.constant_gravity,
                     &self.nodebar.dummies.two_body,
                     &self.nodebar.dummies.two_body_custom,
-                );
+                );                
                 match modal.component_id {
                     Some(id) => {
                         let gravity_ref = self.graph.system.gravities.get_mut(&id).unwrap();
                         *gravity_ref = gravity;
+                        let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                        graph_node.node.label = gravity_ref.get_name().to_string();
                     }
                     None => {
                         let id = *gravity.get_id();
