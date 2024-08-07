@@ -1,5 +1,5 @@
-view
-view system
-view system sys
 simulate
-sim1
+view result sim1
+view result sim1 body
+view result sim1 body position_base_y
+r2

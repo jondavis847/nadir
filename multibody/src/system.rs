@@ -186,6 +186,70 @@ impl MultibodySystem {
         return Err(MultibodyErrors::InvalidConnection);
     }
 
+    pub fn delete(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+        if let Some((component,id)) = self.get_from_name(name) {
+            match component {
+                MultibodyComponent::Base => {
+                    // remove the base from any connected components 
+                    self.joints.iter_mut().for_each(|(id,joint)| {
+                        if let Some(inner_connection) = &joint.get_connections().inner_body {
+                            if inner_connection.body_id == *id {
+                                joint.delete_inner_body_id();
+                            }
+                        }
+                    });
+                    self.base = None;
+                    Ok(())
+                }
+                MultibodyComponent::Body => {
+                    // remove the body from any connected components 
+                    self.joints.iter_mut().for_each(|(id,joint)| {
+                        if let Some(connection) = &joint.get_connections().inner_body {
+                            if connection.body_id == *id {
+                                joint.delete_inner_body_id();
+                            }
+                        }
+                        if let Some(connection) = &joint.get_connections().outer_body {
+                            if connection.body_id == *id {
+                                joint.delete_outer_body_id();
+                            }
+                        }
+                    });
+                    self.bodies.remove(&id);
+                    Ok(())
+                }
+                MultibodyComponent::Joint => {
+                    // remove the joint from any connected components 
+                    if let Some(joint) = self.joints.get_mut(&id) {
+                        if let Some(connection) = &joint.get_connections().inner_body {
+                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                                if connection.body_id == *body_id {
+                                    body.delete_outer_joint(&id);
+                                }
+                                });
+                            }
+                        
+                        if let Some(connection) = &joint.get_connections().outer_body {
+                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                                if connection.body_id == *body_id {
+                                    body.delete_inner_joint();
+                                }
+                            });
+                        }
+                    }
+                    self.joints.remove(&id);
+                    Ok(())
+                }
+                MultibodyComponent::Gravity => {
+                    self.delete_gravity(&id);
+                    Ok(())
+                }
+            }
+        } else {
+            Err(MultibodyErrors::ComponentNotFound(name.to_string()))
+        }
+    }
+
     pub fn get_from_name(&self, name: &str) -> Option<(MultibodyComponent, Uuid)> {
         if let Some(base) = &self.base {
             if base.get_name() == name {

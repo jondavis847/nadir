@@ -53,9 +53,11 @@ enum Commands {
     },
     /// Create a new MultibodySystem
     Create { name: String },
-    /// Exit the program
-    Exit,
-    /// Load a saved MultibodySystem
+    /// Delete an object    
+    Delete {name: String},    
+    /// Exit the GADGT CLI
+    Exit,    
+    /// Load a saved MultibodySystem    
     Load { system: String },
     /// Plot a component by its name
     Plot { result: String , component: String, state: String},
@@ -290,12 +292,28 @@ fn main() {
                                         println!("{}", e)
                                     }
                                 }
-                                Commands::Create { name } => {
+                                Commands::Create { name } => {                                    
                                     systems.insert((&name).into(), MultibodySystem::new()); 
                                     active_system = Some(name.clone());                                   
                                     let str = format!("{} added to systems!", &name).green();
                                     println!("{}",str);                                    
-                                }
+                                }                       
+                                Commands::Delete {name} => {
+                                    let sys_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+
+                                    if let Some(sys) = systems.get_mut(sys_name) {
+                                        match sys.delete(&name) {
+                                            Ok(_) => success(format!("'{}' deleted!", &name).as_str()),
+                                            Err(e) => error(format!("{:#?}", e).as_str()),
+                                        }
+                                    }
+                                }                                         
                                 Commands::Exit => {
                                     break;
                                 },
