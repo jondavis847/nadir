@@ -14,7 +14,7 @@ use ratatui::{
     crossterm::{
         event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
         execute,
-        terminal::{disable_raw_mode, enable_raw_mode,EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
     },    
     style::Stylize,    
     terminal::{Frame, Terminal},    
@@ -39,15 +39,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Sets the system as the active system
+    Activate { system_name: String },
     /// Add a new Component to a MultibodySystem
-    Add {
-        system_name: String,
+    Add {        
         #[arg(value_enum)]
         component: Components,
     },
     /// Make a connection from one component to another
-    Connect {
-        sys_name: String,
+    Connect {        
         from_name: String,
         to_name: String,
     },
@@ -60,11 +60,9 @@ enum Commands {
     /// Plot a component by its name
     Plot { result: String , component: String, state: String},
     /// Save a MultibodySystem for future use
-    Save { system: String },
+    Save,
     /// Simulate the MultibodySystem
-    Simulate {
-        system_name: String
-    },
+    Simulate,
     /// View the MultibodySystem or a Component by its name
     View { sys_or_res: String , name: String,  component: Option<String>},
 }
@@ -78,6 +76,8 @@ enum Components {
 }
 
 fn main() {
+    let mut active_system: Option<String> = None;
+
     let mut systems = HashMap::<String, MultibodySystem>::new();
     let mut results = HashMap::<String, MultibodyResult>::new();
 
@@ -122,11 +122,26 @@ fn main() {
                         // Execute the command
                         if let Some(command) = args.command {
                             match command {
-                                Commands::Add {
-                                    system_name,
+                                Commands::Activate {system_name} => {
+                                    if systems.contains_key(&system_name) {
+                                        active_system = Some(system_name.clone());
+                                        let s = format!("'{}' set as the active system!", system_name);                                        
+                                        success(&s);
+                                    }else {
+                                        error("System not found...");
+                                    }
+                                }
+                                Commands::Add {                                    
                                     component,
                                 } => {
-                                    if let Some(system) = systems.get_mut(&system_name) {
+                                    let system_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+                                    if let Some(system) = systems.get_mut(system_name) {
                                         match component {
                                             Components::Base => {                                        
                                                 let base = prompt_base();    
@@ -202,12 +217,18 @@ fn main() {
                                     }    
                                 }
 
-                                Commands::Connect {
-                                    sys_name,
+                                Commands::Connect {                                    
                                     from_name,
                                     to_name,
                                 } => {
-                                    if let Some(sys) = systems.get_mut(&sys_name) {
+                                    let sys_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+                                    if let Some(sys) = systems.get_mut(sys_name) {
                                         let from_component_data = match sys.get_from_name(&from_name) {
                                             Some(component_data) => component_data,
                                             None => {
@@ -270,7 +291,8 @@ fn main() {
                                     }
                                 }
                                 Commands::Create { name } => {
-                                    systems.insert((&name).into(), MultibodySystem::new());                                    
+                                    systems.insert((&name).into(), MultibodySystem::new()); 
+                                    active_system = Some(name.clone());                                   
                                     let str = format!("{} added to systems!", &name).green();
                                     println!("{}",str);                                    
                                 }
@@ -300,7 +322,8 @@ fn main() {
                                         Some(sys) => sys,
                                         None => {eprintln!("Error: system not found"); continue},
                                     };
-                                    systems.insert(system.clone(),sys.clone());                  
+                                    systems.insert(system.clone(),sys.clone());     
+                                    active_system = Some(system.clone());                                               
 
                                     let p = colored::Colorize::green(format!("System '{}' successuflly loaded!", system).as_str());
                                     println!("{}",p);
@@ -385,16 +408,23 @@ fn main() {
                                         terminal.backend_mut(),
                                         LeaveAlternateScreen,
                                         DisableMouseCapture
-                                        );
-                                        disable_raw_mode();                   
+                                        );                                        
                                         terminal.show_cursor();
                                         
                                     }else {
                                         eprintln!("Error: system '{}' not found ", result);
                                     }
                                 }
-                                Commands::Save { system } => {
-                                    if let Some(sys) = systems.get(&system) {                 
+                                Commands::Save => {
+                                    let system = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+
+                                    if let Some(sys) = systems.get(system) {
 
                                         let file_path = "systems.ron";
 
@@ -413,7 +443,7 @@ fn main() {
                                             Err(_) => HashMap::new(),
                                         };                                           // Add a new entry to the hashmap
                                         
-                                        systems.insert(system, sys.clone());
+                                        systems.insert(system.clone(), sys.clone());
 
                                         let ron_string = match to_string_pretty(&systems,PrettyConfig::new()) {
                                             Ok(string) => string,
@@ -457,8 +487,15 @@ fn main() {
                                         _ => println!("Error: invalid component - options are ['system','result']")         
                                     }
                                 }
-                                Commands::Simulate {system_name} => {
-                                    if let Some(system) = systems.get_mut(&system_name) {
+                                Commands::Simulate  => {
+                                    let system_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+                                    if let Some(system) = systems.get_mut(system_name) {
                                         match system.validate() {
                                             Ok(_)=> {
                                                 success("System validated!");                                                
