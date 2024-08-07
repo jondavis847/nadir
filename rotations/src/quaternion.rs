@@ -539,7 +539,7 @@ impl fmt::Debug for Quaternion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
+    use approx_eq::assert_approx_eq;    
     use std::f64::consts::PI;
     const TOL: f64 = 1e-12;
 

@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 nalgebra = { version = "0.33.0", features = ["serde", "serde-serialize"] }
-serde = "1.0.204"
+serde = { version = "1.0.204", features = ["derive"] }

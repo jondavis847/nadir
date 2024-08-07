@@ -1,5 +1,5 @@
-load pend
-add pend revolute
-add pend body
-connect pend body r1
-connect pend body r2
+plot sim1 body acceleration_base_y
+plot sim1 body position_base_y
+plot sim1 body velocity_base_y
+history
+help plot

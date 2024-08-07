@@ -8,4 +8,4 @@ approx_eq = "0.1.8"
 coordinate_systems = {path = "../coordinate_systems"}
 nalgebra = "0.33.0"
 rand = "0.8.5"
-serde = "1.0.204"
+serde = { version = "1.0.204", features = ["derive"] }
