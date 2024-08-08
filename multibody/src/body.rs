@@ -151,7 +151,7 @@ impl BodySim {
         &self.state.external_spatial_force_body
     }
 
-    pub fn calculate_gravity_accleration_base(
+    pub fn calculate_gravity_acceleration_base(
         &mut self,
         gravities: &HashMap<Uuid, MultibodyGravity>,
     ) -> Vector3<f64> {

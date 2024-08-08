@@ -141,7 +141,7 @@ impl MultibodySystemSim {
 
                     //get gravity
                     let gravity_base =
-                        self.bodies[i].calculate_gravity_accleration_base(&self.gravity);
+                        self.bodies[i].calculate_gravity_acceleration_base(&self.gravity);
                     let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
                     //convert to spatial
                     let gravity_body = Acceleration::from(Vector6::new(

@@ -5,6 +5,7 @@ use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors}, component::MultibodyComponent, joint::{
+        prismatic::{Prismatic, PrismaticState},
         revolute::{Revolute, RevoluteState},
         Joint, JointParameters,
     }, result::MultibodyResult, system::MultibodySystem, MultibodyTrait
@@ -54,7 +55,9 @@ enum Commands {
     /// Create a new MultibodySystem
     Create { name: String },
     /// Delete an object    
-    Delete {name: String},    
+    Delete {name: String},
+    /// Edit an object
+    Edit {name: String},    
     /// Exit the GADGT CLI
     Exit,    
     /// Load a saved MultibodySystem    
@@ -313,7 +316,162 @@ fn main() {
                                             Err(e) => error(format!("{:#?}", e).as_str()),
                                         }
                                     }
-                                }                                         
+                                }        
+                                Commands::Edit {name}=> {
+                                    // check that a sys is active
+                                    let sys_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+
+                                    // find the component
+                                    if let Some(sys) = systems.get_mut(sys_name) {
+                                        let (component_type, id) = match sys.get_from_name(&name) {
+                                            Some(component_data) => component_data,
+                                            None => {
+                                                let s = format!("Error: '{}' not found in '{}'...", name,sys_name);
+                                                error(&s);                                                
+                                                continue;
+                                            }
+                                        };
+
+                                        match component_type {
+                                            MultibodyComponent::Base => {
+                                                if let Some(old_base) = &mut sys.base {
+                                                    // create a new base via prompt to get values for old base
+                                                    let new_base = match prompt_base() {                                                    
+                                                        Ok(base) => {
+                                                            base
+                                                        }
+                                                        Err(e) => match e {
+                                                            InputErrors::CtrlC => continue,
+                                                            _ => {
+                                                                eprintln!("{:?}",e);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    };
+
+                                                    // Set values for the old object from the new one, 
+                                                    // maintaining id's and connections, then dropping new object
+                                                    old_base.set_name(new_base.get_name().to_string());
+
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a base in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            }
+                                            MultibodyComponent::Body => {
+                                                if let Some(old_body) = sys.bodies.get_mut(&id) {
+                                                    // create a new object via prompt to get values for old object
+                                                    let new_body = match prompt_body() {                                                    
+                                                        Ok(body) => {
+                                                            body
+                                                        }
+                                                        Err(e) => match e {
+                                                            InputErrors::CtrlC => continue,
+                                                            _ => {
+                                                                eprintln!("{:?}",e);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    };
+
+                                                    // Set values for the old object from the new one, 
+                                                    // maintaining id's and connections, then dropping new object
+                                                    old_body.set_name(new_body.get_name().to_string());
+                                                    old_body.mass_properties = new_body.mass_properties;
+
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            },
+                                            MultibodyComponent::Joint => {
+                                                if let Some(old_joint) = sys.joints.get_mut(&id) {
+                                                    // create a new object via prompt to get values for old object
+                                                    match old_joint {
+                                                        Joint::Prismatic(old_joint) => {
+                                                            let new_joint = match prompt_prismatic() {
+                                                                Ok(prismatic) => {
+                                                                    prismatic
+                                                                }
+                                                                Err(e) => match e {
+                                                                    InputErrors::CtrlC => continue,
+                                                                    _ => {
+                                                                        eprintln!("{:?}",e);
+                                                                        continue;
+                                                                    }
+                                                                }        
+                                                            };
+                                                            old_joint.set_name(new_joint.get_name().to_string());
+                                                            old_joint.parameters = new_joint.parameters;
+                                                            old_joint.state = new_joint.state;
+                                                        }
+                                                        Joint::Revolute(old_joint) => {
+                                                            let new_joint = match prompt_revolute() {
+                                                                Ok(revolute) => {
+                                                                    revolute
+                                                                }
+                                                                Err(e) => match e {
+                                                                    InputErrors::CtrlC => continue,
+                                                                    _ => {
+                                                                        eprintln!("{:?}",e);
+                                                                        continue;
+                                                                    }
+                                                                }        
+                                                            };
+                                                            old_joint.set_name(new_joint.get_name().to_string());
+                                                            old_joint.parameters = new_joint.parameters;
+                                                            old_joint.state = new_joint.state;
+                                                        }
+                                                    }
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            }
+                                            MultibodyComponent::Gravity => {
+                                                if let Some(old_gravity) = sys.gravities.get_mut(&id) {
+                                                    // create a new object via prompt to get values for old object
+                                                    let new_gravity = match prompt_gravity() {                                                    
+                                                        Ok(g) => {
+                                                            g
+                                                        }
+                                                        Err(e) => match e {
+                                                            InputErrors::CtrlC => continue,
+                                                            _ => {
+                                                                eprintln!("{:?}",e);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    };
+
+                                                    // Set values for the old object from the new one, 
+                                                    // maintaining id's and connections, then dropping new object
+                                                    old_gravity.set_name(new_gravity.get_name().to_string());
+                                                    old_gravity.gravity = new_gravity.gravity;
+
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            },
+                                        }
+                                    }
+
+                                }                                 
                                 Commands::Exit => {
                                     break;
                                 },
@@ -598,6 +756,7 @@ enum Prompts {
     JointSpring,
     Mass,
     Name,
+    Position,
     QuaternionW,
     QuaternionX,
     QuaternionY,
@@ -611,6 +770,7 @@ enum Prompts {
     Transform,
     TransformRotation,
     TransformTranslation,
+    Velocity,
 }
 
 impl Prompts {
@@ -643,6 +803,7 @@ impl Prompts {
             Prompts::JointSpring => "Spring constant (units: N/m, default: 0.0)",
             Prompts::Mass => "Mass (units: kg, default: 1.0)",
             Prompts::Name => "Name",
+            Prompts::Position => "Position (units: m, default: 0.0)",
             Prompts::QuaternionW => "Quaternion W (units: None, default: 1.0)",
             Prompts::QuaternionX => "Quaternion X (units: None, default: 0.0)",
             Prompts::QuaternionY => "Quaternion Y (units: None, default: 0.0)",
@@ -655,7 +816,8 @@ impl Prompts {
             Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
             Prompts::Transform => "Transform ('i/identity','c/custom',  default: i)",
             Prompts::TransformRotation => "Rotation ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]",
-            Prompts::TransformTranslation => "Translation? ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
+            Prompts::TransformTranslation => "Translation ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
+            Prompts::Velocity => "Velocity (units: m/s, default: 0.0)",
         }
     }
 
@@ -872,6 +1034,21 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
     };
     Ok(MultibodyGravity::new(&name,gravity))
 
+}
+
+fn prompt_prismatic() -> Result<Prismatic, InputErrors> {
+    let name = Prompts::Name.prompt()?;
+    let position = Prompts::Position.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+    let velocity = Prompts::Velocity.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+    let state = PrismaticState::new(position, velocity);
+
+    let force = Prompts::JointForce.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);            
+    let spring = Prompts::JointSpring.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);        
+    let damping = Prompts::JointDamping.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+    let parameters =
+        JointParameters::new(force, damping, spring);
+
+    Ok(Prismatic::new(&name, parameters, state))
 }
 
 fn prompt_revolute() -> Result<Revolute, InputErrors> {

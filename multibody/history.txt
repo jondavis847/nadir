@@ -1,5 +1,5 @@
+edit revolute
+view pend
+view system pend
 simulate
-view result sim1
-view result sim1 body
-view result sim1 body position_base_y
-r2
+plot sim1 r1 theta
