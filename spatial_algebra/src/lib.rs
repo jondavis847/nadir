@@ -1,5 +1,5 @@
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
-use nalgebra::{Matrix3, Matrix6, Matrix6x1, Vector3, Vector6};
+use nalgebra::{Matrix3, Matrix6, Vector3, Vector6};
 use rotations::rotation_matrix::RotationMatrix;
 use serde::{Serialize, Deserialize};
 use std::ops::{Add, Mul, Sub};

@@ -4,10 +4,10 @@ use colored::*;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors}, component::MultibodyComponent, joint::{
+    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
         prismatic::{Prismatic, PrismaticState},
         revolute::{Revolute, RevoluteState},
-        Joint, JointParameters,
+        Joint, JointParameters,JointTrait,
     }, result::MultibodyResult, system::MultibodySystem, MultibodyTrait
 };
 use ratatui::{
@@ -16,15 +16,15 @@ use ratatui::{
         event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen},
-    },    
-    style::Stylize,    
+    },        
     terminal::{Frame, Terminal},    
     widgets::{ Axis, Chart, Dataset, GraphType },
 };
-use reedline::{DefaultPrompt, DefaultPromptSegment, FileBackedHistory, Reedline, Signal};
+use reedline::{DefaultPrompt, DefaultPromptSegment,FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{Rotation, quaternion::Quaternion};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{File,OpenOptions};
 use std::io::{self,Read, Write};
@@ -54,9 +54,11 @@ enum Commands {
     },
     /// Create a new MultibodySystem
     Create { name: String },
-    /// Delete an object    
+    /// Delete a component    
     Delete {name: String},
-    /// Edit an object
+    /// Disconnect two components, also deleting their transforms
+    Disconnect {from_name: String, to_name: String},
+    /// Edit a component
     Edit {name: String},    
     /// Exit the GADGT CLI
     Exit,    
@@ -92,8 +94,9 @@ fn main() {
           .expect("Error configuring history with file"),
       );
     let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
-    let prompt_string = colored::Colorize::blue("GADGT").to_string();
-    let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
+    //let prompt_string = colored::Colorize::blue("GADGT").to_string();
+    //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);  
+    let prompt = Prompts::Main;  
     
     rl.clear_screen().unwrap();    
     let welcome = "Welcome to GADGT!".bright_blue();
@@ -294,12 +297,13 @@ fn main() {
                                         let e = colored::Colorize::red("System not found");
                                         println!("{}", e)
                                     }
+                                    success("components connected!")
                                 }
                                 Commands::Create { name } => {                                    
                                     systems.insert((&name).into(), MultibodySystem::new()); 
                                     active_system = Some(name.clone());                                   
-                                    let str = format!("{} added to systems!", &name).green();
-                                    println!("{}",str);                                    
+                                    let str = format!("{} added to systems!", &name);
+                                    success(&str);                                    
                                 }                       
                                 Commands::Delete {name} => {
                                     let sys_name = match &active_system {
@@ -316,8 +320,171 @@ fn main() {
                                             Err(e) => error(format!("{:#?}", e).as_str()),
                                         }
                                     }
-                                }        
-                                Commands::Edit {name}=> {
+                                }   
+                                Commands::Disconnect {from_name, to_name} => {
+                                    // check that a sys is active
+                                    let sys_name = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+
+                                    // get the components
+                                    if let Some(sys) = systems.get_mut(sys_name) {
+                                        let (from_type,from_id) = match sys.get_from_name(&from_name) {
+                                            Some(component_data) => component_data,
+                                            None => {
+                                                error("Error: 'From' component not found");
+                                                continue;
+                                            }
+                                        };
+                                        let (to_type, to_id) = match sys.get_from_name(&to_name) {
+                                            Some(component_data) => component_data,
+                                            None => {
+                                                eprintln!("Error: 'To' component not found");
+                                                continue;
+                                            }
+                                        };
+
+                                        match from_type {
+                                            MultibodyComponent::Base => {
+                                                if let Some(base) = &mut sys.base {
+                                                    match to_type {                                                        
+                                                        MultibodyComponent::Joint => {
+                                                            if base.get_outer_joints().contains(&to_id) {
+                                                                base.outer_joints.retain(|id| *id != to_id);
+                                                                if let Some(joint) = sys.joints.get_mut(&to_id) {
+                                                                    joint.delete_inner_body_id();
+                                                                    success("Components disconnected!");                                                                    
+                                                                } else {
+                                                                    error("Joint not found...");
+                                                                }
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            } 
+                                                        }
+                                                        _ => error("Invalid component combo...")
+                                                    }
+                                                }
+                                            }
+                                            MultibodyComponent::Body => {
+                                                if let Some(body) = sys.bodies.get_mut(&from_id) {
+                                                    match to_type {
+                                                        MultibodyComponent::Joint => {
+                                                            if body.outer_joints.contains(&to_id) {
+                                                                body.outer_joints.retain(|id| *id != to_id);
+                                                                if let Some(joint) = sys.joints.get_mut(&to_id) {
+                                                                    joint.delete_inner_body_id();
+                                                                    success("Components disconnected!");                                                                    
+                                                                } else {
+                                                                    error("Joint not found...");
+                                                                }
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            } 
+                                                        }
+                                                        _ => error("Invalid component combo...")
+                                                    }
+                                                } else {
+                                                    error("Body not found...")
+                                                }
+                                            }
+                                            MultibodyComponent::Gravity => {                                                
+                                                match to_type {
+                                                    MultibodyComponent::Base => {
+                                                        if let Some(base) = &mut sys.base {
+                                                            if base.gravity.contains(&to_id) {
+                                                                base.gravity.retain(|id| *id != to_id);
+                                                                success("Components disconnected!");
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            }                                                            
+                                                        }                                                                                                                
+                                                    }
+                                                    MultibodyComponent::Body => {
+                                                        if let Some(body) = sys.bodies.get_mut(&to_id) {
+                                                            if body.gravity.contains(&to_id) {
+                                                                body.gravity.retain(|id| *id != to_id);
+                                                                success("Components disconnected!");
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            }                                                            
+                                                        }                                                                                                                
+                                                    }
+                                                    _ => error("Invalid component combo...")
+                                                }
+                                            }
+                                            MultibodyComponent::Joint => {
+                                                if let Some(joint) = sys.joints.get_mut(&from_id) {
+                                                    match to_type {
+                                                        MultibodyComponent::Body => {
+
+                                                            // Does joint have an outer body id?
+                                                            let outer_body_id = match joint.get_outer_body_id() {
+                                                                Some(id) => id,
+                                                                None => {
+                                                                    error("Components not connected...");
+                                                                    continue;
+                                                                }
+                                                            };
+
+                                                            // Is the outer body id == to the to_id to disconnect?
+                                                            if *outer_body_id != to_id {
+                                                                error("Components not connected...");
+                                                                continue;
+                                                            }
+
+                                                            // get the body
+                                                            if let Some(body) = sys.bodies.get_mut(&to_id) {
+
+                                                                // does body have an inner joint?
+                                                                if let Some(inner_joint) = body.inner_joint {
+
+                                                                    // is the inner joint the from id?
+                                                                    if inner_joint == from_id {
+
+                                                                        // all checks passed, disconnect
+                                                                        body.inner_joint = None;
+                                                                        joint.delete_outer_body_id();
+                                                                        success("Components disconnected!");
+                                                                    } else {
+
+                                                                        // the bodies inner joint was some other joint
+                                                                        error("Components not connected...");
+                                                                    }                                                                    
+                                                                    
+                                                                }  else {
+
+                                                                    // the body did not have an inner joint
+                                                                    error("Components not connected...");
+                                                                }                                                           
+                                                            } else {
+
+                                                                // body not found in sys
+                                                                error("Body not found...");
+                                                            }                                                                                                               
+                                                        }
+                                                        _ => error("Invalid component combo...")
+                                                    }
+                                                } else {
+                                                    error("Joint not found...")
+                                                }
+                                            }
+                                            
+
+                                        }
+
+
+
+                                    } else {
+                                        error("Could not find system in systems"); // this should not be possible i believe
+                                        continue
+                                    }
+
+                                }
+                                Commands::Edit {name} => {
                                     // check that a sys is active
                                     let sys_name = match &active_system {
                                         Some(name) => name,
@@ -469,6 +636,7 @@ fn main() {
                                                 }
                                             },
                                         }
+                                        success("Edit complete!");
                                     }
 
                                 }                                 
@@ -524,7 +692,7 @@ fn main() {
                                         let dataset = Dataset::default()
                                             .name(state.clone())
                                             .graph_type(GraphType::Line)
-                                            .marker(ratatui::symbols::Marker::Braille)
+                                            .marker(ratatui::symbols::Marker::HalfBlock)
                                             .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan))
                                             .data(&points);
 
@@ -646,7 +814,10 @@ fn main() {
                                         "system" => { 
                                             if let Some(sys) = systems.get(&name) {
                                                 println!("{:#?}", sys);
-                                            } 
+                                            } else {
+                                                let s = format!("{} not found in systems...", name);
+                                                error(&s);
+                                            }
                                         }                
                                         "result" => { 
                                             if let Some(res) = results.get(&name) {
@@ -754,6 +925,7 @@ enum Prompts {
     JointDamping,
     JointForce,
     JointSpring,
+    Main,
     Mass,
     Name,
     Position,
@@ -801,6 +973,7 @@ impl Prompts {
             Prompts::JointDamping => "Damping (units: None, default: 0.0)",
             Prompts::JointForce => "Constant force (units: N, default: 0.0)",
             Prompts::JointSpring => "Spring constant (units: N/m, default: 0.0)",
+            Prompts::Main => "GADGT",
             Prompts::Mass => "Mass (units: kg, default: 1.0)",
             Prompts::Name => "Name",
             Prompts::Position => "Position (units: m, default: 0.0)",
@@ -843,10 +1016,10 @@ impl Prompts {
               .expect("Error configuring history with file"),
           );
         let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
-        let prompt_string = colored::Colorize::cyan(self.get_string()).to_string();
-        let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
+        //let prompt_string = colored::Colorize::cyan(self.get_string()).to_string();
+        //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
         loop {
-            let result = rl.read_line(&prompt);
+            let result = rl.read_line(self);
             match result {
                 Ok(signal) => {
                     match signal {
@@ -1017,7 +1190,7 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
     let name = Prompts::Name.prompt()?;
     let gravity_type = Prompts::GravityType.validate_loop("c")?;
 
-    let gravity = match gravity_type.as_str() {
+    let gravity = match gravity_type.trim() {
         "c" => {
             let x = Prompts::GravityConstantX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);                
             let y = Prompts::GravityConstantY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);                
@@ -1068,7 +1241,7 @@ fn prompt_revolute() -> Result<Revolute, InputErrors> {
 
 fn prompt_transform() -> Result<Transform,InputErrors> {
     let transform = Prompts::Transform.validate_loop("i")?;    
-    match transform.as_str() {
+    match transform.trim() {
         "i" => Ok(Transform::IDENTITY),
         "c" => {            
             let rotation = prompt_rotation()?;            
@@ -1082,7 +1255,7 @@ fn prompt_transform() -> Result<Transform,InputErrors> {
 
 fn prompt_rotation() -> Result<Rotation,InputErrors> {
     let rotation = Prompts::TransformRotation.validate_loop("i")?;                        
-    match rotation.as_str() {
+    match rotation.trim() {
         "i" => Ok(Rotation::IDENTITY),
         "q" => {
             let q = prompt_quaternion()?;
@@ -1106,7 +1279,7 @@ fn prompt_quaternion() -> Result<Quaternion, InputErrors> {
 
 fn prompt_translation() -> Result<CoordinateSystem,InputErrors> {
     let translation = Prompts::TransformTranslation.validate_loop("z")?;                        
-    match translation.as_str() {
+    match translation.trim() {
         "z" => Ok(CoordinateSystem::ZERO),
         "cart" => {
             let cartesian = prompt_cartesian()?;
@@ -1138,5 +1311,36 @@ fn success(s: &str) {
 }
 
 fn error(s: &str) {
-    eprintln!("{:?}",colored::Colorize::red(s))
+    eprintln!("{}",colored::Colorize::red(s))
+}
+
+impl Prompt for Prompts {
+    fn render_prompt_left(&self) -> Cow<str> {
+        match self {
+            Prompts::Main => {
+                colored::Colorize::blue(self.get_string()).to_string().into()        
+            }
+            _ => colored::Colorize::cyan(self.get_string()).to_string().into()        
+        }
+        
+    }
+
+    fn render_prompt_right(&self) -> Cow<str> {
+        "".into()
+    }
+
+    fn render_prompt_indicator(&self, _edit_mode: PromptEditMode) -> Cow<str> {
+        colored::Colorize::blue(">").to_string().into()        
+    }
+
+    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+        "".into()
+    }
+
+    fn render_prompt_history_search_indicator(
+        &self,
+        _history_search: PromptHistorySearch,
+    ) -> Cow<str> {
+        "".into()
+    }
 }

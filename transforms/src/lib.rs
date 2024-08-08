@@ -1,6 +1,6 @@
 use coordinate_systems::{
     cartesian::Cartesian,
-    cylindrical::{self, Cylindrical},
+    cylindrical::Cylindrical,
     spherical::Spherical,
     CoordinateSystem,
 };

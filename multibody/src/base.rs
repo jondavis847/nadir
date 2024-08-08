@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 pub struct Base {
     id: Uuid,
     name: String,
-    outer_joints: Vec<Uuid>,
+    pub outer_joints: Vec<Uuid>,
     pub gravity: Vec<Uuid>,
 }
 

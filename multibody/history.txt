@@ -1,5 +1,5 @@
-edit revolute
-view pend
-view system pend
-simulate
-plot sim1 r1 theta
+0.5
+sim1
+r3
+0.1
+sim1
