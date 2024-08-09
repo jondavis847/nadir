@@ -28,7 +28,7 @@ pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     pub bodies: Vec<BodySim>,
     pub body_names: Vec<String>,
-    joints: Vec<JointSim>,
+    pub joints: Vec<JointSim>,
     joint_names: Vec<String>,
     gravity: HashMap<Uuid, MultibodyGravity>,
     parent_joint_indeces: Vec<usize>,
@@ -151,28 +151,31 @@ impl MultibodySystemSim {
                         gravity_body[0],
                         gravity_body[1],
                         gravity_body[2],
-                    ));
+                    ));                    
+
                     //transform accel_to joint
-                    let gravity_joint = transforms.jof_from_ob * gravity_body;
+                    let gravity_joint = transforms.jof_from_ob * gravity_body;                                        
                     //transform to force by multiplying by joint inertia
                     let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
+                    dbg!(&gravity_joint);
                     let f_ob = gravity_joint
-                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
+                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();                       
                     self.joints[i].first_pass(v_ij, &f_ob);
                 }
 
                 // Second Pass
                 for i in (0..n).rev() {
-                    let inner_is_base = match i {
+                    let parent_joint_index = self.parent_joint_indeces[i];
+                    let inner_is_base = match parent_joint_index {
                         0 => true,
                         _ => false,
                     };
                     // we split up updating the parent to avoid borrowing issues
                     if let Some((parent_ia, parent_pa)) = self.joints[i].second_pass(inner_is_base)
                     {
-                        self.joints[self.parent_joint_indeces[i]]
+                        self.joints[parent_joint_index]
                             .add_inertia_articulated(parent_ia);
-                        self.joints[self.parent_joint_indeces[i]].add_p_big_a(parent_pa);
+                        self.joints[parent_joint_index].add_p_big_a(parent_pa);
                     }
                 }
 
@@ -404,7 +407,7 @@ pub struct MultibodyState {
 
 //thought about making this a type JointStates = Vec<Joints> but it needs to be integrable
 #[derive(Clone, Debug)]
-pub struct JointStates(Vec<JointState>);
+pub struct JointStates(pub Vec<JointState>);
 
 impl Add for JointStates {
     type Output = Self;

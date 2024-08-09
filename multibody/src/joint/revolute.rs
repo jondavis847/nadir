@@ -225,7 +225,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn third_pass(&mut self, a_ij: Acceleration) {
         let aba = &mut self.aba;
 
-        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
+        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;        
         aba.q_ddot =
             aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
         aba.common.a = aba.common.a_prime

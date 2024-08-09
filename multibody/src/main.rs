@@ -7,8 +7,8 @@ use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
         prismatic::{Prismatic, PrismaticState},
         revolute::{Revolute, RevoluteState},
-        Joint, JointParameters,JointTrait,
-    }, result::MultibodyResult, system::MultibodySystem, MultibodyTrait
+        Joint, JointParameters,JointSimTrait,JointTrait,
+    }, result::MultibodyResult, system::MultibodySystem, system_sim::{JointStates,MultibodySystemSim}, MultibodyTrait
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -66,6 +66,8 @@ enum Commands {
     Load { system: String },
     /// Plot a component by its name
     Plot { result: String , component: String, state: String},
+    /// Run one cycle of the MultibodySystem (useful for debugging)
+    Run,
     /// Save a MultibodySystem for future use
     Save,
     /// Simulate the MultibodySystem
@@ -757,6 +759,34 @@ fn main() {
                                         
                                     }else {
                                         eprintln!("Error: system '{}' not found ", result);
+                                    }
+                                }
+                                Commands::Run => {
+                                    let system = match &active_system {
+                                        Some(name) => name,
+                                        None => {
+                                            error("No active system. Create or load a system first.");
+                                            continue
+                                        }
+                                    };
+
+                                    if let Some(sys) = systems.get(system) {
+                                        let mut sys_sim = match MultibodySystemSim::try_from(sys.clone()) {
+                                            Ok(sys) => sys,
+                                            Err(e) => {
+                                                let e = format!("{:?}",e);
+                                                error(&e);
+                                                continue
+                                            }
+                                        };
+
+                                        // Create a vec of JointStates
+                                        let initial_joint_states = JointStates(sys_sim.joints.iter().map(|joint| joint.get_state()).collect());
+
+
+                                        sys_sim.run(&initial_joint_states, &None,0.0);
+
+                                        dbg!(&sys_sim);
                                     }
                                 }
                                 Commands::Save => {
