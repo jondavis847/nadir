@@ -202,6 +202,8 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
+        dbg!(&inertia_articulated_matrix);
+
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix.column(0).into();
         aba.big_d_inv = 1.0 / aba.big_u[0];
@@ -210,7 +212,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
-            );
+            );            
             aba.common.p_lil_a = aba.common.p_big_a
                 + Force::from(i_lil_a * aba.common.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);

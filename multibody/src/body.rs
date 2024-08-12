@@ -133,6 +133,7 @@ pub struct BodySim {
     pub state: BodyState,
     pub geometry: Option<Geometry>,
     pub gravity: Vec<Uuid>,
+    pub mass_properties: MassProperties,
 }
 
 impl From<Body> for BodySim {
@@ -142,6 +143,7 @@ impl From<Body> for BodySim {
             state,
             geometry: body.geometry,
             gravity: body.gravity,
+            mass_properties: body.mass_properties,
         }
     }
 }

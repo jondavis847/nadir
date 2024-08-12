@@ -1,20 +1,20 @@
 {
-    "2pend": (
+    "pend": (
         algorithm: ArticulatedBody,
         base: Some((
-            id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+            id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
             name: "base",
             outer_joints: [
-                "12a30e81-2a03-4a5d-92b2-381ea996588e",
+                "43e81877-eaae-4227-af3b-ade69082c6ce",
             ],
             gravity: [
-                "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
+                "efc7684d-8dd3-4ae1-be52-50eed332642e",
             ],
         )),
         bodies: {
-            "687d0bb1-8148-449e-97e2-de6b80139158": (
-                id: "687d0bb1-8148-449e-97e2-de6b80139158",
-                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
+            "7e488e3e-849a-44c7-85dc-b37929c7e1a3": (
+                id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
+                inner_joint: Some("43e81877-eaae-4227-af3b-ade69082c6ce"),
                 mass_properties: (
                     center_of_mass: (
                         cmx: 0.0,
@@ -31,55 +31,29 @@
                         izz: 1.0,
                     ),
                 ),
-                name: "b2",
+                name: "body",
                 outer_joints: [],
-                geometry: None,
-                gravity: [],
-            ),
-            "cb458608-05b9-4155-9562-fa2d3529a94d": (
-                id: "cb458608-05b9-4155-9562-fa2d3529a94d",
-                inner_joint: Some("12a30e81-2a03-4a5d-92b2-381ea996588e"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b1",
-                outer_joints: [
-                    "a4a09acd-8032-4636-ac65-a91b82031efc",
-                ],
                 geometry: None,
                 gravity: [],
             ),
         },
         gravities: {
-            "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638": (
-                id: "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
-                name: "g",
+            "efc7684d-8dd3-4ae1-be52-50eed332642e": (
+                id: "efc7684d-8dd3-4ae1-be52-50eed332642e",
+                name: "gravity",
                 gravity: Constant((
                     value: (0.0, 0.0, -9.8),
                 )),
             ),
         },
         joints: {
-            "12a30e81-2a03-4a5d-92b2-381ea996588e": Revolute((
+            "43e81877-eaae-4227-af3b-ade69082c6ce": Revolute((
                 common: (
-                    id: "12a30e81-2a03-4a5d-92b2-381ea996588e",
-                    name: "r1",
+                    id: "43e81877-eaae-4227-af3b-ade69082c6ce",
+                    name: "revolute",
                     connection: (
                         inner_body: Some((
-                            body_id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+                            body_id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -95,7 +69,7 @@
                             ),
                         )),
                         outer_body: Some((
-                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
+                            body_id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -277,10 +251,86 @@
                     spring_constant: 0.0,
                 ),
                 state: (
-                    theta: 0.0,
+                    theta: 1.0,
                     omega: 0.0,
                 ),
             )),
+        },
+    ),
+    "2pend": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+            name: "base",
+            outer_joints: [
+                "12a30e81-2a03-4a5d-92b2-381ea996588e",
+            ],
+            gravity: [
+                "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
+            ],
+        )),
+        bodies: {
+            "687d0bb1-8148-449e-97e2-de6b80139158": (
+                id: "687d0bb1-8148-449e-97e2-de6b80139158",
+                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b2",
+                outer_joints: [],
+                geometry: None,
+                gravity: [],
+            ),
+            "cb458608-05b9-4155-9562-fa2d3529a94d": (
+                id: "cb458608-05b9-4155-9562-fa2d3529a94d",
+                inner_joint: Some("12a30e81-2a03-4a5d-92b2-381ea996588e"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b1",
+                outer_joints: [
+                    "a4a09acd-8032-4636-ac65-a91b82031efc",
+                ],
+                geometry: None,
+                gravity: [],
+            ),
+        },
+        gravities: {
+            "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638": (
+                id: "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
+                name: "g",
+                gravity: Constant((
+                    value: (0.0, 0.0, -9.8),
+                )),
+            ),
+        },
+        joints: {
             "a4a09acd-8032-4636-ac65-a91b82031efc": Revolute((
                 common: (
                     id: "a4a09acd-8032-4636-ac65-a91b82031efc",
@@ -489,115 +539,13 @@
                     omega: 0.0,
                 ),
             )),
-        },
-    ),
-    "3pend": (
-        algorithm: ArticulatedBody,
-        base: Some((
-            id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
-            name: "base",
-            outer_joints: [
-                "b3bd38d7-16f0-4478-9c52-625164a73a19",
-            ],
-            gravity: [
-                "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
-            ],
-        )),
-        bodies: {
-            "42ba7228-82ba-473a-8c75-eb20d796168b": (
-                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
-                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b3",
-                outer_joints: [],
-                geometry: None,
-                gravity: [],
-            ),
-            "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
-                id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
-                inner_joint: Some("b3bd38d7-16f0-4478-9c52-625164a73a19"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b1",
-                outer_joints: [
-                    "c1df79ba-859c-40b9-b072-b659c9a96fb6",
-                ],
-                geometry: None,
-                gravity: [],
-            ),
-            "322e0d37-6831-44b4-903e-7341dacc949b": (
-                id: "322e0d37-6831-44b4-903e-7341dacc949b",
-                inner_joint: Some("c1df79ba-859c-40b9-b072-b659c9a96fb6"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b2",
-                outer_joints: [
-                    "6626c60b-d583-4e8b-936e-b38015571a69",
-                ],
-                geometry: None,
-                gravity: [],
-            ),
-        },
-        gravities: {
-            "d1b2b2c7-b89b-43a0-98af-63ca92c24e14": (
-                id: "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
-                name: "g",
-                gravity: Constant((
-                    value: (0.0, 0.0, -9.8),
-                )),
-            ),
-        },
-        joints: {
-            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
+            "12a30e81-2a03-4a5d-92b2-381ea996588e": Revolute((
                 common: (
-                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
+                    id: "12a30e81-2a03-4a5d-92b2-381ea996588e",
                     name: "r1",
                     connection: (
                         inner_body: Some((
-                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+                            body_id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -613,7 +561,7 @@
                             ),
                         )),
                         outer_body: Some((
-                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -799,6 +747,108 @@
                     omega: 0.0,
                 ),
             )),
+        },
+    ),
+    "3pend": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+            name: "base",
+            outer_joints: [
+                "b3bd38d7-16f0-4478-9c52-625164a73a19",
+            ],
+            gravity: [
+                "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
+            ],
+        )),
+        bodies: {
+            "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
+                id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                inner_joint: Some("b3bd38d7-16f0-4478-9c52-625164a73a19"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b1",
+                outer_joints: [
+                    "c1df79ba-859c-40b9-b072-b659c9a96fb6",
+                ],
+                geometry: None,
+                gravity: [],
+            ),
+            "322e0d37-6831-44b4-903e-7341dacc949b": (
+                id: "322e0d37-6831-44b4-903e-7341dacc949b",
+                inner_joint: Some("c1df79ba-859c-40b9-b072-b659c9a96fb6"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b2",
+                outer_joints: [
+                    "6626c60b-d583-4e8b-936e-b38015571a69",
+                ],
+                geometry: None,
+                gravity: [],
+            ),
+            "42ba7228-82ba-473a-8c75-eb20d796168b": (
+                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
+                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b3",
+                outer_joints: [],
+                geometry: None,
+                gravity: [],
+            ),
+        },
+        gravities: {
+            "d1b2b2c7-b89b-43a0-98af-63ca92c24e14": (
+                id: "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
+                name: "g",
+                gravity: Constant((
+                    value: (0.0, 0.0, -9.8),
+                )),
+            ),
+        },
+        joints: {
             "c1df79ba-859c-40b9-b072-b659c9a96fb6": Revolute((
                 common: (
                     id: "c1df79ba-859c-40b9-b072-b659c9a96fb6",
@@ -822,6 +872,214 @@
                         )),
                         outer_body: Some((
                             body_id: "322e0d37-6831-44b4-903e-7341dacc949b",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    transforms: (
+                        jif_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_jif: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jif_from_ib: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ib_from_jif: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_ob: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ob_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_ij_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ij_jof_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        jof_from_base: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        base_from_jof: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        base_from_ob: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                        ob_from_base: ((
+                            rotation: Quaternion((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                                s: 1.0,
+                            )),
+                            translation: Cartesian((
+                                x: 0.0,
+                                y: 0.0,
+                                z: 0.0,
+                            )),
+                        )),
+                    ),
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    mass_properties: None,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 0.0,
+                    omega: 0.0,
+                ),
+            )),
+            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
+                common: (
+                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
+                    name: "r1",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -1211,265 +1469,7 @@
                     spring_constant: 0.0,
                 ),
                 state: (
-                    theta: 0.0,
-                    omega: 0.0,
-                ),
-            )),
-        },
-    ),
-    "pend": (
-        algorithm: ArticulatedBody,
-        base: Some((
-            id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
-            name: "base",
-            outer_joints: [
-                "43e81877-eaae-4227-af3b-ade69082c6ce",
-            ],
-            gravity: [
-                "efc7684d-8dd3-4ae1-be52-50eed332642e",
-            ],
-        )),
-        bodies: {
-            "7e488e3e-849a-44c7-85dc-b37929c7e1a3": (
-                id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
-                inner_joint: Some("43e81877-eaae-4227-af3b-ade69082c6ce"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "body",
-                outer_joints: [],
-                geometry: None,
-                gravity: [],
-            ),
-        },
-        gravities: {
-            "efc7684d-8dd3-4ae1-be52-50eed332642e": (
-                id: "efc7684d-8dd3-4ae1-be52-50eed332642e",
-                name: "gravity",
-                gravity: Constant((
-                    value: (0.0, 0.0, -9.8),
-                )),
-            ),
-        },
-        joints: {
-            "43e81877-eaae-4227-af3b-ade69082c6ce": Revolute((
-                common: (
-                    id: "43e81877-eaae-4227-af3b-ade69082c6ce",
-                    name: "revolute",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "1de40697-bb21-43a6-a9c9-381e7c841c67",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "7e488e3e-849a-44c7-85dc-b37929c7e1a3",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                    transforms: (
-                        jif_from_jof: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        jof_from_jif: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        jif_from_ib: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        ib_from_jif: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        jof_from_ob: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        ob_from_jof: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        jof_from_ij_jof: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        ij_jof_from_jof: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        jof_from_base: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        base_from_jof: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        base_from_ob: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                        ob_from_base: ((
-                            rotation: Quaternion((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                                s: 1.0,
-                            )),
-                            translation: Cartesian((
-                                x: 0.0,
-                                y: 0.0,
-                                z: 0.0,
-                            )),
-                        )),
-                    ),
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    mass_properties: None,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 1.0,
+                    theta: 0.1,
                     omega: 0.0,
                 ),
             )),

@@ -145,8 +145,11 @@ impl MultibodySystemSim {
                     let gravity_base =
                         self.bodies[i].calculate_gravity_acceleration_base(&self.gravity);
                     let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
+                    // convert to force 
+                    let gravity_body = self.bodies[i].mass_properties.mass * gravity_body;
+
                     //convert to spatial
-                    let gravity_body = Acceleration::from(Vector6::new(
+                    let gravity_body = Force::from(Vector6::new(
                         0.0,
                         0.0,
                         0.0,
@@ -158,10 +161,10 @@ impl MultibodySystemSim {
                     //transform accel_to joint
                     let gravity_joint = transforms.jof_from_ob * gravity_body;                                        
                     //transform to force by multiplying by joint inertia
-                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
+                    //let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();                       
-                    self.joints[i].first_pass(v_ij, &f_ob);
+                    self.joints[i].first_pass(v_ij, &f_ob);                    
                 }
 
                 // Second Pass

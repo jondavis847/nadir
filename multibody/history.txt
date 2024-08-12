@@ -1,5 +1,5 @@
-sim1
-c
-cart
-0.5
-sim1
+simulate
+edit r3
+simulate
+load 2pend
+simulate
