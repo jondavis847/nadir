@@ -182,6 +182,10 @@ pub struct BodyState {
     pub external_spatial_force_joint: Force, //used for calculations
     pub external_force_body: Vector3<f64>,  //use for reporting
     pub external_torque_body: Vector3<f64>, //use for reporting
+    pub angular_momentum_body: Vector3<f64>,
+    pub angular_momentum_base: Vector3<f64>,    
+    pub linear_momentum_body: Vector3<f64>,
+    pub linear_momentum_base: Vector3<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -195,4 +199,8 @@ pub struct BodyResult {
     pub angular_accel_body: Vec<Vector3<f64>>,
     pub external_force_body: Vec<Vector3<f64>>,
     pub external_torque_body: Vec<Vector3<f64>>,
+    pub angular_momentum_body: Vec<Vector3<f64>>,
+    pub angular_momentum_base: Vec<Vector3<f64>>,    
+    pub linear_momentum_body: Vec<Vector3<f64>>,
+    pub linear_momentum_base: Vec<Vector3<f64>>,
 }

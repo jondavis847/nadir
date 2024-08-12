@@ -439,6 +439,7 @@ impl fmt::Debug for MultibodyResult {
 }
 
 pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
+    
     for i in 0..bodies.len() {
         let body = &mut bodies[i];
         let inner_joint = &joints[i];
@@ -478,5 +479,6 @@ pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
         let body_from_base = base_from_body.0.inv();        
         body.state.position_base = body_from_base.translation.vec();
         body.state.attitude_base = Quaternion::from(body_from_base.rotation);
+
     }
 }

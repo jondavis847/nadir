@@ -100,9 +100,9 @@ fn main() {
     //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);  
     let prompt = Prompts::Main;  
     
-    rl.clear_screen().unwrap();    
-    let welcome = "Welcome to GADGT!".bright_blue();
-    println!("{}", welcome);    
+    //rl.clear_screen().unwrap();    
+    //let welcome = "Welcome to GADGT!".bright_blue();
+    //println!("{}", welcome);    
     loop {
         let result = rl.read_line(&prompt);
 

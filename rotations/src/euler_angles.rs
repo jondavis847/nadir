@@ -170,22 +170,22 @@ impl RotationTrait for EulerAngles {
                 EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XYZ)
             }
             EulerSequence::XYX => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XYX)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XYX)
             }
             EulerSequence::XZX => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XZX)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XZX)
             }
             EulerSequence::YXY => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YXY)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YXY)
             }
             EulerSequence::YZY => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YZY)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YZY)
             }
             EulerSequence::ZXZ => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZXZ)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZXZ)
             }
             EulerSequence::ZYZ => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZYZ)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZYZ)
             }
         }
     }

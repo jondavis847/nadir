@@ -130,11 +130,11 @@ impl From<EulerAngles> for RotationMatrix {
     /// A new `RotationMatrix` representing the rotation defined by the euler angles.
     fn from(euler_angles: EulerAngles) -> RotationMatrix {
         let rotx =
-            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), -a.sin(), 0.0, a.sin(), a.cos());
+            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), a.sin(), 0.0, -a.sin(), a.cos());
         let roty =
-            |a: f64| Matrix3::new(a.cos(), 0.0, a.sin(), 0.0, 1.0, 0.0, -a.sin(), 0.0, a.cos());
+            |a: f64| Matrix3::new(a.cos(), 0.0, -a.sin(), 0.0, 1.0, 0.0, a.sin(), 0.0, a.cos());
         let rotz =
-            |a: f64| Matrix3::new(a.cos(), -a.sin(), 0.0, a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
+            |a: f64| Matrix3::new(a.cos(), a.sin(), 0.0, -a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
 
         let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
         match euler_angles.sequence {

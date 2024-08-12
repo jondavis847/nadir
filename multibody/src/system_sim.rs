@@ -31,7 +31,7 @@ pub struct MultibodySystemSim {
     pub joints: Vec<JointSim>,
     joint_names: Vec<String>,
     gravity: HashMap<Uuid, MultibodyGravity>,
-    parent_joint_indeces: Vec<usize>,
+    parent_indeces: Vec<Option<usize>>,
 }
 
 impl TryFrom<MultibodySystem> for MultibodySystemSim {
@@ -43,7 +43,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
         let mut bodynames = Vec::new();
         let mut jointsims = Vec::new();
         let mut jointnames = Vec::new();
-        let mut parent_joint_indeces = Vec::new();
+        let mut parent_indeces: Vec<Option<usize>> = Vec::new();
 
         if let Some(base) = &sys.base {
             let outer_joint_ids = base.get_outer_joints();
@@ -54,7 +54,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
 
                     jointsims.push(joint_sim);
                     jointnames.push(joint.get_name().to_string());
-                    parent_joint_indeces.push(0); // For the base
+                    parent_indeces.push(None); // For the base
 
                     if let Some(next_body_id) = joint.get_outer_body_id() {
                         if let Some(next_body) = sys.bodies.get(next_body_id) {
@@ -80,7 +80,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                                 &mut bodynames,
                                 &mut jointsims,
                                 &mut jointnames,
-                                &mut parent_joint_indeces,
+                                &mut parent_indeces,
                             );
                         }
                     }
@@ -102,7 +102,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
             joints: jointsims,
             joint_names: jointnames,
             gravity: sys.gravities,
-            parent_joint_indeces: parent_joint_indeces,
+            parent_indeces: parent_indeces,
         })
     }
 }
@@ -128,14 +128,16 @@ impl MultibodySystemSim {
         self.update_body_forces();
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
-                let n = self.joints.len();
+                let n: usize = self.joints.len();
 
                 // First Pass
                 for i in 0..n {
-                    let v_ij = match i {
-                        0 => Velocity::zeros(),
-                        _ => *self.joints[self.parent_joint_indeces[i]].get_v(),
+                    let v_ij = if let Some(parent_index) = self.parent_indeces[i] {
+                        *self.joints[parent_index].get_v()
+                    } else {
+                        Velocity::zeros()
                     };
+                    
                     // get transforms
                     let transforms = self.joints[i].get_transforms();
 
@@ -152,12 +154,11 @@ impl MultibodySystemSim {
                         gravity_body[1],
                         gravity_body[2],
                     ));                    
-
+                    
                     //transform accel_to joint
                     let gravity_joint = transforms.jof_from_ob * gravity_body;                                        
                     //transform to force by multiplying by joint inertia
-                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
-                    dbg!(&gravity_joint);
+                    let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();                       
                     self.joints[i].first_pass(v_ij, &f_ob);
@@ -165,14 +166,13 @@ impl MultibodySystemSim {
 
                 // Second Pass
                 for i in (0..n).rev() {
-                    let parent_joint_index = self.parent_joint_indeces[i];
-                    let inner_is_base = match parent_joint_index {
-                        0 => true,
-                        _ => false,
-                    };
+                    let inner_is_base = self.parent_indeces[i].is_none();
+                    
                     // we split up updating the parent to avoid borrowing issues
                     if let Some((parent_ia, parent_pa)) = self.joints[i].second_pass(inner_is_base)
                     {
+                        // I believe this unwrap is safe or we wouldnt get into this logic                        
+                        let parent_joint_index = self.parent_indeces[i].unwrap(); // I believe this unwrap is safe or we wouldnt get into this logic
                         self.joints[parent_joint_index]
                             .add_inertia_articulated(parent_ia);
                         self.joints[parent_joint_index].add_p_big_a(parent_pa);
@@ -181,10 +181,15 @@ impl MultibodySystemSim {
 
                 // Third Pass
                 for i in 0..n {
-                    let a_ij = match i {
-                        0 => Acceleration::zeros(),
-                        _ => *self.joints[self.parent_joint_indeces[i]].get_a(),
+                    // get acceleration of parent
+                    // if parent is the base, (index None), parent acceleration is 0
+
+                    let a_ij = if let Some(parent_index) = self.parent_indeces[i] {
+                        *self.joints[parent_index].get_a()
+                    } else {
+                        Acceleration::zeros()                        
                     };
+                    
                     self.joints[i].third_pass(a_ij);
                 }
                 update_body_states(&mut self.bodies, &self.joints);
@@ -328,16 +333,15 @@ impl MultibodySystemSim {
     fn update_joints(&mut self) {
         // update joint transforms
         for i in 0..self.joints.len() {
-            // if i is 0, parent body is the base, ij_transforms to base are just transforms to inner body
-            match i {
-                0 => self.joints[i].update_transforms(None),
-                _ => {
-                    let ij_transforms = self.joints[self.parent_joint_indeces[i]].get_transforms();
+            // if parent index is None, parent body is the base, ij_transforms to base are just transforms to inner body
+            if let Some(parent_index) = self.parent_indeces[i] {
+                let ij_transforms = self.joints[parent_index].get_transforms();
                     let ij_ob_from_ij_jof = ij_transforms.ob_from_jof;
                     let ij_jof_from_base = ij_transforms.jof_from_base;
                     self.joints[i].update_transforms(Some((ij_ob_from_ij_jof, ij_jof_from_base)));
-                }
-            }
+            } else {
+                self.joints[i].update_transforms(None)
+            }            
         }
 
         //calculate tau and vj for each joint
@@ -357,7 +361,7 @@ fn recursive_sys_creation(
     bodynames: &mut Vec<String>,
     jointsims: &mut Vec<JointSim>,
     jointnames: &mut Vec<String>,
-    parent_joint_indeces: &mut Vec<usize>,
+    parent_indeces: &mut Vec<Option<usize>>,
 ) {
     for id in body.get_outer_joints() {
         if let Some(joint) = joints.get(&id) {
@@ -366,7 +370,7 @@ fn recursive_sys_creation(
 
             jointsims.push(joint_sim);
             jointnames.push(joint.get_name().to_string());
-            parent_joint_indeces.push(parent_joint_index);
+            parent_indeces.push(Some(parent_joint_index));
 
             if let Some(next_body_id) = joint.get_outer_body_id() {
                 if let Some(next_body) = bodies.get(next_body_id) {
@@ -392,7 +396,7 @@ fn recursive_sys_creation(
                         bodynames,
                         jointsims,
                         jointnames,
-                        parent_joint_indeces,
+                        parent_indeces,
                     );
                 }
             }

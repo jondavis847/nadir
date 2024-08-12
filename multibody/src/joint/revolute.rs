@@ -194,10 +194,12 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.common.inertia_articulated = joint_inertia;
         aba.common.p_big_a =
             aba.common.v.cross_force(joint_inertia * aba.common.v) - *f_ob;
+
     }
 
     fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
         let aba = &mut self.aba;
+        
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
