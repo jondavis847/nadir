@@ -3,20 +3,23 @@ use crate::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
         composite_rigid_body::{CompositeRigidBody, CrbCache},
+        recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
     },
     body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
     joint::{
-        prismatic::PrismaticResult, revolute::RevoluteResult, Joint, JointResult, JointSim,
-        JointSimTrait, JointState, JointTrait,
+        joint_sim::{JointSim, JointSimTrait},
+        joint_state::JointState,
+        prismatic::PrismaticResult,
+        revolute::RevoluteResult,
+        Joint, JointResult, JointTrait,
     },
     result::{update_body_states, MultibodyResult, ResultEntry},
     system::MultibodySystem,
     MultibodyErrors, MultibodyTrait,
 };
-
 use differential_equations::solver::{Solver, SolverMethod};
-use nalgebra::{DVector, Vector6};
+use nalgebra::Vector6;
 use rotations::RotationTrait;
 use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
 use std::collections::HashMap;
@@ -24,10 +27,11 @@ use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Instant, SystemTime};
 use utilities::generate_unique_id;
 use uuid::Uuid;
+
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     pub bodies: Vec<BodySim>,
@@ -73,7 +77,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                             let jof_from_ob = transforms.jof_from_ob;
                             let spatial_inertia = SpatialInertia::from(*body_mass_properties);
                             let joint_mass_properties = jof_from_ob * spatial_inertia;
-                            joint.set_inertia(Some(joint_mass_properties));
+                            joint.set_inertia(joint_mass_properties);
 
                             recursive_sys_creation(
                                 &sys.algorithm,
@@ -144,7 +148,8 @@ impl MultibodySystemSim {
     ) -> JointStates {
         self.set_state(x.clone());
         self.update_joints();
-        self.update_body_forces();
+        self.update_forces();
+
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 let n: usize = self.joints.len();
@@ -220,7 +225,24 @@ impl MultibodySystemSim {
             MultibodyAlgorithm::CompositeRigidBody => {
                 let n: usize = self.joints.len();
 
+                // Calculate external forces
+
                 // Run the Recursive Newton Euler algorithm to calculate C.
+                for i in 0..self.joints.len() {
+                    let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
+                        (
+                            *self.joints[parent_index].get_a(),
+                            *self.joints[parent_index].get_v(),
+                        )
+                    } else {
+                        (Acceleration::zeros(), Velocity::zeros())
+                    };
+
+                    let joint = &mut self.joints[i];
+                    joint.rne_first_pass(a_ij, v_ij, f_ob, false);
+
+                    self.crb_cache.c[joint.get_crb_index()]
+                }
 
                 // First Pass
                 for i in 0..n {
@@ -408,21 +430,49 @@ impl MultibodySystemSim {
         Ok(MultibodyResult {
             name: name,
             sim_time: times,
-            result: result_hm,
-            system: self.clone(),
+            result: result_hm,            
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
         })
     }
 
-    fn update_body_forces(&mut self) {
-        self.bodies
-            .iter_mut()
-            .for_each(|body| body.calculate_external_force());
-        //pub external_force: Force, //used for calculations
-        //pub external_force_body: Vector3, //use for reporting
-        //pub external_torque_body: Vector3, //use for reporting
+    fn update_forces(&mut self) {
+        for i in 0..self.joints.len() {
+            let body = &mut self.bodies[i];
+            let joint = &mut self.joints[i];
+
+            // update non gravity external forces on the body
+            body.calculate_external_force();
+
+            // get transforms
+            let transforms = joint.get_transforms();
+
+            //get gravity in base frame
+            let gravity_base = body.calculate_gravity_acceleration_base(&self.gravity);
+
+            // convert to body frame
+            let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
+
+            // convert to force on body cg by multiplying by mass
+            let gravity_body = body.mass_properties.mass * gravity_body;
+
+            // convert to spatial
+            let gravity_body = Force::from(Vector6::new(
+                0.0,
+                0.0,
+                0.0,
+                gravity_body[0],
+                gravity_body[1],
+                gravity_body[2],
+            ));
+
+            // transform accel_to joint
+            // cross product terms in spatial calculation will convert force at body cg to torque about joint
+            let gravity_joint = transforms.jof_from_ob * gravity_body;
+
+            let f_ob = gravity_joint + transforms.jof_from_ob * *body.get_external_force_body();
+        }
     }
 
     fn update_joints(&mut self) {

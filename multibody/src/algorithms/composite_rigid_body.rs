@@ -2,8 +2,8 @@ use nalgebra::{DMatrix, DVector};
 
 #[derive(Clone, Debug, Default)]
 pub struct CrbCache { 
-    c: DVector<f64>,
-    h: DMatrix<f64>,       
+    pub c: DVector<f64>,
+    pub h: DMatrix<f64>,       
 }
 
 impl CrbCache {
@@ -16,5 +16,6 @@ impl CrbCache {
 }
 
 pub trait CompositeRigidBody {    
+    fn get_crb_index(&self) -> usize;
     fn set_crb_index(&mut self, n: usize);
 }

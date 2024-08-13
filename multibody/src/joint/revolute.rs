@@ -1,11 +1,16 @@
 use crate::{
     algorithms::{
-        articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm}, composite_rigid_body::CompositeRigidBody, recursive_newton_euler::{RecursiveNewtonEuler, RneCache}, MultibodyAlgorithm
+        articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+        composite_rigid_body::CompositeRigidBody,
+        recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
+        MultibodyAlgorithm,
     },
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
-        JointState, JointTrait, JointTransforms,
+        joint_sim::{JointSimParameters, JointSimTrait},
+        joint_state::JointState,
+        joint_transforms::JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
 };
@@ -193,15 +198,15 @@ struct RevoluteAbaCache {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct RevoluteCrbCache {    
-    cache_index: usize,    
+struct RevoluteCrbCache {
+    cache_index: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 struct RevoluteCache {
     a: Acceleration,
     aba: Option<RevoluteAbaCache>,
-    crb: Option<RevoluteCrbCache>,    
+    crb: Option<RevoluteCrbCache>,
     q_ddot: f64,
     rne: Option<RneCache>,
     tau: f64,
@@ -209,11 +214,11 @@ struct RevoluteCache {
     vj: Velocity,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug)]
 pub struct RevoluteSim {
     cache: RevoluteCache,
     id: Uuid,
-    parameters: JointParameters,
+    parameters: JointSimParameters,
     state: RevoluteState,
     transforms: JointTransforms,
 }
@@ -240,10 +245,11 @@ impl From<Revolute> for RevoluteSim {
             panic!("should always be an inner body connected")
         }
 
+        let parameters = JointSimParameters::try_from(revolute.parameters).unwrap(); //TODO: handle the errors
         RevoluteSim {
             cache: RevoluteCache::default(),
             id: *revolute.get_id(),
-            parameters: revolute.parameters,
+            parameters,
             state: revolute.state,
             transforms,
         }
@@ -254,14 +260,13 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         let aba = self.cache.aba.as_mut().unwrap();
         let transforms = &self.transforms;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.parameters.mass_properties;
         let v = &mut self.cache.v;
-        
+
         *v = transforms.jof_from_ij_jof * v_ij + self.cache.vj;
         aba.common.c = v.cross_motion(self.cache.vj); // + cj
         aba.common.inertia_articulated = *joint_inertia;
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f_ob;        
-
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f_ob;
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -269,9 +274,9 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.column(0).into();        
-        aba.big_d_inv = 1.0 / aba.big_u[0];        
-        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1        
+        aba.big_u = inertia_articulated_matrix.column(0).into();
+        aba.big_d_inv = 1.0 / aba.big_u[0];
+        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
@@ -280,15 +285,14 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
             aba.common.p_lil_a = aba.common.p_big_a
                 + Force::from(i_lil_a * aba.common.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
-                
+
             let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
-            
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;            
+
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
-        } else {            
+        } else {
             None
         }
-        
     }
 
     fn aba_third_pass(&mut self, a_ij: Acceleration) {
@@ -297,11 +301,11 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let q_ddot = &mut self.cache.q_ddot;
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
-        
+
         *q_ddot =
             aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
         *a =
-            aba.common.a_prime + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));               
+            aba.common.a_prime + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
     fn get_p_big_a(&self) -> Force {
@@ -314,9 +318,9 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         *ia = *ia + inertia;
     }
 
-    fn add_p_big_a(&mut self, p_big_a: Force) {        
+    fn add_p_big_a(&mut self, p_big_a: Force) {
         let aba = self.cache.aba.as_mut().unwrap();
-        let pa = &mut aba.common.p_big_a;        
+        let pa = &mut aba.common.p_big_a;
         *pa = *pa + p_big_a;
     }
 }
@@ -336,7 +340,7 @@ impl RecursiveNewtonEuler for RevoluteSim {
         let f = &mut self.cache.rne.as_mut().unwrap().f;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.parameters.mass_properties;
 
         *v = *jof_from_ij_jof * v_ij + *vj;
 
@@ -361,7 +365,7 @@ impl RecursiveNewtonEuler for RevoluteSim {
 
 impl JointSimTrait for RevoluteSim {
     fn calculate_tau(&mut self) {
-        let JointParameters {
+        let JointSimParameters {
             constant_force,
             damping,
             spring_constant,
@@ -387,7 +391,7 @@ impl JointSimTrait for RevoluteSim {
     fn get_id(&self) -> &Uuid {
         &self.id
     }
-    fn get_inertia(&self) -> &Option<SpatialInertia> {
+    fn get_inertia(&self) -> &SpatialInertia {
         &self.parameters.mass_properties
     }
 
@@ -403,7 +407,7 @@ impl JointSimTrait for RevoluteSim {
         &self.cache.v
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+    fn set_inertia(&mut self, inertia: SpatialInertia) {
         self.parameters.mass_properties = inertia;
     }
     fn set_state(&mut self, state: JointState) {
@@ -447,8 +451,10 @@ impl JointSimTrait for RevoluteSim {
     }
 }
 
-
 impl CompositeRigidBody for RevoluteSim {
+    fn get_crb_index(&self) -> usize {
+        self.cache.crb.unwrap().cache_index
+    }
     fn set_crb_index(&mut self, n: usize) {
         if let Some(crb) = &mut self.cache.crb {
             crb.cache_index = n;

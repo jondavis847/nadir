@@ -1,10 +1,10 @@
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
-use aerospace::gravity::{Gravity, GravityTrait};
+use aerospace::gravity::GravityTrait;
 use geometry::Geometry;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
 use rotations::quaternion::Quaternion;
-use spatial_algebra::{Acceleration, Force, SpatialTransform};
+use spatial_algebra::Force;
 use std::collections::HashMap;
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};

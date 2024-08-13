@@ -9,19 +9,19 @@ use utilities::format_duration;
 
 use polars::prelude::*;
 
-use crate::{
-    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
+use crate::{    
     body::{BodyResult, BodySim},
-    joint::{JointResult, JointSim, JointSimTrait},
-    system_sim::MultibodySystemSim,
+    joint::{
+        joint_sim::{JointSim, JointSimTrait},
+        JointResult,
+    },    
 };
 
 #[derive(Clone)]
 pub struct MultibodyResult {
     pub name: String,
     pub sim_time: Vec<f64>,
-    pub result: HashMap<String, ResultEntry>,
-    pub system: MultibodySystemSim,
+    pub result: HashMap<String, ResultEntry>,    
     pub time_start: SystemTime,
     pub sim_duration: Duration,
     pub total_duration: Duration,
@@ -332,7 +332,11 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_body_state_at_time_interp(&self, body_name: &str, t: f64) -> (Quaternion, Vector3<f64>) {
+    pub fn get_body_state_at_time_interp(
+        &self,
+        body_name: &str,
+        t: f64,
+    ) -> (Quaternion, Vector3<f64>) {
         let body = match self.result.get(body_name).unwrap() {
             ResultEntry::Body(body) => body,
             _ => panic!("should not be possible"),
@@ -439,7 +443,6 @@ impl fmt::Debug for MultibodyResult {
 }
 
 pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
-    
     for i in 0..bodies.len() {
         let body = &mut bodies[i];
         let inner_joint = &joints[i];
@@ -476,9 +479,8 @@ pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
         body.state.velocity_base = *body_v_in_base.translation();
         body.state.angular_rate_body = *body_v.rotation();
 
-        let body_from_base = base_from_body.0.inv();        
+        let body_from_base = base_from_body.0.inv();
         body.state.position_base = body_from_base.translation.vec();
         body.state.attitude_base = Quaternion::from(body_from_base.rotation);
-
     }
 }

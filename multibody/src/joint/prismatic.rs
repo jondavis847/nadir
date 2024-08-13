@@ -7,8 +7,11 @@ use crate::{
     },
     body::{Body, BodyTrait},
     joint::{
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
-        JointState, JointTrait, JointTransforms,
+        joint_sim::{JointSimParameters, JointSimTrait},
+        joint_state::JointState,
+        joint_transforms::JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters,
+        JointTrait,
     },
     MultibodyTrait,
 };
@@ -164,11 +167,11 @@ struct PrismaticCache {
     vj: Velocity,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug)]
 pub struct PrismaticSim {
     cache: PrismaticCache,
     id: Uuid,
-    parameters: JointParameters,
+    parameters: JointSimParameters,
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -195,10 +198,12 @@ impl From<Prismatic> for PrismaticSim {
             panic!("should always be an inner body connected")
         }
 
+        let parameters = JointSimParameters::try_from(prismatic.parameters).unwrap(); // TODO: handle the error
+
         PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),
-            parameters: prismatic.parameters,
+            parameters,
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -209,7 +214,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
     fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         let transforms = &self.transforms;
         let aba = &mut self.cache.aba.unwrap();
-        let joint_inertia = self.parameters.mass_properties.unwrap();
+        let joint_inertia = self.parameters.mass_properties;
         let v = &mut self.cache.v;
 
         *v = transforms.jof_from_ij_jof * v_ij + self.cache.vj;
@@ -285,7 +290,7 @@ impl RecursiveNewtonEuler for PrismaticSim {
         let vj = &self.cache.vj;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.parameters.mass_properties;
 
         *v = *jof_from_ij_jof * v_ij + *vj;
 
@@ -309,6 +314,11 @@ impl RecursiveNewtonEuler for PrismaticSim {
 }
 
 impl CompositeRigidBody for PrismaticSim {
+
+    fn get_crb_index(&self) -> usize {
+        self.cache.crb.unwrap().cache_index
+    }
+
     fn set_crb_index(&mut self, n: usize) {
         if let Some(crb) = &mut self.cache.crb {
             crb.cache_index = n;
@@ -318,7 +328,7 @@ impl CompositeRigidBody for PrismaticSim {
 
 impl JointSimTrait for PrismaticSim {
     fn calculate_tau(&mut self) {
-        let JointParameters {
+        let JointSimParameters {
             constant_force,
             damping,
             spring_constant,
@@ -345,7 +355,7 @@ impl JointSimTrait for PrismaticSim {
         &self.id
     }
 
-    fn get_inertia(&self) -> &Option<SpatialInertia> {
+    fn get_inertia(&self) -> &SpatialInertia {
         &self.parameters.mass_properties
     }
 
@@ -367,7 +377,7 @@ impl JointSimTrait for PrismaticSim {
             _ => panic!("Can't set a different joints state to Prismatic"),
         }
     }
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+    fn set_inertia(&mut self, inertia: SpatialInertia) {
         self.parameters.mass_properties = inertia;
     }
     fn get_transforms(&self) -> &JointTransforms {
