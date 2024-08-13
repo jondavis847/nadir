@@ -1,13 +1,12 @@
 use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
-use colored::*;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
         prismatic::{Prismatic, PrismaticState},
         revolute::{Revolute, RevoluteState},
-        Joint, JointParameters,JointSimTrait,JointTrait,
+        Joint, JointParameters,joint_sim::JointSimTrait,JointTrait,
     }, result::MultibodyResult, system::MultibodySystem, system_sim::{JointStates,MultibodySystemSim}, MultibodyTrait
 };
 use ratatui::{
@@ -20,7 +19,7 @@ use ratatui::{
     terminal::{Frame, Terminal},    
     widgets::{ Axis, Chart, Dataset, GraphType },
 };
-use reedline::{DefaultPrompt, DefaultPromptSegment,FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
+use reedline::{FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{Rotation, quaternion::Quaternion};
@@ -294,12 +293,17 @@ fn main() {
                                             }
                                         };
 
-                                        sys.connect(&from_name, &to_name, transform);
+                                        match sys.connect(&from_name, &to_name, transform) {
+                                           Ok(_) => success("components connected!"),
+                                           Err(e) => {
+                                            let e = format!("{:#?}", e);
+                                            error(&e);
+                                           }
+                                        };
                                     } else {
                                         let e = colored::Colorize::red("System not found");
                                         println!("{}", e)
-                                    }
-                                    success("components connected!")
+                                    }                                    
                                 }
                                 Commands::Create { name } => {                                    
                                     systems.insert((&name).into(), MultibodySystem::new()); 

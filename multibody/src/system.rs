@@ -1,5 +1,3 @@
-use aerospace::gravity::{self, Gravity};
-
 use crate::component::MultibodyComponent;
 
 use super::{
@@ -13,7 +11,7 @@ use super::{
     MultibodyErrors, MultibodyTrait,
 };
 use serde::{Serialize, Deserialize};
-use std::{collections::HashMap, ops::Mul};
+use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -111,7 +109,7 @@ impl MultibodySystem {
                         if transform.is_none() {
                             return Err(MultibodyErrors::NoTransformFound);
                         }
-                        joint.connect_inner_body(base, transform.unwrap()); // unwrap should be safe since we early returned
+                        joint.connect_inner_body(base, transform.unwrap())?; // unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }
@@ -145,7 +143,7 @@ impl MultibodySystem {
                 // look for valid 'to' components (only joints for now)
                 for (_, joint) in &mut self.joints {
                     if joint.get_name() == to_name {
-                        joint.connect_inner_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        joint.connect_inner_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }
@@ -164,7 +162,7 @@ impl MultibodySystem {
                         if transform.is_none() {
                             return Err(MultibodyErrors::NoTransformFound);
                         }
-                        joint.connect_outer_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        joint.connect_outer_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }

@@ -16,13 +16,15 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use nalgebra::{Matrix6x1, Vector6};
+use nalgebra::{DVector, Matrix6x1, Vector1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
 use uuid::Uuid;
+
+use super::joint_sim::JointCache;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
@@ -155,19 +157,17 @@ struct PrismaticCrbCache {
     cache_index: usize
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct PrismaticCache {
-    a: Acceleration,
+    common: JointCache,    
     aba: Option<PrismaticAbaCache>,
-    crb: Option<PrismaticCrbCache>,
-    v: Velocity,
+    crb: Option<PrismaticCrbCache>,    
     q_ddot: f64,
     rne: Option<RneCache>,
-    tau: f64,
-    vj: Velocity,
+    tau: f64,    
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct PrismaticSim {
     cache: PrismaticCache,
     id: Uuid,
@@ -211,16 +211,18 @@ impl From<Prismatic> for PrismaticSim {
 }
 
 impl ArticulatedBodyAlgorithm for PrismaticSim {
-    fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+    fn aba_first_pass(&mut self, v_ij: Velocity) {
         let transforms = &self.transforms;
         let aba = &mut self.cache.aba.unwrap();
         let joint_inertia = self.parameters.mass_properties;
-        let v = &mut self.cache.v;
+        let v = &mut self.cache.common.v;
+        let vj = &mut self.cache.common.vj;
+        let f = &mut self.cache.common.f;
 
-        *v = transforms.jof_from_ij_jof * v_ij + self.cache.vj;
-        aba.common.c = v.cross_motion(self.cache.vj); // + cj
+        *v = transforms.jof_from_ij_jof * v_ij + *vj;
+        aba.common.c = v.cross_motion(*vj); // + cj
         aba.common.inertia_articulated = joint_inertia;
-        aba.common.p_big_a = v.cross_force(joint_inertia * *v) - transforms.jof_from_ob * *f_ob;
+        aba.common.p_big_a = v.cross_force(joint_inertia * *v) - *f;
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -256,7 +258,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
         self.cache.q_ddot =
             aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
-        self.cache.a = aba.common.a_prime
+        self.cache.common.a = aba.common.a_prime
             + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, self.cache.q_ddot, 0.0, 0.0));
     }
 
@@ -279,15 +281,15 @@ impl RecursiveNewtonEuler for PrismaticSim {
     fn rne_first_pass(
         &mut self,
         a_ij: Acceleration,
-        v_ij: Velocity,
-        f_ob: &Force,
+        v_ij: Velocity,        
         use_qddot: bool,
     ) {
-        let a = &mut self.cache.a;
+        let a = &mut self.cache.common.a;
         let f = &mut self.cache.rne.as_mut().unwrap().f;
         let q_ddot = &mut self.cache.q_ddot;
-        let v = &mut self.cache.v;
-        let vj = &self.cache.vj;
+        let v = &mut self.cache.common.v;
+        let vj = &self.cache.common.vj;
+        let f_b = &self.cache.common.f;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
         let joint_inertia = &self.parameters.mass_properties;
@@ -305,11 +307,23 @@ impl RecursiveNewtonEuler for PrismaticSim {
 
         *a = a_new;
 
-        *f = *joint_inertia * *a + v.cross_force(*joint_inertia * *v) - *f_ob;
+        *f = *joint_inertia * *a + v.cross_force(*joint_inertia * *v) - *f_b;
     }
 
     fn rne_second_pass(&mut self) {
         self.cache.tau = self.cache.rne.unwrap().f.translation()[0];
+    }
+
+    fn rne_add_force(&mut self, force: Force) {
+        self.cache.rne.as_mut().unwrap().f = self.cache.rne.as_mut().unwrap().f + force;
+    }
+
+    fn rne_get_force(&self) -> Force {
+        self.cache.rne.unwrap().f
+    }
+
+    fn rne_set_tau(&mut self) {
+        self.cache.tau = self.cache.rne.unwrap().f.vector()[3];
     }
 }
 
@@ -323,6 +337,12 @@ impl CompositeRigidBody for PrismaticSim {
         if let Some(crb) = &mut self.cache.crb {
             crb.cache_index = n;
         }
+    }
+
+    fn set_c(&self, c: &mut DVector<f64>) {
+        let index = self.cache.crb.unwrap().cache_index;        
+        let tau = Vector1::new(self.cache.tau);
+        c.set_row(index,&tau);        
     }
 }
 
@@ -339,11 +359,11 @@ impl JointSimTrait for PrismaticSim {
     }
 
     fn calculate_vj(&mut self) {
-        self.cache.vj = Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
+        self.cache.common.vj = Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
     }
 
     fn get_a(&self) -> &Acceleration {
-        &self.cache.a
+        &self.cache.common.a
     }
 
     fn get_derivative(&self) -> JointState {
@@ -368,7 +388,7 @@ impl JointSimTrait for PrismaticSim {
     }
 
     fn get_v(&self) -> &Velocity {
-        &self.cache.v
+        &self.cache.common.v
     }
 
     fn set_state(&mut self, state: JointState) {
@@ -380,6 +400,11 @@ impl JointSimTrait for PrismaticSim {
     fn set_inertia(&mut self, inertia: SpatialInertia) {
         self.parameters.mass_properties = inertia;
     }
+
+    fn set_force(&mut self, force: Force) {
+        self.cache.common.f = force;
+    }
+
     fn get_transforms(&self) -> &JointTransforms {
         &self.transforms
     }

@@ -9,6 +9,7 @@ use utilities::format_duration;
 
 use polars::prelude::*;
 
+use crate::system_sim::MultibodySystemSim;
 use crate::{    
     body::{BodyResult, BodySim},
     joint::{
@@ -20,6 +21,7 @@ use crate::{
 #[derive(Clone)]
 pub struct MultibodyResult {
     pub name: String,
+    pub system: MultibodySystemSim,
     pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,    
     pub time_start: SystemTime,

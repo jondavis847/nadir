@@ -6,10 +6,11 @@ use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
     recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
 };
+use nalgebra::DVector;
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum JointSim {
     Prismatic(PrismaticSim),
     Revolute(RevoluteSim),
@@ -35,6 +36,7 @@ pub trait JointSimTrait {
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
     fn set_inertia(&mut self, inertia: SpatialInertia);
+    fn set_force(&mut self, force: Force);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
@@ -119,6 +121,14 @@ impl JointSimTrait for JointSim {
     }
 
     #[inline]
+    fn set_force(&mut self, force: Force) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_force(force),
+            JointSim::Revolute(joint) => joint.set_force(force),
+        }
+    }
+
+    #[inline]
     fn set_state(&mut self, state: JointState) {
         match self {
             JointSim::Prismatic(joint) => joint.set_state(state),
@@ -160,10 +170,10 @@ impl JointSimTrait for JointSim {
 }
 
 impl ArticulatedBodyAlgorithm for JointSim {
-    fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+    fn aba_first_pass(&mut self, v_ij: Velocity) {
         match self {
-            JointSim::Prismatic(joint) => joint.aba_first_pass(v_ij, f_ob),
-            JointSim::Revolute(joint) => joint.aba_first_pass(v_ij, f_ob),
+            JointSim::Prismatic(joint) => joint.aba_first_pass(v_ij),
+            JointSim::Revolute(joint) => joint.aba_first_pass(v_ij),
         }
     }
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -205,13 +215,12 @@ impl RecursiveNewtonEuler for JointSim {
     fn rne_first_pass(
         &mut self,
         a_ij: Acceleration,
-        v_ij: Velocity,
-        f_ob: &Force,
+        v_ij: Velocity,        
         use_qddot: bool,
     ) {
         match self {
-            JointSim::Prismatic(joint) => joint.rne_first_pass(a_ij, v_ij, f_ob, use_qddot),
-            JointSim::Revolute(joint) => joint.rne_first_pass(a_ij, v_ij, f_ob, use_qddot),
+            JointSim::Prismatic(joint) => joint.rne_first_pass(a_ij, v_ij, use_qddot),
+            JointSim::Revolute(joint) => joint.rne_first_pass(a_ij, v_ij, use_qddot),
         }
     }
 
@@ -219,6 +228,27 @@ impl RecursiveNewtonEuler for JointSim {
         match self {
             JointSim::Prismatic(joint) => joint.rne_second_pass(),
             JointSim::Revolute(joint) => joint.rne_second_pass(),
+        }
+    }
+
+    fn rne_add_force(&mut self, force: Force) {
+        match self {
+            JointSim::Prismatic(joint) => joint.rne_add_force(force),
+            JointSim::Revolute(joint) => joint.rne_add_force(force),
+        }
+    }
+
+    fn rne_get_force(&self) -> Force {
+        match self {
+            JointSim::Prismatic(joint) => joint.rne_get_force(),
+            JointSim::Revolute(joint) => joint.rne_get_force(),
+        }
+    }
+
+    fn rne_set_tau(&mut self) {
+        match self {
+            JointSim::Prismatic(joint) => joint.rne_set_tau(),
+            JointSim::Revolute(joint) => joint.rne_set_tau(),
         }
     }
 }
@@ -236,14 +266,34 @@ impl CompositeRigidBody for JointSim {
             JointSim::Revolute(joint) => joint.set_crb_index(n),
         }
     }
+
+    fn set_c(&self, c: &mut DVector<f64>) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_c(c),
+            JointSim::Revolute(joint) => joint.set_c(c),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct JointSimCommon {
     pub transforms: JointTransforms,
+    pub cache: JointCache,
 }
 
-#[derive(Debug)]
+
+
+/// vj is the velocity across a joint (velocity of jof with respect to jif)
+/// v is the velocity of the jof in the jof frame (inner joint's jof + vj)
+#[derive(Debug, Default, Clone)]
+pub struct JointCache {
+    pub a: Acceleration,
+    pub f: Force,
+    pub v: Velocity,
+    pub vj: Velocity,
+}
+
+#[derive(Debug, Clone)]
 pub struct JointSimParameters {
     pub constant_force: f64,
     pub damping: f64,

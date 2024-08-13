@@ -18,4 +18,5 @@ impl CrbCache {
 pub trait CompositeRigidBody {    
     fn get_crb_index(&self) -> usize;
     fn set_crb_index(&mut self, n: usize);
+    fn set_c(&self, c: &mut DVector<f64>);
 }

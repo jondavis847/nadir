@@ -19,9 +19,7 @@ use crate::{
     MultibodyErrors, MultibodyTrait,
 };
 use differential_equations::solver::{Solver, SolverMethod};
-use nalgebra::Vector6;
-use rotations::RotationTrait;
-use spatial_algebra::{Acceleration, Force, SpatialInertia, Velocity};
+use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign, Div, Mul};
 use std::time::{Instant, SystemTime};
@@ -31,7 +29,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     pub bodies: Vec<BodySim>,
@@ -161,34 +159,8 @@ impl MultibodySystemSim {
                     } else {
                         Velocity::zeros()
                     };
-
-                    // get transforms
-                    let transforms = self.joints[i].get_transforms();
-
-                    //get gravity
-                    let gravity_base =
-                        self.bodies[i].calculate_gravity_acceleration_base(&self.gravity);
-                    let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
-                    // convert to force
-                    let gravity_body = self.bodies[i].mass_properties.mass * gravity_body;
-
-                    //convert to spatial
-                    let gravity_body = Force::from(Vector6::new(
-                        0.0,
-                        0.0,
-                        0.0,
-                        gravity_body[0],
-                        gravity_body[1],
-                        gravity_body[2],
-                    ));
-
-                    //transform accel_to joint
-                    let gravity_joint = transforms.jof_from_ob * gravity_body;
-                    //transform to force by multiplying by joint inertia
-                    //let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
-                    let f_ob = gravity_joint
-                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
-                    self.joints[i].aba_first_pass(v_ij, &f_ob);
+                    
+                    self.joints[i].aba_first_pass(v_ij);
                 }
 
                 // Second Pass
@@ -225,10 +197,11 @@ impl MultibodySystemSim {
             MultibodyAlgorithm::CompositeRigidBody => {
                 let n: usize = self.joints.len();
 
-                // Calculate external forces
-
                 // Run the Recursive Newton Euler algorithm to calculate C.
-                for i in 0..self.joints.len() {
+                let c = &mut self.crb_cache.as_mut().unwrap().c;
+
+                // first pass
+                for i in 0..n {
                     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
                         (
                             *self.joints[parent_index].get_a(),
@@ -239,76 +212,27 @@ impl MultibodySystemSim {
                     };
 
                     let joint = &mut self.joints[i];
-                    joint.rne_first_pass(a_ij, v_ij, f_ob, false);
-
-                    self.crb_cache.c[joint.get_crb_index()]
-                }
-
-                // First Pass
-                for i in 0..n {
-                    let v_ij = if let Some(parent_index) = self.parent_indeces[i] {
-                        *self.joints[parent_index].get_v()
-                    } else {
-                        Velocity::zeros()
-                    };
-
-                    // get transforms
-                    let transforms = self.joints[i].get_transforms();
-
-                    //get gravity
-                    let gravity_base =
-                        self.bodies[i].calculate_gravity_acceleration_base(&self.gravity);
-                    let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
-                    // convert to force
-                    let gravity_body = self.bodies[i].mass_properties.mass * gravity_body;
-
-                    //convert to spatial
-                    let gravity_body = Force::from(Vector6::new(
-                        0.0,
-                        0.0,
-                        0.0,
-                        gravity_body[0],
-                        gravity_body[1],
-                        gravity_body[2],
-                    ));
-
-                    //transform accel_to joint
-                    let gravity_joint = transforms.jof_from_ob * gravity_body;
-                    //transform to force by multiplying by joint inertia
-                    //let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;
-                    let f_ob = gravity_joint
-                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();
-                    self.joints[i].aba_first_pass(v_ij, &f_ob);
+                    joint.rne_first_pass(a_ij, v_ij, false);                    
                 }
 
                 // Second Pass
                 for i in (0..n).rev() {
-                    let inner_is_base = self.parent_indeces[i].is_none();
+                    let joint = &mut self.joints[i];
+                    joint.rne_set_tau();
 
-                    // we split up updating the parent to avoid borrowing issues
-                    if let Some((parent_ia, parent_pa)) =
-                        self.joints[i].aba_second_pass(inner_is_base)
-                    {
-                        // I believe this unwrap is safe or we wouldnt get into this logic
-                        let parent_joint_index = self.parent_indeces[i].unwrap(); // I believe this unwrap is safe or we wouldnt get into this logic
-                        self.joints[parent_joint_index].add_inertia_articulated(parent_ia);
-                        self.joints[parent_joint_index].add_p_big_a(parent_pa);
+                    // set C values
+                    joint.set_c(c);
+
+                    if let Some(parent_index) = self.parent_indeces[i] {
+                        let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                        let parent_force = ij_jof_from_jof * joint.rne_get_force();
+
+                        let parent = &mut self.joints[parent_index];                        
+                        parent.rne_add_force(parent_force);
                     }
                 }
 
-                // Third Pass
-                for i in 0..n {
-                    // get acceleration of parent
-                    // if parent is the base, (index None), parent acceleration is 0
-
-                    let a_ij = if let Some(parent_index) = self.parent_indeces[i] {
-                        *self.joints[parent_index].get_a()
-                    } else {
-                        Acceleration::zeros()
-                    };
-
-                    self.joints[i].aba_third_pass(a_ij);
-                }
+                
                 update_body_states(&mut self.bodies, &self.joints);
                 self.collect_state()
             }
@@ -326,7 +250,7 @@ impl MultibodySystemSim {
         name: String,
         tstart: f64,
         tstop: f64,
-        dt: f64,
+        dt: f64,        
     ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
@@ -429,6 +353,7 @@ impl MultibodySystemSim {
 
         Ok(MultibodyResult {
             name: name,
+            system: self.clone(),
             sim_time: times,
             result: result_hm,            
             time_start: start_time,
@@ -442,36 +367,18 @@ impl MultibodySystemSim {
             let body = &mut self.bodies[i];
             let joint = &mut self.joints[i];
 
-            // update non gravity external forces on the body
-            body.calculate_external_force();
-
             // get transforms
             let transforms = joint.get_transforms();
 
-            //get gravity in base frame
-            let gravity_base = body.calculate_gravity_acceleration_base(&self.gravity);
-
-            // convert to body frame
-            let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
-
-            // convert to force on body cg by multiplying by mass
-            let gravity_body = body.mass_properties.mass * gravity_body;
-
-            // convert to spatial
-            let gravity_body = Force::from(Vector6::new(
-                0.0,
-                0.0,
-                0.0,
-                gravity_body[0],
-                gravity_body[1],
-                gravity_body[2],
-            ));
-
-            // transform accel_to joint
+            // calculate gravity for the outer body
+            body.calculate_gravity(&transforms.ob_from_base, &self.gravity);            
+            // calculate total external forces for the outer body            
+            body.calculate_external_force();            
+            
+            // transform force to joint
             // cross product terms in spatial calculation will convert force at body cg to torque about joint
-            let gravity_joint = transforms.jof_from_ob * gravity_body;
-
-            let f_ob = gravity_joint + transforms.jof_from_ob * *body.get_external_force_body();
+            
+            joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());            
         }
     }
 
@@ -531,7 +438,7 @@ fn recursive_sys_creation(
                     let jof_from_ob = transforms.jof_from_ob;
                     let spatial_inertia = SpatialInertia::from(*body_mass_properties);
                     let joint_mass_properties = jof_from_ob * spatial_inertia;
-                    joint.set_inertia(Some(joint_mass_properties));
+                    joint.set_inertia(joint_mass_properties);
 
                     recursive_sys_creation(
                         algorithm,

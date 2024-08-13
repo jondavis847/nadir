@@ -10,7 +10,7 @@ pub mod system_sim;
 
 use uuid::Uuid;
 use body::BodyErrors;
-use joint::revolute::RevoluteErrors;
+use joint::{errors::JointErrors, revolute::RevoluteErrors};
 
 #[derive(Debug,Clone)]
 pub enum MultibodyErrors {    
@@ -21,6 +21,7 @@ pub enum MultibodyErrors {
     BodyMissingInnerJoint(Uuid),
     ComponentNotFound(String),
     InvalidConnection,
+    JointErrors(JointErrors),
     JointMissingInnerBody(Uuid),
     JointMissingOuterBody(Uuid),
     JointNotFound,
@@ -31,6 +32,11 @@ pub enum MultibodyErrors {
     TooManyBasesFound,
 }
 
+impl From<JointErrors> for MultibodyErrors {
+    fn from(e: JointErrors) -> Self {
+        MultibodyErrors::JointErrors(e)
+    }
+}
 pub trait MultibodyTrait {
     fn get_id(&self) -> &Uuid;
     fn get_name(&self) -> &str;

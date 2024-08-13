@@ -8,7 +8,7 @@ pub struct AbaCache {
     pub inertia_articulated: SpatialInertia,
 }
 pub trait ArticulatedBodyAlgorithm {
-    fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force);
+    fn aba_first_pass(&mut self, v_ij: Velocity);
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)>;    
     fn aba_third_pass(&mut self, a_ij: Acceleration);    
     fn get_p_big_a(&self) -> Force; //gah rust naming conventions warn on pA
