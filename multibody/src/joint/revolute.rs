@@ -1,8 +1,6 @@
 use crate::{
     algorithms::{
-        articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-        recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
-        MultibodyAlgorithm,
+        articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm}, composite_rigid_body::CompositeRigidBody, recursive_newton_euler::{RecursiveNewtonEuler, RneCache}, MultibodyAlgorithm
     },
     body::{Body, BodyTrait},
     joint::{
@@ -37,6 +35,52 @@ impl RevoluteState {
         // assume this is about Z until we add more axes
         Self { theta, omega }
     }
+}
+
+impl Add for RevoluteState {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        RevoluteState {
+            theta: self.theta + rhs.theta,
+            omega: self.omega + rhs.omega,
+        }
+    }
+}
+
+impl AddAssign for RevoluteState {
+    fn add_assign(&mut self, rhs: Self) {
+        self.theta += rhs.theta;
+        self.omega += rhs.omega;
+    }
+}
+
+impl Mul<f64> for RevoluteState {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self {
+        RevoluteState {
+            theta: self.theta * rhs,
+            omega: self.omega * rhs,
+        }
+    }
+}
+
+impl Div<f64> for RevoluteState {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> Self {
+        RevoluteState {
+            theta: self.theta / rhs,
+            omega: self.omega / rhs,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RevoluteResult {
+    pub theta: Vec<f64>,
+    pub omega: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +194,7 @@ struct RevoluteAbaCache {
 
 #[derive(Clone, Copy, Debug, Default)]
 struct RevoluteCrbCache {    
+    cache_index: usize,    
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -171,6 +216,10 @@ pub struct RevoluteSim {
     parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
+}
+
+impl RevoluteSim {
+    pub const DOF: usize = 1;
 }
 
 impl From<Revolute> for RevoluteSim {
@@ -341,6 +390,11 @@ impl JointSimTrait for RevoluteSim {
     fn get_inertia(&self) -> &Option<SpatialInertia> {
         &self.parameters.mass_properties
     }
+
+    fn get_ndof(&self) -> usize {
+        RevoluteSim::DOF
+    }
+
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
@@ -393,48 +447,11 @@ impl JointSimTrait for RevoluteSim {
     }
 }
 
-impl Add for RevoluteState {
-    type Output = Self;
 
-    fn add(self, rhs: Self) -> Self {
-        RevoluteState {
-            theta: self.theta + rhs.theta,
-            omega: self.omega + rhs.omega,
+impl CompositeRigidBody for RevoluteSim {
+    fn set_crb_index(&mut self, n: usize) {
+        if let Some(crb) = &mut self.cache.crb {
+            crb.cache_index = n;
         }
     }
-}
-
-impl AddAssign for RevoluteState {
-    fn add_assign(&mut self, rhs: Self) {
-        self.theta += rhs.theta;
-        self.omega += rhs.omega;
-    }
-}
-
-impl Mul<f64> for RevoluteState {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta * rhs,
-            omega: self.omega * rhs,
-        }
-    }
-}
-
-impl Div<f64> for RevoluteState {
-    type Output = Self;
-
-    fn div(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta / rhs,
-            omega: self.omega / rhs,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RevoluteResult {
-    pub theta: Vec<f64>,
-    pub omega: Vec<f64>,
 }

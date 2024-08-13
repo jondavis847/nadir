@@ -1,5 +1,5 @@
 pub mod articulated_body_algorithm;
-pub mod compositie_rigid_body;
+pub mod composite_rigid_body;
 pub mod recursive_newton_euler;
 
 use serde::{Serialize, Deserialize};

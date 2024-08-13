@@ -1,3 +1,5 @@
+use crate::algorithms::composite_rigid_body::CompositeRigidBody;
+
 use super::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
@@ -451,6 +453,14 @@ impl JointSimTrait for JointSim {
             JointSim::Revolute(joint) => joint.get_inertia(),
         }
     }
+
+    fn get_ndof(&self) -> usize {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_ndof(),
+            JointSim::Revolute(joint) => joint.get_ndof(),
+        }
+    }
+
     #[inline]
     fn get_state(&self) -> JointState {
         match self {
@@ -523,6 +533,7 @@ pub trait JointSimTrait {
     fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> &Option<SpatialInertia>;
+    fn get_ndof(&self) -> usize;
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
@@ -594,4 +605,13 @@ impl Div<f64> for JointState {
 pub enum JointResult {
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
+}
+
+impl CompositeRigidBody for JointSim {
+    fn set_crb_index(&mut self, n: usize) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_crb_index(n),
+            JointSim::Revolute(joint) => joint.set_crb_index(n),
+        }
+    }
 }

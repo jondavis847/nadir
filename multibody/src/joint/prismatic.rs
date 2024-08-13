@@ -1,6 +1,7 @@
 use crate::{
     algorithms::{
         articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+        composite_rigid_body::CompositeRigidBody,
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
     },
@@ -147,7 +148,9 @@ struct PrismaticAbaCache {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct PrismaticCrbCache {}
+struct PrismaticCrbCache {
+    cache_index: usize
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 struct PrismaticCache {
@@ -168,6 +171,10 @@ pub struct PrismaticSim {
     parameters: JointParameters,
     state: PrismaticState,
     transforms: JointTransforms,
+}
+
+impl PrismaticSim {
+    pub const DOF: usize = 1;
 }
 
 impl From<Prismatic> for PrismaticSim {
@@ -301,6 +308,14 @@ impl RecursiveNewtonEuler for PrismaticSim {
     }
 }
 
+impl CompositeRigidBody for PrismaticSim {
+    fn set_crb_index(&mut self, n: usize) {
+        if let Some(crb) = &mut self.cache.crb {
+            crb.cache_index = n;
+        }
+    }
+}
+
 impl JointSimTrait for PrismaticSim {
     fn calculate_tau(&mut self) {
         let JointParameters {
@@ -332,6 +347,10 @@ impl JointSimTrait for PrismaticSim {
 
     fn get_inertia(&self) -> &Option<SpatialInertia> {
         &self.parameters.mass_properties
+    }
+
+    fn get_ndof(&self) -> usize {
+        PrismaticSim::DOF
     }
 
     fn get_state(&self) -> JointState {
