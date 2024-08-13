@@ -1,5 +1,9 @@
 use crate::{
-    algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+    algorithms::{
+        articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
+        recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
+        MultibodyAlgorithm,
+    },
     body::{Body, BodyTrait},
     joint::{
         Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointSimTrait,
@@ -13,10 +17,10 @@ use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
 };
+use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{Add, AddAssign, Div, Mul};
 use transforms::Transform;
-use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone)]
@@ -77,10 +81,10 @@ impl JointTrait for Revolute {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }
-        //let body_mass_properties = body.get_mass_properties();        
-        //let spatial_transform = SpatialTransform::from(transform);        
-        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);                
-        //let joint_mass_properties = spatial_transform * spatial_inertia;        
+        //let body_mass_properties = body.get_mass_properties();
+        //let spatial_transform = SpatialTransform::from(transform);
+        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);
+        //let joint_mass_properties = spatial_transform * spatial_inertia;
         //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
         body.connect_inner_joint(self).unwrap();
         let connection = Connection::new(*body.get_id(), transform);
@@ -142,13 +146,27 @@ struct RevoluteAbaCache {
     lil_u: f64,
     big_d_inv: f64,
     big_u: Matrix6x1<f64>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct RevoluteCrbCache {    
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct RevoluteCache {
+    a: Acceleration,
+    aba: Option<RevoluteAbaCache>,
+    crb: Option<RevoluteCrbCache>,    
     q_ddot: f64,
+    rne: Option<RneCache>,
     tau: f64,
+    v: Velocity,
+    vj: Velocity,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RevoluteSim {
-    aba: RevoluteAbaCache,
+    cache: RevoluteCache,
     id: Uuid,
     parameters: JointParameters,
     state: RevoluteState,
@@ -174,7 +192,7 @@ impl From<Revolute> for RevoluteSim {
         }
 
         RevoluteSim {
-            aba: RevoluteAbaCache::default(),
+            cache: RevoluteCache::default(),
             id: *revolute.get_id(),
             parameters: revolute.parameters,
             state: revolute.state,
@@ -184,81 +202,111 @@ impl From<Revolute> for RevoluteSim {
 }
 
 impl ArticulatedBodyAlgorithm for RevoluteSim {
-    fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+    fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+        let aba = self.cache.aba.as_mut().unwrap();
         let transforms = &self.transforms;
-        let aba = &mut self.aba;
-        let joint_inertia = self.parameters.mass_properties.unwrap();
-
-        aba.common.v = transforms.jof_from_ij_jof * v_ij + aba.common.vj;
-        aba.common.c = aba.common.v.cross_motion(aba.common.vj); // + cj
-        aba.common.inertia_articulated = joint_inertia;
-        aba.common.p_big_a =
-            aba.common.v.cross_force(joint_inertia * aba.common.v) - *f_ob;
+        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let v = &mut self.cache.v;
+        
+        *v = transforms.jof_from_ij_jof * v_ij + self.cache.vj;
+        aba.common.c = v.cross_motion(self.cache.vj); // + cj
+        aba.common.inertia_articulated = *joint_inertia;
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f_ob;        
 
     }
 
-    fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
-        let aba = &mut self.aba;
-        
+    fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
+        let aba = self.cache.aba.as_mut().unwrap();
         let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
 
-        dbg!(&inertia_articulated_matrix);
-
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.column(0).into();
-        aba.big_d_inv = 1.0 / aba.big_u[0];
-        aba.lil_u = aba.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1
+        aba.big_u = inertia_articulated_matrix.column(0).into();        
+        aba.big_d_inv = 1.0 / aba.big_u[0];        
+        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1        
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
-            );            
+            );
             aba.common.p_lil_a = aba.common.p_big_a
                 + Force::from(i_lil_a * aba.common.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
-
+                
             let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
-
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
+            
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;            
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
-        } else {
+        } else {            
             None
         }
+        
     }
 
-    fn third_pass(&mut self, a_ij: Acceleration) {
-        let aba = &mut self.aba;
+    fn aba_third_pass(&mut self, a_ij: Acceleration) {
+        let aba = self.cache.aba.as_mut().unwrap();
+        let a = &mut self.cache.a;
+        let q_ddot = &mut self.cache.q_ddot;
 
-        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;        
-        aba.q_ddot =
+        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
+        
+        *q_ddot =
             aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
-        aba.common.a = aba.common.a_prime
-            + Acceleration::from(Vector6::new(aba.q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
+        *a =
+            aba.common.a_prime + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));               
     }
 
-    fn get_aba_derivative(&self) -> JointState {
-        let derivative = RevoluteState::new(self.state.omega, self.aba.q_ddot);
-        JointState::Revolute(derivative)
-    }
-
-    fn get_v(&self) -> &Velocity {
-        &self.aba.common.v
-    }
-
-    fn get_p_big_a(&self) -> &Force {
-        &self.aba.common.p_big_a
-    }
-
-    fn get_a(&self) -> &Acceleration {
-        &self.aba.common.a
+    fn get_p_big_a(&self) -> Force {
+        self.cache.aba.unwrap().common.p_big_a
     }
 
     fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        self.aba.common.inertia_articulated = self.aba.common.inertia_articulated + inertia;
+        let aba = self.cache.aba.as_mut().unwrap();
+        let ia = &mut aba.common.inertia_articulated;
+        *ia = *ia + inertia;
     }
 
-    fn add_p_big_a(&mut self, p_big_a: Force) {
-        self.aba.common.p_big_a = self.aba.common.p_big_a + p_big_a;
+    fn add_p_big_a(&mut self, p_big_a: Force) {        
+        let aba = self.cache.aba.as_mut().unwrap();
+        let pa = &mut aba.common.p_big_a;        
+        *pa = *pa + p_big_a;
+    }
+}
+
+impl RecursiveNewtonEuler for RevoluteSim {
+    fn rne_first_pass(
+        &mut self,
+        a_ij: Acceleration,
+        v_ij: Velocity,
+        f_ob: &Force,
+        use_qddot: bool,
+    ) {
+        let a = &mut self.cache.a;
+        let v = &mut self.cache.v;
+        let vj = &mut self.cache.vj;
+        let q_ddot = &mut self.cache.q_ddot;
+        let f = &mut self.cache.rne.as_mut().unwrap().f;
+
+        let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
+        let joint_inertia = &self.parameters.mass_properties.unwrap();
+
+        *v = *jof_from_ij_jof * v_ij + *vj;
+
+        let a_new = match use_qddot {
+            true => {
+                *jof_from_ij_jof * a_ij
+                    + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0))
+                    + v.cross_motion(*vj)
+            }
+            false => *jof_from_ij_jof * a_ij + v.cross_motion(*vj),
+        };
+
+        *a = a_new;
+
+        *f = *joint_inertia * *a + v.cross_force(*joint_inertia * *v) - *f_ob;
+    }
+
+    fn rne_second_pass(&mut self) {
+        self.cache.tau = self.cache.rne.unwrap().f.rotation()[0];
     }
 }
 
@@ -270,14 +318,23 @@ impl JointSimTrait for RevoluteSim {
             spring_constant,
             ..
         } = self.parameters;
-        self.aba.tau =
+        self.cache.tau =
             constant_force - spring_constant * self.state.theta - damping * self.state.omega;
     }
 
     fn calculate_vj(&mut self) {
-        self.aba.common.vj =
-            Velocity::from(Vector6::new(self.state.omega, 0.0, 0.0, 0.0, 0.0, 0.0));
+        self.cache.vj = Velocity::from(Vector6::new(self.state.omega, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
+
+    fn get_a(&self) -> &Acceleration {
+        &self.cache.a
+    }
+
+    fn get_derivative(&self) -> JointState {
+        let derivative = RevoluteState::new(self.state.omega, self.cache.q_ddot);
+        JointState::Revolute(derivative)
+    }
+
     fn get_id(&self) -> &Uuid {
         &self.id
     }
@@ -287,6 +344,11 @@ impl JointSimTrait for RevoluteSim {
     fn get_state(&self) -> JointState {
         JointState::Revolute(self.state)
     }
+
+    fn get_v(&self) -> &Velocity {
+        &self.cache.v
+    }
+
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
         self.parameters.mass_properties = inertia;
     }
@@ -312,6 +374,22 @@ impl JointSimTrait for RevoluteSim {
         self.transforms.jof_from_jif = SpatialTransform(transform);
         self.transforms.jif_from_jof = self.transforms.jof_from_jif.inv();
         self.transforms.update(ij_transforms)
+    }
+
+    fn with_algorithm(mut self, algorithm: MultibodyAlgorithm) -> Self {
+        match algorithm {
+            MultibodyAlgorithm::ArticulatedBody => {
+                self.cache.aba = Some(RevoluteAbaCache::default());
+                self.cache.crb = None;
+                self.cache.rne = None;
+            }
+            MultibodyAlgorithm::CompositeRigidBody => {
+                self.cache.aba = None;
+                self.cache.crb = Some(RevoluteCrbCache::default());
+                self.cache.rne = Some(RneCache::default());
+            }
+        }
+        self
     }
 }
 

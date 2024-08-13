@@ -49,7 +49,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
             let outer_joint_ids = base.get_outer_joints();
             for id in outer_joint_ids {
                 if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone());
+                    let joint_sim = JointSim::from(joint.clone()).with_algorithm(sys.algorithm);
                     let joint_index = jointsims.len();
 
                     jointsims.push(joint_sim);
@@ -72,6 +72,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                             joint.set_inertia(Some(joint_mass_properties));
 
                             recursive_sys_creation(
+                                &sys.algorithm,
                                 next_body,
                                 joint_index,
                                 &sys.bodies,
@@ -112,7 +113,7 @@ impl MultibodySystemSim {
         let new_joints: Vec<JointState> = self
             .joints
             .iter()
-            .map(|joint| joint.get_aba_derivative())
+            .map(|joint| joint.get_derivative())
             .collect();
         JointStates(new_joints)
     }
@@ -164,7 +165,7 @@ impl MultibodySystemSim {
                     //let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
                     let f_ob = gravity_joint
                         + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();                       
-                    self.joints[i].first_pass(v_ij, &f_ob);                    
+                    self.joints[i].aba_first_pass(v_ij, &f_ob);                    
                 }
 
                 // Second Pass
@@ -172,7 +173,78 @@ impl MultibodySystemSim {
                     let inner_is_base = self.parent_indeces[i].is_none();
                     
                     // we split up updating the parent to avoid borrowing issues
-                    if let Some((parent_ia, parent_pa)) = self.joints[i].second_pass(inner_is_base)
+                    if let Some((parent_ia, parent_pa)) = self.joints[i].aba_second_pass(inner_is_base)
+                    {
+                        // I believe this unwrap is safe or we wouldnt get into this logic                        
+                        let parent_joint_index = self.parent_indeces[i].unwrap(); // I believe this unwrap is safe or we wouldnt get into this logic
+                        self.joints[parent_joint_index]
+                            .add_inertia_articulated(parent_ia);
+                        self.joints[parent_joint_index].add_p_big_a(parent_pa);
+                    }                    
+                }
+
+                // Third Pass
+                for i in 0..n {
+                    // get acceleration of parent
+                    // if parent is the base, (index None), parent acceleration is 0
+
+                    let a_ij = if let Some(parent_index) = self.parent_indeces[i] {
+                        *self.joints[parent_index].get_a()
+                    } else {
+                        Acceleration::zeros()                        
+                    };
+                    
+                    self.joints[i].aba_third_pass(a_ij);
+                }
+                update_body_states(&mut self.bodies, &self.joints);
+                self.collect_state()
+            }
+            MultibodyAlgorithm::CompositeRigidBody => {
+                let n: usize = self.joints.len();
+
+                // First Pass
+                for i in 0..n {
+                    let v_ij = if let Some(parent_index) = self.parent_indeces[i] {
+                        *self.joints[parent_index].get_v()
+                    } else {
+                        Velocity::zeros()
+                    };
+                    
+                    // get transforms
+                    let transforms = self.joints[i].get_transforms();
+
+                    //get gravity
+                    let gravity_base =
+                        self.bodies[i].calculate_gravity_acceleration_base(&self.gravity);
+                    let gravity_body = transforms.ob_from_base.0.rotation.transform(gravity_base);
+                    // convert to force 
+                    let gravity_body = self.bodies[i].mass_properties.mass * gravity_body;
+
+                    //convert to spatial
+                    let gravity_body = Force::from(Vector6::new(
+                        0.0,
+                        0.0,
+                        0.0,
+                        gravity_body[0],
+                        gravity_body[1],
+                        gravity_body[2],
+                    ));                    
+                    
+                    //transform accel_to joint
+                    let gravity_joint = transforms.jof_from_ob * gravity_body;                                        
+                    //transform to force by multiplying by joint inertia
+                    //let gravity_joint = self.joints[i].get_inertia().unwrap() * gravity_joint;                    
+                    let f_ob = gravity_joint
+                        + transforms.jof_from_ob * *self.bodies[i].get_external_force_body();                       
+                    self.joints[i].aba_first_pass(v_ij, &f_ob);                    
+                }
+
+                // Second Pass
+                for i in (0..n).rev() {
+                    let inner_is_base = self.parent_indeces[i].is_none();
+                    
+                    // we split up updating the parent to avoid borrowing issues
+                    if let Some((parent_ia, parent_pa)) = self.joints[i].aba_second_pass(inner_is_base)
                     {
                         // I believe this unwrap is safe or we wouldnt get into this logic                        
                         let parent_joint_index = self.parent_indeces[i].unwrap(); // I believe this unwrap is safe or we wouldnt get into this logic
@@ -193,7 +265,7 @@ impl MultibodySystemSim {
                         Acceleration::zeros()                        
                     };
                     
-                    self.joints[i].third_pass(a_ij);
+                    self.joints[i].aba_third_pass(a_ij);
                 }
                 update_body_states(&mut self.bodies, &self.joints);
                 self.collect_state()
@@ -356,6 +428,7 @@ impl MultibodySystemSim {
 }
 
 fn recursive_sys_creation(
+    algorithm: &MultibodyAlgorithm,
     body: &Body,
     parent_joint_index: usize,
     bodies: &HashMap<Uuid, Body>,
@@ -368,7 +441,7 @@ fn recursive_sys_creation(
 ) {
     for id in body.get_outer_joints() {
         if let Some(joint) = joints.get(&id) {
-            let joint_sim = JointSim::from(joint.clone());
+            let joint_sim = JointSim::from(joint.clone()).with_algorithm(*algorithm);
             let joint_index = jointsims.len();
 
             jointsims.push(joint_sim);
@@ -391,6 +464,7 @@ fn recursive_sys_creation(
                     joint.set_inertia(Some(joint_mass_properties));
 
                     recursive_sys_creation(
+                        algorithm,
                         next_body,
                         joint_index,
                         bodies,

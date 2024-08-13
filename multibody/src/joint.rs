@@ -1,5 +1,10 @@
 use super::{
-    algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm, body::Body, MultibodyTrait,
+    algorithms::{
+        articulated_body_algorithm::ArticulatedBodyAlgorithm,
+        recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
+    },
+    body::Body,
+    MultibodyTrait,
 };
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, Mul};
@@ -208,49 +213,29 @@ impl JointTrait for Joint {
 }
 
 impl ArticulatedBodyAlgorithm for JointSim {
-    fn first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
+    fn aba_first_pass(&mut self, v_ij: Velocity, f_ob: &Force) {
         match self {
-            JointSim::Prismatic(joint) => joint.first_pass(v_ij, f_ob),
-            JointSim::Revolute(joint) => joint.first_pass(v_ij, f_ob),
+            JointSim::Prismatic(joint) => joint.aba_first_pass(v_ij, f_ob),
+            JointSim::Revolute(joint) => joint.aba_first_pass(v_ij, f_ob),
         }
     }
-    fn second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
+    fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
         match self {
-            JointSim::Prismatic(joint) => joint.second_pass(inner_is_base),
-            JointSim::Revolute(joint) => joint.second_pass(inner_is_base),
+            JointSim::Prismatic(joint) => joint.aba_second_pass(inner_is_base),
+            JointSim::Revolute(joint) => joint.aba_second_pass(inner_is_base),
         }
     }
-    fn third_pass(&mut self, a_ij: Acceleration) {
+    fn aba_third_pass(&mut self, a_ij: Acceleration) {
         match self {
-            JointSim::Prismatic(joint) => joint.third_pass(a_ij),
-            JointSim::Revolute(joint) => joint.third_pass(a_ij),
-        }
-    }
-
-    fn get_aba_derivative(&self) -> JointState {
-        match self {
-            JointSim::Prismatic(joint) => joint.get_aba_derivative(),
-            JointSim::Revolute(joint) => joint.get_aba_derivative(),
+            JointSim::Prismatic(joint) => joint.aba_third_pass(a_ij),
+            JointSim::Revolute(joint) => joint.aba_third_pass(a_ij),
         }
     }
 
-    fn get_v(&self) -> &Velocity {
-        match self {
-            JointSim::Prismatic(joint) => joint.get_v(),
-            JointSim::Revolute(joint) => joint.get_v(),
-        }
-    }
-    fn get_p_big_a(&self) -> &Force {
+    fn get_p_big_a(&self) -> Force {
         match self {
             JointSim::Prismatic(joint) => joint.get_p_big_a(),
             JointSim::Revolute(joint) => joint.get_p_big_a(),
-        }
-    }
-
-    fn get_a(&self) -> &Acceleration {
-        match self {
-            JointSim::Prismatic(joint) => joint.get_a(),
-            JointSim::Revolute(joint) => joint.get_a(),
         }
     }
 
@@ -265,6 +250,28 @@ impl ArticulatedBodyAlgorithm for JointSim {
         match self {
             JointSim::Prismatic(joint) => joint.add_p_big_a(force),
             JointSim::Revolute(joint) => joint.add_p_big_a(force),
+        }
+    }
+}
+
+impl RecursiveNewtonEuler for JointSim {
+    fn rne_first_pass(
+        &mut self,
+        a_ij: Acceleration,
+        v_ij: Velocity,
+        f_ob: &Force,
+        use_qddot: bool,
+    ) {
+        match self {
+            JointSim::Prismatic(joint) => joint.rne_first_pass(a_ij, v_ij, f_ob, use_qddot),
+            JointSim::Revolute(joint) => joint.rne_first_pass(a_ij, v_ij, f_ob, use_qddot),
+        }
+    }
+
+    fn rne_second_pass(&mut self) {
+        match self {
+            JointSim::Prismatic(joint) => joint.rne_second_pass(),
+            JointSim::Revolute(joint) => joint.rne_second_pass(),
         }
     }
 }
@@ -416,6 +423,22 @@ impl JointSimTrait for JointSim {
     }
 
     #[inline]
+    fn get_a(&self) -> &Acceleration {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_a(),
+            JointSim::Revolute(joint) => joint.get_a(),
+        }
+    }
+
+    #[inline]
+    fn get_derivative(&self) -> JointState {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_derivative(),
+            JointSim::Revolute(joint) => joint.get_derivative(),
+        }
+    }
+
+    #[inline]
     fn get_id(&self) -> &Uuid {
         match self {
             JointSim::Prismatic(joint) => joint.get_id(),
@@ -435,6 +458,15 @@ impl JointSimTrait for JointSim {
             JointSim::Revolute(joint) => joint.get_state(),
         }
     }
+
+    #[inline]
+    fn get_v(&self) -> &Velocity {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_v(),
+            JointSim::Revolute(joint) => joint.get_v(),
+        }
+    }
+
     #[inline]
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
         match self {
@@ -474,19 +506,31 @@ impl JointSimTrait for JointSim {
             JointSim::Revolute(joint) => joint.update_transforms(ij_transforms),
         }
     }
+
+    #[inline]
+    fn with_algorithm(self, algorithm: MultibodyAlgorithm) -> Self {
+        match self {
+            JointSim::Prismatic(joint) => JointSim::Prismatic(joint.with_algorithm(algorithm)),
+            JointSim::Revolute(joint) => JointSim::Revolute(joint.with_algorithm(algorithm)),
+        }
+    }
 }
 
 pub trait JointSimTrait {
     fn calculate_tau(&mut self);
     fn calculate_vj(&mut self);
+    fn get_a(&self) -> &Acceleration;
+    fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> &Option<SpatialInertia>;
     fn get_state(&self) -> JointState;
+    fn get_v(&self) -> &Velocity;
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>);
+    fn with_algorithm(self, algorithm: MultibodyAlgorithm) -> Self;
 }
 
 #[derive(Clone, Copy, Debug)]
