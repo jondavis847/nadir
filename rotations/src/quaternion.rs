@@ -303,32 +303,14 @@ impl Mul<Quaternion> for Quaternion {
     }
 }
 
-impl Sub<Quaternion> for Quaternion {
-    type Output = Self;
-
-    /// Subtracts two quaternions.            
-    ///
-    /// # Arguments
-    ///
-    /// * `rhs` - The right-hand side quaternion.
-    ///
-    /// # Returns
-    ///
-    /// The difference of the two quaternions.
-    fn sub(self, rhs: Self) -> Self {
-        Self::new(
-            self.x - rhs.x,
-            self.y - rhs.y,
-            self.z - rhs.z,
-            self.s - rhs.s,
-        )
-    }
-}
-
 impl Add<Quaternion> for Quaternion {
     type Output = Self;
 
-    /// Adds two quaternions.            
+    /// Adds two quaternions
+    /// NOTE: Quaternion addition for attitude is not necessarily defined.
+    /// You would use quaternion multiplication for summing rotations.
+    /// This is only used for adding quaternion derivatives 
+    /// to quaternion states in an ODE!            
     ///
     /// # Arguments
     ///
@@ -343,7 +325,7 @@ impl Add<Quaternion> for Quaternion {
             self.y + rhs.y,
             self.z + rhs.z,
             self.s + rhs.s,
-        )
+        ).normalize()
     }
 }
 
@@ -351,7 +333,7 @@ impl Mul<f64> for Quaternion {
     type Output = Self;
 
     fn mul(self, rhs: f64) -> Self {
-        Self::new(self.x * rhs, self.y * rhs, self.z * rhs, self.s * rhs)
+        Self::new(self.x * rhs, self.y * rhs, self.z * rhs, self.s * rhs).normalize()
     }
 }
 

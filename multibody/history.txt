@@ -1,5 +1,5 @@
-view system 3pend
-run
-load 3pend
 run
 aba
+1000
+load 3pend
+simulate

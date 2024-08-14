@@ -163,8 +163,7 @@ impl MultibodySystemSim {
                 }
 
                 // Second Pass
-                for i in (0..n).rev() {
-                    dbg!(&i);
+                for i in (0..n).rev() {                    
                     let inner_is_base = self.parent_indeces[i].is_none();
 
                     // we split up updating the parent to avoid borrowing issues
@@ -179,8 +178,7 @@ impl MultibodySystemSim {
                 }
 
                 // Third Pass
-                for i in 0..n {
-                    dbg!(&i);
+                for i in 0..n {                    
                     // get acceleration of parent
                     // if parent is the base, (index None), parent acceleration is 0
 

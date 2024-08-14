@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, algorithms::MultibodyAlgorithm, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
+    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
         joint_sim::JointSimTrait, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
     }, result::MultibodyResult, system::MultibodySystem, system_sim::{JointStates,MultibodySystemSim}, MultibodyTrait
 };
@@ -26,7 +26,6 @@ use std::collections::HashMap;
 use std::fs::{File,OpenOptions};
 use std::io::{self,Read, Write};
 use transforms::Transform;
-use uuid::Uuid;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -887,10 +886,10 @@ fn main() {
                                                 success("System validated!");                                                
                                                 match prompt_simulation() {
                                                     Ok((name, start_time,stop_time, dt)) => {                                                        
-                                                        let result = system.simulate(name,start_time,stop_time,dt);
+                                                        let result = system.simulate(name.clone(),start_time,stop_time,dt);
                                                         match result {
                                                             Ok(result) => {
-                                                                let s = format!("Simulation completed in {:#?}!", result.total_duration);
+                                                                let s = format!("Simulation '{}' completed in {:#?}!", name, result.total_duration);
                                                                 results.insert(result.name.clone(),result);                                                                
                                                                 success(&s);
                                                             },

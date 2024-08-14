@@ -1,16 +1,16 @@
 use super::{
-    errors::JointErrors, joint_state::JointState, joint_transforms::JointTransforms,
-    prismatic::PrismaticSim, revolute::RevoluteSim, Joint, JointParameters,
+    joint_state::JointState, joint_transforms::JointTransforms, prismatic::PrismaticSim,
+    revolute::RevoluteSim, Joint,
 };
 use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
     recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
 };
-use nalgebra::{DMatrix,DVector};
+use nalgebra::{DMatrix, DVector};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use uuid::Uuid;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum JointSim {
     Prismatic(PrismaticSim),
     Revolute(RevoluteSim),
@@ -212,12 +212,7 @@ impl ArticulatedBodyAlgorithm for JointSim {
 }
 
 impl RecursiveNewtonEuler for JointSim {
-    fn rne_first_pass(
-        &mut self,
-        a_ij: Acceleration,
-        v_ij: Velocity,        
-        use_qddot: bool,
-    ) {
+    fn rne_first_pass(&mut self, a_ij: Acceleration, v_ij: Velocity, use_qddot: bool) {
         match self {
             JointSim::Prismatic(joint) => joint.rne_first_pass(a_ij, v_ij, use_qddot),
             JointSim::Revolute(joint) => joint.rne_first_pass(a_ij, v_ij, use_qddot),
@@ -254,7 +249,6 @@ impl RecursiveNewtonEuler for JointSim {
 }
 
 impl CompositeRigidBody for JointSim {
-
     fn add_ic(&mut self, new_ic: SpatialInertia) {
         match self {
             JointSim::Prismatic(joint) => joint.add_ic(new_ic),
@@ -309,8 +303,6 @@ pub struct JointSimCommon {
     pub transforms: JointTransforms,
     pub cache: JointCache,
 }
-
-
 
 /// vj is the velocity across a joint (velocity of jof with respect to jif)
 /// v is the velocity of the jof in the jof frame (inner joint's jof + vj)
