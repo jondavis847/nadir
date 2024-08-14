@@ -13,6 +13,7 @@ members = [ "aerospace", "benchmarks",
 
 [dependencies]
 coordinate_systems = {path = "./coordinate_systems"}
+dhat = "0.3.3"
 differential_equations = {path = "./differential_equations"}
 mass_properties = {path = "./mass_properties"}
 multibody = { path = "./multibody" }
@@ -29,8 +30,12 @@ opt-level = 0
 opt-level = 0
 
 [profile.release]
+debug = 1
 opt-level = 3       # Optimizes for binary size. Use "3" for max performance.
 lto = "thin"          # Link Time Optimization. "fat" can be more aggressive but slower to compile.
 codegen-units = 1     # Better optimization across the entire crate but slower compilation.
 panic = 'abort'       # Reduces binary size by not including unwind code.
 incremental = false   # Disables incremental compilation for release builds.
+
+[features]
+dhat-heap = []

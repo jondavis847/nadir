@@ -1,3 +1,7 @@
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -81,6 +85,9 @@ enum Components {
 }
 
 fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let mut active_system: Option<String> = None;
 
     let mut systems = HashMap::<String, MultibodySystem>::new();
@@ -783,9 +790,9 @@ fn main() {
 
                                         // Create a vec of JointStates
                                         let initial_joint_states = JointStates(sys_sim.joints.iter().map(|joint| joint.get_state()).collect());
+                                        let mut final_joint_states = initial_joint_states.clone();
 
-
-                                        sys_sim.run(&initial_joint_states, &None,0.0);
+                                        sys_sim.run(&mut final_joint_states,&initial_joint_states, &None,0.0);
 
                                         //dbg!(&sys_sim);
                                     }

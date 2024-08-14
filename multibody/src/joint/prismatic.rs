@@ -17,7 +17,7 @@ use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::ops::{Add, AddAssign, Div, Mul};
+use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -36,6 +36,20 @@ impl PrismaticState {
     pub fn new(position: f64, velocity: f64) -> Self {
         // assume this is about Z until we add more axes
         Self { position, velocity }
+    }
+}
+
+impl<'a> AddAssign<&'a Self> for PrismaticState {    
+    fn add_assign(&mut self, rhs: &'a Self) {
+        self.position += rhs.position;
+        self.velocity += rhs.velocity;        
+    }
+}
+
+impl MulAssign<f64> for PrismaticState {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.position *= rhs;
+        self.velocity *= rhs;
     }
 }
 
@@ -450,46 +464,6 @@ impl JointSimTrait for PrismaticSim {
             }
         }
         self
-    }
-}
-
-impl Add for PrismaticState {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        PrismaticState {
-            position: self.position + rhs.position,
-            velocity: self.velocity + rhs.velocity,
-        }
-    }
-}
-
-impl AddAssign for PrismaticState {
-    fn add_assign(&mut self, rhs: Self) {
-        self.position += rhs.position;
-        self.velocity += rhs.velocity;
-    }
-}
-
-impl Mul<f64> for PrismaticState {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self {
-        PrismaticState {
-            position: self.position * rhs,
-            velocity: self.velocity * rhs,
-        }
-    }
-}
-
-impl Div<f64> for PrismaticState {
-    type Output = Self;
-
-    fn div(self, rhs: f64) -> Self {
-        PrismaticState {
-            position: self.position / rhs,
-            velocity: self.velocity / rhs,
-        }
     }
 }
 

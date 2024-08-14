@@ -21,7 +21,7 @@ use crate::{
 use differential_equations::solver::{Solver, SolverMethod};
 use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
 use std::collections::HashMap;
-use std::ops::{Add, AddAssign, Div, Mul};
+use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
 use utilities::generate_unique_id;
 use uuid::Uuid;
@@ -140,10 +140,11 @@ impl MultibodySystemSim {
 
     pub fn run(
         &mut self,
+        dx: &mut JointStates,
         x: &JointStates,
         _p: &Option<MultibodyParameters>,
         _t: f64,
-    ) -> JointStates {
+    ) {
         self.set_state(x.clone());
         self.update_joints();
         self.update_forces();
@@ -158,12 +159,12 @@ impl MultibodySystemSim {
                         *self.joints[parent_index].get_v()
                     } else {
                         Velocity::zeros()
-                    };                    
+                    };
                     self.joints[i].aba_first_pass(v_ij);
                 }
 
                 // Second Pass
-                for i in (0..n).rev() {                    
+                for i in (0..n).rev() {
                     let inner_is_base = self.parent_indeces[i].is_none();
 
                     // we split up updating the parent to avoid borrowing issues
@@ -178,7 +179,7 @@ impl MultibodySystemSim {
                 }
 
                 // Third Pass
-                for i in 0..n {                    
+                for i in 0..n {
                     // get acceleration of parent
                     // if parent is the base, (index None), parent acceleration is 0
 
@@ -190,8 +191,6 @@ impl MultibodySystemSim {
 
                     self.joints[i].aba_third_pass(a_ij);
                 }
-                update_body_states(&mut self.bodies, &self.joints);
-                self.collect_state()
             }
             MultibodyAlgorithm::CompositeRigidBody => {
                 let n: usize = self.joints.len();
@@ -211,7 +210,7 @@ impl MultibodySystemSim {
                     };
 
                     let joint = &mut self.joints[i];
-                    joint.rne_first_pass(a_ij, v_ij, false);                    
+                    joint.rne_first_pass(a_ij, v_ij, false);
                 }
 
                 // Second Pass
@@ -226,11 +225,10 @@ impl MultibodySystemSim {
                         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
                         let parent_force = ij_jof_from_jof * joint.rne_get_force();
 
-                        let parent = &mut self.joints[parent_index];                        
+                        let parent = &mut self.joints[parent_index];
                         parent.rne_add_force(parent_force);
                     }
                 }
-
 
                 // Solve for H with CRB
                 let h = &mut self.crb_cache.as_mut().unwrap().h;
@@ -240,29 +238,29 @@ impl MultibodySystemSim {
                 self.joints.iter_mut().for_each(|joint| joint.reset_ic());
 
                 // second pass
-                for i in 0..n {                    
+                for i in 0..n {
                     let joint = &mut self.joints[i];
                     joint.set_h(h);
 
-                    if let Some(parent_index) = self.parent_indeces[i] {                        
+                    if let Some(parent_index) = self.parent_indeces[i] {
                         let joint_ic = joint.get_ic();
                         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
                         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
 
-                        let parent = &mut self.joints[parent_index];                        
+                        let parent = &mut self.joints[parent_index];
                         parent.add_ic(joint_ic_in_parent);
 
                         let j = i;
-                        while let Some(parent_index) = self.parent_indeces[j] {
-                            
-                        }
+                        while let Some(parent_index) = self.parent_indeces[j] {}
                     };
                 }
-                
-                update_body_states(&mut self.bodies, &self.joints);
-                self.collect_state()
             }
         }
+
+        update_body_states(&mut self.bodies, &self.joints);
+        let new_dx = self.collect_state();
+        dx.clone_from(&new_dx);
+
     }
 
     fn set_state(&mut self, states: JointStates) {
@@ -276,7 +274,7 @@ impl MultibodySystemSim {
         name: String,
         tstart: f64,
         tstop: f64,
-        dt: f64,        
+        dt: f64,
     ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
@@ -290,7 +288,7 @@ impl MultibodySystemSim {
 
         // Initialize the solver
         let mut solver = Solver {
-            func: |x, p, t| self.run(x, p, t),
+            func: |dx, x, p, t| self.run(dx, x, p, t),
             x0: initial_joint_states,
             parameters: None,
             tstart,
@@ -307,9 +305,12 @@ impl MultibodySystemSim {
 
         let sim_duration = sim_start_time.elapsed();
 
+        // need something to pass to self.run until we do this body states better (as part of the ode)
+        let mut tmp = joint_states[0].clone(); 
+
         // Post-process body states
         for (ti, js) in times.iter().zip(joint_states.iter()) {
-            self.run(js, &None, *ti);
+            self.run(&mut tmp, js, &None, *ti);
             update_body_states(&mut self.bodies, &self.joints);
             body_states.push(self.bodies.iter().map(|body| body.state).collect());
         }
@@ -381,7 +382,7 @@ impl MultibodySystemSim {
             name: name,
             system: self.clone(),
             sim_time: times,
-            result: result_hm,            
+            result: result_hm,
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
@@ -397,15 +398,15 @@ impl MultibodySystemSim {
             let transforms = joint.get_transforms();
 
             // calculate gravity for the outer body
-            body.calculate_gravity(&transforms.ob_from_base, &self.gravity);              
+            body.calculate_gravity(&transforms.ob_from_base, &self.gravity);
 
-            // calculate total external forces for the outer body            
-            body.calculate_external_force();            
-            
+            // calculate total external forces for the outer body
+            body.calculate_external_force();
+
             // transform force to joint
             // cross product terms in spatial calculation will convert force at body cg to torque about joint
-            
-            joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());            
+
+            joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());
         }
     }
 
@@ -490,109 +491,48 @@ pub struct MultibodyState {
     joints: Vec<JointState>,
 }
 
+impl<'a> AddAssign<&'a Self> for MultibodyState {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        assert_eq!(
+            self.joints.len(),
+            rhs.joints.len(),
+            "Joint vectors must have the same length"
+        );
+        for (a, b) in self.joints.iter_mut().zip(rhs.joints.iter()) {
+            *a += b;
+        }
+    }
+}
+
+impl MulAssign<f64> for MultibodyState {
+    fn mul_assign(&mut self, rhs: f64) {
+        // Create a new vector for joints with each joint multiplied by rhs
+        self.joints.iter_mut().for_each(|joint| *joint *= rhs);
+    }
+}
+
 //thought about making this a type JointStates = Vec<Joints> but it needs to be integrable
 #[derive(Clone, Debug)]
 pub struct JointStates(pub Vec<JointState>);
 
-impl Add for JointStates {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
+impl<'a> AddAssign<&'a Self> for JointStates {
+    fn add_assign(&mut self, rhs: &'a Self) {
         assert_eq!(
             self.0.len(),
             rhs.0.len(),
             "Joint vectors must have the same length"
         );
-
-        let joints = self.0.into_iter().zip(rhs.0).map(|(a, b)| a + b).collect();
-        JointStates(joints)
-    }
-}
-
-impl AddAssign for JointStates {
-    fn add_assign(&mut self, rhs: Self) {
-        assert_eq!(
-            self.0.len(),
-            rhs.0.len(),
-            "Joint vectors must have the same length"
-        );
-        for (a, b) in self.0.iter_mut().zip(rhs.0.into_iter()) {
+        for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
             *a += b;
         }
     }
 }
 
-impl Mul<f64> for JointStates {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self {
-        JointStates(self.0.into_iter().map(|joint| joint * rhs).collect())
-    }
-}
-
-impl Div<f64> for JointStates {
-    type Output = Self;
-
-    fn div(self, rhs: f64) -> Self {
-        JointStates(self.0.into_iter().map(|joint| joint / rhs).collect())
-    }
-}
-
-impl Add for MultibodyState {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        assert_eq!(
-            self.joints.len(),
-            rhs.joints.len(),
-            "Joint vectors must have the same length"
-        );
-        //assert_eq!(self.bodies.len(), rhs.bodies.len(), "Body vectors must have the same length");
-
-        let joints = self
-            .joints
-            .into_iter()
-            .zip(rhs.joints)
-            .map(|(a, b)| a + b)
-            .collect();
-        MultibodyState { joints } //, bodies }
-    }
-}
-
-impl AddAssign for MultibodyState {
-    fn add_assign(&mut self, rhs: Self) {
-        assert_eq!(
-            self.joints.len(),
-            rhs.joints.len(),
-            "Joint vectors must have the same length"
-        );
-        for (a, b) in self.joints.iter_mut().zip(rhs.joints.into_iter()) {
-            *a += b;
+impl MulAssign<f64> for JointStates {
+    fn mul_assign(&mut self, rhs: f64) {
+        for joint in &mut self.0 {
+            *joint *= rhs;
         }
     }
 }
 
-impl Mul<f64> for MultibodyState {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self {
-        // Create a new vector for joints with each joint multiplied by rhs
-        let new_joints = self.joints.into_iter().map(|joint| joint * rhs).collect();
-
-        MultibodyState { joints: new_joints }
-    }
-}
-
-impl Div<f64> for MultibodyState {
-    type Output = Self;
-
-    fn div(self, rhs: f64) -> Self {
-        // Create a new vector for joints with each joint multiplied by rhs
-        let new_joints = self.joints.into_iter().map(|joint| joint / rhs).collect();
-
-        MultibodyState {
-            joints: new_joints,
-            // bodies: new_bodies, // Uncomment and adjust if you have bodies
-        }
-    }
-}

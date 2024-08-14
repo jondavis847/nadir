@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use differential_equations::solver::{Solver, SolverMethod};
+use differential_equations::{Integrable,solver::{Solver, SolverMethod}};
 use std::ops::{AddAssign, MulAssign};
 
 // PendulumState represents the state of the pendulum with angle `theta` and angular velocity `omega`.

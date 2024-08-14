@@ -24,3 +24,7 @@ reedline = "0.33.0"
 ratatui = "0.27.0"
 ron = "0.8.1"
 serde = { version = "1.0.204", features = ["derive"] }
+dhat = "0.3.3"
+
+[features]
+dhat-heap = []

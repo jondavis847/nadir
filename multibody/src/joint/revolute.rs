@@ -22,7 +22,7 @@ use rotations::{
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::ops::{Add, AddAssign, Div, Mul};
+use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -42,43 +42,17 @@ impl RevoluteState {
     }
 }
 
-impl Add for RevoluteState {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self {
-        RevoluteState {
-            theta: self.theta + rhs.theta,
-            omega: self.omega + rhs.omega,
-        }
-    }
-}
-
-impl AddAssign for RevoluteState {
-    fn add_assign(&mut self, rhs: Self) {
+impl<'a> AddAssign<&'a Self> for RevoluteState {    
+    fn add_assign(&mut self, rhs: &'a Self) {
         self.theta += rhs.theta;
-        self.omega += rhs.omega;
+        self.omega += rhs.omega;        
     }
 }
 
-impl Mul<f64> for RevoluteState {
-    type Output = Self;
-
-    fn mul(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta * rhs,
-            omega: self.omega * rhs,
-        }
-    }
-}
-
-impl Div<f64> for RevoluteState {
-    type Output = Self;
-
-    fn div(self, rhs: f64) -> Self {
-        RevoluteState {
-            theta: self.theta / rhs,
-            omega: self.omega / rhs,
-        }
+impl MulAssign<f64> for RevoluteState {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.theta *= rhs;
+        self.omega *= rhs;
     }
 }
 

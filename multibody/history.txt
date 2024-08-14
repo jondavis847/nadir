@@ -1,5 +1,5 @@
-run
-aba
-1000
+plot temp r1 theta
+plot temp r2 theta
+plot temp r3 theta
 load 3pend
 simulate

@@ -18,9 +18,9 @@ impl<T> Integrable for T where
 }
 
 // function signature is (dx,x,p,t), where dx is some mutable container for the result
-pub trait OdeFunction<P, T>: Fn(&mut T, &T, &Option<P>, f64) {}
+pub trait OdeFunction<P, T>: FnMut(&mut T, &T, &Option<P>, f64) {}
 
-impl<P, T, F> OdeFunction<P, T> for F where F: Fn(&mut T, &T, &Option<P>, f64) {}
+impl<P, T, F> OdeFunction<P, T> for F where F: FnMut(&mut T, &T, &Option<P>, f64) {}
 
 pub trait CallbackFunction<P, T>: FnMut(&T, &Option<P>, f64) -> (T,Option<P>,f64) {}
 
