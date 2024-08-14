@@ -158,13 +158,13 @@ impl MultibodySystemSim {
                         *self.joints[parent_index].get_v()
                     } else {
                         Velocity::zeros()
-                    };
-                    
+                    };                    
                     self.joints[i].aba_first_pass(v_ij);
                 }
 
                 // Second Pass
                 for i in (0..n).rev() {
+                    dbg!(&i);
                     let inner_is_base = self.parent_indeces[i].is_none();
 
                     // we split up updating the parent to avoid borrowing issues
@@ -180,6 +180,7 @@ impl MultibodySystemSim {
 
                 // Third Pass
                 for i in 0..n {
+                    dbg!(&i);
                     // get acceleration of parent
                     // if parent is the base, (index None), parent acceleration is 0
 
@@ -232,6 +233,33 @@ impl MultibodySystemSim {
                     }
                 }
 
+
+                // Solve for H with CRB
+                let h = &mut self.crb_cache.as_mut().unwrap().h;
+                h.fill(0.0);
+
+                // first pass
+                self.joints.iter_mut().for_each(|joint| joint.reset_ic());
+
+                // second pass
+                for i in 0..n {                    
+                    let joint = &mut self.joints[i];
+                    joint.set_h(h);
+
+                    if let Some(parent_index) = self.parent_indeces[i] {                        
+                        let joint_ic = joint.get_ic();
+                        let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                        let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
+
+                        let parent = &mut self.joints[parent_index];                        
+                        parent.add_ic(joint_ic_in_parent);
+
+                        let j = i;
+                        while let Some(parent_index) = self.parent_indeces[j] {
+                            
+                        }
+                    };
+                }
                 
                 update_body_states(&mut self.bodies, &self.joints);
                 self.collect_state()
@@ -371,7 +399,8 @@ impl MultibodySystemSim {
             let transforms = joint.get_transforms();
 
             // calculate gravity for the outer body
-            body.calculate_gravity(&transforms.ob_from_base, &self.gravity);            
+            body.calculate_gravity(&transforms.ob_from_base, &self.gravity);              
+
             // calculate total external forces for the outer body            
             body.calculate_external_force();            
             

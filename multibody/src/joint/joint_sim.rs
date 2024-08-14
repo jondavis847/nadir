@@ -6,7 +6,7 @@ use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
     recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
 };
-use nalgebra::DVector;
+use nalgebra::{DMatrix,DVector};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use uuid::Uuid;
 
@@ -31,7 +31,7 @@ pub trait JointSimTrait {
     fn get_a(&self) -> &Acceleration;
     fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
-    fn get_inertia(&self) -> &SpatialInertia;
+    fn get_inertia(&self) -> SpatialInertia;
     fn get_ndof(&self) -> usize;
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
@@ -82,7 +82,7 @@ impl JointSimTrait for JointSim {
             JointSim::Revolute(joint) => joint.get_id(),
         }
     }
-    fn get_inertia(&self) -> &SpatialInertia {
+    fn get_inertia(&self) -> SpatialInertia {
         match self {
             JointSim::Prismatic(joint) => joint.get_inertia(),
             JointSim::Revolute(joint) => joint.get_inertia(),
@@ -254,10 +254,32 @@ impl RecursiveNewtonEuler for JointSim {
 }
 
 impl CompositeRigidBody for JointSim {
+
+    fn add_ic(&mut self, new_ic: SpatialInertia) {
+        match self {
+            JointSim::Prismatic(joint) => joint.add_ic(new_ic),
+            JointSim::Revolute(joint) => joint.add_ic(new_ic),
+        }
+    }
+
     fn get_crb_index(&self) -> usize {
         match self {
             JointSim::Prismatic(joint) => joint.get_crb_index(),
             JointSim::Revolute(joint) => joint.get_crb_index(),
+        }
+    }
+
+    fn get_ic(&self) -> SpatialInertia {
+        match self {
+            JointSim::Prismatic(joint) => joint.get_ic(),
+            JointSim::Revolute(joint) => joint.get_ic(),
+        }
+    }
+
+    fn reset_ic(&mut self) {
+        match self {
+            JointSim::Prismatic(joint) => joint.reset_ic(),
+            JointSim::Revolute(joint) => joint.reset_ic(),
         }
     }
     fn set_crb_index(&mut self, n: usize) {
@@ -271,6 +293,13 @@ impl CompositeRigidBody for JointSim {
         match self {
             JointSim::Prismatic(joint) => joint.set_c(c),
             JointSim::Revolute(joint) => joint.set_c(c),
+        }
+    }
+
+    fn set_h(&self, h: &mut DMatrix<f64>) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_h(h),
+            JointSim::Revolute(joint) => joint.set_h(h),
         }
     }
 }
@@ -291,29 +320,4 @@ pub struct JointCache {
     pub f: Force,
     pub v: Velocity,
     pub vj: Velocity,
-}
-
-#[derive(Debug, Clone)]
-pub struct JointSimParameters {
-    pub constant_force: f64,
-    pub damping: f64,
-    pub mass_properties: SpatialInertia,
-    pub spring_constant: f64,
-}
-
-// This just unwraps the mass_properties
-impl TryFrom<JointParameters> for JointSimParameters {
-    type Error = JointErrors;
-    fn try_from(jp: JointParameters) -> Result<Self, JointErrors> {
-        if let Some(mass_properties) = &jp.mass_properties {
-            Ok(Self {
-                constant_force: jp.constant_force,
-                damping: jp.damping,
-                mass_properties: *mass_properties,
-                spring_constant: jp.spring_constant,
-            })
-        } else {
-            Err(JointErrors::NoMassProperties)
-        }
-    }
 }

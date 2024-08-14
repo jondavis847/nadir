@@ -108,7 +108,7 @@ impl From<Quaternion> for RotationMatrix {
         let e13 = 2.0 * x * z - 2.0 * s * y;
         let e21 = 2.0 * x * y - 2.0 * s * z;
         let e22 = 1.0 - 2.0 * x * x - 2.0 * z * z;
-        let e23 = 2.0 * y * z - 2.0 * s * x;
+        let e23 = 2.0 * y * z + 2.0 * s * x;
         let e31 = 2.0 * x * z + 2.0 * s * y;
         let e32 = 2.0 * y * z - 2.0 * s * x;
         let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;

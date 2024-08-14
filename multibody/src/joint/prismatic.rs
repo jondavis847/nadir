@@ -7,16 +7,13 @@ use crate::{
     },
     body::{Body, BodyTrait},
     joint::{
-        joint_sim::{JointSimParameters, JointSimTrait},
-        joint_state::JointState,
-        joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters,
-        JointTrait,
+        joint_sim::JointSimTrait, joint_state::JointState, joint_transforms::JointTransforms,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use nalgebra::{DVector, Matrix6x1, Vector1, Vector6};
+use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -154,24 +151,25 @@ struct PrismaticAbaCache {
 
 #[derive(Clone, Copy, Debug, Default)]
 struct PrismaticCrbCache {
-    cache_index: usize
+    cache_index: usize,
+    ic: SpatialInertia,
 }
 
 #[derive(Debug, Default, Clone)]
 struct PrismaticCache {
-    common: JointCache,    
+    common: JointCache,
     aba: Option<PrismaticAbaCache>,
-    crb: Option<PrismaticCrbCache>,    
+    crb: Option<PrismaticCrbCache>,
     q_ddot: f64,
     rne: Option<RneCache>,
-    tau: f64,    
+    tau: f64,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct PrismaticSim {
     cache: PrismaticCache,
     id: Uuid,
-    parameters: JointSimParameters,
+    parameters: JointParameters,
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -198,12 +196,10 @@ impl From<Prismatic> for PrismaticSim {
             panic!("should always be an inner body connected")
         }
 
-        let parameters = JointSimParameters::try_from(prismatic.parameters).unwrap(); // TODO: handle the error
-
         PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),
-            parameters,
+            parameters: prismatic.parameters,
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -214,7 +210,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
     fn aba_first_pass(&mut self, v_ij: Velocity) {
         let transforms = &self.transforms;
         let aba = &mut self.cache.aba.unwrap();
-        let joint_inertia = self.parameters.mass_properties;
+        let joint_inertia = self.parameters.mass_properties.unwrap();
         let v = &mut self.cache.common.v;
         let vj = &mut self.cache.common.vj;
         let f = &mut self.cache.common.f;
@@ -278,12 +274,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
 }
 
 impl RecursiveNewtonEuler for PrismaticSim {
-    fn rne_first_pass(
-        &mut self,
-        a_ij: Acceleration,
-        v_ij: Velocity,        
-        use_qddot: bool,
-    ) {
+    fn rne_first_pass(&mut self, a_ij: Acceleration, v_ij: Velocity, use_qddot: bool) {
         let a = &mut self.cache.common.a;
         let f = &mut self.cache.rne.as_mut().unwrap().f;
         let q_ddot = &mut self.cache.q_ddot;
@@ -292,7 +283,7 @@ impl RecursiveNewtonEuler for PrismaticSim {
         let f_b = &self.cache.common.f;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.parameters.mass_properties;
+        let joint_inertia = &self.parameters.mass_properties.unwrap();
 
         *v = *jof_from_ij_jof * v_ij + *vj;
 
@@ -328,9 +319,22 @@ impl RecursiveNewtonEuler for PrismaticSim {
 }
 
 impl CompositeRigidBody for PrismaticSim {
+    fn add_ic(&mut self, new_ic: SpatialInertia) {
+        let ic = &mut self.cache.crb.as_mut().unwrap().ic;
+        *ic += new_ic;
+    }
 
     fn get_crb_index(&self) -> usize {
         self.cache.crb.unwrap().cache_index
+    }
+
+    fn get_ic(&self) -> SpatialInertia {
+        self.cache.crb.unwrap().ic
+    }
+
+    fn reset_ic(&mut self) {
+        let ic = &mut self.cache.crb.as_mut().unwrap().ic;
+        *ic = self.parameters.mass_properties.unwrap();
     }
 
     fn set_crb_index(&mut self, n: usize) {
@@ -340,15 +344,24 @@ impl CompositeRigidBody for PrismaticSim {
     }
 
     fn set_c(&self, c: &mut DVector<f64>) {
-        let index = self.cache.crb.unwrap().cache_index;        
+        let index = self.cache.crb.unwrap().cache_index;
         let tau = Vector1::new(self.cache.tau);
-        c.set_row(index,&tau);        
+        c.set_row(index, &tau);
+    }
+
+    fn set_h(&self, h: &mut DMatrix<f64>) {
+        let crb = self.cache.crb.unwrap();
+        let index = crb.cache_index;
+        let ic = &crb.ic;
+
+        let mut view = h.fixed_view_mut::<1, 1>(index, index);
+        view[0] = ic.matrix()[(3, 3)];
     }
 }
 
 impl JointSimTrait for PrismaticSim {
     fn calculate_tau(&mut self) {
-        let JointSimParameters {
+        let JointParameters {
             constant_force,
             damping,
             spring_constant,
@@ -359,7 +372,8 @@ impl JointSimTrait for PrismaticSim {
     }
 
     fn calculate_vj(&mut self) {
-        self.cache.common.vj = Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
+        self.cache.common.vj =
+            Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
     }
 
     fn get_a(&self) -> &Acceleration {
@@ -375,8 +389,8 @@ impl JointSimTrait for PrismaticSim {
         &self.id
     }
 
-    fn get_inertia(&self) -> &SpatialInertia {
-        &self.parameters.mass_properties
+    fn get_inertia(&self) -> SpatialInertia {
+        self.parameters.mass_properties.unwrap()
     }
 
     fn get_ndof(&self) -> usize {
@@ -398,7 +412,7 @@ impl JointSimTrait for PrismaticSim {
         }
     }
     fn set_inertia(&mut self, inertia: SpatialInertia) {
-        self.parameters.mass_properties = inertia;
+        self.parameters.mass_properties = Some(inertia);
     }
 
     fn set_force(&mut self, force: Force) {
@@ -422,7 +436,7 @@ impl JointSimTrait for PrismaticSim {
         self.transforms.update(ij_transforms)
     }
 
-    fn with_algorithm(mut self, algorithm: MultibodyAlgorithm) -> Self{
+    fn with_algorithm(mut self, algorithm: MultibodyAlgorithm) -> Self {
         match algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 self.cache.aba = Some(PrismaticAbaCache::default());

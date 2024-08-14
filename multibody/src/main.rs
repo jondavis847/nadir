@@ -3,10 +3,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
-        prismatic::{Prismatic, PrismaticState},
-        revolute::{Revolute, RevoluteState},
-        Joint, JointParameters,joint_sim::JointSimTrait,JointTrait,
+    aerospace::MultibodyGravity, algorithms::MultibodyAlgorithm, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
+        joint_sim::JointSimTrait, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
     }, result::MultibodyResult, system::MultibodySystem, system_sim::{JointStates,MultibodySystemSim}, MultibodyTrait
 };
 use ratatui::{
@@ -790,7 +788,7 @@ fn main() {
 
                                         sys_sim.run(&initial_joint_states, &None,0.0);
 
-                                        dbg!(&sys_sim);
+                                        //dbg!(&sys_sim);
                                     }
                                 }
                                 Commands::Save => {
@@ -888,7 +886,7 @@ fn main() {
                                             Ok(_)=> {
                                                 success("System validated!");                                                
                                                 match prompt_simulation() {
-                                                    Ok((name, start_time,stop_time, dt)) => {
+                                                    Ok((name, start_time,stop_time, dt)) => {                                                        
                                                         let result = system.simulate(name,start_time,stop_time,dt);
                                                         match result {
                                                             Ok(result) => {
@@ -934,6 +932,7 @@ fn main() {
 }
 
 enum Prompts {
+    Algorithm,
     Angle,
     AngularRate,
     CartesianX,
@@ -982,6 +981,7 @@ enum Prompts {
 impl Prompts {
     fn get_string(&self) -> &str {
         match self {
+            Prompts::Algorithm => "Algorithm ['aba', 'crb'] (default: crb)", 
             Prompts::Angle => "Initial angle (units: rad, default: 0.0)",
             Prompts::AngularRate => "Initial angular Rate (units: rad/sec, default: 0.0)",
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
@@ -1090,7 +1090,7 @@ impl Prompts {
             | Prompts::QuaternionY
             | Prompts::QuaternionZ => {
                 if str.is_empty() {
-                    //user must provide a default, but this is ok
+                    //leave empty to use default
                     return Ok(())
                 }
                 if str.parse::<f64>().is_err() {
@@ -1101,7 +1101,7 @@ impl Prompts {
             // Non-numeric and > 0
             Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
                 if str.is_empty() {
-                    //user must provide a default, but this is ok
+                    //leave empty to use default
                     return Ok(())
                 }
                 if str.parse::<f64>().is_err() {
@@ -1112,10 +1112,21 @@ impl Prompts {
                 }
                 Ok(())
             }
+            Prompts::Algorithm => {
+                if str.is_empty() {
+                    //leave empty to use default
+                    return Ok(())
+                }
+                let possible_values = ["aba", "crb"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidGravity);
+                }
+                Ok(())
+            }
             //Gravity
             Prompts::GravityType => {
                 if str.is_empty() {
-                    //user must provide a default, but this is ok
+                    //leave empty to use default
                     return Ok(())
                 }
                 let possible_values = ["c", "2"];
@@ -1332,8 +1343,8 @@ fn prompt_cartesian() -> Result<Cartesian,InputErrors> {
     Ok(cartesian)
 }
 
-fn prompt_simulation() -> Result<(String, f64,f64,f64),InputErrors> {   
-        let name = Prompts::Name.validate_loop(Uuid::new_v4().to_string().as_str())?;
+fn prompt_simulation() -> Result<(String,f64,f64,f64),InputErrors> {   
+        let name = Prompts::Name.validate_loop("temp")?;        
         let start_time = Prompts::SimulationStart.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
         let stop_time = Prompts::SimulationStop.validate_loop("10")?.parse::<f64>().unwrap_or(10.0);        
         let dt = Prompts::SimulationDt.validate_loop("0.1")?.parse::<f64>().unwrap_or(0.1);

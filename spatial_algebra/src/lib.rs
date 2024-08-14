@@ -2,7 +2,7 @@ use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use nalgebra::{Matrix3, Matrix6, Vector3, Vector6};
 use rotations::rotation_matrix::RotationMatrix;
 use serde::{Serialize, Deserialize};
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, AddAssign, Mul, Sub};
 use transforms::Transform;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -607,6 +607,11 @@ impl From<MassProperties> for SpatialInertia {
     }
 }
 
+impl AddAssign<SpatialInertia> for SpatialInertia {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
 impl Add<SpatialInertia> for SpatialInertia {
     type Output = SpatialInertia;
     fn add(self, rhs: SpatialInertia) -> SpatialInertia {

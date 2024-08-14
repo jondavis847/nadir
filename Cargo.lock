@@ -4529,6 +4529,7 @@ dependencies = [
 name = "spatial_algebra"
 version = "0.1.0"
 dependencies = [
+ "approx_eq",
  "coordinate_systems",
  "mass_properties",
  "nalgebra",

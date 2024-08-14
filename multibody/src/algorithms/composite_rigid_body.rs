@@ -1,4 +1,5 @@
 use nalgebra::{DMatrix, DVector};
+use spatial_algebra::SpatialInertia;
 
 #[derive(Clone, Debug, Default)]
 pub struct CrbCache { 
@@ -15,8 +16,12 @@ impl CrbCache {
     }
 }
 
-pub trait CompositeRigidBody {    
+pub trait CompositeRigidBody { 
+    fn add_ic(&mut self, ic: SpatialInertia);
+    fn reset_ic(&mut self);    
     fn get_crb_index(&self) -> usize;
+    fn get_ic(&self) -> SpatialInertia;
     fn set_crb_index(&mut self, n: usize);
     fn set_c(&self, c: &mut DVector<f64>);
+    fn set_h(&self, h: &mut DMatrix<f64>);
 }

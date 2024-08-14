@@ -53,7 +53,7 @@ impl JointTransforms {
 
         // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
         if let Some((ij_ob_from_ij_jof, ij_jof_from_base)) = ij_transforms {
-            // this joints inner body is the parent joints outer body
+            // this joints inner body is the parent joints outer body            
             jof_from_ij_jof = self.jof_from_jif * self.jif_from_ib * ij_ob_from_ij_jof;
             ij_jof_from_jof = jof_from_ij_jof.inv();
             jof_from_base = jof_from_ij_jof * ij_jof_from_base;

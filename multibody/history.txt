@@ -1,5 +1,5 @@
-1
-sim1
-r3
-0.3
-sim1
+view system 3pend
+run
+load 3pend
+run
+aba

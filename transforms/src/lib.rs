@@ -16,8 +16,8 @@ pub mod prelude {
     pub use rotations::prelude::*;
 }
 
-/// Represents the rotational and translational
-/// Transform between two Frames
+/// Represents the rotational and translational transform between two frames (f1 and f2)
+/// Translation is represented in the f1 frame
 #[derive(Debug, Default, Copy, Clone, Serialize, Deserialize)]
 pub struct Transform {
     pub rotation: Rotation,
@@ -87,13 +87,13 @@ impl Mul<Transform> for Transform {
         // t2 is a transform from the f1 frame to f2
         let t2 = &self;
 
-        let translation_ref_to_t1_in_ref = t1.translation;
-        let translation_t1_to_t2_in_t1 = t2.translation;
+        let translation_ref_to_f1_in_ref = t1.translation;
+        let translation_f1_to_f2_in_f1 = t2.translation;
 
         // convert to cartesian (in case it's something else) so we can transform it, then convert back
-        let cartesian_vec = Cartesian::from(translation_t1_to_t2_in_t1).vec();
+        let cartesian_vec = Cartesian::from(translation_f1_to_f2_in_f1).vec();
         let rotated_vec = t1.rotation.inv().transform(cartesian_vec);
-        let translation_t1_to_t2_in_ref = match translation_t1_to_t2_in_t1 {
+        let translation_f1_to_f2_in_ref = match translation_f1_to_f2_in_f1 {
             CoordinateSystem::Cartesian(_) => CoordinateSystem::from(Cartesian::from(rotated_vec)),
             CoordinateSystem::Cylindrical(_) => {
                 CoordinateSystem::from(Cylindrical::from(Cartesian::from(rotated_vec)))
@@ -103,11 +103,11 @@ impl Mul<Transform> for Transform {
             }
         };
 
-        let translation_ref_to_t2_in_ref =
-            translation_ref_to_t1_in_ref + translation_t1_to_t2_in_ref;
+        let translation_ref_to_f2_in_ref =
+            translation_ref_to_f1_in_ref + translation_f1_to_f2_in_ref;
 
         let new_rotation = self.rotation * rhs.rotation;
-        let new_translation = translation_ref_to_t2_in_ref;
+        let new_translation = translation_ref_to_f2_in_ref;
 
         Transform::new(new_rotation, new_translation)
     }
@@ -395,4 +395,5 @@ mod tests {
             expected_vector,
         );
     }
+
 }
