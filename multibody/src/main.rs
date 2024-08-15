@@ -5,6 +5,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
+use dirs_next::config_dir;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
@@ -27,8 +28,10 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{Rotation, quaternion::Quaternion};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::fs::{File,OpenOptions};
+use std::env;
+use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
+use std::path::PathBuf;
 use transforms::Transform;
 
 #[derive(Debug, Parser)]
@@ -85,23 +88,46 @@ enum Components {
 }
 
 fn main() {
+    // just for profiling performance. use cargo run --features dhat-heap to profile
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+
+    //set up the command history
+    let mut history_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
+    history_path.push("gadgt");
+    history_path.push("command_history.txt");
+
+    let history = Box::new(
+        FileBackedHistory::with_file(100, history_path)
+          .expect("Error configuring history with file"),
+    );
+
+    // set up the systems .ron file for loading and saving systems    
+    let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set during runtime");
+    let ron_path = PathBuf::from(out_dir).join("systems.ron");    
+    let ron_bytes = fs::read(ron_path).expect("Failed to read RON file");    
+    //let ron_str = std::str::from_utf8(&ron_bytes).expect("Failed to convert bytes to string");
+    //let system_data:HashMap<String, MultibodySystem>  = ron::from_str(ron_str).expect("Failed to deserialize RON data");
+    let mut systems_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
+    systems_path.push("gadget"); 
+    systems_path.push("systems.ron");
+    if let Some(parent) = systems_path.parent() {
+        fs::create_dir_all(parent).expect("Failed to create config directory");
+    }
+    fs::write(&systems_path, ron_bytes).expect("Failed to write RON bytes to config file");
+
+    // set up the main prompts
+    
+    let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
+    //let prompt_string = colored::Colorize::blue("GADGT").to_string();
+    //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);  
+    let prompt = Prompts::Main;  
+
 
     let mut active_system: Option<String> = None;
 
     let mut systems = HashMap::<String, MultibodySystem>::new();
     let mut results = HashMap::<String, MultibodyResult>::new();
-
-
-    let history = Box::new(
-        FileBackedHistory::with_file(5, "history.txt".into())
-          .expect("Error configuring history with file"),
-      );
-    let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
-    //let prompt_string = colored::Colorize::blue("GADGT").to_string();
-    //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);  
-    let prompt = Prompts::Main;  
     
     //rl.clear_screen().unwrap();    
     //let welcome = "Welcome to GADGT!".bright_blue();
@@ -653,9 +679,9 @@ fn main() {
                                 Commands::Exit => {
                                     break;
                                 },
-                                Commands::Load {system} => {      
-                                    let file_path = "systems.ron";                              
-                                    let mut file = match File::open(file_path) {
+                                Commands::Load {system} => {                                         
+
+                                    let mut file = match File::open(&systems_path) {
                                         Ok(file) => file,
                                         Err(e) => {eprintln!("{}",e); continue},
                                     };
@@ -740,7 +766,7 @@ fn main() {
                                         // setup terminal                     
                                         //enable_raw_mode();                   
                                         let mut stdout = io::stdout();
-                                        execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
+                                        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
                                         let backend = CrosstermBackend::new(stdout);
                                         let mut terminal = Terminal::new(backend).unwrap();
 
@@ -756,14 +782,14 @@ fn main() {
                                                 let area = frame.size();
                                                 frame.render_widget(&chart,area);
                                             };                                        
-                                            terminal.draw(f);
+                                            let _ = terminal.draw(f);
                                         }
                                         execute!(
                                         terminal.backend_mut(),
                                         LeaveAlternateScreen,
                                         DisableMouseCapture
-                                        );                                        
-                                        terminal.show_cursor();
+                                        ).unwrap();                                        
+                                        terminal.show_cursor().unwrap();
                                         
                                     }else {
                                         eprintln!("Error: system '{}' not found ", result);
@@ -938,7 +964,7 @@ fn main() {
 }
 
 enum Prompts {
-    Algorithm,
+    //Algorithm,
     Angle,
     AngularRate,
     CartesianX,
@@ -947,9 +973,9 @@ enum Prompts {
     Cmx,
     Cmy,
     Cmz,
-    CylindricalA,
-    CylindricalH,
-    CylindricalR,
+    //CylindricalA,
+    //CylindricalH,
+    //CylindricalR,
     Ixx,
     Iyy,
     Izz,
@@ -975,9 +1001,9 @@ enum Prompts {
     SimulationDt,
     SimulationStart,
     SimulationStop,
-    SphericalR,
-    SphericalA,
-    SphericalI,
+    //SphericalR,
+    //SphericalA,
+    //SphericalI,
     Transform,
     TransformRotation,
     TransformTranslation,
@@ -987,7 +1013,7 @@ enum Prompts {
 impl Prompts {
     fn get_string(&self) -> &str {
         match self {
-            Prompts::Algorithm => "Algorithm ['aba', 'crb'] (default: crb)", 
+            //Prompts::Algorithm => "Algorithm ['aba', 'crb'] (default: crb)", 
             Prompts::Angle => "Initial angle (units: rad, default: 0.0)",
             Prompts::AngularRate => "Initial angular Rate (units: rad/sec, default: 0.0)",
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
@@ -996,9 +1022,9 @@ impl Prompts {
             Prompts::Cmx => "Center of mass [X] (units: m, default: 0.0)",
             Prompts::Cmy => "Center of mass [Y] (units: m, default: 0.0)",
             Prompts::Cmz => "Center of mass [Z] (units: m, default: 0.0)",
-            Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
-            Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
-            Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
+            //Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
+            //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
+            //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
             Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
@@ -1024,9 +1050,9 @@ impl Prompts {
             Prompts::SimulationDt => "dt (units: sec, default: 0.1)",
             Prompts::SimulationStart => "start_time (units: sec, default: 0.0)",
             Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)",            
-            Prompts::SphericalR => "Spherical radius (units: m, default: 0.0)",
-            Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0)",
-            Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
+            //Prompts::SphericalR => "Spherical radius (units: m, default: 0.0)",
+            //Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0)",
+            //Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
             Prompts::Transform => "Transform ('i/identity','c/custom',  default: i)",
             Prompts::TransformRotation => "Rotation ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]",
             Prompts::TransformTranslation => "Translation ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
@@ -1050,11 +1076,15 @@ impl Prompts {
     
 
     fn prompt(&self) -> Result<String,InputErrors> {
-
+        let mut history_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
+        history_path.push("gadgt");
+        history_path.push("command_history.txt");   
+        
         let history = Box::new(
-            FileBackedHistory::with_file(5, "history.txt".into())
+            FileBackedHistory::with_file(100, history_path)
               .expect("Error configuring history with file"),
           );
+
         let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
         //let prompt_string = colored::Colorize::cyan(self.get_string()).to_string();
         //let prompt = DefaultPrompt::new(DefaultPromptSegment::Basic(prompt_string), DefaultPromptSegment::Empty);    
@@ -1118,17 +1148,17 @@ impl Prompts {
                 }
                 Ok(())
             }
-            Prompts::Algorithm => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
-                let possible_values = ["aba", "crb"];
-                if !possible_values.contains(&(str.to_lowercase().as_str())) {
-                    return Err(InputErrors::InvalidGravity);
-                }
-                Ok(())
-            }
+            //Prompts::Algorithm => {
+            //    if str.is_empty() {
+            //        //leave empty to use default
+            //        return Ok(())
+            //    }
+            //    let possible_values = ["aba", "crb"];
+            //    if !possible_values.contains(&(str.to_lowercase().as_str())) {
+            //        return Err(InputErrors::InvalidGravity);
+            //    }
+            //    Ok(())
+            //}
             //Gravity
             Prompts::GravityType => {
                 if str.is_empty() {
