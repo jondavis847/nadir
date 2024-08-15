@@ -1,6 +1,4 @@
 use std::ops::{AddAssign, MulAssign};
-use differential_equations::Integrable;
-
 use super::{prismatic::PrismaticState,revolute::RevoluteState};
 
 #[derive(Clone, Copy, Debug)]

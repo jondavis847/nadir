@@ -33,6 +33,7 @@ use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
 use std::path::PathBuf;
 use transforms::Transform;
+use utilities::format_number;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -87,7 +88,7 @@ enum Components {
     Revolute,
 }
 
-fn main() {
+pub fn gadgt_cli() {
     // just for profiling performance. use cargo run --features dhat-heap to profile
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
@@ -728,7 +729,7 @@ fn main() {
                                         let dataset = Dataset::default()
                                             .name(state.clone())
                                             .graph_type(GraphType::Line)
-                                            .marker(ratatui::symbols::Marker::HalfBlock)
+                                            .marker(ratatui::symbols::Marker::Braille)
                                             .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan))
                                             .data(&points);
 
@@ -737,12 +738,12 @@ fn main() {
                                         let bounds_1 = (bounds_0 + bounds_2) /2.0;                                        
 
                                         // Create the X axis and define its properties
-                                        let x_title = colored::Colorize::red("time (sec)").to_string();
+                                        let x_title = "time (sec)".to_string();
                                         let x_axis = Axis::default()
                                             .title(x_title)
                                             .style(ratatui::style::Style::default())
                                             .bounds([bounds_0, bounds_2])
-                                            .labels(vec![bounds_0.to_string().into(), bounds_1.to_string().into(), bounds_2.to_string().into()]);
+                                            .labels(vec![format_number(bounds_0).into(), format_number(bounds_1).into(), format_number(bounds_2).into()]);
 
                                         let bounds_0 = df.column(&state).unwrap().min().unwrap().unwrap();
                                         let bounds_2 = df.column(&state).unwrap().max().unwrap().unwrap();
@@ -754,7 +755,7 @@ fn main() {
                                           //  .title(y_title)
                                             .style(ratatui::style::Style::default())
                                             .bounds([bounds_0, bounds_2])
-                                            .labels(vec![bounds_0.to_string().into(), bounds_1.to_string().into(), bounds_2.to_string().into()]);
+                                            .labels(vec![format_number(bounds_0).into(), format_number(bounds_1).into(), format_number(bounds_2).into()]);
 
                                         // Create the chart and link all the parts together
                                         let chart = Chart::new(vec![dataset])
@@ -1423,5 +1424,16 @@ impl Prompt for Prompts {
         _history_search: PromptHistorySearch,
     ) -> Cow<str> {
         "".into()
+    }
+}
+
+
+fn format_float(value: f64) -> String {
+    if value > 1e4 || value < 1e-2 {
+        // Format in scientific notation with 4 significant digits
+        format!("{:.4e}", value)
+    } else {
+        // Format with up to 4 decimal places, removing trailing zeros
+        format!("{:.4}", value).trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }

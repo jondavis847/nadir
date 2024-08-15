@@ -3,7 +3,7 @@ use nalgebra::Vector3;
 use serde::{Serialize, Deserialize};
 use rand::prelude::*;
 use std::fmt;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Mul, Neg};
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]

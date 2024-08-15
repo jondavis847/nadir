@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "aerospace", "benchmarks",    
+members = [ "aerospace", "benchmarks", "cli",    
     "coordinate_systems", "differential_equations", "geometry","gui", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
@@ -12,6 +12,7 @@ members = [ "aerospace", "benchmarks",
 ]
 
 [dependencies]
+cli = {path = "./cli"}
 coordinate_systems = {path = "./coordinate_systems"}
 dhat = "0.3.3"
 differential_equations = {path = "./differential_equations"}
