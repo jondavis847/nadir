@@ -710,14 +710,28 @@ pub fn gadgt_cli() {
                                     println!("{}",p);
                                 }
 
-                                Commands::Plot { result, component, state} => {
+                                Commands::Plot { result, component, state} => {                                    
 
                                     if let Some(result) = results.get(&result) {
+                                        let mut datasets = Vec::new();
+
                                         let df = result.get_component_state(&component, vec![&state]);
                                         let t = df.column("t").unwrap().f64().unwrap();
                                                                                                                         
                                         let data = df.column(&state).unwrap().f64().unwrap();
                                         assert_eq!(t.len(), data.len());
+
+                                        let x_bounds_0 = t.get(0).unwrap();
+                                        let x_bounds_2 = t.get(t.len()-1).unwrap();
+                                        let x_bounds_1 = (x_bounds_0 + x_bounds_2) /2.0;      
+
+                                        // add an indicator for 0 if if exists in the y range
+                                        let points = [(x_bounds_0, 0.0), (x_bounds_2,0.0)];
+                                        datasets.push(Dataset::default()                                            
+                                            .graph_type(GraphType::Line)
+                                            .marker(ratatui::symbols::Marker::Braille)
+                                            .style(ratatui::style::Style::default().fg(ratatui::style::Color::Gray))
+                                            .data(&points));
                                         
                                         let points: Vec<(f64,f64)> = t
                                             .into_iter()
@@ -726,39 +740,39 @@ pub fn gadgt_cli() {
                                             )
                                             .collect();
                 
-                                        let dataset = Dataset::default()
+                                        datasets.push(Dataset::default()
                                             .name(state.clone())
                                             .graph_type(GraphType::Line)
                                             .marker(ratatui::symbols::Marker::Braille)
                                             .style(ratatui::style::Style::default().fg(ratatui::style::Color::Cyan))
-                                            .data(&points);
+                                            .data(&points));
 
-                                        let bounds_0 = t.get(0).unwrap();
-                                        let bounds_2 = t.get(t.len()-1).unwrap();
-                                        let bounds_1 = (bounds_0 + bounds_2) /2.0;                                        
+                                                                         
 
                                         // Create the X axis and define its properties
                                         let x_title = "time (sec)".to_string();
                                         let x_axis = Axis::default()
                                             .title(x_title)
                                             .style(ratatui::style::Style::default())
-                                            .bounds([bounds_0, bounds_2])
-                                            .labels(vec![format_number(bounds_0).into(), format_number(bounds_1).into(), format_number(bounds_2).into()]);
+                                            .bounds([x_bounds_0, x_bounds_2])
+                                            .labels(vec![format_number(x_bounds_0).into(), format_number(x_bounds_1).into(), format_number(x_bounds_2).into()]);
 
-                                        let bounds_0 = df.column(&state).unwrap().min().unwrap().unwrap();
-                                        let bounds_2 = df.column(&state).unwrap().max().unwrap().unwrap();
-                                        let bounds_1 = (bounds_0 + bounds_2) /2.0;                                        
+                                        let y_bounds_0 = df.column(&state).unwrap().min().unwrap().unwrap();
+                                        let y_bounds_2 = df.column(&state).unwrap().max().unwrap().unwrap();
+                                        let y_bounds_1 = (y_bounds_0 + y_bounds_2) /2.0;                                        
 
                                         // Create the Y axis and define its properties
                                         //let y_title = colored::Colorize::red("Y Axis").to_string();
                                         let y_axis = Axis::default()
                                           //  .title(y_title)
                                             .style(ratatui::style::Style::default())
-                                            .bounds([bounds_0, bounds_2])
-                                            .labels(vec![format_number(bounds_0).into(), format_number(bounds_1).into(), format_number(bounds_2).into()]);
+                                            .bounds([y_bounds_0, y_bounds_2])
+                                            .labels(vec![format_number(y_bounds_0).into(), format_number(y_bounds_1).into(), format_number(y_bounds_2).into()]);
+
+                                        
 
                                         // Create the chart and link all the parts together
-                                        let chart = Chart::new(vec![dataset])
+                                        let chart = Chart::new(datasets)
                                             .block(ratatui::widgets::block::Block::new().title(format!("{}: {}", component,state)))
                                             .x_axis(x_axis.into())
                                             .y_axis(y_axis.into());
