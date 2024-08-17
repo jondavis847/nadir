@@ -21,7 +21,7 @@ use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
 
-use super::{joint_sim::JointCache, JointResult};
+use super::joint_sim::JointCache;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
@@ -181,8 +181,7 @@ struct PrismaticCache {
 
 #[derive(Debug, Clone)]
 pub struct PrismaticSim {
-    cache: PrismaticCache,
-    name: String,
+    cache: PrismaticCache,    
     id: Uuid,
     parameters: JointParameters,
     pub result: PrismaticResult,
@@ -214,8 +213,7 @@ impl From<Prismatic> for PrismaticSim {
 
         PrismaticSim {
             cache: PrismaticCache::default(),
-            id: *prismatic.get_id(),
-            name: prismatic.common.name,
+            id: *prismatic.get_id(),            
             parameters: prismatic.parameters,
             result: PrismaticResult::default(),
             state: prismatic.state,

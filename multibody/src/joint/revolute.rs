@@ -10,7 +10,7 @@ use crate::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointResult,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters,
         JointTrait,
     },
     MultibodyTrait,
@@ -192,8 +192,7 @@ struct RevoluteCache {
 
 #[derive(Debug, Clone)]
 pub struct RevoluteSim {
-    cache: RevoluteCache,
-    name: String,
+    cache: RevoluteCache,    
     id: Uuid,
     parameters: JointParameters,
     pub result: RevoluteResult,
@@ -225,8 +224,7 @@ impl From<Revolute> for RevoluteSim {
 
         RevoluteSim {
             cache: RevoluteCache::default(),
-            id: *revolute.get_id(),
-            name: revolute.common.name,
+            id: *revolute.get_id(),            
             parameters: revolute.parameters,
             result: RevoluteResult::default(),
             state: revolute.state,

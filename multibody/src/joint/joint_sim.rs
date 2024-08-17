@@ -1,6 +1,6 @@
 use super::{
     joint_state::JointState, joint_transforms::JointTransforms, prismatic::PrismaticSim,
-    revolute::RevoluteSim, Joint, JointResult,
+    revolute::RevoluteSim, Joint
 };
 use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
