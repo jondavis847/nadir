@@ -1,24 +1,16 @@
 use crate::{
-    aerospace::MultibodyGravity,
-    algorithms::{
+    aerospace::MultibodyGravity, algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
         composite_rigid_body::{CompositeRigidBody, CrbCache},
         recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
-    },
-    body::{Body, BodyResult, BodySim, BodyState, BodyTrait},
-    joint::{
+    }, body::{Body, BodySim, BodyTrait}, joint::{
         joint_sim::{JointSim, JointSimTrait},
-        joint_state::JointState,
-        prismatic::PrismaticResult,
-        revolute::RevoluteResult,
-        Joint, JointResult, JointTrait,
-    },
-    result::{update_body_states, MultibodyResult, ResultEntry},
-    system::MultibodySystem,
-    MultibodyErrors, MultibodyTrait,
+        joint_state::{JointState,JointStates},        
+        Joint, JointTrait,
+    }, result::{update_body_states, MultibodyResult}, solver::rk4::solve_fixed_rk4, system::MultibodySystem, MultibodyErrors, MultibodyTrait
 };
-use differential_equations::solver::{Solver, SolverMethod};
+
 use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
@@ -35,7 +27,7 @@ pub struct MultibodySystemSim {
     pub bodies: Vec<BodySim>,
     pub body_names: Vec<String>,
     pub joints: Vec<JointSim>,
-    joint_names: Vec<String>,
+    pub joint_names: Vec<String>,
     gravity: HashMap<Uuid, MultibodyGravity>,
     parent_indeces: Vec<Option<usize>>,
     crb_cache: Option<CrbCache>,
@@ -141,8 +133,7 @@ impl MultibodySystemSim {
     pub fn run(
         &mut self,
         dx: &mut JointStates,
-        x: &JointStates,
-        _p: &Option<MultibodyParameters>,
+        x: &JointStates,        
         _t: f64,
     ) {
         self.set_state(x.clone());
@@ -277,100 +268,19 @@ impl MultibodySystemSim {
         dt: f64,
     ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
-        let instant_start = Instant::now();
-
-        // Create a vec of JointStates
-        let initial_joint_states =
-            JointStates(self.joints.iter().map(|joint| joint.get_state()).collect());
-
-        // Use Vec to store body states
-        let mut body_states: Vec<Vec<BodyState>> = Vec::new();
-
-        // Initialize the solver
-        let mut solver = Solver {
-            func: |dx, x, p, t| self.run(dx, x, p, t),
-            x0: initial_joint_states,
-            parameters: None,
-            tstart,
-            tstop,
-            dt,
-            solver: SolverMethod::Rk4Classical,
-            callbacks: Vec::new(),
-        };
+        let instant_start = Instant::now();       
 
         let sim_start_time = Instant::now();
 
-        // Solve for joint states over time
-        let (times, joint_states) = solver.solve();
+        // solve for the multibody system
+        let result = solve_fixed_rk4(self, tstart, tstop, dt);
 
-        let sim_duration = sim_start_time.elapsed();
+        let (times, hashmap) = match result {
+            Ok(result) => result,
+            Err(e) => return Err(e)
+        };        
 
-        // need something to pass to self.run until we do this body states better (as part of the ode)
-        let mut tmp = joint_states[0].clone(); 
-
-        // Post-process body states
-        for (ti, js) in times.iter().zip(joint_states.iter()) {
-            self.run(&mut tmp, js, &None, *ti);
-            update_body_states(&mut self.bodies, &self.joints);
-            body_states.push(self.bodies.iter().map(|body| body.state).collect());
-        }
-
-        // Convert to a multibody result
-        let mut result_hm = HashMap::<String, ResultEntry>::new();
-
-        for joint_state in &joint_states {
-            for (i, joint) in joint_state.0.iter().enumerate() {
-                let joint_name = self.joint_names[i].clone();
-                match joint {
-                    JointState::Revolute(revolute) => {
-                        let entry = result_hm.entry(joint_name.clone()).or_insert_with(|| {
-                            ResultEntry::Joint(JointResult::Revolute(RevoluteResult::default()))
-                        });
-
-                        if let ResultEntry::Joint(JointResult::Revolute(revolute_result)) = entry {
-                            revolute_result.theta.push(revolute.theta);
-                            revolute_result.omega.push(revolute.omega);
-                        }
-                    }
-                    JointState::Prismatic(prismatic) => {
-                        let entry = result_hm.entry(joint_name.clone()).or_insert_with(|| {
-                            ResultEntry::Joint(JointResult::Prismatic(PrismaticResult::default()))
-                        });
-
-                        if let ResultEntry::Joint(JointResult::Prismatic(prismatic_result)) = entry
-                        {
-                            prismatic_result.position.push(prismatic.position);
-                            prismatic_result.velocity.push(prismatic.velocity);
-                        }
-                    }
-                }
-            }
-        }
-
-        for body_state in body_states {
-            for (i, body) in body_state.iter().enumerate() {
-                let body_name = self.body_names[i].clone();
-                let entry = result_hm
-                    .entry(body_name.clone())
-                    .or_insert_with(|| ResultEntry::Body(BodyResult::default()));
-                if let ResultEntry::Body(body_result) = entry {
-                    body_result.position_base.push(body.position_base);
-                    body_result.velocity_base.push(body.velocity_base);
-                    body_result.acceleration_base.push(body.acceleration_base);
-                    body_result.acceleration_body.push(body.acceleration_body);
-                    body_result.angular_accel_body.push(body.angular_accel_body);
-                    body_result.angular_rate_body.push(body.angular_rate_body);
-                    body_result.attitude_base.push(body.attitude_base);
-                    body_result
-                        .external_force_body
-                        .push(body.external_force_body);
-                    body_result
-                        .external_torque_body
-                        .push(body.external_torque_body);
-                }
-            }
-        }
-
+        let sim_duration = sim_start_time.elapsed();        
         let total_duration = instant_start.elapsed();
 
         let mut name = name.clone();
@@ -382,7 +292,7 @@ impl MultibodySystemSim {
             name: name,
             system: self.clone(),
             sim_time: times,
-            result: result_hm,
+            result: hashmap,
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
@@ -508,31 +418,6 @@ impl MulAssign<f64> for MultibodyState {
     fn mul_assign(&mut self, rhs: f64) {
         // Create a new vector for joints with each joint multiplied by rhs
         self.joints.iter_mut().for_each(|joint| *joint *= rhs);
-    }
-}
-
-//thought about making this a type JointStates = Vec<Joints> but it needs to be integrable
-#[derive(Clone, Debug)]
-pub struct JointStates(pub Vec<JointState>);
-
-impl<'a> AddAssign<&'a Self> for JointStates {
-    fn add_assign(&mut self, rhs: &'a Self) {
-        assert_eq!(
-            self.0.len(),
-            rhs.0.len(),
-            "Joint vectors must have the same length"
-        );
-        for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
-            *a += b;
-        }
-    }
-}
-
-impl MulAssign<f64> for JointStates {
-    fn mul_assign(&mut self, rhs: f64) {
-        for joint in &mut self.0 {
-            *joint *= rhs;
-        }
     }
 }
 

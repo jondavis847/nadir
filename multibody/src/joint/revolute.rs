@@ -10,7 +10,8 @@ use crate::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointResult,
+        JointTrait,
     },
     MultibodyTrait,
 };
@@ -42,10 +43,10 @@ impl RevoluteState {
     }
 }
 
-impl<'a> AddAssign<&'a Self> for RevoluteState {    
+impl<'a> AddAssign<&'a Self> for RevoluteState {
     fn add_assign(&mut self, rhs: &'a Self) {
         self.theta += rhs.theta;
-        self.omega += rhs.omega;        
+        self.omega += rhs.omega;
     }
 }
 
@@ -60,6 +61,8 @@ impl MulAssign<f64> for RevoluteState {
 pub struct RevoluteResult {
     pub theta: Vec<f64>,
     pub omega: Vec<f64>,
+    pub angular_accel: Vec<f64>,
+    pub internal_torque: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,8 +193,10 @@ struct RevoluteCache {
 #[derive(Debug, Clone)]
 pub struct RevoluteSim {
     cache: RevoluteCache,
+    name: String,
     id: Uuid,
     parameters: JointParameters,
+    pub result: RevoluteResult,
     state: RevoluteState,
     transforms: JointTransforms,
 }
@@ -221,7 +226,9 @@ impl From<Revolute> for RevoluteSim {
         RevoluteSim {
             cache: RevoluteCache::default(),
             id: *revolute.get_id(),
+            name: revolute.common.name,
             parameters: revolute.parameters,
+            result: RevoluteResult::default(),
             state: revolute.state,
             transforms,
         }
@@ -249,21 +256,21 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix.column(0).into();
-        aba.big_d_inv = 1.0 / aba.big_u[0];        
+        aba.big_d_inv = 1.0 / aba.big_u[0];
         aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1
 
         if !inner_is_base {
-            let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;        
+            let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
             );
-            
+
             aba.common.p_lil_a = aba.common.p_big_a
                 + Force::from(i_lil_a * aba.common.c)
-                + Force::from(big_u_times_big_d_inv * aba.lil_u);            
-            
-            let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;            
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;            
+                + Force::from(big_u_times_big_d_inv * aba.lil_u);
+
+            let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
+            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
         } else {
             None
@@ -275,12 +282,12 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         let a = &mut self.cache.common.a;
         let q_ddot = &mut self.cache.q_ddot;
 
-        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;        
+        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
 
         *q_ddot =
-            aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);        
+            aba.big_d_inv * (aba.lil_u - (aba.big_u.transpose() * aba.common.a_prime.vector())[0]);
         *a =
-            aba.common.a_prime + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));        
+            aba.common.a_prime + Acceleration::from(Vector6::new(*q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
     fn get_p_big_a(&self) -> Force {
@@ -398,10 +405,16 @@ impl JointSimTrait for RevoluteSim {
         self.cache.common.f = force;
     }
 
+    fn set_result(&mut self) {
+        self.result.omega.push(self.state.omega);
+        self.result.theta.push(self.state.theta);
+        self.result.angular_accel.push(self.cache.q_ddot);
+        self.result.internal_torque.push(self.cache.tau);
+    }
+
     fn set_state(&mut self, state: JointState) {
-        match state {
-            JointState::Revolute(revolute_state) => self.state = revolute_state,
-            _ => panic!("Can't set a different joints state to revolute"),
+        if let JointState::Revolute(revolute_state) = state {
+            self.state = revolute_state
         }
     }
     fn get_transforms(&self) -> &JointTransforms {

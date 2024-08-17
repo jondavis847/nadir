@@ -27,3 +27,29 @@ impl MulAssign<f64> for JointState {
         }
     }
 }
+
+
+//thought about making this a type JointStates = Vec<Joints> but it needs to be integrable
+#[derive(Clone, Debug)]
+pub struct JointStates(pub Vec<JointState>);
+
+impl<'a> AddAssign<&'a Self> for JointStates {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        assert_eq!(
+            self.0.len(),
+            rhs.0.len(),
+            "Joint vectors must have the same length"
+        );
+        for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
+            *a += b;
+        }
+    }
+}
+
+impl MulAssign<f64> for JointStates {
+    fn mul_assign(&mut self, rhs: f64) {
+        for joint in &mut self.0 {
+            *joint *= rhs;
+        }
+    }
+}

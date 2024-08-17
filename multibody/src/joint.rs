@@ -72,7 +72,7 @@ pub trait JointTrait: MultibodyTrait {
     fn get_connections(&self) -> &JointConnection;
     fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;
+    fn get_outer_body_id(&self) -> Option<&Uuid>;    
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -170,6 +170,7 @@ impl JointTrait for Joint {
             Joint::Revolute(joint) => joint.get_inner_body_id(),
         }
     }
+
     fn get_outer_body_id(&self) -> Option<&Uuid> {
         match self {
             Joint::Prismatic(joint) => joint.get_outer_body_id(),
@@ -230,3 +231,5 @@ pub enum JointResult {
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
 }
+
+

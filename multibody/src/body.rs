@@ -134,6 +134,7 @@ pub struct BodySim {
     pub geometry: Option<Geometry>,
     pub gravity: Vec<Uuid>,
     pub mass_properties: MassProperties,
+    pub result: BodyResult,
 }
 
 impl From<Body> for BodySim {
@@ -144,6 +145,7 @@ impl From<Body> for BodySim {
             geometry: body.geometry,
             gravity: body.gravity,
             mass_properties: body.mass_properties,
+            result: BodyResult::default(),
         }
     }
 }
@@ -194,6 +196,18 @@ impl BodySim {
         // populate values for reporting
         self.state.external_force_body = *self.state.external_spatial_force_body.translation();
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
+    }
+
+    pub fn set_result(&mut self) {
+        self.result.position_base.push(self.state.position_base);
+        self.result.velocity_base.push(self.state.velocity_base);
+        self.result.acceleration_base.push(self.state.acceleration_base);
+        self.result.acceleration_body.push(self.state.acceleration_body);
+        self.result.angular_accel_body.push(self.state.angular_accel_body);
+        self.result.angular_rate_body.push(self.state.angular_rate_body);
+        self.result.attitude_base.push(self.state.attitude_base);
+        self.result.external_force_body.push(self.state.external_force_body);
+        self.result.external_torque_body.push(self.state.external_torque_body);
     }
 }
 

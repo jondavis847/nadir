@@ -1,6 +1,6 @@
 use super::{
     joint_state::JointState, joint_transforms::JointTransforms, prismatic::PrismaticSim,
-    revolute::RevoluteSim, Joint,
+    revolute::RevoluteSim, Joint, JointResult,
 };
 use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
@@ -32,11 +32,12 @@ pub trait JointSimTrait {
     fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> SpatialInertia;
-    fn get_ndof(&self) -> usize;
+    fn get_ndof(&self) -> usize;    
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
     fn set_inertia(&mut self, inertia: SpatialInertia);
     fn set_force(&mut self, force: Force);
+    fn set_result(&mut self);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
@@ -125,6 +126,13 @@ impl JointSimTrait for JointSim {
         match self {
             JointSim::Prismatic(joint) => joint.set_force(force),
             JointSim::Revolute(joint) => joint.set_force(force),
+        }
+    }
+
+    fn set_result(&mut self) {
+        match self {
+            JointSim::Prismatic(joint) => joint.set_result(),
+            JointSim::Revolute(joint) => joint.set_result(),
         }
     }
 

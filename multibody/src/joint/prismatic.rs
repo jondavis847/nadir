@@ -21,7 +21,7 @@ use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
 
-use super::joint_sim::JointCache;
+use super::{joint_sim::JointCache, JointResult};
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
@@ -39,10 +39,10 @@ impl PrismaticState {
     }
 }
 
-impl<'a> AddAssign<&'a Self> for PrismaticState {    
+impl<'a> AddAssign<&'a Self> for PrismaticState {
     fn add_assign(&mut self, rhs: &'a Self) {
         self.position += rhs.position;
-        self.velocity += rhs.velocity;        
+        self.velocity += rhs.velocity;
     }
 }
 
@@ -182,8 +182,10 @@ struct PrismaticCache {
 #[derive(Debug, Clone)]
 pub struct PrismaticSim {
     cache: PrismaticCache,
+    name: String,
     id: Uuid,
     parameters: JointParameters,
+    pub result: PrismaticResult,
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -213,7 +215,9 @@ impl From<Prismatic> for PrismaticSim {
         PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),
+            name: prismatic.common.name,
             parameters: prismatic.parameters,
+            result: PrismaticResult::default(),
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -419,12 +423,19 @@ impl JointSimTrait for PrismaticSim {
         &self.cache.common.v
     }
 
+    fn set_result(&mut self) {
+        self.result.position.push(self.state.position);
+        self.result.velocity.push(self.state.velocity);
+        self.result.acceleration.push(self.cache.q_ddot);
+        self.result.internal_force.push(self.cache.tau);
+    }
+
     fn set_state(&mut self, state: JointState) {
-        match state {
-            JointState::Prismatic(prismatic_state) => self.state = prismatic_state,
-            _ => panic!("Can't set a different joints state to Prismatic"),
+        if let JointState::Prismatic(prismatic_state) = state {
+            self.state = prismatic_state
         }
     }
+
     fn set_inertia(&mut self, inertia: SpatialInertia) {
         self.parameters.mass_properties = Some(inertia);
     }
@@ -471,4 +482,6 @@ impl JointSimTrait for PrismaticSim {
 pub struct PrismaticResult {
     pub position: Vec<f64>,
     pub velocity: Vec<f64>,
+    pub acceleration: Vec<f64>,
+    pub internal_force: Vec<f64>,
 }

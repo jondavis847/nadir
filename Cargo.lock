@@ -2562,7 +2562,6 @@ dependencies = [
  "colored",
  "coordinate_systems",
  "dhat",
- "differential_equations",
  "dirs-next",
  "geometry",
  "mass_properties",

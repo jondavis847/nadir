@@ -8,9 +8,9 @@ use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{
+    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{joint_state::JointStates,
         joint_sim::JointSimTrait, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
-    }, result::MultibodyResult, system::MultibodySystem, system_sim::{JointStates,MultibodySystemSim}, MultibodyTrait
+    }, result::MultibodyResult, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -833,7 +833,7 @@ pub fn gadgt_cli() {
                                         let initial_joint_states = JointStates(sys_sim.joints.iter().map(|joint| joint.get_state()).collect());
                                         let mut final_joint_states = initial_joint_states.clone();
 
-                                        sys_sim.run(&mut final_joint_states,&initial_joint_states, &None,0.0);
+                                        sys_sim.run(&mut final_joint_states,&initial_joint_states,0.0);
 
                                         //dbg!(&sys_sim);
                                     }
@@ -1438,16 +1438,5 @@ impl Prompt for Prompts {
         _history_search: PromptHistorySearch,
     ) -> Cow<str> {
         "".into()
-    }
-}
-
-
-fn format_float(value: f64) -> String {
-    if value > 1e4 || value < 1e-2 {
-        // Format in scientific notation with 4 significant digits
-        format!("{:.4e}", value)
-    } else {
-        // Format with up to 4 decimal places, removing trailing zeros
-        format!("{:.4}", value).trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }

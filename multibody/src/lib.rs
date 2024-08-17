@@ -5,6 +5,7 @@ pub mod body;
 pub mod component;
 pub mod joint;
 pub mod result;
+pub mod solver;
 pub mod system;
 pub mod system_sim;
 
@@ -20,6 +21,7 @@ pub enum MultibodyErrors {
     Body(BodyErrors),
     BodyMissingInnerJoint(Uuid),
     ComponentNotFound(String),
+    DtCantBeZero,
     InvalidConnection,
     JointErrors(JointErrors),
     JointMissingInnerBody(Uuid),
@@ -39,6 +41,6 @@ impl From<JointErrors> for MultibodyErrors {
 }
 pub trait MultibodyTrait {
     fn get_id(&self) -> &Uuid;
-    fn get_name(&self) -> &str;
+    fn get_name(&self) -> &str;    
     fn set_name(&mut self, name: String);
 }
