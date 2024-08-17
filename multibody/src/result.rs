@@ -42,14 +42,23 @@ impl MultibodyResult {
                 JointResult::Revolute(revolute) => {
                     let theta = Series::new("theta", revolute.theta.clone());
                     let omega = Series::new("omega", revolute.omega.clone());
+                    let accel = Series::new("accel", revolute.angular_accel.clone());
+                    let tau = Series::new("internal_torque", revolute.internal_torque.clone());
                     df.with_column(theta).unwrap();
                     df.with_column(omega).unwrap();
+                    df.with_column(accel).unwrap();
+                    df.with_column(tau).unwrap();
                 }
                 JointResult::Prismatic(prismatic) => {
                     let position = Series::new("position", prismatic.position.clone());
                     let velocity = Series::new("velocity", prismatic.velocity.clone());
+                    let accel = Series::new("acceleration", prismatic.acceleration.clone());
+                    let tau = Series::new("internal_force", prismatic.internal_force.clone());
                     df.with_column(position).unwrap();
                     df.with_column(velocity).unwrap();
+                    df.with_column(accel).unwrap();
+                    df.with_column(tau).unwrap();
+                    
                 } //_ => panic!("Invalid joint type"),
             },
             ResultEntry::Body(body) => {

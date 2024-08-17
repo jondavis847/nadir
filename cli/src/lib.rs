@@ -718,7 +718,14 @@ pub fn gadgt_cli() {
                                         let df = result.get_component_state(&component, vec![&state]);
                                         let t = df.column("t").unwrap().f64().unwrap();
                                                                                                                         
-                                        let data = df.column(&state).unwrap().f64().unwrap();
+                                        let data = match df.column(&state) {
+                                            Ok(data) => data.f64().unwrap(),
+                                            Err(e) => {                                
+                                                error(&(e.to_string()));
+                                                continue
+                                            }
+                                        };
+                                        
                                         assert_eq!(t.len(), data.len());
 
                                         let x_bounds_0 = t.get(0).unwrap();
