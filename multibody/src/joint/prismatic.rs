@@ -13,6 +13,7 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
@@ -117,7 +118,7 @@ impl JointTrait for Prismatic {
         if self.common.connection.outer_body.is_some() {
             self.common.connection.outer_body = None;
         }
-        self.parameters.mass_properties = None;
+        self.common.mass_properties = None;
     }
 
     fn get_connections(&self) -> &JointConnection {
@@ -183,6 +184,7 @@ struct PrismaticCache {
 pub struct PrismaticSim {
     cache: PrismaticCache,    
     id: Uuid,
+    mass_properties: Option<SpatialInertia>,
     parameters: JointParameters,
     pub result: PrismaticResult,
     state: PrismaticState,
@@ -214,6 +216,7 @@ impl From<Prismatic> for PrismaticSim {
         PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),            
+            mass_properties: None,
             parameters: prismatic.parameters,
             result: PrismaticResult::default(),
             state: prismatic.state,
@@ -226,7 +229,7 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
     fn aba_first_pass(&mut self, v_ij: Velocity) {
         let transforms = &self.transforms;
         let aba = &mut self.cache.aba.unwrap();
-        let joint_inertia = self.parameters.mass_properties.unwrap();
+        let joint_inertia = self.mass_properties.unwrap();
         let v = &mut self.cache.common.v;
         let vj = &mut self.cache.common.vj;
         let f = &mut self.cache.common.f;
@@ -299,7 +302,7 @@ impl RecursiveNewtonEuler for PrismaticSim {
         let f_b = &self.cache.common.f;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.mass_properties.unwrap();
 
         *v = *jof_from_ij_jof * v_ij + *vj;
 
@@ -350,7 +353,7 @@ impl CompositeRigidBody for PrismaticSim {
 
     fn reset_ic(&mut self) {
         let ic = &mut self.cache.crb.as_mut().unwrap().ic;
-        *ic = self.parameters.mass_properties.unwrap();
+        *ic = self.mass_properties.unwrap();
     }
 
     fn set_crb_index(&mut self, n: usize) {
@@ -406,7 +409,7 @@ impl JointSimTrait for PrismaticSim {
     }
 
     fn get_inertia(&self) -> SpatialInertia {
-        self.parameters.mass_properties.unwrap()
+        self.mass_properties.unwrap()
     }
 
     fn get_ndof(&self) -> usize {
@@ -434,8 +437,8 @@ impl JointSimTrait for PrismaticSim {
         }
     }
 
-    fn set_inertia(&mut self, inertia: SpatialInertia) {
-        self.parameters.mass_properties = Some(inertia);
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+        self.mass_properties = inertia;
     }
 
     fn set_force(&mut self, force: Force) {

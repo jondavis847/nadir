@@ -128,7 +128,7 @@ impl JointTrait for Revolute {
         if self.common.connection.outer_body.is_some() {
             self.common.connection.outer_body = None;
         }
-        self.parameters.mass_properties = None;
+        self.common.mass_properties = None;
     }
 
     fn get_connections(&self) -> &JointConnection {
@@ -194,6 +194,7 @@ struct RevoluteCache {
 pub struct RevoluteSim {
     cache: RevoluteCache,    
     id: Uuid,
+    mass_properties: Option<SpatialInertia>,
     parameters: JointParameters,
     pub result: RevoluteResult,
     state: RevoluteState,
@@ -224,7 +225,8 @@ impl From<Revolute> for RevoluteSim {
 
         RevoluteSim {
             cache: RevoluteCache::default(),
-            id: *revolute.get_id(),            
+            id: *revolute.get_id(),         
+            mass_properties: None,   
             parameters: revolute.parameters,
             result: RevoluteResult::default(),
             state: revolute.state,
@@ -237,7 +239,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn aba_first_pass(&mut self, v_ij: Velocity) {
         let aba = self.cache.aba.as_mut().unwrap();
         let transforms = &self.transforms;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.mass_properties.unwrap();
         let v = &mut self.cache.common.v;
         let vj = &mut self.cache.common.vj;
         let f = &mut self.cache.common.f;
@@ -315,7 +317,7 @@ impl RecursiveNewtonEuler for RevoluteSim {
         let f_b = &mut self.cache.common.f;
 
         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.parameters.mass_properties.unwrap();
+        let joint_inertia = &self.mass_properties.unwrap();
 
         *v = *jof_from_ij_jof * v_ij + *vj;
 
@@ -380,7 +382,7 @@ impl JointSimTrait for RevoluteSim {
         &self.id
     }
     fn get_inertia(&self) -> SpatialInertia {
-        self.parameters.mass_properties.unwrap()
+        self.mass_properties.unwrap()
     }
 
     fn get_ndof(&self) -> usize {
@@ -395,8 +397,8 @@ impl JointSimTrait for RevoluteSim {
         &self.cache.common.v
     }
 
-    fn set_inertia(&mut self, inertia: SpatialInertia) {
-        self.parameters.mass_properties = Some(inertia);
+    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+        self.mass_properties = inertia;
     }
 
     fn set_force(&mut self, force: Force) {
@@ -466,7 +468,7 @@ impl CompositeRigidBody for RevoluteSim {
 
     fn reset_ic(&mut self) {
         let ic = &mut self.cache.crb.as_mut().unwrap().ic;
-        *ic = self.parameters.mass_properties.unwrap();
+        *ic = self.mass_properties.unwrap();
     }
 
     fn set_crb_index(&mut self, n: usize) {

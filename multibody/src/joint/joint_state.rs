@@ -1,15 +1,17 @@
 use std::ops::{AddAssign, MulAssign};
-use super::{prismatic::PrismaticState,revolute::RevoluteState};
+use super::{floating::FloatingState, prismatic::PrismaticState,revolute::RevoluteState};
 
 #[derive(Clone, Copy, Debug)]
 pub enum JointState {
+    Floating(FloatingState),
     Prismatic(PrismaticState), // Spherical(SphericalState)
-    Revolute(RevoluteState),   // Spherical(SphericalState)
+    Revolute(RevoluteState),   // Spherical(SphericalState)    
 }
 
 impl<'a> AddAssign<&'a Self> for JointState {
     fn add_assign(&mut self, rhs: &'a Self) {
         match (self, rhs) {
+            (JointState::Floating(lhs), JointState::Floating(rhs)) => *lhs += rhs,
             (JointState::Revolute(lhs), JointState::Revolute(rhs)) => *lhs += rhs,
             (JointState::Prismatic(lhs), JointState::Prismatic(rhs)) => *lhs += rhs,
             // Handle other variants here if they are added
@@ -22,6 +24,7 @@ impl<'a> AddAssign<&'a Self> for JointState {
 impl MulAssign<f64> for JointState {
     fn mul_assign(&mut self, rhs: f64) {
         match self {
+            JointState::Floating(lhs) => *lhs *= rhs,
             JointState::Revolute(lhs) => *lhs *= rhs,
             JointState::Prismatic(lhs) => *lhs *= rhs,
         }

@@ -215,6 +215,7 @@ impl BodySim {
 pub struct BodyState {
     pub position_base: Vector3<f64>,
     pub velocity_base: Vector3<f64>,
+    pub velocity_body: Vector3<f64>,
     pub acceleration_base: Vector3<f64>,
     pub acceleration_body: Vector3<f64>,
     pub attitude_base: Quaternion,
@@ -237,6 +238,7 @@ pub struct BodyState {
 pub struct BodyResult {
     pub position_base: Vec<Vector3<f64>>,
     pub velocity_base: Vec<Vector3<f64>>,
+    pub velocity_body: Vec<Vector3<f64>>,
     pub acceleration_base: Vec<Vector3<f64>>,
     pub acceleration_body: Vec<Vector3<f64>>,
     pub attitude_base: Vec<Quaternion>,

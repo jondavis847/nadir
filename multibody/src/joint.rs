@@ -1,5 +1,5 @@
 pub mod errors;
-//pub mod floating;
+pub mod floating;
 pub mod joint_sim;
 pub mod joint_state;
 pub mod prismatic;
@@ -7,6 +7,7 @@ pub mod revolute;
 pub mod joint_transforms;
 
 use errors::JointErrors;
+use floating::{Floating, FloatingResult};
 use prismatic::{Prismatic, PrismaticResult};
 use revolute::{Revolute, RevoluteResult};
 use super::{
@@ -22,7 +23,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Joint {
-    //Floating,
+    Floating(Floating),
     Prismatic(Prismatic),
     Revolute(Revolute),
     //Spherical,
@@ -31,11 +32,15 @@ pub enum Joint {
 impl fmt::Display for Joint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Joint::Prismatic(_prismatic) => {
+            Joint::Floating(_) => {
+                writeln!(f, "Joint: Floating")
+                //writeln!(f, "\t{}", prismatic)
+            }
+            Joint::Prismatic(_) => {
                 writeln!(f, "Joint: Prismatic")
                 //writeln!(f, "\t{}", prismatic)
             }
-            Joint::Revolute(_revolute) => {
+            Joint::Revolute(_) => {
                 writeln!(f, "Joint: Revolute")
                 //writeln!(f, "\t{}", revolute)
             }
@@ -80,6 +85,7 @@ pub struct JointCommon {
     pub id: Uuid,
     pub name: String,
     pub connection: JointConnection,    
+    pub mass_properties: Option<SpatialInertia>,
 }
 
 impl JointCommon {
@@ -88,6 +94,7 @@ impl JointCommon {
             id: Uuid::new_v4(),
             name: name.to_string(),
             connection: JointConnection::default(),
+            mass_properties: None,
         }
     }
 }
@@ -95,12 +102,14 @@ impl JointCommon {
 impl MultibodyTrait for Joint {
     fn get_id(&self) -> &Uuid {
         match self {
+            Joint::Floating(joint) => joint.get_id(),
             Joint::Prismatic(joint) => joint.get_id(),
             Joint::Revolute(joint) => joint.get_id(),
         }
     }
     fn get_name(&self) -> &str {
         match self {
+            Joint::Floating(joint) => joint.get_name(),
             Joint::Prismatic(joint) => joint.get_name(),
             Joint::Revolute(joint) => joint.get_name(),
         }
@@ -108,6 +117,7 @@ impl MultibodyTrait for Joint {
 
     fn set_name(&mut self, name: String) {
         match self {
+            Joint::Floating(joint) => joint.set_name(name),
             Joint::Prismatic(joint) => joint.set_name(name),
             Joint::Revolute(joint) => joint.set_name(name),
         }
@@ -121,6 +131,7 @@ impl JointTrait for Joint {
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
+            Joint::Floating(joint) => joint.connect_inner_body(body, transform),
             Joint::Prismatic(joint) => joint.connect_inner_body(body, transform),
             Joint::Revolute(joint) => joint.connect_inner_body(body, transform),
         }
@@ -132,6 +143,7 @@ impl JointTrait for Joint {
         transform: Transform,
     ) -> Result<(), JointErrors> {
         match self {
+            Joint::Floating(joint) => joint.connect_outer_body(body, transform),
             Joint::Prismatic(joint) => joint.connect_outer_body(body, transform),
             Joint::Revolute(joint) => joint.connect_outer_body(body, transform),
         }
@@ -139,12 +151,14 @@ impl JointTrait for Joint {
 
     fn delete_inner_body_id(&mut self) {
         match self {
+            Joint::Floating(joint) => joint.delete_inner_body_id(),
             Joint::Prismatic(joint) => joint.delete_inner_body_id(),
             Joint::Revolute(joint) => joint.delete_inner_body_id(),
         }
     }
     fn delete_outer_body_id(&mut self) {
         match self {
+            Joint::Floating(joint) => joint.delete_outer_body_id(),
             Joint::Prismatic(joint) => joint.delete_outer_body_id(),
             Joint::Revolute(joint) => joint.delete_outer_body_id(),
         }
@@ -152,6 +166,7 @@ impl JointTrait for Joint {
 
     fn get_connections(&self) -> &JointConnection {
         match self {
+            Joint::Floating(joint) => joint.get_connections(),
             Joint::Prismatic(joint) => joint.get_connections(),
             Joint::Revolute(joint) => joint.get_connections(),
         }
@@ -159,6 +174,7 @@ impl JointTrait for Joint {
 
     fn get_connections_mut(&mut self) -> &mut JointConnection {
         match self {
+            Joint::Floating(joint) => joint.get_connections_mut(),
             Joint::Prismatic(joint) => joint.get_connections_mut(),
             Joint::Revolute(joint) => joint.get_connections_mut(),
         }
@@ -166,6 +182,7 @@ impl JointTrait for Joint {
 
     fn get_inner_body_id(&self) -> Option<&Uuid> {
         match self {
+            Joint::Floating(joint) => joint.get_inner_body_id(),
             Joint::Prismatic(joint) => joint.get_inner_body_id(),
             Joint::Revolute(joint) => joint.get_inner_body_id(),
         }
@@ -173,6 +190,7 @@ impl JointTrait for Joint {
 
     fn get_outer_body_id(&self) -> Option<&Uuid> {
         match self {
+            Joint::Floating(joint) => joint.get_outer_body_id(),
             Joint::Prismatic(joint) => joint.get_outer_body_id(),
             Joint::Revolute(joint) => joint.get_outer_body_id(),
         }
@@ -209,18 +227,15 @@ pub struct JointConnection {
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct JointParameters {
     pub constant_force: f64,
-    pub damping: f64,
-    pub mass_properties: Option<SpatialInertia>,
+    pub damping: f64,    
     pub spring_constant: f64,
 }
 
 impl JointParameters {
-    pub fn new(constant_force: f64, damping: f64, spring_constant: f64) -> Self {
-        let mass_properties = None;
+    pub fn new(constant_force: f64, damping: f64, spring_constant: f64) -> Self {        
         Self {
             constant_force,
-            damping,
-            mass_properties,
+            damping,            
             spring_constant,
         }
     }
@@ -228,6 +243,7 @@ impl JointParameters {
 
 #[derive(Debug, Clone)]
 pub enum JointResult {
+    Floating(FloatingResult),
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
 }

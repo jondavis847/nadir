@@ -14,7 +14,8 @@ use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
 
 #[derive(Debug,Clone)]
-pub enum MultibodyErrors {    
+pub enum MultibodyErrors {  
+    BaseNotFound,  
     BaseAlreadyExists,
     BaseMissingOuterJoint,
     BodyNotFound,

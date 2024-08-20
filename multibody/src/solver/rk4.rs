@@ -104,6 +104,12 @@ pub fn solve_fixed_rk4(
         .iter_mut()
         .enumerate()
         .for_each(|(i, joint)| match joint {
+            JointSim::Floating(floating) => {
+                result_hm.insert(
+                    sys.joint_names[i].clone(),
+                    ResultEntry::Joint(JointResult::Floating(std::mem::take(&mut floating.result))),
+                );
+            }
             JointSim::Revolute(revolute) => {
                 result_hm.insert(
                     sys.joint_names[i].clone(),

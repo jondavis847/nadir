@@ -199,3 +199,48 @@ impl RotationTrait for EulerAngles {
         EulerAngles::new(0.0, 0.0, 0.0, EulerSequence::ZYX)
     }
 }
+
+impl From<Quaternion> for EulerAngles {
+    fn from(q: Quaternion) -> Self {
+        let q = if q.s < 0.0 {
+            -q
+        } else {
+            q
+        };
+
+        let q = q.normalize();        
+
+        // we assume ZYX rotation
+        let w = q.s;
+        let x = q.x;
+        let y = q.y;
+        let z = q.z;
+    
+        // Pitch Y (θ)
+        let theta = (2.0 * (w * y - z * x)).asin();
+        
+        // Check for gimbal lock
+        if theta.abs() > std::f64::consts::FRAC_PI_2 - 1e-6 {
+            // Gimbal lock occurs, set roll to 0 and compute yaw directly
+            let phi = 0.0; // Roll Z (φ) can be set to zero or inferred differently
+            let psi = (2.0 * (w * z + x * y)).atan2(1.0 - 2.0 * (x * x + y * y));
+            
+            if theta > 0.0 {
+                // Positive gimbal lock (Pitch = +90°)
+                Self::new(phi, std::f64::consts::FRAC_PI_2, psi, EulerSequence::ZYX)
+            } else {
+                // Negative gimbal lock (Pitch = -90°)
+                Self::new(phi, -std::f64::consts::FRAC_PI_2, psi, EulerSequence::ZYX)
+            }
+        } else {
+            // No gimbal lock, calculate roll and yaw normally
+            // Roll Z (φ)
+            let phi = (2.0 * (w * x + y * z)).atan2(1.0 - 2.0 * (x * x + y * y));
+        
+            // Yaw X (ψ)
+            let psi = (2.0 * (w * z + x * y)).atan2(1.0 - 2.0 * (y * y + z * z));
+        
+            Self::new(phi, theta, psi, EulerSequence::ZYX)
+        }
+    }
+}

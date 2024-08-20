@@ -8,10 +8,10 @@ use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{joint_state::JointStates,
-        joint_sim::JointSimTrait, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
+    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
     }, result::MultibodyResult, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
+use nalgebra::Vector3;
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
@@ -84,7 +84,9 @@ enum Commands {
 enum Components {
     Base,
     Body,
-    Gravity,
+    Floating,
+    Gravity,    
+    Prismatic,
     Revolute,
 }
 
@@ -234,23 +236,57 @@ pub fn gadgt_cli() {
                                                     }
                                                 };
                                             }
-                                            Components::Revolute => {                                        
-                                                    let revolute = match prompt_revolute() {
-                                                        Ok(revolute) => revolute,
+                                            Components::Floating => {                                        
+                                                let floating = match prompt_floating() {
+                                                    Ok(floating) => floating,
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                };
+                                                
+                                                let joint = Joint::Floating(floating);
+                                                let name = joint.get_name().to_string();
+                                                let r = system.add_joint(joint);
+                                                match r {
+                                                    Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }                                           
+                                        }
+                                            Components::Prismatic => {                                        
+                                                    let prismatic = match prompt_prismatic() {
+                                                        Ok(prismatic) => prismatic,
                                                         Err(e) => match e {
                                                             InputErrors::CtrlC => continue,
                                                             _ => {eprintln!("{:?}",e); continue}
                                                         }
                                                     };
                                                     
-                                                    let joint = Joint::Revolute(revolute);
+                                                    let joint = Joint::Prismatic(prismatic);
                                                     let name = joint.get_name().to_string();
                                                     let r = system.add_joint(joint);
                                                     match r {
                                                         Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                         Err(e) => eprintln!("{:?}",e)
                                                     }                                           
-                                            }                                    
+                                            }
+                                            Components::Revolute => {                                        
+                                                let revolute = match prompt_revolute() {
+                                                    Ok(revolute) => revolute,
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                };
+                                                
+                                                let joint = Joint::Revolute(revolute);
+                                                let name = joint.get_name().to_string();
+                                                let r = system.add_joint(joint);
+                                                match r {
+                                                    Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }                                           
+                                        }                                        
                                         }
                                     } else {
                                         println!("Error: system '{}' not found.", system_name);
@@ -602,6 +638,23 @@ pub fn gadgt_cli() {
                                                 if let Some(old_joint) = sys.joints.get_mut(&id) {
                                                     // create a new object via prompt to get values for old object
                                                     match old_joint {
+                                                        Joint::Floating(old_joint) => {
+                                                            let new_joint = match prompt_floating() {
+                                                                Ok(floating) => {
+                                                                    floating
+                                                                }
+                                                                Err(e) => match e {
+                                                                    InputErrors::CtrlC => continue,
+                                                                    _ => {
+                                                                        eprintln!("{:?}",e);
+                                                                        continue;
+                                                                    }
+                                                                }        
+                                                            };
+                                                            old_joint.set_name(new_joint.get_name().to_string());
+                                                            old_joint.parameters = new_joint.parameters;
+                                                            old_joint.state = new_joint.state;
+                                                        }
                                                         Joint::Prismatic(old_joint) => {
                                                             let new_joint = match prompt_prismatic() {
                                                                 Ok(prismatic) => {
@@ -989,6 +1042,9 @@ enum Prompts {
     //Algorithm,
     Angle,
     AngularRate,
+    AngularRateX,
+    AngularRateY,
+    AngularRateZ,
     CartesianX,
     CartesianY,
     CartesianZ,
@@ -1010,12 +1066,34 @@ enum Prompts {
     GravityConstantZ,
     GravityTwoBodyMu,
     JointDamping,
+    JointDampingRotationX,
+    JointDampingRotationY,
+    JointDampingRotationZ,
+    JointDampingTranslationX,
+    JointDampingTranslationY,
+    JointDampingTranslationZ,
     JointForce,
+    JointForceRotationX,
+    JointForceRotationY,
+    JointForceRotationZ,
+    JointForceTranslationX,
+    JointForceTranslationY,
+    JointForceTranslationZ,
+    JointMechanics,
     JointSpring,
+    JointSpringRotationX,
+    JointSpringRotationY,
+    JointSpringRotationZ,
+    JointSpringTranslationX,
+    JointSpringTranslationY,
+    JointSpringTranslationZ,
     Main,
     Mass,
     Name,
     Position,
+    PositionX,
+    PositionY,
+    PositionZ,
     QuaternionW,
     QuaternionX,
     QuaternionY,
@@ -1030,6 +1108,9 @@ enum Prompts {
     TransformRotation,
     TransformTranslation,
     Velocity,
+    VelocityX,
+    VelocityY,
+    VelocityZ,
 }
 
 impl Prompts {
@@ -1037,7 +1118,10 @@ impl Prompts {
         match self {
             //Prompts::Algorithm => "Algorithm ['aba', 'crb'] (default: crb)", 
             Prompts::Angle => "Initial angle (units: rad, default: 0.0)",
-            Prompts::AngularRate => "Initial angular Rate (units: rad/sec, default: 0.0)",
+            Prompts::AngularRate => "Initial angular rate (units: rad/sec, default: 0.0)",
+            Prompts::AngularRateX => "Initial angular rate X (units: rad/sec, default: 0.0)",
+            Prompts::AngularRateY => "Initial angular rate Y (units: rad/sec, default: 0.0)",
+            Prompts::AngularRateZ => "Initial angular rate Z (units: rad/sec, default: 0.0)",
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
             Prompts::CartesianY => "Cartesian [Y] (units: m, default: 0.0)",
             Prompts::CartesianZ => "Cartesian [Z] (units: m, default: 0.0)",            
@@ -1059,12 +1143,34 @@ impl Prompts {
             Prompts::Ixz => "Ixz (units: kg-m^2, default: 0.0)",
             Prompts::Iyz => "Iyz (units: kg-m^2, default: 0.0)",
             Prompts::JointDamping => "Damping (units: None, default: 0.0)",
+            Prompts::JointDampingRotationX => "Rotational damping X (units: None, default: 0.0)",
+            Prompts::JointDampingRotationY => "Rotational damping Y (units: None, default: 0.0)",
+            Prompts::JointDampingRotationZ => "Rotational damping Z (units: None, default: 0.0)",
+            Prompts::JointDampingTranslationX => "Translational damping X (units: None, default: 0.0)",
+            Prompts::JointDampingTranslationY => "Translational damping Y (units: None, default: 0.0)",
+            Prompts::JointDampingTranslationZ => "Translational damping Z (units: None, default: 0.0)",
             Prompts::JointForce => "Constant force (units: N, default: 0.0)",
+            Prompts::JointForceRotationX => "Rotational constant force X (units: N, default: 0.0)",
+            Prompts::JointForceRotationY => "Rotational constant force Y (units: N, default: 0.0)",
+            Prompts::JointForceRotationZ => "Rotational constant force Z (units: N, default: 0.0)",
+            Prompts::JointForceTranslationX => "Translational constant force X (units: N, default: 0.0)",
+            Prompts::JointForceTranslationY => "Translational constant force X (units: N, default: 0.0)",
+            Prompts::JointForceTranslationZ => "Translational constant force X (units: N, default: 0.0)",
+            Prompts::JointMechanics => "Specify joint internal mechanics? ['y' (yes),'n' (no)] (default: n)",
             Prompts::JointSpring => "Spring constant (units: N/m, default: 0.0)",
+            Prompts::JointSpringRotationX => "Rotational spring constant X (units: N/m, default: 0.0)",
+            Prompts::JointSpringRotationY => "Rotational spring constant Y (units: N/m, default: 0.0)",
+            Prompts::JointSpringRotationZ => "Rotational spring constant Z (units: N/m, default: 0.0)",
+            Prompts::JointSpringTranslationX => "Translational spring constant X (units: N/m, default: 0.0)",
+            Prompts::JointSpringTranslationY => "Translational spring constant Y (units: N/m, default: 0.0)",
+            Prompts::JointSpringTranslationZ => "Translational spring constant Z (units: N/m, default: 0.0)",
             Prompts::Main => "GADGT",
             Prompts::Mass => "Mass (units: kg, default: 1.0)",
             Prompts::Name => "Name",
-            Prompts::Position => "Position (units: m, default: 0.0)",
+            Prompts::Position => "Initial position (units: m, default: 0.0)",
+            Prompts::PositionX => "Initial position X (units: m, default: 0.0)",
+            Prompts::PositionY => "Initial position Y (units: m, default: 0.0)",
+            Prompts::PositionZ => "Initial position Z (units: m, default: 0.0)",
             Prompts::QuaternionW => "Quaternion W (units: None, default: 1.0)",
             Prompts::QuaternionX => "Quaternion X (units: None, default: 0.0)",
             Prompts::QuaternionY => "Quaternion Y (units: None, default: 0.0)",
@@ -1078,7 +1184,10 @@ impl Prompts {
             Prompts::Transform => "Transform ('i/identity','c/custom',  default: i)",
             Prompts::TransformRotation => "Rotation ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]",
             Prompts::TransformTranslation => "Translation ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
-            Prompts::Velocity => "Velocity (units: m/s, default: 0.0)",
+            Prompts::Velocity => "Initial velocity (units: m/s, default: 0.0)",
+            Prompts::VelocityX => "Initial velocity X (units: m/s, default: 0.0)",
+            Prompts::VelocityY => "Initial velocity Y (units: m/s, default: 0.0)",
+            Prompts::VelocityZ => "Initial velocity Z (units: m/s, default: 0.0)",
         }
     }
 
@@ -1141,12 +1250,38 @@ impl Prompts {
             | Prompts::Ixz
             | Prompts::Iyz
             | Prompts::JointDamping
+            | Prompts::JointDampingRotationX
+            | Prompts::JointDampingRotationY
+            | Prompts::JointDampingRotationZ
+            | Prompts::JointDampingTranslationX
+            | Prompts::JointDampingTranslationY
+            | Prompts::JointDampingTranslationZ
             | Prompts::JointForce
+            | Prompts::JointForceRotationX
+            | Prompts::JointForceRotationY
+            | Prompts::JointForceRotationZ
+            | Prompts::JointForceTranslationX
+            | Prompts::JointForceTranslationY
+            | Prompts::JointForceTranslationZ
             | Prompts::JointSpring
+            | Prompts::JointSpringRotationX
+            | Prompts::JointSpringRotationY
+            | Prompts::JointSpringRotationZ
+            | Prompts::JointSpringTranslationX
+            | Prompts::JointSpringTranslationY
+            | Prompts::JointSpringTranslationZ
+            | Prompts::Position
+            | Prompts::PositionX
+            | Prompts::PositionY
+            | Prompts::PositionZ
             | Prompts::QuaternionW
             | Prompts::QuaternionX
             | Prompts::QuaternionY
-            | Prompts::QuaternionZ => {
+            | Prompts::QuaternionZ
+            | Prompts::Velocity
+            | Prompts::VelocityX
+            | Prompts::VelocityY
+            | Prompts::VelocityZ => {
                 if str.is_empty() {
                     //leave empty to use default
                     return Ok(())
@@ -1220,6 +1355,21 @@ impl Prompts {
                 ];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidRotation);
+                }
+                Ok(())
+            }
+            // Yes or No
+            Prompts::JointMechanics => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "y",                    
+                    "n",                                        
+                ];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::NotYesOrNo);
                 }
                 Ok(())
             }
@@ -1310,6 +1460,85 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
     };
     Ok(MultibodyGravity::new(&name,gravity))
 
+}
+
+fn prompt_joint_mechanics() -> Result<bool,InputErrors> {
+    let jm = Prompts::JointMechanics.validate_loop("n")?;    
+    match jm.trim() {
+        "y" => Ok(true),
+        "n" => {            
+            Ok(false)
+        }
+        _ => panic!("shouldn't be possible. other characters caught in validation loop")
+    }
+}
+
+fn prompt_floating() -> Result<Floating, InputErrors> {
+
+    let name = Prompts::Name.prompt()?;
+    let qx = Prompts::QuaternionX.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let qy = Prompts::QuaternionY.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let qz = Prompts::QuaternionZ.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let qw = Prompts::QuaternionW.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let q = Quaternion::new(qx,qy,qz,qw).normalize();
+
+    let wx = Prompts::AngularRateX.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let wy = Prompts::AngularRateY.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let wz = Prompts::AngularRateZ.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let w = Vector3::new(wx,wy,wz);
+
+    let rx = Prompts::PositionX.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let ry = Prompts::PositionY.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let rz = Prompts::PositionZ.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let r = Vector3::new(rx,ry,rz);
+
+    let vx = Prompts::VelocityX.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let vy = Prompts::VelocityY.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let vz = Prompts::VelocityZ.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let v = Vector3::new(vx,vy,vz);    
+    
+    let state = FloatingState::new(q,w,r,v);
+
+    let mechanics = prompt_joint_mechanics()?;
+
+    let parameters = match mechanics {
+        false => [JointParameters::default();6],
+        true => {
+            let force_x_rotation = Prompts::JointForceRotationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_x_rotation = Prompts::JointSpringRotationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_x_rotation = Prompts::JointDampingRotationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_x_rotation = JointParameters::new(force_x_rotation,damping_x_rotation,spring_x_rotation);
+
+            let force_y_rotation = Prompts::JointForceRotationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_y_rotation = Prompts::JointSpringRotationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_y_rotation = Prompts::JointDampingRotationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_y_rotation = JointParameters::new(force_y_rotation,damping_y_rotation,spring_y_rotation);
+
+            let force_z_rotation = Prompts::JointForceRotationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_z_rotation = Prompts::JointSpringRotationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_z_rotation = Prompts::JointDampingRotationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_z_rotation = JointParameters::new(force_z_rotation,damping_z_rotation,spring_z_rotation);
+
+            let force_x_translation = Prompts::JointForceTranslationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_x_translation = Prompts::JointSpringTranslationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_x_translation = Prompts::JointDampingTranslationX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_x_translation = JointParameters::new(force_x_translation,damping_x_translation,spring_x_translation);
+
+            let force_y_translation = Prompts::JointForceTranslationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_y_translation = Prompts::JointSpringTranslationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_y_translation = Prompts::JointDampingTranslationY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_y_translation = JointParameters::new(force_y_translation,damping_y_translation,spring_y_translation);
+
+            let force_z_translation = Prompts::JointForceTranslationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let spring_z_translation = Prompts::JointSpringTranslationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let damping_z_translation = Prompts::JointDampingTranslationZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
+            let parameters_z_translation = JointParameters::new(force_z_translation,damping_z_translation,spring_z_translation);
+
+            [parameters_x_rotation, parameters_y_rotation, parameters_z_rotation, parameters_x_translation,parameters_y_translation,parameters_z_translation]            
+        }
+    };
+
+    Ok(Floating::new(&name, parameters, state))
 }
 
 fn prompt_prismatic() -> Result<Prismatic, InputErrors> {
