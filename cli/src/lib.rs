@@ -759,7 +759,7 @@ pub fn gadgt_cli() {
                                     systems.insert(system.clone(),sys.clone());     
                                     active_system = Some(system.clone());                                               
 
-                                    let p = colored::Colorize::green(format!("System '{}' successuflly loaded!", system).as_str());
+                                    let p = colored::Colorize::green(format!("System '{}' successfully loaded!", system).as_str());
                                     println!("{}",p);
                                 }
 
