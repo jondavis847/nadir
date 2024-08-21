@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
 use rotations::{quaternion::Quaternion, RotationTrait};
-use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
+use spatial_algebra::{MotionVector, SpatialVector, Velocity};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::{Duration, SystemTime};

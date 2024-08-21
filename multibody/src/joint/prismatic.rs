@@ -13,7 +13,6 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
