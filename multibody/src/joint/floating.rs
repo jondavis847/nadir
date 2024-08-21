@@ -26,6 +26,10 @@ use uuid::Uuid;
 #[derive(Debug, Copy, Clone)]
 pub enum FloatingErrors {}
 
+/// IMPORTANT: State values are in the JOF
+/// This just makes sense for applying angular quantities
+/// translation frame is tied to rotation frame due to the use of spatial vectors (since they both live in the same vector)
+/// i.e. r (position) is the JIFs position in the JOF!
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct FloatingState {
     pub q: Quaternion,
@@ -245,13 +249,12 @@ impl ArticulatedBodyAlgorithm for FloatingSim {
         let transforms = &self.transforms;
         let joint_inertia = &self.mass_properties.unwrap();
         let v = &mut self.cache.common.v;
-        let vj = &mut self.cache.common.vj;
-        let f = &mut self.cache.common.f;
+        let vj = &self.cache.common.vj;
 
         *v = transforms.jof_from_ij_jof * v_ij + *vj;
         aba.common.c = v.cross_motion(*vj); // + cj
         aba.common.inertia_articulated = *joint_inertia;
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f;
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - self.cache.common.f;        
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -284,12 +287,13 @@ impl ArticulatedBodyAlgorithm for FloatingSim {
     fn aba_third_pass(&mut self, a_ij: Acceleration) {
         let aba = self.cache.aba.as_mut().unwrap();
         let a = &mut self.cache.common.a;
+
         let q_ddot = &mut self.cache.q_ddot;
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
-
-        *q_ddot = aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
+        *q_ddot = aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());        
         *a = aba.common.a_prime + Acceleration::from(*q_ddot);
+
     }
 
     fn get_p_big_a(&self) -> Force {
@@ -366,6 +370,11 @@ impl JointSimTrait for FloatingSim {
         self.cache.tau[2] = p[2].constant_force
             - p[2].spring_constant * angles.phi
             - p[2].damping * self.state.w[2];
+
+        // translation uantities are + instead of - since they are expressed in JOF
+        // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
+        // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
+        // to get back to a JIF equilibrium of 0
         self.cache.tau[3] = p[3].constant_force
             - p[3].spring_constant * self.state.r[0]
             - p[3].damping * self.state.v[0];
@@ -378,6 +387,9 @@ impl JointSimTrait for FloatingSim {
     }
 
     fn calculate_vj(&mut self) {
+        // self.state.velocity is in the JIF frame
+        // ABA assumes velocities in the JOF frame so S is constant
+        // transform to JOF velocity
         self.cache.common.vj = Velocity::from(Vector6::new(
             self.state.w[0],
             self.state.w[1],
@@ -388,11 +400,13 @@ impl JointSimTrait for FloatingSim {
         ));
     }
 
-    fn get_a(&self) -> &Acceleration {
+    fn get_a_jof(&self) -> &Acceleration {
         &self.cache.common.a
     }
 
     fn get_derivative(&self) -> JointState {
+        // Quaternion is from the body to base, or the body's orientation in the base frame
+        //due to quaternion kinematic equations
         let q = self.state.q;
         // Markley eq 3.20 & 2.88
         let tmp = Matrix4x3::new(
@@ -400,16 +414,15 @@ impl JointSimTrait for FloatingSim {
         );
         let q_dot = Quaternion::from(0.5 * tmp * self.state.w);
 
-        // acceleration is in the jof, but r and v are expressed in the jif
-        // translate this accel to the jif and everything else should propagate correctly
-        let jif_from_jof = self.get_transforms().jif_from_jof.0.rotation;
-        let a_jif = jif_from_jof.transform(*self.cache.common.a.translation());
+        // transform v and jif frame so it makes sense for position translation integration
+        let v_jof = self.cache.common.v.translation();
+        let v_jif = self.transforms.jif_from_jof.0.rotation.transform(*v_jof);
 
         let derivative = FloatingState::new(
             q_dot,
             *self.cache.common.a.rotation(),
-            self.state.v,
-            a_jif,
+            v_jif,
+            *self.cache.common.a.translation(),
         );
         JointState::Floating(derivative)
     }
@@ -467,11 +480,8 @@ impl JointSimTrait for FloatingSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-
-        // transform is from jif to jof
-        
         let rotation = self.state.q;
-        let translation = Cartesian::from(self.state.r);
+        let translation = Cartesian::from(self.state.r); // r is already jif to jof
         let transform = Transform::new(rotation.into(), translation.into());
 
         self.transforms.jof_from_jif = SpatialTransform(transform);

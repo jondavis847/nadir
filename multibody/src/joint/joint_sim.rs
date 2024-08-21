@@ -29,7 +29,7 @@ impl From<Joint> for JointSim {
 pub trait JointSimTrait {
     fn calculate_tau(&mut self);
     fn calculate_vj(&mut self);
-    fn get_a(&self) -> &Acceleration;
+    fn get_a_jof(&self) -> &Acceleration;
     fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> SpatialInertia;
@@ -66,11 +66,11 @@ impl JointSimTrait for JointSim {
     }
 
     #[inline]
-    fn get_a(&self) -> &Acceleration {
+    fn get_a_jof(&self) -> &Acceleration {
         match self {
-            JointSim::Floating(joint) => joint.get_a(),
-            JointSim::Prismatic(joint) => joint.get_a(),
-            JointSim::Revolute(joint) => joint.get_a(),
+            JointSim::Floating(joint) => joint.get_a_jof(),
+            JointSim::Prismatic(joint) => joint.get_a_jof(),
+            JointSim::Revolute(joint) => joint.get_a_jof(),
         }
     }
 

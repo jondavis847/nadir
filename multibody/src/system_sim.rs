@@ -184,7 +184,7 @@ impl MultibodySystemSim {
                     // if parent is the base, (index None), parent acceleration is 0
 
                     let a_ij = if let Some(parent_index) = self.parent_indeces[i] {
-                        *self.joints[parent_index].get_a()
+                        *self.joints[parent_index].get_a_jof()
                     } else {
                         Acceleration::zeros()
                     };
@@ -202,7 +202,7 @@ impl MultibodySystemSim {
                 for i in 0..n {
                     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
                         (
-                            *self.joints[parent_index].get_a(),
+                            *self.joints[parent_index].get_a_jof(),
                             *self.joints[parent_index].get_v(),
                         )
                     } else {

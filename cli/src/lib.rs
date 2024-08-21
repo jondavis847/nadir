@@ -112,7 +112,7 @@ pub fn gadgt_cli() {
     //let ron_str = std::str::from_utf8(&ron_bytes).expect("Failed to convert bytes to string");
     //let system_data:HashMap<String, MultibodySystem>  = ron::from_str(ron_str).expect("Failed to deserialize RON data");
     let mut systems_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
-    systems_path.push("gadget"); 
+    systems_path.push("gadgt"); 
     systems_path.push("systems.ron");
     if let Some(parent) = systems_path.parent() {
         fs::create_dir_all(parent).expect("Failed to create config directory");
@@ -909,12 +909,10 @@ pub fn gadgt_cli() {
 
                                     if let Some(sys) = systems.get(system) {
 
-                                        let file_path = "systems.ron";
-
                                          // Open the file, creating it if it doesn't exist, or appending to it if it does exist
                                         let file = OpenOptions::new()
                                             .read(true)                                            
-                                            .open(file_path);
+                                            .open(&systems_path);
 
                                         // Initialize or load the hashmap
                                         let mut systems: HashMap<String, MultibodySystem> = match file {
@@ -924,8 +922,9 @@ pub fn gadgt_cli() {
                                                 from_reader(content.as_bytes()).unwrap()
                                             },
                                             Err(_) => HashMap::new(),
-                                        };                                           // Add a new entry to the hashmap
-                                        
+                                        };                                           
+
+                                        // Add a new entry to the hashmap                                        
                                         systems.insert(system.clone(), sys.clone());
 
                                         let ron_string = match to_string_pretty(&systems,PrettyConfig::new()) {
@@ -934,7 +933,7 @@ pub fn gadgt_cli() {
                                         };
 
                                         //handle result
-                                        let mut file = match File::create(file_path) {
+                                        let mut file = match File::create(&systems_path) {
                                             Ok(file) => file,
                                             Err(e) => {eprintln!("{}", e); continue},
                                         };

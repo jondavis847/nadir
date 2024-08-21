@@ -231,8 +231,8 @@ impl ArticulatedBodyAlgorithm for PrismaticSim {
         let aba = &mut self.cache.aba.unwrap();
         let joint_inertia = self.mass_properties.unwrap();
         let v = &mut self.cache.common.v;
-        let vj = &mut self.cache.common.vj;
-        let f = &mut self.cache.common.f;
+        let vj = &self.cache.common.vj;
+        let f = &self.cache.common.f;
 
         *v = transforms.jof_from_ij_jof * v_ij + *vj;
         aba.common.c = v.cross_motion(*vj); // + cj
@@ -395,7 +395,7 @@ impl JointSimTrait for PrismaticSim {
             Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0));
     }
 
-    fn get_a(&self) -> &Acceleration {
+    fn get_a_jof(&self) -> &Acceleration {
         &self.cache.common.a
     }
 
