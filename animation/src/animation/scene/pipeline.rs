@@ -1,0 +1,193 @@
+//pub mod cube;
+
+mod buffer;
+mod uniforms;
+
+pub use uniforms::Uniforms;
+
+use super::geometries::cuboid::{Cuboid, CuboidRaw};
+use super::vertex::Vertex;
+use buffer::Buffer;
+
+use iced::widget::shader::wgpu::{self, util::DeviceExt};
+
+use iced::{Rectangle, Size};
+
+pub struct Pipeline {
+    pipeline: wgpu::RenderPipeline,
+    vertices: wgpu::Buffer,
+    cuboids: Buffer,
+    uniforms: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+}
+
+impl Pipeline {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        target_size: Size<u32>,
+    ) -> Self {
+
+        let raw = CuboidRaw::from_cuboid(&Cuboid::default());
+
+        //vertices of one cube
+        let vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("cuboid vertex buffer"),
+            contents: bytemuck::cast_slice(&raw.vertices()),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        //cube instance data
+        let cubes_buffer = Buffer::new(
+            device,
+            "cuboid instance buffer",
+            std::mem::size_of::<CuboidRaw>() as u64,
+            wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        );
+
+        //uniforms for all cubes
+        let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("cuboid uniform buffer"),
+            size: std::mem::size_of::<Uniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("cuboid uniform bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("cuboid uniform bind group"),
+            layout: &uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniforms.as_entire_binding(),
+            }],
+        });
+
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("cubes pipeline layout"),
+            bind_group_layouts: &[&uniform_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("cuboid shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                "shaders/cuboid.wgsl"
+            ))),
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("cubes pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc(), CuboidRaw::desc()],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Max,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview: None,
+        });
+
+        Self {
+            pipeline,
+            cuboids: cubes_buffer,
+            uniforms,
+            uniform_bind_group,
+            vertices,
+        }
+    }
+
+    pub fn update(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_size: Size<u32>,
+        uniforms: &Uniforms,
+        num_cubes: usize,
+        cubes: &[CuboidRaw],
+    ) {
+        // update uniforms
+        queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(uniforms));
+
+        //resize cubes vertex buffer if cubes amount changed
+        let new_size = num_cubes * std::mem::size_of::<CuboidRaw>();
+        self.cuboids.resize(device, new_size as u64);
+
+        //always write new cube data since they are constantly rotating
+        queue.write_buffer(&self.cuboids.raw, 0, bytemuck::cast_slice(cubes));
+    }
+
+    pub fn render(
+        &self,
+        target: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+        viewport: Rectangle<u32>,
+        num_cubes: u32,
+        show_depth: bool,
+    ) {
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("cubes.pipeline.pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+            pass.set_vertex_buffer(0, self.vertices.slice(..));
+            pass.set_vertex_buffer(1, self.cuboids.raw.slice(..));
+            pass.draw(0..36, 0..num_cubes);
+        }
+    }
+}

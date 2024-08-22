@@ -1,0 +1,9 @@
+[package]
+name = "animation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = "0.12.1"
+image = "0.25.2"
+multibody = {path = "../multibody"}
