@@ -1,10 +1,15 @@
 [package]
-name = "cli"
+name = "gadgt"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "gadgt"
+path = "src/main.rs"
+
 [dependencies]
 aerospace = {path = "../aerospace"}
+animation = {path = "../animation"}
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 differential_equations = {path = "../differential_equations"}
@@ -27,6 +32,7 @@ ron = "0.8.1"
 serde = { version = "1.0.204", features = ["derive"] }
 dhat = "0.3.3"
 dirs-next = "2.0.0"
+tokio = { version = "1.39.3", features = ["rt", "macros", "rt-multi-thread"] }
 
 [features]
 dhat-heap = []

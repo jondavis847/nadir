@@ -61,7 +61,7 @@ enum Message {
     ChannelDataReceived,
     //LeftButtonPressed(Point),
     //LeftButtonReleased(Point),
-    Loaded(Result<(), String>),    
+    Loaded(Result<(), String>),
     //MiddleButtonPressed(Point),
     //RightButtonPressed(Point),
     //RightButtonReleased(Point),
@@ -69,17 +69,19 @@ enum Message {
     WindowResized(Size),
 }
 
-pub fn main() -> iced::Result {
-    let icon_path = Path::new("./resources/icon.png");
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(icon_path)
-            .expect("Failed to open icon path")
-            .into_rgba8();
-        let (width, height) = image.dimensions();
-        (image.into_raw(), width, height)
-    };
+fn main() -> iced::Result {
+    // Get the path to the currently running executable
+    let current_exe = std::env::current_exe().expect("Failed to get current executable path");    
+    let current_dir = current_exe
+        .parent()
+        .expect("Failed to get executable directory");
 
-    let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+    // load the icon 
+    const ICON: &[u8] = include_bytes!("../resources/icon.png");
+    let icon_image = image::load_from_memory(ICON).expect("Failed to load icon");    
+    let icon_rgba = icon_image.to_rgba8();        
+    let (icon_width, icon_height) = icon_rgba.dimensions();    
+    let icon = icon::from_rgba(icon_rgba.into_vec(), icon_width, icon_height).unwrap();
 
     let mut settings = Settings::default();
     settings.antialiasing = true;
@@ -123,7 +125,7 @@ impl Application for AnimationGui {
                     //Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
                     //Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
                     Message::Loaded(_) => Command::none(),
-                    
+
                     //Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
                     //Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
                     //Message::RightButtonReleased(cursor) => state.right_button_released(cursor),

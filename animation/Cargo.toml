@@ -3,7 +3,12 @@ name = "animation"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "animation"
+path = "src/main.rs"
+
 [dependencies]
 iced = "0.12.1"
 image = "0.25.2"
 multibody = {path = "../multibody"}
+tokio = { version = "1.39.3", features = ["rt", "macros", "rt-multi-thread"] }

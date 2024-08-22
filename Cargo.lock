@@ -151,6 +151,7 @@ dependencies = [
  "iced",
  "image",
  "multibody",
+ "tokio",
 ]
 
 [[package]]
@@ -722,35 +723,6 @@ name = "clap_lex"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
-
-[[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "aerospace",
- "chrono",
- "clap",
- "colored",
- "coordinate_systems",
- "dhat",
- "differential_equations",
- "dirs-next",
- "geometry",
- "mass_properties",
- "multibody",
- "nalgebra",
- "polars",
- "ratatui",
- "reedline",
- "ron",
- "rotations",
- "serde",
- "smol_str",
- "spatial_algebra",
- "transforms",
- "utilities",
- "uuid",
-]
 
 [[package]]
 name = "clipboard-win"
@@ -1541,18 +1513,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "gdt"
+name = "gadgt"
 version = "0.1.0"
 dependencies = [
- "cli",
+ "aerospace",
+ "animation",
+ "chrono",
+ "clap",
+ "colored",
  "coordinate_systems",
  "dhat",
  "differential_equations",
+ "dirs-next",
+ "geometry",
  "mass_properties",
  "multibody",
  "nalgebra",
+ "polars",
+ "ratatui",
+ "reedline",
+ "ron",
  "rotations",
+ "serde",
+ "smol_str",
+ "spatial_algebra",
+ "tokio",
  "transforms",
+ "utilities",
+ "uuid",
 ]
 
 [[package]]
@@ -4983,12 +4971,24 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.2"
+version = "1.39.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa4fb1bc778bd6f04cbfc4bb2d06a7396a8f299dc33ea1900cedaa316f467b1"
+checksum = "9babc99b9923bfa4804bd74722ff02c0381021eafa4db9949217e3be8e84fff5"
 dependencies = [
  "backtrace",
  "pin-project-lite",
+ "tokio-macros",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "693d596312e88961bc67d7f1f97af8a70227d9f90c31bba5806eec004978d752"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
 ]
 
 [[package]]

@@ -51,6 +51,10 @@ enum Commands {
         #[arg(value_enum)]
         component: Components,
     },
+    /// Animate a multibody result
+    Animate {
+        result: String,
+    },
     /// Make a connection from one component to another
     Connect {        
         from_name: String,
@@ -90,7 +94,7 @@ enum Components {
     Revolute,
 }
 
-pub fn gadgt_cli() {
+fn main() {
     // just for profiling performance. use cargo run --features dhat-heap to profile
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
@@ -106,18 +110,15 @@ pub fn gadgt_cli() {
     );
 
     // set up the systems .ron file for loading and saving systems    
-    let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set during runtime");
-    let ron_path = PathBuf::from(out_dir).join("systems.ron");    
-    let ron_bytes = fs::read(ron_path).expect("Failed to read RON file");    
-    //let ron_str = std::str::from_utf8(&ron_bytes).expect("Failed to convert bytes to string");
-    //let system_data:HashMap<String, MultibodySystem>  = ron::from_str(ron_str).expect("Failed to deserialize RON data");
+    const SYSTEMS_RON: &str = include_str!("../../multibody/resources/systems.ron");
+    
     let mut systems_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
     systems_path.push("gadgt"); 
     systems_path.push("systems.ron");
     if let Some(parent) = systems_path.parent() {
         fs::create_dir_all(parent).expect("Failed to create config directory");
     }
-    fs::write(&systems_path, ron_bytes).expect("Failed to write RON bytes to config file");
+    fs::write(&systems_path, SYSTEMS_RON).expect("Failed to write RON bytes to config file");
 
     // set up the main prompts
     
@@ -292,7 +293,11 @@ pub fn gadgt_cli() {
                                         println!("Error: system '{}' not found.", system_name);
                                     }    
                                 }
-
+                                Commands::Animate { result } => {
+                                    let status = std::process::Command::new("animation")
+                                            .spawn()
+                                            .expect("Failed to execute animation");                                     
+                                },
                                 Commands::Connect {                                    
                                     from_name,
                                     to_name,
