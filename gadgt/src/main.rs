@@ -294,14 +294,36 @@ fn main() {
                                     }    
                                 }
                                 Commands::Animate { result } => {
+
+                                    // get the result data, continue if it doesnt exist
+                                    let result = match results.get(&result) {
+                                        Some(result) => result,
+                                        None => {
+                                            let e = format!("could not find {result} in results...");
+                                            error(&e);
+                                            continue;
+                                        }
+                                    };
+
+                                    // serialize the result data to be sent to the animation crate process
+                                    let result_bytes = bincode::serialize(result).expect("Failed to serialize struct");
+
                                     let mut child  = Command::new("animation")
                                             .stdin(Stdio::piped())
+                                            .stdout(Stdio::piped())
                                             .spawn()
                                             .expect("Failed to execute animation");       
                                          // Get a handle to the child's stdin
-                                    if let Some(ref mut stdin) = child.stdin {
+                                    if let Some(stdin) = &mut child.stdin {
                                         // Send data to the animation process
-                                        stdin.write_all(b"Hello from parent process!\n").expect("Failed to write to stdin");
+                                        stdin.write_all(&result_bytes).expect("Failed to write to stdin");
+                                    }
+
+                                    if let Some(stdout) = &mut child.stdout {
+                                        let mut out = String::new();
+                                        stdout.read_to_string(&mut out).expect("Failed to read std out of child process.");
+
+                                        dbg!(out);
                                     }
                               
                                 },

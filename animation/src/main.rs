@@ -73,12 +73,12 @@ enum Message {
 }
 
 fn main() -> iced::Result {    
-      // Read the data from stdin
+      // Read the result data from stdin
       let mut buffer = Vec::new();
-      std::io::stdin().read_to_end(&mut buffer).expect("Failed to read from stdin");
-  
-      // Deserialize the byte array back into a struct
-      let data: MultibodyResult = bincode::deserialize(&buffer).expect("Failed to deserialize data");
+      std::io::stdin().read_to_end(&mut buffer).expect("Failed to read from stdin");  
+      // Deserialize the byte array back into a MultibodyResult struct
+      let result: MultibodyResult = bincode::deserialize(&buffer).expect("Failed to deserialize data");
+      dbg!(&result);
 
     // Get the path to the currently running executable
     let current_exe = std::env::current_exe().expect("Failed to get current executable path");    
