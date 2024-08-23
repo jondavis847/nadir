@@ -18,6 +18,7 @@ use crate::{
     MultibodyErrors, MultibodyTrait,
 };
 
+use serde::{Serialize,Deserialize};
 use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
@@ -28,7 +29,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct MultibodyParameters;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
     pub bodies: Vec<BodySim>,

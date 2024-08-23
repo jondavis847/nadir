@@ -128,7 +128,7 @@ impl MultibodyTrait for Body {
 /// Instead, create a Body and call BodySim::from(Body), or
 /// Body.into() if appropriate
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct BodySim {
     pub state: BodyState,
     pub geometry: Option<Geometry>,
@@ -201,17 +201,29 @@ impl BodySim {
     pub fn set_result(&mut self) {
         self.result.position_base.push(self.state.position_base);
         self.result.velocity_base.push(self.state.velocity_base);
-        self.result.acceleration_base.push(self.state.acceleration_base);
-        self.result.acceleration_body.push(self.state.acceleration_body);
-        self.result.angular_accel_body.push(self.state.angular_accel_body);
-        self.result.angular_rate_body.push(self.state.angular_rate_body);
+        self.result
+            .acceleration_base
+            .push(self.state.acceleration_base);
+        self.result
+            .acceleration_body
+            .push(self.state.acceleration_body);
+        self.result
+            .angular_accel_body
+            .push(self.state.angular_accel_body);
+        self.result
+            .angular_rate_body
+            .push(self.state.angular_rate_body);
         self.result.attitude_base.push(self.state.attitude_base);
-        self.result.external_force_body.push(self.state.external_force_body);
-        self.result.external_torque_body.push(self.state.external_torque_body);
+        self.result
+            .external_force_body
+            .push(self.state.external_force_body);
+        self.result
+            .external_torque_body
+            .push(self.state.external_torque_body);
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct BodyState {
     pub position_base: Vector3<f64>,
     pub velocity_base: Vector3<f64>,
@@ -234,7 +246,7 @@ pub struct BodyState {
     pub linear_momentum_base: Vector3<f64>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BodyResult {
     pub position_base: Vec<Vector3<f64>>,
     pub velocity_base: Vec<Vector3<f64>>,

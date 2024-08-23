@@ -155,7 +155,7 @@ impl MultibodyTrait for Prismatic {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct PrismaticAbaCache {
     common: AbaCache,
     lil_u: f64,
@@ -163,13 +163,13 @@ struct PrismaticAbaCache {
     big_u: Matrix6x1<f64>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct PrismaticCrbCache {
     cache_index: usize,
     ic: SpatialInertia,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct PrismaticCache {
     common: JointCache,
     aba: Option<PrismaticAbaCache>,
@@ -179,7 +179,7 @@ struct PrismaticCache {
     tau: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrismaticSim {
     cache: PrismaticCache,    
     id: Uuid,
@@ -478,7 +478,7 @@ impl JointSimTrait for PrismaticSim {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PrismaticResult {
     pub position: Vec<f64>,
     pub velocity: Vec<f64>,

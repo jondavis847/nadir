@@ -1,4 +1,7 @@
+use std::io::Read;
+
 mod mouse;
+
 use iced::{
     alignment, keyboard,
     mouse::ScrollDelta,
@@ -69,7 +72,14 @@ enum Message {
     WindowResized(Size),
 }
 
-fn main() -> iced::Result {
+fn main() -> iced::Result {    
+      // Read the data from stdin
+      let mut buffer = Vec::new();
+      std::io::stdin().read_to_end(&mut buffer).expect("Failed to read from stdin");
+  
+      // Deserialize the byte array back into a struct
+      let data: MultibodyResult = bincode::deserialize(&buffer).expect("Failed to deserialize data");
+
     // Get the path to the currently running executable
     let current_exe = std::env::current_exe().expect("Failed to get current executable path");    
     let current_dir = current_exe
@@ -87,6 +97,8 @@ fn main() -> iced::Result {
     settings.antialiasing = true;
     settings.window.size = Size::new(1280.0, 720.0);
     settings.window.icon = Some(icon);
+
+
     AnimationGui::run(settings)
 }
 

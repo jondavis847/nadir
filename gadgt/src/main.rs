@@ -28,10 +28,10 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{Rotation, quaternion::Quaternion};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::env;
 use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
 use std::path::PathBuf;
+use std::process::{Command,Stdio};
 use transforms::Transform;
 use utilities::format_number;
 
@@ -294,9 +294,16 @@ fn main() {
                                     }    
                                 }
                                 Commands::Animate { result } => {
-                                    let status = std::process::Command::new("animation")
+                                    let mut child  = Command::new("animation")
+                                            .stdin(Stdio::piped())
                                             .spawn()
-                                            .expect("Failed to execute animation");                                     
+                                            .expect("Failed to execute animation");       
+                                         // Get a handle to the child's stdin
+                                    if let Some(ref mut stdin) = child.stdin {
+                                        // Send data to the animation process
+                                        stdin.write_all(b"Hello from parent process!\n").expect("Failed to write to stdin");
+                                    }
+                              
                                 },
                                 Commands::Connect {                                    
                                     from_name,

@@ -2,24 +2,23 @@ pub mod errors;
 pub mod floating;
 pub mod joint_sim;
 pub mod joint_state;
+pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
-pub mod joint_transforms;
 
-use errors::JointErrors;
-use floating::{Floating, FloatingResult};
-use prismatic::{Prismatic, PrismaticResult};
-use revolute::{Revolute, RevoluteResult};
 use super::{
     body::{Body, BodyTrait},
     MultibodyTrait,
 };
+use errors::JointErrors;
+use floating::{Floating, FloatingResult};
+use prismatic::{Prismatic, PrismaticResult};
+use revolute::{Revolute, RevoluteResult};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialInertia;
 use std::fmt;
 use transforms::Transform;
 use uuid::Uuid;
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Joint {
@@ -77,14 +76,14 @@ pub trait JointTrait: MultibodyTrait {
     fn get_connections(&self) -> &JointConnection;
     fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;    
+    fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JointCommon {
     pub id: Uuid,
     pub name: String,
-    pub connection: JointConnection,    
+    pub connection: JointConnection,
     pub mass_properties: Option<SpatialInertia>,
 }
 
@@ -227,25 +226,23 @@ pub struct JointConnection {
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct JointParameters {
     pub constant_force: f64,
-    pub damping: f64,    
+    pub damping: f64,
     pub spring_constant: f64,
 }
 
 impl JointParameters {
-    pub fn new(constant_force: f64, damping: f64, spring_constant: f64) -> Self {        
+    pub fn new(constant_force: f64, damping: f64, spring_constant: f64) -> Self {
         Self {
             constant_force,
-            damping,            
+            damping,
             spring_constant,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum JointResult {
     Floating(FloatingResult),
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
 }
-
-

@@ -63,7 +63,7 @@ impl MulAssign<f64> for FloatingState {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FloatingResult {
     pub q: Vec<Quaternion>,
     pub w: Vec<Vector3<f64>>,
@@ -174,7 +174,7 @@ impl MultibodyTrait for Floating {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct FloatingAbaCache {
     common: AbaCache,
     lil_u: Vector6<f64>,
@@ -182,13 +182,13 @@ struct FloatingAbaCache {
     big_u: Matrix6<f64>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct FloatingCrbCache {
     cache_index: usize,
     ic: SpatialInertia,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct FloatingCache {
     common: JointCache,
     aba: Option<FloatingAbaCache>,
@@ -198,7 +198,7 @@ struct FloatingCache {
     tau: Vector6<f64>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloatingSim {
     cache: FloatingCache,
     id: Uuid,
@@ -254,7 +254,7 @@ impl ArticulatedBodyAlgorithm for FloatingSim {
         *v = transforms.jof_from_ij_jof * v_ij + *vj;
         aba.common.c = v.cross_motion(*vj); // + cj
         aba.common.inertia_articulated = *joint_inertia;
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - self.cache.common.f;        
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - self.cache.common.f;
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -291,9 +291,8 @@ impl ArticulatedBodyAlgorithm for FloatingSim {
         let q_ddot = &mut self.cache.q_ddot;
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
-        *q_ddot = aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());        
+        *q_ddot = aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
         *a = aba.common.a_prime + Acceleration::from(*q_ddot);
-
     }
 
     fn get_p_big_a(&self) -> Force {

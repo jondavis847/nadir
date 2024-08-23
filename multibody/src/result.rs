@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
 use rotations::{quaternion::Quaternion, RotationTrait};
+use serde::{Serialize,Deserialize};
 use spatial_algebra::{MotionVector, SpatialVector, Velocity};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -18,7 +19,7 @@ use crate::{
     },
 };
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct MultibodyResult {
     pub name: String,
     pub system: MultibodySystemSim,
@@ -513,7 +514,7 @@ impl MultibodyResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,Serialize, Deserialize)]
 pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),

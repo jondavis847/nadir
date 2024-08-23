@@ -10,8 +10,7 @@ use crate::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters,
-        JointTrait,
+        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
 };
@@ -57,7 +56,7 @@ impl MulAssign<f64> for RevoluteState {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RevoluteResult {
     pub theta: Vec<f64>,
     pub omega: Vec<f64>,
@@ -166,7 +165,7 @@ impl MultibodyTrait for Revolute {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct RevoluteAbaCache {
     common: AbaCache,
     lil_u: f64,
@@ -174,13 +173,13 @@ struct RevoluteAbaCache {
     big_u: Matrix6x1<f64>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 struct RevoluteCrbCache {
     cache_index: usize,
     ic: SpatialInertia,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct RevoluteCache {
     common: JointCache,
     aba: Option<RevoluteAbaCache>,
@@ -190,9 +189,9 @@ struct RevoluteCache {
     tau: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RevoluteSim {
-    cache: RevoluteCache,    
+    cache: RevoluteCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
     parameters: JointParameters,
@@ -225,8 +224,8 @@ impl From<Revolute> for RevoluteSim {
 
         RevoluteSim {
             cache: RevoluteCache::default(),
-            id: *revolute.get_id(),         
-            mass_properties: None,   
+            id: *revolute.get_id(),
+            mass_properties: None,
             parameters: revolute.parameters,
             result: RevoluteResult::default(),
             state: revolute.state,

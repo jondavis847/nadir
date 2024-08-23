@@ -1,7 +1,8 @@
 use nalgebra::{DMatrix, DVector};
+use serde::{Serialize, Deserialize};
 use spatial_algebra::SpatialInertia;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CrbCache { 
     pub c: DVector<f64>,
     pub h: DMatrix<f64>,       

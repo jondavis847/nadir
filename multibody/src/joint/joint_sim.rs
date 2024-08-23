@@ -1,15 +1,17 @@
 use super::{
-    floating::FloatingSim, joint_state::JointState, joint_transforms::JointTransforms, prismatic::PrismaticSim, revolute::RevoluteSim, Joint
+    floating::FloatingSim, joint_state::JointState, joint_transforms::JointTransforms,
+    prismatic::PrismaticSim, revolute::RevoluteSim, Joint,
 };
 use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
     recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
 };
 use nalgebra::{DMatrix, DVector};
+use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum JointSim {
     Floating(FloatingSim),
     Prismatic(PrismaticSim),
@@ -33,7 +35,7 @@ pub trait JointSimTrait {
     fn get_derivative(&self) -> JointState;
     fn get_id(&self) -> &Uuid;
     fn get_inertia(&self) -> SpatialInertia;
-    fn get_ndof(&self) -> usize;    
+    fn get_ndof(&self) -> usize;
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
@@ -352,7 +354,7 @@ pub struct JointSimCommon {
 
 /// vj is the velocity across a joint (velocity of jof with respect to jif)
 /// v is the velocity of the jof in the jof frame (inner joint's jof + vj)
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointCache {
     pub a: Acceleration,
     pub f: Force,
