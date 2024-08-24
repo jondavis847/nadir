@@ -1,6 +1,6 @@
 [workspace]
-members = [ "aerospace", "animation", "benchmarks", "gadgt",    
-    "coordinate_systems", "differential_equations", "geometry","gui", "mass_properties",
+members = [ "aerospace", "gadgt_animation", "benchmarks", "gadgt",    
+    "coordinate_systems", "differential_equations","gui", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
     "transforms", "utilities",    

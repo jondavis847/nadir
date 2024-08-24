@@ -1,0 +1,17 @@
+[package]
+name = "gadgt_animation"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gadgt_animation"
+path = "src/main.rs"
+
+[dependencies]
+bincode = "1.3.3"
+bytemuck = "1.17.0"
+geometry = {path = "../geometry"}
+glam = { version = "0.29.0", features = ["bytemuck"] }
+iced = { version = "0.12.1", features = ["advanced","canvas","tokio"] }
+image = "0.25.2"
+multibody = {path = "../multibody"}

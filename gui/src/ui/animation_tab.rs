@@ -96,9 +96,9 @@ impl AnimationTab {
                     Geometry::Cuboid(cuboid) => {
                         let cuboid = Cuboid::new(
                             body_name.clone(),
-                            cuboid.length,
-                            cuboid.width,
-                            cuboid.height,
+                            cuboid.x,
+                            cuboid.y,
+                            cuboid.z,
                             rotation,
                             position,
                         );

@@ -20,7 +20,7 @@ use pipeline::{Pipeline, Uniforms};
 
 use crate::Message;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Scene {
     pub cuboids: Vec<Cuboid>,
     pub camera: Camera,
@@ -112,7 +112,7 @@ impl Program<Message> for Scene {
     type Primitive = ScenePrimitive;
 
     // Required method
-    fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
+    fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {                
         ScenePrimitive::new(&self.cuboids, &self.camera, bounds, self.light_color)
     }
 
@@ -160,7 +160,7 @@ impl Program<Message> for Scene {
                             let delta = canvas_cursor_position - last_position;
                             (
                                 Status::Captured,
-                                Some(Message::TabAnimationCameraRotation(delta)),
+                                Some(Message::CameraRotation(delta)),
                             )
                         } else {
                             (Status::Captured, None)

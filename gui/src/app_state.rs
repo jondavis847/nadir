@@ -688,7 +688,7 @@ impl AppState {
                     &self.nodebar.dummies.constant_gravity,
                     &self.nodebar.dummies.two_body,
                     &self.nodebar.dummies.two_body_custom,
-                );                
+                );
                 match modal.component_id {
                     Some(id) => {
                         let gravity_ref = self.graph.system.gravities.get_mut(&id).unwrap();
@@ -977,9 +977,9 @@ impl AppState {
         let dummy = &mut self.nodebar.dummies.cuboid;
 
         match field {
-            CuboidField::Length => dummy.length = string,
-            CuboidField::Width => dummy.width = string,
-            CuboidField::Height => dummy.height = string,
+            CuboidField::Length => dummy.x = string,
+            CuboidField::Width => dummy.y = string,
+            CuboidField::Height => dummy.z = string,
         }
 
         Command::none()

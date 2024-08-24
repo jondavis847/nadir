@@ -6,6 +6,7 @@ use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
+use geometry::{Geometry, cuboid::Cuboid};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
@@ -32,6 +33,8 @@ use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
 use std::path::PathBuf;
 use std::process::{Command,Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 use transforms::Transform;
 use utilities::format_number;
 
@@ -308,24 +311,20 @@ fn main() {
                                     // serialize the result data to be sent to the animation crate process
                                     let result_bytes = bincode::serialize(result).expect("Failed to serialize struct");
 
-                                    let mut child  = Command::new("animation")
+                                    let mut child  = Command::new("gadgt_animation")
                                             .stdin(Stdio::piped())
                                             .stdout(Stdio::piped())
                                             .spawn()
-                                            .expect("Failed to execute animation");       
-                                         // Get a handle to the child's stdin
-                                    if let Some(stdin) = &mut child.stdin {
+                                            .expect("Failed to execute animation");      
+
+                                    
+                                    // Get a handle to the child's stdin
+                                    if let Some(mut stdin) = child.stdin.take() {
                                         // Send data to the animation process
                                         stdin.write_all(&result_bytes).expect("Failed to write to stdin");
+                                        // Explicitly close the stdin to signal that no more data will be sent
+                                        drop(stdin);
                                     }
-
-                                    if let Some(stdout) = &mut child.stdout {
-                                        let mut out = String::new();
-                                        stdout.read_to_string(&mut out).expect("Failed to read std out of child process.");
-
-                                        dbg!(out);
-                                    }
-                              
                                 },
                                 Commands::Connect {                                    
                                     from_name,
@@ -660,6 +659,7 @@ fn main() {
                                                     // maintaining id's and connections, then dropping new object
                                                     old_body.set_name(new_body.get_name().to_string());
                                                     old_body.mass_properties = new_body.mass_properties;
+                                                    old_body.geometry = new_body.geometry;
 
                                                 } else {
                                                     // i think this is impossible, since to find a base it has to exist
@@ -1084,6 +1084,9 @@ enum Prompts {
     Cmx,
     Cmy,
     Cmz,
+    CuboidX,
+    CuboidY,
+    CuboidZ,
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
@@ -1093,6 +1096,8 @@ enum Prompts {
     Ixy,
     Ixz,
     Iyz,
+    Geometry,
+    GeometryType,
     GravityType,
     GravityConstantX,
     GravityConstantY,
@@ -1161,9 +1166,14 @@ impl Prompts {
             Prompts::Cmx => "Center of mass [X] (units: m, default: 0.0)",
             Prompts::Cmy => "Center of mass [Y] (units: m, default: 0.0)",
             Prompts::Cmz => "Center of mass [Z] (units: m, default: 0.0)",
+            Prompts::CuboidX => "Cuboid X (units: m, default: 1.0)",
+            Prompts::CuboidY => "Cuboid Y (units: m, default: 1.0)",
+            Prompts::CuboidZ => "Cuboid Z (units: m, default: 1.0)",
             //Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
+            Prompts::Geometry => "Add geometry to body for animation? ['y'/'n'] (default: 'n')",
+            Prompts::GeometryType => "Geometry type ['c' cuboid,'s' sphere] (default: 'c')",
             Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
@@ -1392,7 +1402,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics => {
+            Prompts::JointMechanics | Prompts::Geometry => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
                     return Ok(())
@@ -1460,14 +1470,25 @@ fn prompt_body() -> Result<Body, InputErrors> {
     let izz = Prompts::Izz.prompt()?.parse::<f64>().unwrap_or(1.0);
     let ixy = Prompts::Ixy.prompt()?.parse::<f64>().unwrap_or(0.0);
     let ixz = Prompts::Ixz.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let iyz = Prompts::Iyz.prompt()?.parse::<f64>().unwrap_or(0.0);            
+    let iyz = Prompts::Iyz.prompt()?.parse::<f64>().unwrap_or(0.0);
+
+    let geometry = Prompts::Geometry.prompt()?;
+    let geometry = match geometry.as_str() {
+        "y" => Some(prompt_geometry()?),
+        "n" => None,
+        _ => panic!("shouldnt be possible, caught in prompt_geometry")
+    };
 
     let com = CenterOfMass::new(cmx, cmy, cmz);
     let inertia =
         Inertia::new(ixx, iyy, izz, ixy, ixz, iyz).unwrap();
     let mass_properties =
         MassProperties::new(mass, com, inertia).unwrap();
-    let body = Body::new(&name, mass_properties)?;
+
+    let body = match geometry {
+        Some(geometry) => Body::new(&name, mass_properties)?.with_geometry(geometry),
+        None => Body::new(&name, mass_properties)?
+    };    
     Ok(body)    
 }
 
@@ -1669,6 +1690,26 @@ fn prompt_simulation() -> Result<(String,f64,f64,f64),InputErrors> {
         let stop_time = Prompts::SimulationStop.validate_loop("10")?.parse::<f64>().unwrap_or(10.0);        
         let dt = Prompts::SimulationDt.validate_loop("0.1")?.parse::<f64>().unwrap_or(0.1);
         Ok((name, start_time,stop_time,dt))
+}
+
+fn prompt_cuboid() -> Result<Cuboid, InputErrors> {
+    let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    Ok(Cuboid::new(x,y,z))
+}
+
+fn prompt_geometry() -> Result<Geometry, InputErrors> {
+    let geometry_type = Prompts::GeometryType.validate_loop("c")?;
+    match geometry_type.as_str() {
+        "c" => {
+            let cuboid = prompt_cuboid()?;
+            Ok(Geometry::Cuboid(cuboid))
+        }
+        _ => {
+            Err(InputErrors::CtrlC)
+        }
+    }
 }
 
 fn success(s: &str) {

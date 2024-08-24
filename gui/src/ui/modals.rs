@@ -171,18 +171,18 @@ pub fn create_body_modal<'a>(
         GeometryPickList::None => content, //nothing to do
         GeometryPickList::Cuboid => content
             .push(create_text_input(
-                "length",
-                &cuboid.length,
+                "x",
+                &cuboid.x,
                 Message::CuboidLengthInputChanged,
             ))
             .push(create_text_input(
-                "width",
-                &cuboid.width,
+                "y",
+                &cuboid.y,
                 Message::CuboidWidthInputChanged,
             ))
             .push(create_text_input(
-                "height",
-                &cuboid.height,
+                "z",
+                &cuboid.z,
                 Message::CuboidHeightInputChanged,
             )),
     };
