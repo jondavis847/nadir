@@ -66,8 +66,7 @@ fn vs_main(vertex: Vertex, cube: Cuboid) -> Output {
     out.tangent_pos = tbn * world_pos.xyz;
     out.tangent_camera_pos = tbn * uniforms.camera_pos.xyz;
     out.tangent_light_pos = tbn * uniforms.light_pos;
-    //out.color = cube.color;
-    out.color = vec4<f32>(1.0,0.0,0.0,1.0);
+    out.color = cube.color;   
 
     return out;
 }
