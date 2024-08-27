@@ -1,20 +1,18 @@
 {
-    "2pend": (
+    "floater": (
         algorithm: ArticulatedBody,
         base: Some((
-            id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+            id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
             name: "base",
             outer_joints: [
-                "12a30e81-2a03-4a5d-92b2-381ea996588e",
+                "a9922274-a992-4bee-97e4-135558e1b8c9",
             ],
-            gravity: [
-                "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
-            ],
+            gravity: [],
         )),
         bodies: {
-            "cb458608-05b9-4155-9562-fa2d3529a94d": (
-                id: "cb458608-05b9-4155-9562-fa2d3529a94d",
-                inner_joint: Some("12a30e81-2a03-4a5d-92b2-381ea996588e"),
+            "c7139c4b-b1ea-466b-83cc-33a9da87d2e5": (
+                id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
+                inner_joint: Some("a9922274-a992-4bee-97e4-135558e1b8c9"),
                 mass_properties: (
                     center_of_mass: (
                         cmx: 0.0,
@@ -31,105 +29,28 @@
                         izz: 1.0,
                     ),
                 ),
-                name: "b1",
-                outer_joints: [
-                    "a4a09acd-8032-4636-ac65-a91b82031efc",
-                ],
-                geometry: None,
-                gravity: [],
-            ),
-            "687d0bb1-8148-449e-97e2-de6b80139158": (
-                id: "687d0bb1-8148-449e-97e2-de6b80139158",
-                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b2",
+                name: "b",
                 outer_joints: [],
-                geometry: None,
+                geometry: Some(Ellipsoid((
+                    radius_x: 1.0,
+                    radius_y: 1.0,
+                    radius_z: 1.0,
+                    latitude_bands: 16,
+                    longitude_bands: 16,
+                    color: (1.0, 0.0, 0.0, 1.0),
+                ))),
                 gravity: [],
             ),
         },
-        gravities: {
-            "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638": (
-                id: "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
-                name: "g",
-                gravity: Constant((
-                    value: (0.0, 0.0, -9.8),
-                )),
-            ),
-        },
+        gravities: {},
         joints: {
-            "a4a09acd-8032-4636-ac65-a91b82031efc": Revolute((
+            "a9922274-a992-4bee-97e4-135558e1b8c9": Floating((
                 common: (
-                    id: "a4a09acd-8032-4636-ac65-a91b82031efc",
-                    name: "r2",
+                    id: "a9922274-a992-4bee-97e4-135558e1b8c9",
+                    name: "f",
                     connection: (
                         inner_body: Some((
-                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: -0.5,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "687d0bb1-8148-449e-97e2-de6b80139158",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    mass_properties: None,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 1.0,
-                    omega: 0.0,
-                ),
-            )),
-            "12a30e81-2a03-4a5d-92b2-381ea996588e": Revolute((
-                common: (
-                    id: "12a30e81-2a03-4a5d-92b2-381ea996588e",
-                    name: "r1",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+                            body_id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -145,7 +66,7 @@
                             ),
                         )),
                         outer_body: Some((
-                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
+                            body_id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -156,21 +77,48 @@
                                 translation: Cartesian((
                                     x: 0.0,
                                     y: 0.0,
-                                    z: 0.5,
+                                    z: 0.0,
                                 )),
                             ),
                         )),
                     ),
+                    mass_properties: None,
                 ),
-                parameters: (
+                parameters: ((
                     constant_force: 0.0,
                     damping: 0.0,
-                    mass_properties: None,
                     spring_constant: 0.0,
-                ),
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                )),
                 state: (
-                    theta: 0.0,
-                    omega: 0.0,
+                    q: (
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        s: 1.0,
+                    ),
+                    w: (1.0, 0.0, 0.0),
+                    r: (0.0, 0.0, 0.0),
+                    v: (0.0, 0.0, 0.0),
                 ),
             )),
         },
@@ -188,30 +136,6 @@
             ],
         )),
         bodies: {
-            "42ba7228-82ba-473a-8c75-eb20d796168b": (
-                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
-                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b3",
-                outer_joints: [],
-                geometry: None,
-                gravity: [],
-            ),
             "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
                 id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
                 inner_joint: Some("b3bd38d7-16f0-4478-9c52-625164a73a19"),
@@ -235,7 +159,12 @@
                 outer_joints: [
                     "c1df79ba-859c-40b9-b072-b659c9a96fb6",
                 ],
-                geometry: None,
+                geometry: Some(Cuboid((
+                    x: 0.1,
+                    y: 0.1,
+                    z: 1.0,
+                    color: (0.95686, 0.635294, 0.380392, 1.0),
+                ))),
                 gravity: [],
             ),
             "322e0d37-6831-44b4-903e-7341dacc949b": (
@@ -261,7 +190,41 @@
                 outer_joints: [
                     "6626c60b-d583-4e8b-936e-b38015571a69",
                 ],
-                geometry: None,
+                geometry: Some(Cuboid((
+                    x: 0.1,
+                    y: 0.1,
+                    z: 1.0,
+                    color: (0.95686, 0.63529, 0.3804, 1.0),
+                ))),
+                gravity: [],
+            ),
+            "42ba7228-82ba-473a-8c75-eb20d796168b": (
+                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
+                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b3",
+                outer_joints: [],
+                geometry: Some(Cuboid((
+                    x: 0.1,
+                    y: 0.1,
+                    z: 1.0,
+                    color: (0.956863, 0.635294, 0.380392, 1.0),
+                ))),
                 gravity: [],
             ),
         },
@@ -313,15 +276,65 @@
                             ),
                         )),
                     ),
+                    mass_properties: None,
                 ),
                 parameters: (
                     constant_force: 0.0,
-                    damping: 0.0,
-                    mass_properties: None,
+                    damping: 0.1,
                     spring_constant: 0.0,
                 ),
                 state: (
                     theta: 0.0,
+                    omega: 0.0,
+                ),
+            )),
+            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
+                common: (
+                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
+                    name: "r1",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 1.5,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.1,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 1.0,
                     omega: 0.0,
                 ),
             )),
@@ -363,25 +376,111 @@
                             ),
                         )),
                     ),
+                    mass_properties: None,
                 ),
                 parameters: (
                     constant_force: 0.0,
-                    damping: 0.0,
-                    mass_properties: None,
+                    damping: 0.1,
                     spring_constant: 0.0,
                 ),
                 state: (
-                    theta: 0.3,
+                    theta: 0.0,
                     omega: 0.0,
                 ),
             )),
-            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
+        },
+    ),
+    "2pend": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+            name: "base",
+            outer_joints: [
+                "12a30e81-2a03-4a5d-92b2-381ea996588e",
+            ],
+            gravity: [
+                "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
+            ],
+        )),
+        bodies: {
+            "687d0bb1-8148-449e-97e2-de6b80139158": (
+                id: "687d0bb1-8148-449e-97e2-de6b80139158",
+                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b2",
+                outer_joints: [],
+                geometry: Some(Cuboid((
+                    x: 0.1,
+                    y: 0.1,
+                    z: 1.0,
+                    color: (0.0, 0.0, 1.0, 1.0),
+                ))),
+                gravity: [],
+            ),
+            "cb458608-05b9-4155-9562-fa2d3529a94d": (
+                id: "cb458608-05b9-4155-9562-fa2d3529a94d",
+                inner_joint: Some("12a30e81-2a03-4a5d-92b2-381ea996588e"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b1",
+                outer_joints: [
+                    "a4a09acd-8032-4636-ac65-a91b82031efc",
+                ],
+                geometry: Some(Cuboid((
+                    x: 0.1,
+                    y: 0.1,
+                    z: 1.0,
+                    color: (0.0, 1.0, 0.0, 1.0),
+                ))),
+                gravity: [],
+            ),
+        },
+        gravities: {
+            "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638": (
+                id: "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
+                name: "g",
+                gravity: Constant((
+                    value: (0.0, 0.0, -9.8),
+                )),
+            ),
+        },
+        joints: {
+            "a4a09acd-8032-4636-ac65-a91b82031efc": Revolute((
                 common: (
-                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
-                    name: "r1",
+                    id: "a4a09acd-8032-4636-ac65-a91b82031efc",
+                    name: "r2",
                     connection: (
                         inner_body: Some((
-                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -392,12 +491,12 @@
                                 translation: Cartesian((
                                     x: 0.0,
                                     y: 0.0,
-                                    z: 0.0,
+                                    z: -0.5,
                                 )),
                             ),
                         )),
                         outer_body: Some((
-                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                            body_id: "687d0bb1-8148-449e-97e2-de6b80139158",
                             transform: (
                                 rotation: Quaternion((
                                     x: 0.0,
@@ -413,11 +512,61 @@
                             ),
                         )),
                     ),
+                    mass_properties: None,
                 ),
                 parameters: (
                     constant_force: 0.0,
                     damping: 0.0,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 1.0,
+                    omega: 0.0,
+                ),
+            )),
+            "12a30e81-2a03-4a5d-92b2-381ea996588e": Revolute((
+                common: (
+                    id: "12a30e81-2a03-4a5d-92b2-381ea996588e",
+                    name: "r1",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "8d565bdb-3f7c-4faa-91f2-021ce5ec858a",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "cb458608-05b9-4155-9562-fa2d3529a94d",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
                     mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.0,
                     spring_constant: 0.0,
                 ),
                 state: (
@@ -513,11 +662,11 @@
                             ),
                         )),
                     ),
+                    mass_properties: None,
                 ),
                 parameters: (
                     constant_force: 0.0,
                     damping: 0.0,
-                    mass_properties: None,
                     spring_constant: 0.0,
                 ),
                 state: (

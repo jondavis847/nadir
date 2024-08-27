@@ -31,10 +31,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
-use std::path::PathBuf;
+use std::path::{Path,PathBuf};
 use std::process::{Command,Stdio};
-use std::sync::mpsc;
-use std::time::Duration;
 use transforms::Transform;
 use utilities::format_number;
 
@@ -118,11 +116,12 @@ fn main() {
     let mut systems_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
     systems_path.push("gadgt"); 
     systems_path.push("systems.ron");
-    if let Some(parent) = systems_path.parent() {
-        fs::create_dir_all(parent).expect("Failed to create config directory");
+    if !Path::new(&systems_path).exists() {
+        if let Some(parent) = systems_path.parent() {
+            fs::create_dir_all(parent).expect("Failed to create config directory");
+        }
+        fs::write(&systems_path, SYSTEMS_RON).expect("Failed to write RON bytes to config file");
     }
-    fs::write(&systems_path, SYSTEMS_RON).expect("Failed to write RON bytes to config file");
-
     // set up the main prompts
     
     let mut rl = Reedline::create().with_history(history).with_ansi_colors(true);
@@ -1356,6 +1355,17 @@ impl Prompts {
                 }
                 Ok(())
             }
+            Prompts::Color => {
+                if str.is_empty() {
+                    //leave empty to use default
+                    return Ok(())
+                }
+                let possible_values = ["c", "r"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidColor);
+                }
+                Ok(())
+            }
             // Non-numeric and > 0
             Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
                 if str.is_empty() {
@@ -1459,6 +1469,7 @@ impl Prompts {
 pub enum InputErrors {
     Body(BodyErrors),
     CtrlC,
+    InvalidColor,
     InvalidGeometry,
     InvalidGravity,
     InvalidRotation,
@@ -1479,6 +1490,7 @@ impl std::fmt::Display for InputErrors {
         match self {
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
+            InputErrors::InvalidColor => write!(f,"Error: input must be ['c' (constant), 'r' (rgba)]"),
             InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
             InputErrors::InvalidRotation => write!(f,"Error: input must be ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]"),
@@ -1497,18 +1509,18 @@ fn prompt_base() -> Result<Base,InputErrors> {
 
 fn prompt_body() -> Result<Body, InputErrors> {
     let name = Prompts::Name.prompt()?;
-    let mass = Prompts::Mass.prompt()?.parse::<f64>().unwrap_or(1.0);
-    let cmx = Prompts::Cmx.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let cmy = Prompts::Cmy.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let cmz = Prompts::Cmz.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let ixx = Prompts::Ixx.prompt()?.parse::<f64>().unwrap_or(1.0);
-    let iyy = Prompts::Iyy.prompt()?.parse::<f64>().unwrap_or(1.0);
-    let izz = Prompts::Izz.prompt()?.parse::<f64>().unwrap_or(1.0);
-    let ixy = Prompts::Ixy.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let ixz = Prompts::Ixz.prompt()?.parse::<f64>().unwrap_or(0.0);
-    let iyz = Prompts::Iyz.prompt()?.parse::<f64>().unwrap_or(0.0);
+    let mass = Prompts::Mass.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let cmx = Prompts::Cmx.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let cmy = Prompts::Cmy.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let cmz = Prompts::Cmz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let ixx = Prompts::Ixx.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let iyy = Prompts::Iyy.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let izz = Prompts::Izz.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let ixy = Prompts::Ixy.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let ixz = Prompts::Ixz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let iyz = Prompts::Iyz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
 
-    let geometry = Prompts::Geometry.prompt()?;
+    let geometry = Prompts::Geometry.validate_loop("n")?;
     let geometry = match geometry.as_str() {
         "y" => Some(prompt_geometry()?),
         "n" => None,
