@@ -2,7 +2,7 @@ struct Uniforms {
     projection: mat4x4<f32>,
     camera_pos: vec4<f32>,
     light_pos: vec3<f32>,
-    light_color: vec4<f32>,    
+    light_color: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -28,21 +28,19 @@ struct Ellipsoid {
 struct Output {
     @builtin(position) clip_pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
-    @location(1) tangent_pos: vec3<f32>,
-    @location(2) tangent_camera_pos: vec3<f32>,
-    @location(3) tangent_light_pos: vec3<f32>,
-    @location(4) color: vec4<f32>,
+    @location(1) world_pos: vec3<f32>,
+    @location(2) normal: vec3<f32>,
+    @location(3) color: vec4<f32>,
 }
 
 @vertex
 fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {     
-
     let ellipsoid_matrix = mat4x4<f32>(
          ellipsoid.matrix_0,
          ellipsoid.matrix_1,
          ellipsoid.matrix_2,
          ellipsoid.matrix_3,
-     );
+    );
 
     let normal_matrix = mat3x3<f32>(
         ellipsoid.normal_matrix_0,
@@ -50,22 +48,14 @@ fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {
         ellipsoid.normal_matrix_2,
     );
 
-    // Convert to tangent space to calculate lighting in the same coordinate space as normal map sample
-    let tangent = normalize(normal_matrix * vertex.tangent);
-    let normal = normalize(normal_matrix * vertex.normal);
-    let bitangent = cross(tangent, normal);
-
-    // Shift everything into tangent space
-    let tbn = transpose(mat3x3<f32>(tangent, bitangent, normal));
-
     let world_pos = ellipsoid_matrix * vec4<f32>(vertex.position, 1.0);
+    let normal = normalize(normal_matrix * vertex.normal);
 
     var out: Output;
     out.clip_pos = uniforms.projection * world_pos;
     out.uv = vertex.uv;
-    out.tangent_pos = tbn * world_pos.xyz;
-    out.tangent_camera_pos = tbn * uniforms.camera_pos.xyz;
-    out.tangent_light_pos = tbn * uniforms.light_pos;
+    out.world_pos = world_pos.xyz;
+    out.normal = normal;
     out.color = ellipsoid.color;
 
     return out;
@@ -73,6 +63,22 @@ fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {
 
 @fragment
 fn fs_main(in: Output) -> @location(0) vec4<f32> {
-    // Use the color from the ellipsoid data
-    return in.color;
+    let light_dir = normalize(uniforms.light_pos - in.world_pos);
+    let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
+
+    let ambient = 0.1 * in.color.rgb;
+
+    // Diffuse lighting (Lambertian reflectance)
+    let diff = max(dot(in.normal, light_dir), 0.0);
+    let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
+
+    // Specular lighting (Phong reflection model)
+    let reflect_dir = reflect(-light_dir, in.normal);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
+    let specular = spec * uniforms.light_color.rgb;
+
+    // Combine results
+    let result = ambient + diffuse + specular;
+
+    return vec4<f32>(result, in.color.a);
 }
