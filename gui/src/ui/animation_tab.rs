@@ -5,7 +5,6 @@ use iced::{
     Element, Length, Point,
 };
 use multibody::result::MultibodyResult;
-use polars::datatypes::AnyValue;
 
 pub mod animator;
 use animator::Animator;
@@ -103,6 +102,9 @@ impl AnimationTab {
                             position,
                         );
                         cuboids.push(cuboid);
+                    }
+                    Geometry::Ellipsoid(ellipsoid) => {
+                        todo!()
                     }
                 }
             }

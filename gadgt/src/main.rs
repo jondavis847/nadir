@@ -6,7 +6,7 @@ use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
-use geometry::{Geometry, cuboid::Cuboid};
+use geometry::{cuboid::Cuboid, ellipsoid::Ellipsoid, Geometry};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
@@ -1084,12 +1084,23 @@ enum Prompts {
     Cmx,
     Cmy,
     Cmz,
+    Color,
+    ColorConstant,
+    ColorR,
+    ColorG,
+    ColorB,
+    ColorA,
     CuboidX,
     CuboidY,
     CuboidZ,
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
+    EllipsoidRadiusX,
+    EllipsoidRadiusY,
+    EllipsoidRadiusZ,
+    EllipsoidLatitudeBands,
+    EllipsoidLongitudeBands,
     Ixx,
     Iyy,
     Izz,
@@ -1166,14 +1177,25 @@ impl Prompts {
             Prompts::Cmx => "Center of mass [X] (units: m, default: 0.0)",
             Prompts::Cmy => "Center of mass [Y] (units: m, default: 0.0)",
             Prompts::Cmz => "Center of mass [Z] (units: m, default: 0.0)",
+            Prompts::Color => "Color ['c' constant, 'r' rgba] (default: 'c')",
+            Prompts::ColorConstant => "Color ['white','red','blue','green'] (default: 'white')",
+            Prompts::ColorR => "Color Red [0-1] (default: 1)",
+            Prompts::ColorG => "Color Green [0-1] (default: 1)",
+            Prompts::ColorB => "Color Blue [0-1] (default: 1)",
+            Prompts::ColorA => "Color Alpha [0-1] (default: 1)",
             Prompts::CuboidX => "Cuboid X (units: m, default: 1.0)",
             Prompts::CuboidY => "Cuboid Y (units: m, default: 1.0)",
             Prompts::CuboidZ => "Cuboid Z (units: m, default: 1.0)",
             //Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
+            Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
+            Prompts::EllipsoidLongitudeBands => "Number of longitude bands (default: 16)",
+            Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
+            Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
+            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",
             Prompts::Geometry => "Add geometry to body for animation? ['y'/'n'] (default: 'n')",
-            Prompts::GeometryType => "Geometry type ['c' cuboid,'s' sphere] (default: 'c')",
+            Prompts::GeometryType => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
             Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
@@ -1359,6 +1381,18 @@ impl Prompts {
             //    }
             //    Ok(())
             //}
+            //GeometryType 
+            Prompts::GeometryType => {
+                if str.is_empty() {
+                    //leave empty to use default
+                    return Ok(())
+                }
+                let possible_values = ["c", "e"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidGeometry);
+                }
+                Ok(())
+            }
             //Gravity
             Prompts::GravityType => {
                 if str.is_empty() {
@@ -1425,6 +1459,7 @@ impl Prompts {
 pub enum InputErrors {
     Body(BodyErrors),
     CtrlC,
+    InvalidGeometry,
     InvalidGravity,
     InvalidRotation,
     InvalidTransform,
@@ -1444,6 +1479,7 @@ impl std::fmt::Display for InputErrors {
         match self {
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
+            InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
             InputErrors::InvalidRotation => write!(f,"Error: input must be ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]"),
             InputErrors::InvalidTransform => write!(f,"Error: input must be ['i' (identity), 'c' (custom)]"),
@@ -1490,6 +1526,32 @@ fn prompt_body() -> Result<Body, InputErrors> {
         None => Body::new(&name, mass_properties)?
     };    
     Ok(body)    
+}
+
+fn prompt_color() -> Result<[f32;4], InputErrors> {
+    let color_type = Prompts::Color.validate_loop("c")?;
+    let rgba = match color_type.as_str() {
+        "c" => {
+            
+                let color = Prompts::ColorConstant.validate_loop("white")?;
+                match color.as_str() {
+                    "white" => [1.0,1.0,1.0,1.0],
+                    "red" => [1.0,0.0,0.0,1.0],
+                    "green" => [0.0,1.0,0.0,1.0],
+                    "blue" => [0.0,0.0,1.0,1.0],
+                    _ => panic!("invalid color, should have been caught by validate loop")
+                }            
+        },
+        "r" => {
+            let r = Prompts::ColorR.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+            let g = Prompts::ColorG.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+            let b = Prompts::ColorB.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+            let a = Prompts::ColorA.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+            [r,g,b,a]
+        }
+        _ => panic!("invalid option, should have been caught by validate loop")
+    };
+    Ok(rgba)
 }
 
 fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
@@ -1696,7 +1758,19 @@ fn prompt_cuboid() -> Result<Cuboid, InputErrors> {
     let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
     let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
     let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    Ok(Cuboid::new(x,y,z))
+    let color = prompt_color()?;
+    Ok(Cuboid::new(x,y,z,color))
+}
+
+fn prompt_ellipsoid() -> Result<Ellipsoid, InputErrors> {
+    let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
+    let lon = Prompts::EllipsoidLongitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
+    
+    let color = prompt_color()?;
+    Ok(Ellipsoid::new(x,y,z,lat, lon, color))
 }
 
 fn prompt_geometry() -> Result<Geometry, InputErrors> {
@@ -1705,6 +1779,10 @@ fn prompt_geometry() -> Result<Geometry, InputErrors> {
         "c" => {
             let cuboid = prompt_cuboid()?;
             Ok(Geometry::Cuboid(cuboid))
+        }
+        "e" => {
+            let ellipsoid = prompt_ellipsoid()?;
+            Ok(Geometry::Ellipsoid(ellipsoid))
         }
         _ => {
             Err(InputErrors::CtrlC)

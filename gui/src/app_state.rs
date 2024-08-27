@@ -303,6 +303,9 @@ impl AppState {
                                         dummy.geometry = GeometryPickList::Cuboid;
                                         self.nodebar.dummies.cuboid.get_values_from(cuboid)
                                     }
+                                    Geometry::Ellipsoid(ellipsoid) => {
+                                        todo!()
+                                    }
                                 }
                             } else {
                                 dummy.geometry = GeometryPickList::None;

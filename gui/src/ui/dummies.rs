@@ -562,6 +562,7 @@ impl DummyCuboid {
             x,
             y,
             z,
+            color: [1.0,1.0,1.0,1.0] // TODO!
         }
     }
 }

@@ -1,14 +1,14 @@
 use iced::widget::shader::wgpu;
 
 // A custom buffer container for dynamic resizing.
-pub struct Buffer {
+pub struct DynamicBuffer {
     pub raw: wgpu::Buffer,
     label: &'static str,
     size: u64,
     usage: wgpu::BufferUsages,
 }
 
-impl Buffer {
+impl DynamicBuffer {
     pub fn new(
         device: &wgpu::Device,
         label: &'static str,

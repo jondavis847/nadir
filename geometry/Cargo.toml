@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0.204", features = ["derive"] }
+rotations = {path = "../rotations"}
+nalgebra = { version = "0.33.0", features = ["serde-serialize"] }
