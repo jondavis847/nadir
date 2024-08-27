@@ -9,7 +9,6 @@ path = "src/main.rs"
 
 [dependencies]
 aerospace = {path = "../aerospace"}
-gadgt_animation = {path = "../gadgt_animation"}
 geometry = {path = "../geometry"}
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}

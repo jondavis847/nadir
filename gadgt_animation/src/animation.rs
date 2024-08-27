@@ -4,7 +4,6 @@ mod scene;
 use crate::{mouse::MouseProcessor, Message};
 use animator::Animator;
 use geometry::Geometry;
-use glam::{Quat, Vec3};
 use iced::{
     mouse::ScrollDelta,
     widget::{shader, Row},
@@ -60,7 +59,8 @@ impl AnimationState {
         }
     }
 
-    pub fn camera_rotated(&mut self, _delta: Vector) -> Command<Message> {
+    pub fn camera_rotated(&mut self, mouse_delta: Vector) -> Command<Message> {
+        self.scene.camera.update_position_from_mouse_delta(mouse_delta);
         Command::none()
     }
 

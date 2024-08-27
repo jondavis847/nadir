@@ -19,10 +19,11 @@ struct Ellipsoid {
     @location(5) matrix_1: vec4<f32>,    
     @location(6) matrix_2: vec4<f32>,    
     @location(7) matrix_3: vec4<f32>,    
-    @location(8) normal_matrix_0: vec3<f32>,    
-    @location(9) normal_matrix_1: vec3<f32>,    
-    @location(10) normal_matrix_2: vec3<f32>,    
-    @location(11) color: vec4<f32>, // RGBA color for the ellipsoid
+    @location(8) color: vec4<f32>, // RGBA color for the ellipsoid
+    @location(9) normal_matrix_0: vec3<f32>,    
+    @location(10) normal_matrix_1: vec3<f32>,    
+    @location(11) normal_matrix_2: vec3<f32>,    
+    
 }
 
 struct Output {
@@ -66,7 +67,7 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
     let light_dir = normalize(uniforms.light_pos - in.world_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let ambient = 0.1 * in.color.rgb;
+    let ambient = 0.05 * in.color.rgb;
 
     // Diffuse lighting (Lambertian reflectance)
     let diff = max(dot(in.normal, light_dir), 0.0);
@@ -75,7 +76,7 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
     // Specular lighting (Phong reflection model)
     let reflect_dir = reflect(-light_dir, in.normal);
     let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
-    let specular = spec * uniforms.light_color.rgb;
+   let specular = spec * uniforms.light_color.rgb;
 
     // Combine results
     let result = ambient + diffuse + specular;

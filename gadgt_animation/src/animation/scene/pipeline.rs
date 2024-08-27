@@ -13,6 +13,7 @@ use iced::widget::shader::wgpu::{self, util::DeviceExt};
 use iced::{Rectangle, Size};
 
 pub struct Pipeline {
+    depth_view: wgpu::TextureView,
     pipeline_cuboid: wgpu::RenderPipeline,
     pipeline_ellipsoid: wgpu::RenderPipeline,
     vertex_cuboid: wgpu::Buffer,
@@ -28,8 +29,30 @@ impl Pipeline {
         device: &wgpu::Device,
         _queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
-        _target_size: Size<u32>,
+        target_size: Size<u32>,
     ) -> Self {
+
+        //depth buffer
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("cubes depth texture"),
+            size: wgpu::Extent3d {
+                width: target_size.width,
+                height: target_size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let depth_view =
+            depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+
         let cuboid_raw = CuboidRaw::from_cuboid(&Cuboid::default());
 
         //vertices of one cube
@@ -108,7 +131,7 @@ impl Pipeline {
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
                 "shaders/cuboid.wgsl"
             ))),
-        });       
+        });
 
         let pipeline_cuboid = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("cuboid pipeline"),
@@ -119,7 +142,13 @@ impl Pipeline {
                 buffers: &[Vertex::desc(), CuboidRaw::desc()],
             },
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -164,7 +193,13 @@ impl Pipeline {
                 buffers: &[Vertex::desc(), EllipsoidRaw::desc()],
             },
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -194,6 +229,7 @@ impl Pipeline {
         });
 
         Self {
+            depth_view,
             pipeline_cuboid,
             pipeline_ellipsoid,
             vertex_cuboid,
@@ -210,7 +246,7 @@ impl Pipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         _target_size: Size<u32>,
-        uniforms: &Uniforms,        
+        uniforms: &Uniforms,
         cuboids: &[CuboidRaw],
         ellipsoids: &[EllipsoidRaw],
     ) {
@@ -221,15 +257,19 @@ impl Pipeline {
         //resize cuboid vertex buffer if cubes amount changed
         let n_cuboids = cuboids.len();
         let cuboid_size = n_cuboids * std::mem::size_of::<CuboidRaw>();
-        self.instance_cuboids.resize(device, cuboid_size as u64);        
+        self.instance_cuboids.resize(device, cuboid_size as u64);
         queue.write_buffer(&self.instance_cuboids.raw, 0, bytemuck::cast_slice(cuboids));
 
         //resize ellipsoid vertex buffer if cubes amount changed
         let n_ellipsoids = ellipsoids.len();
         let ellipsoid_size = n_ellipsoids * std::mem::size_of::<EllipsoidRaw>();
-        self.instance_ellipsoids.resize(device, ellipsoid_size as u64);
-        queue.write_buffer(&self.instance_ellipsoids.raw, 0, bytemuck::cast_slice(ellipsoids));
-        
+        self.instance_ellipsoids
+            .resize(device, ellipsoid_size as u64);
+        queue.write_buffer(
+            &self.instance_ellipsoids.raw,
+            0,
+            bytemuck::cast_slice(ellipsoids),
+        );
     }
 
     pub fn render(
@@ -242,6 +282,7 @@ impl Pipeline {
         _show_depth: bool,
     ) {
         {
+           
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("gadgt.pipeline.pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -252,26 +293,36 @@ impl Pipeline {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: &self.depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    },
+                ),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
 
             pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        
+
             // Render Cuboids
             pass.set_pipeline(&self.pipeline_cuboid); // Set the cuboid pipeline
             pass.set_vertex_buffer(0, self.vertex_cuboid.slice(..));
             pass.set_vertex_buffer(1, self.instance_cuboids.raw.slice(..));
             pass.draw(0..36, 0..num_cuboids);
-        
+
             // Render Ellipsoids
             pass.set_pipeline(&self.pipeline_ellipsoid); // Switch to the ellipsoid pipeline
             pass.set_vertex_buffer(0, self.vertex_ellipsoid.slice(..)); // Use slot 0 for vertex data
             pass.set_vertex_buffer(1, self.instance_ellipsoids.raw.slice(..)); // Use slot 1 for instance data
-        
+
             // Assuming n_vertices is correctly calculated based on latitude and longitude bands
+
             let n_vertices = 1440; // Adjust as necessary for dynamic vertex count
             pass.draw(0..n_vertices, 0..num_ellipsoids);
         }

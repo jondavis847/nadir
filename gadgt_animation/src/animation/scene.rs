@@ -23,7 +23,7 @@ use pipeline::{Pipeline, Uniforms};
 
 use crate::Message;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Scene {
     pub cuboids: Vec<Cuboid>,
     pub ellipsoids: Vec<Ellipsoid>,
@@ -32,8 +32,8 @@ pub struct Scene {
     pub light_pos: [f32; 3],
 }
 
-impl Scene {
-    pub fn new() -> Self {
+impl Default for Scene {
+    fn default() -> Self {
         Self {
             cuboids: Vec::new(),
             ellipsoids: Vec::new(),
@@ -42,6 +42,8 @@ impl Scene {
             light_pos: [10.0, 10.0, 10.0],
         }
     }
+}
+impl Scene {
 }
 
 #[derive(Default, Debug)]

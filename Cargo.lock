@@ -1524,7 +1524,6 @@ dependencies = [
  "dhat",
  "differential_equations",
  "dirs-next",
- "gadgt_animation",
  "geometry",
  "mass_properties",
  "multibody",
