@@ -59,8 +59,9 @@ impl Cuboid {
 #[repr(C)]
 pub struct CuboidRaw {
     transformation: Mat4,  // 16 * 4 = 64 bytes
-    normal: [[f32; 4]; 3], // 12 * 4 = 48 bytes (padded Mat3)
+    normal: Mat3,          // 9 * 4 = 36 bytes
     color: [f32; 4],       // 16 bytes    
+    _padding: [f32; 3],
 }
 
 impl CuboidRaw {
@@ -69,9 +70,9 @@ impl CuboidRaw {
         5 => Float32x4, // transformation row 2
         6 => Float32x4, // transformation row 3
         7 => Float32x4, // transformation row 4
-        8 => Float32x4, // normal row 1 (padded Mat3)
-        9 => Float32x4, // normal row 2 (padded Mat3)
-        10 => Float32x4, // normal row 3 (padded Mat3)
+        8 => Float32x3, // normal row 1 (padded Mat3)
+        9 => Float32x3, // normal row 2 (padded Mat3)
+        10 => Float32x3, // normal row 3 (padded Mat3)
         11 => Float32x4, // color (RGBA)
     ];
 
@@ -84,21 +85,19 @@ impl CuboidRaw {
     }
 
     pub fn from_cuboid(cuboid: &Cuboid) -> Self {
-        let mat3 = Mat3::from_quat(cuboid.rotation);
-        let normal = [
-            [mat3.x_axis.x, mat3.x_axis.y, mat3.x_axis.z, 0.0],
-            [mat3.y_axis.x, mat3.y_axis.y, mat3.y_axis.z, 0.0],
-            [mat3.z_axis.x, mat3.z_axis.y, mat3.z_axis.z, 0.0],
-        ];
+        let transformation = Mat4::from_scale_rotation_translation(
+            vec3(cuboid.length, cuboid.width, cuboid.height),
+            cuboid.rotation,
+            cuboid.position,
+        );
+        
+        let normal = Mat3::from_mat4(transformation).inverse().transpose();
 
         Self {
-            transformation: Mat4::from_scale_rotation_translation(
-                vec3(cuboid.length, cuboid.width, cuboid.height),
-                cuboid.rotation,
-                cuboid.position,
-            ),
+            transformation,
             normal,
             color: cuboid.color,
+            _padding: [0.0,0.0,0.0],
         }
     }
 
