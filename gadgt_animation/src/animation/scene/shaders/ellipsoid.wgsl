@@ -6,6 +6,8 @@ struct Uniforms {
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(0) @binding(1) var earth_texture: texture_2d<f32>; // Your texture
+@group(0) @binding(2) var earth_sampler: sampler; // Your sampler
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -67,11 +69,15 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
     let light_dir = normalize(uniforms.light_pos - in.world_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let ambient = 0.05 * in.color.rgb;
+    let color = textureSample(earth_texture, earth_sampler, in.uv);
+
+    //let ambient = 0.05 * in.color.rgb;
+    let ambient = 0.05 * color.rgb;
 
     // Diffuse lighting (Lambertian reflectance)
     let diff = max(dot(in.normal, light_dir), 0.0);
-    let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
+    //let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
+    let diffuse = diff * color.rgb * uniforms.light_color.rgb;
 
     // Specular lighting (Phong reflection model)
     let light_reflect = normalize(reflect(-light_dir, in.normal));
