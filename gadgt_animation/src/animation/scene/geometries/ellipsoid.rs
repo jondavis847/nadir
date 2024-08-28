@@ -143,7 +143,9 @@ impl EllipsoidRaw {
                 let z = cos_theta;
 
                 let normal = vec3(x, y, z).normalize();
-                let tangent = vec3(-sin_phi, 0.0, cos_phi).normalize();
+                // Tangent vector at the point on the sphere
+                let tangent =
+                    vec3(-phi.sin() * theta.sin(), phi.sin() * theta.cos(), 0.0).normalize();
                 let uv = vec2(
                     lon as f32 / self.longitude_bands as f32,
                     lat as f32 / self.latitude_bands as f32,

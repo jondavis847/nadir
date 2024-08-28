@@ -74,9 +74,14 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
     let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
 
     // Specular lighting (Phong reflection model)
-    let reflect_dir = reflect(-light_dir, in.normal);
-    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
-   let specular = spec * uniforms.light_color.rgb;
+    let light_reflect = normalize(reflect(-light_dir, in.normal));
+    var specular_factor = dot(view_dir, light_reflect);    
+    var specular = vec3<f32>(0.0);
+
+    if (specular_factor > 0.0) {
+        specular_factor = pow(specular_factor, 32.0);
+        specular = uniforms.light_color.rgb * specular_factor;
+    } 
 
     // Combine results
     let result = ambient + diffuse + specular;
