@@ -4,6 +4,7 @@ mod scene;
 use crate::{mouse::MouseProcessor, Message};
 use animator::Animator;
 use geometry::Geometry;
+use glam::Vec3;
 use iced::{
     mouse::ScrollDelta,
     widget::{shader, Row},
@@ -151,7 +152,8 @@ impl AnimationState {
         self.animator.start();
     }
 
-    pub fn wheel_scrolled(&mut self, _delta: ScrollDelta) -> Command<Message> {
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) -> Command<Message> {
+        self.scene.camera.update_position_from_scroll_delta(delta);
         Command::none()
     }
 }

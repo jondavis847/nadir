@@ -1,5 +1,5 @@
 use glam::{mat4, vec3, vec4, Quat, Vec2, Vec3};
-use iced::{Rectangle, Vector};
+use iced::{mouse::ScrollDelta, Rectangle, Vector};
 use std::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug)]
@@ -37,7 +37,7 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 impl Camera {
     pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> glam::Mat4 {
         //TODO looks distorted without padding; base on surface texture size instead?
-        let aspect_ratio = bounds.width / (bounds.height + 150.0);
+        let aspect_ratio = bounds.width / bounds.height;
 
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = glam::Mat4::perspective_rh(self.fov_y, aspect_ratio, self.near, self.far);
@@ -73,9 +73,34 @@ impl Camera {
         // Calculate the new camera position
         let new_camera_pos = self.target + new_forward * target_to_camera.length();
 
-        
         // Update the camera position
         self.eye = new_camera_pos;
     }
 
+    pub fn update_position_from_scroll_delta(&mut self, scroll_delta: ScrollDelta) {
+        let delta = match scroll_delta {
+            ScrollDelta::Lines { x, y } => {
+                if x.abs() > y.abs() {
+                    x
+                } else {
+                    y
+                }
+                //TODO: Play with scale of the mag
+            }
+            ScrollDelta::Pixels { x, y } => {
+                if x.abs() > y.abs() {
+                    x
+                } else {
+                    y
+                }
+                //TODO: Play with scale of the mag
+            }
+        };
+
+        // Calculate the vector from the target to the camera
+        let target_to_camera = self.eye - self.target;
+
+        // Calculate the new camera position
+        self.eye = target_to_camera * (1.0 + 0.1 * delta);
+    }
 }

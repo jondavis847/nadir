@@ -10,7 +10,8 @@ use buffer::DynamicBuffer;
 
 use iced::widget::shader::wgpu::{self, util::DeviceExt};
 use iced::{Rectangle, Size};
-use image::{load_from_memory,GenericImageView};
+use image::{load_from_memory, GenericImageView};
+use std::num::NonZeroU8;
 
 pub struct Pipeline {
     depth_view: wgpu::TextureView,
@@ -31,7 +32,6 @@ impl Pipeline {
         format: wgpu::TextureFormat,
         target_size: Size<u32>,
     ) -> Self {
-
         //depth buffer
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("cubes depth texture"),
@@ -44,16 +44,15 @@ impl Pipeline {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
-        let depth_view =
-            depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // earth 
-        let (earth_texture, earth_texture_view) = load_earth_texture(device, queue);
+        // earth
+        let (earth_texture, earth_texture_view) = load_earth_colors(device, queue);
+        let (earth_night_texture, earth_night_texture_view) = load_earth_night(device, queue);
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -61,7 +60,8 @@ impl Pipeline {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: 16,   
             ..Default::default()
         });
 
@@ -111,52 +111,68 @@ impl Pipeline {
         let uniform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("cuboid uniform bind group layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },],
-            });
-
-            let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("uniform and texture bind group"),
-                layout: &uniform_bind_group_layout,
                 entries: &[
-                    wgpu::BindGroupEntry {
+                    wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        resource: uniforms.as_entire_binding(),
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    wgpu::BindGroupEntry {
+                    wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&earth_texture_view), // Assuming `texture_view` is your texture
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    wgpu::BindGroupEntry {
+                    wgpu::BindGroupLayoutEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&sampler), // Assuming `sampler` is your texture sampler
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
                 ],
             });
+
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("uniform and texture bind group"),
+            layout: &uniform_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniforms.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&earth_texture_view), // Assuming `texture_view` is your texture
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&sampler), // Assuming `sampler` is your texture sampler
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&earth_night_texture_view), // Assuming `texture_view` is your texture
+                },
+            ],
+        });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline layout"),
@@ -320,7 +336,6 @@ impl Pipeline {
         _show_depth: bool,
     ) {
         {
-           
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("gadgt.pipeline.pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -331,16 +346,14 @@ impl Pipeline {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(
-                    wgpu::RenderPassDepthStencilAttachment {
-                        view: &self.depth_view,
-                        depth_ops: Some(wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(1.0),
-                            store: wgpu::StoreOp::Store,
-                        }),
-                        stencil_ops: None,
-                    },
-                ),
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -367,11 +380,12 @@ impl Pipeline {
     }
 }
 
-
-fn load_earth_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> (wgpu::Texture, wgpu::TextureView) {
-
+fn load_earth_colors(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> (wgpu::Texture, wgpu::TextureView) {
     // earth
-    const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color.jpg");
+    const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_4k.jpg");
 
     let img = load_from_memory(EARTH_COLOR).expect("Failed to load image from embedded bytes");
     let rgba = img.to_rgba8();
@@ -385,6 +399,55 @@ fn load_earth_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> (wgpu::Text
 
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("earth_color"),
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &rgba,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * dimensions.0),
+            rows_per_image: Some(dimensions.1),
+        },
+        texture_size,
+    );
+
+    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    (texture, texture_view)
+}
+
+fn load_earth_night(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    // earth
+    const EARTH_NIGHT: &[u8] = include_bytes!("../../../resources/earth_night_4k.jpg");
+
+    let img = load_from_memory(EARTH_NIGHT).expect("Failed to load image from embedded bytes");
+    let rgba = img.to_rgba8();
+    let dimensions = img.dimensions();
+
+    let texture_size = wgpu::Extent3d {
+        width: dimensions.0,
+        height: dimensions.1,
+        depth_or_array_layers: 1,
+    };
+
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("earth_night"),
         size: texture_size,
         mip_level_count: 1,
         sample_count: 1,

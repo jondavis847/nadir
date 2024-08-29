@@ -7,7 +7,7 @@ use iced::{Color, Rectangle};
 pub struct Uniforms {
     camera_proj: glam::Mat4,
     camera_pos: glam::Vec4,
-    light_color: glam::Vec4,    
+    light_color: glam::Vec4,        
     light_pos: glam:: Vec3,
     _padding: f32,
 }

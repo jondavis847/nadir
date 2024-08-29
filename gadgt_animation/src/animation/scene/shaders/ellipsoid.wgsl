@@ -1,13 +1,14 @@
 struct Uniforms {
     projection: mat4x4<f32>,
-    camera_pos: vec4<f32>,
-    light_pos: vec3<f32>,
+    camera_pos: vec4<f32>,    
     light_color: vec4<f32>,
+    light_pos: vec3<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var earth_texture: texture_2d<f32>; // Your texture
 @group(0) @binding(2) var earth_sampler: sampler; // Your sampler
+@group(0) @binding(3) var earth_night: texture_2d<f32>; // Your texture
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -66,18 +67,22 @@ fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {
 
 @fragment
 fn fs_main(in: Output) -> @location(0) vec4<f32> {
-    let light_dir = normalize(uniforms.light_pos - in.world_pos);
+    let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let color = textureSample(earth_texture, earth_sampler, in.uv);
+
+    let diff = max(dot(in.normal, light_dir), 0.0);    
+    
+    let day_color = textureSample(earth_texture, earth_sampler, in.uv);
+    let night_color = textureSample(earth_night, earth_sampler, in.uv);
+
+    let color = diff * day_color + 0.1 * (1.0 - diff) * night_color;// 0.5 because it was just way too bright    
 
     //let ambient = 0.05 * in.color.rgb;
-    let ambient = 0.05 * color.rgb;
+    let ambient = 0.0 * color.rgb;
 
     // Diffuse lighting (Lambertian reflectance)
-    let diff = max(dot(in.normal, light_dir), 0.0);
-    //let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
-    let diffuse = diff * color.rgb * uniforms.light_color.rgb;
+    let diffuse = color.rgb * uniforms.light_color.rgb;
 
     // Specular lighting (Phong reflection model)
     let light_reflect = normalize(reflect(-light_dir, in.normal));

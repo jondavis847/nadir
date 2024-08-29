@@ -39,7 +39,7 @@ impl Default for Scene {
             ellipsoids: Vec::new(),
             camera: Camera::default(),
             light_color: Color::WHITE,
-            light_pos: [10.0, 10.0, 10.0],
+            light_pos: [0.0, 10.0, 0.0],
         }
     }
 }

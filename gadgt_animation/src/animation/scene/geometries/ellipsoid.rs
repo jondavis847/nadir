@@ -166,7 +166,7 @@ impl EllipsoidRaw {
         // Create triangles from grid points
         for lat in 0..self.latitude_bands as usize {
             for lon in 0..self.longitude_bands as usize {
-                let next_lon = (lon + 1) % self.longitude_bands as usize;
+                let next_lon = lon + 1;
                 let next_lat = lat + 1;
 
                 // Vertices for the current quad
