@@ -1,9 +1,10 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 use std::ops::{Add, Neg};
 
 /// Represents a point in Cartesian coordinates.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Cartesian {
     pub x: f64,
     pub y: f64,

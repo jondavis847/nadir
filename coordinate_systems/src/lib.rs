@@ -1,4 +1,5 @@
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 
 pub mod cartesian;
 pub mod cylindrical;
@@ -17,7 +18,7 @@ pub mod prelude {
 }
 
 /// Represents a point in a generic coordinate system, which can be Cartesian, Cylindrical, or Spherical.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum CoordinateSystem {
     Cartesian(Cartesian),
     Cylindrical(Cylindrical),
