@@ -522,46 +522,47 @@ pub enum DummyGeometry {
 
 #[derive(Default, Debug, Clone)]
 pub struct DummyCuboid {
-    pub length: String,
-    pub width: String,
-    pub height: String,
+    pub x: String,
+    pub y: String,
+    pub z: String,
 }
 
 impl DummyCuboid {
     pub fn new() -> Self {
         Self {
-            length: String::new(),
-            width: String::new(),
-            height: String::new(),
+            x: String::new(),
+            y: String::new(),
+            z: String::new(),
         }
     }
     pub fn clear(&mut self) {
-        self.length = String::new();
-        self.width = String::new();
-        self.height = String::new();
+        self.x = String::new();
+        self.y = String::new();
+        self.z = String::new();
     }
 
     pub fn get_values_from(&mut self, cuboid: &Cuboid) {
-        self.length = cuboid.length.to_string();
-        self.width = cuboid.width.to_string();
-        self.height = cuboid.height.to_string();
+        self.x = cuboid.x.to_string();
+        self.y = cuboid.y.to_string();
+        self.z = cuboid.z.to_string();
     }
 
     pub fn set_values_for(&self, cuboid: &mut Cuboid) {
-        cuboid.length = self.length.parse::<f32>().unwrap();
-        cuboid.width = self.width.parse::<f32>().unwrap();
-        cuboid.height = self.height.parse::<f32>().unwrap();
+        cuboid.x = self.x.parse::<f32>().unwrap();
+        cuboid.y = self.y.parse::<f32>().unwrap();
+        cuboid.z = self.z.parse::<f32>().unwrap();
     }
 
     pub fn to_cuboid(&self) -> Cuboid {
-        let length = self.length.parse::<f32>().unwrap_or(1.0);
-        let width = self.width.parse::<f32>().unwrap_or(1.0);
-        let height = self.height.parse::<f32>().unwrap_or(1.0);
+        let x = self.x.parse::<f32>().unwrap_or(1.0);
+        let y = self.y.parse::<f32>().unwrap_or(1.0);
+        let z = self.z.parse::<f32>().unwrap_or(1.0);
 
         Cuboid {
-            length,
-            width,
-            height,
+            x,
+            y,
+            z,
+            color: [1.0,1.0,1.0,1.0] // TODO!
         }
     }
 }

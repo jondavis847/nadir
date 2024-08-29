@@ -1,24 +1,11 @@
-[package]
-name = "gdt"
-version = "0.1.0"
-edition = "2021"
-
 [workspace]
-members = [ "aerospace", "benchmarks",    
-    "coordinate_systems", "differential_equations", "geometry","gui", "mass_properties",
+members = [ "aerospace", "gadgt_animation", "benchmarks", "gadgt",    
+    "coordinate_systems", "differential_equations","gui", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
     "transforms", "utilities",    
 ]
-
-[dependencies]
-coordinate_systems = {path = "./coordinate_systems"}
-differential_equations = {path = "./differential_equations"}
-mass_properties = {path = "./mass_properties"}
-multibody = { path = "./multibody" }
-nalgebra = "0.33.0"
-rotations = { path = "./rotations" }
-transforms = { path = "./transforms" }
+resolver = "2"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
@@ -27,3 +14,11 @@ opt-level = 0
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
 opt-level = 0
+
+[profile.release]
+debug = 1
+opt-level = 3       # Optimizes for binary size. Use "3" for max performance.
+lto = "thin"          # Link Time Optimization. "fat" can be more aggressive but slower to compile.
+codegen-units = 1     # Better optimization across the entire crate but slower compilation.
+panic = 'abort'       # Reduces binary size by not including unwind code.
+incremental = false   # Disables incremental compilation for release builds.

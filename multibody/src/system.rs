@@ -1,5 +1,3 @@
-use aerospace::gravity::{self, Gravity};
-
 use crate::component::MultibodyComponent;
 
 use super::{
@@ -12,13 +10,12 @@ use super::{
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
-
-use std::{collections::HashMap, ops::Mul};
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
@@ -112,7 +109,7 @@ impl MultibodySystem {
                         if transform.is_none() {
                             return Err(MultibodyErrors::NoTransformFound);
                         }
-                        joint.connect_inner_body(base, transform.unwrap()); // unwrap should be safe since we early returned
+                        joint.connect_inner_body(base, transform.unwrap())?; // unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }
@@ -146,7 +143,7 @@ impl MultibodySystem {
                 // look for valid 'to' components (only joints for now)
                 for (_, joint) in &mut self.joints {
                     if joint.get_name() == to_name {
-                        joint.connect_inner_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        joint.connect_inner_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }
@@ -165,7 +162,7 @@ impl MultibodySystem {
                         if transform.is_none() {
                             return Err(MultibodyErrors::NoTransformFound);
                         }
-                        joint.connect_outer_body(body, transform.unwrap()); //unwrap should be safe since we early returned
+                        joint.connect_outer_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
                         return Ok(());
                     }
                 }
@@ -185,6 +182,70 @@ impl MultibodySystem {
 
         // components were not found
         return Err(MultibodyErrors::InvalidConnection);
+    }
+
+    pub fn delete(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+        if let Some((component,id)) = self.get_from_name(name) {
+            match component {
+                MultibodyComponent::Base => {
+                    // remove the base from any connected components 
+                    self.joints.iter_mut().for_each(|(id,joint)| {
+                        if let Some(inner_connection) = &joint.get_connections().inner_body {
+                            if inner_connection.body_id == *id {
+                                joint.delete_inner_body_id();
+                            }
+                        }
+                    });
+                    self.base = None;
+                    Ok(())
+                }
+                MultibodyComponent::Body => {
+                    // remove the body from any connected components 
+                    self.joints.iter_mut().for_each(|(id,joint)| {
+                        if let Some(connection) = &joint.get_connections().inner_body {
+                            if connection.body_id == *id {
+                                joint.delete_inner_body_id();
+                            }
+                        }
+                        if let Some(connection) = &joint.get_connections().outer_body {
+                            if connection.body_id == *id {
+                                joint.delete_outer_body_id();
+                            }
+                        }
+                    });
+                    self.bodies.remove(&id);
+                    Ok(())
+                }
+                MultibodyComponent::Joint => {
+                    // remove the joint from any connected components 
+                    if let Some(joint) = self.joints.get_mut(&id) {
+                        if let Some(connection) = &joint.get_connections().inner_body {
+                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                                if connection.body_id == *body_id {
+                                    body.delete_outer_joint(&id);
+                                }
+                                });
+                            }
+                        
+                        if let Some(connection) = &joint.get_connections().outer_body {
+                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                                if connection.body_id == *body_id {
+                                    body.delete_inner_joint();
+                                }
+                            });
+                        }
+                    }
+                    self.joints.remove(&id);
+                    Ok(())
+                }
+                MultibodyComponent::Gravity => {
+                    self.delete_gravity(&id);
+                    Ok(())
+                }
+            }
+        } else {
+            Err(MultibodyErrors::ComponentNotFound(name.to_string()))
+        }
     }
 
     pub fn get_from_name(&self, name: &str) -> Option<(MultibodyComponent, Uuid)> {
@@ -313,8 +374,7 @@ impl MultibodySystem {
                     return Err(MultibodyErrors::BodyNotFound);
                 }
             }
-        }
-        println!("System validation complete!");
+        }        
         Ok(())
     }
 }

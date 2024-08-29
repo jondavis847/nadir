@@ -11,7 +11,7 @@ pub enum SolverMethod {
 }
 
 pub struct Solver<F, P, T>
-where    
+where
     F: OdeFunction<P, T>,
     T: Integrable,
 {
@@ -26,7 +26,7 @@ where
 }
 
 impl<F, P, T> Solver<F, P, T>
-where    
+where
     F: OdeFunction<P, T>,
     T: Integrable,
 {

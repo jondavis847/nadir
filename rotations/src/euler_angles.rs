@@ -1,9 +1,10 @@
 //use super::{quaternion::Quaternion, RotationTrait};
 use super::*;
 use nalgebra::Vector3;
+use serde::{Serialize, Deserialize};
 
 /// Enum representing different Euler angle sequences.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub enum EulerSequence {
     XYZ,
     XZY,
@@ -62,7 +63,7 @@ impl std::fmt::Display for EulerSequence {
 }
 
 /// Struct representing Euler angles with a specific rotation sequence.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct EulerAngles {
     pub phi: f64,
     pub theta: f64,
@@ -169,22 +170,22 @@ impl RotationTrait for EulerAngles {
                 EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XYZ)
             }
             EulerSequence::XYX => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XYX)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XYX)
             }
             EulerSequence::XZX => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::XZX)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::XZX)
             }
             EulerSequence::YXY => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YXY)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YXY)
             }
             EulerSequence::YZY => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::YZY)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::YZY)
             }
             EulerSequence::ZXZ => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZXZ)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZXZ)
             }
             EulerSequence::ZYZ => {
-                EulerAngles::new(-self.phi, -self.theta, -self.psi, EulerSequence::ZYZ)
+                EulerAngles::new(-self.psi, -self.theta, -self.phi, EulerSequence::ZYZ)
             }
         }
     }
@@ -196,5 +197,50 @@ impl RotationTrait for EulerAngles {
     /// A new `Angles` instance representing no rotation.
     fn identity() -> Self {
         EulerAngles::new(0.0, 0.0, 0.0, EulerSequence::ZYX)
+    }
+}
+
+impl From<Quaternion> for EulerAngles {
+    fn from(q: Quaternion) -> Self {
+        let q = if q.s < 0.0 {
+            -q
+        } else {
+            q
+        };
+
+        let q = q.normalize();        
+
+        // we assume ZYX rotation
+        let w = q.s;
+        let x = q.x;
+        let y = q.y;
+        let z = q.z;
+    
+        // Pitch Y (θ)
+        let theta = (2.0 * (w * y - z * x)).asin();
+        
+        // Check for gimbal lock
+        if theta.abs() > std::f64::consts::FRAC_PI_2 - 1e-6 {
+            // Gimbal lock occurs, set roll to 0 and compute yaw directly
+            let phi = 0.0; // Roll Z (φ) can be set to zero or inferred differently
+            let psi = (2.0 * (w * z + x * y)).atan2(1.0 - 2.0 * (x * x + y * y));
+            
+            if theta > 0.0 {
+                // Positive gimbal lock (Pitch = +90°)
+                Self::new(phi, std::f64::consts::FRAC_PI_2, psi, EulerSequence::ZYX)
+            } else {
+                // Negative gimbal lock (Pitch = -90°)
+                Self::new(phi, -std::f64::consts::FRAC_PI_2, psi, EulerSequence::ZYX)
+            }
+        } else {
+            // No gimbal lock, calculate roll and yaw normally
+            // Roll Z (φ)
+            let phi = (2.0 * (w * x + y * z)).atan2(1.0 - 2.0 * (x * x + y * y));
+        
+            // Yaw X (ψ)
+            let psi = (2.0 * (w * z + x * y)).atan2(1.0 - 2.0 * (y * y + z * z));
+        
+            Self::new(phi, theta, psi, EulerSequence::ZYX)
+        }
     }
 }

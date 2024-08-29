@@ -1,9 +1,10 @@
 use aerospace::gravity::Gravity;
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
 use crate::MultibodyTrait;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MultibodyGravity {
     id: Uuid,
     name: String,

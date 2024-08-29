@@ -1,11 +1,12 @@
 use super::*;
-use nalgebra::Vector3;
+use nalgebra::{Vector3, Vector4};
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{AddAssign, Mul, MulAssign, Neg};
 
 /// A struct representing a quaternion for 3D rotations.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Quaternion {
     pub x: f64,
     pub y: f64,
@@ -302,32 +303,12 @@ impl Mul<Quaternion> for Quaternion {
     }
 }
 
-impl Sub<Quaternion> for Quaternion {
-    type Output = Self;
-
-    /// Subtracts two quaternions.            
-    ///
-    /// # Arguments
-    ///
-    /// * `rhs` - The right-hand side quaternion.
-    ///
-    /// # Returns
-    ///
-    /// The difference of the two quaternions.
-    fn sub(self, rhs: Self) -> Self {
-        Self::new(
-            self.x - rhs.x,
-            self.y - rhs.y,
-            self.z - rhs.z,
-            self.s - rhs.s,
-        )
-    }
-}
-
-impl Add<Quaternion> for Quaternion {
-    type Output = Self;
-
-    /// Adds two quaternions.            
+impl<'a> AddAssign<&'a Quaternion> for Quaternion {
+    /// Adds two quaternions
+    /// NOTE: Quaternion addition for attitude is not necessarily defined.
+    /// You would use quaternion multiplication for summing rotations.
+    /// This is only used for adding quaternion derivatives
+    /// to quaternion states in an ODE!            
     ///
     /// # Arguments
     ///
@@ -336,13 +317,12 @@ impl Add<Quaternion> for Quaternion {
     /// # Returns
     ///
     /// The sum of the two quaternions.
-    fn add(self, rhs: Self) -> Self {
-        Self::new(
-            self.x + rhs.x,
-            self.y + rhs.y,
-            self.z + rhs.z,
-            self.s + rhs.s,
-        )
+    fn add_assign(&mut self, rhs: &Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+        self.z += rhs.z;
+        self.s += rhs.s;     
+        self.normalize(); // normalize here since this is last step of ODE   
     }
 }
 
@@ -354,11 +334,31 @@ impl Mul<f64> for Quaternion {
     }
 }
 
+impl MulAssign<f64> for Quaternion {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.x *= rhs;
+        self.y *= rhs;
+        self.z *= rhs;
+        self.s *= rhs;        
+    }
+}
+
 impl Neg for Quaternion {
     type Output = Self;
 
     fn neg(self) -> Self {
         Self::new(-self.x, -self.y, -self.z, -self.s)
+    }
+}
+
+impl From<Vector4<f64>> for Quaternion {
+    fn from(q: Vector4<f64>) -> Self {
+        Self {
+            x: q[0],
+            y: q[1],
+            z: q[2],
+            s: q[3],
+        }        
     }
 }
 
@@ -487,38 +487,38 @@ impl From<RotationMatrix> for Quaternion {
     /// The corresponding `Quaternion`.
     fn from(matrix: RotationMatrix) -> Self {
         let m = matrix.get_value();
-        let trace = m[(0,0)] + m[(1,1)] + m[(2,2)];
+        let trace = m[(0, 0)] + m[(1, 1)] + m[(2, 2)];
 
         if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
             Quaternion {
                 s: 0.25 * s,
-                x: (m[(2,1)] - m[(1,2)]) / s,
-                y: (m[(0,2)] - m[(2,0)]) / s,
-                z: (m[(1,0)] - m[(0,1)]) / s,
+                x: (m[(2, 1)] - m[(1, 2)]) / s,
+                y: (m[(0, 2)] - m[(2, 0)]) / s,
+                z: (m[(1, 0)] - m[(0, 1)]) / s,
             }
-        } else if (m[(0,0)] > m[(1,1)]) && (m[(0,0)] > m[(2,2)]) {
-            let s = (1.0_f64 + m[(0,0)] - m[(1,1)] - m[(2,2)]).sqrt() * 2.0;
+        } else if (m[(0, 0)] > m[(1, 1)]) && (m[(0, 0)] > m[(2, 2)]) {
+            let s = (1.0_f64 + m[(0, 0)] - m[(1, 1)] - m[(2, 2)]).sqrt() * 2.0;
             Quaternion {
-                s: (m[(2,1)] - m[(1,2)]) / s,
+                s: (m[(2, 1)] - m[(1, 2)]) / s,
                 x: 0.25 * s,
-                y: (m[(0,1)] + m[(1,0)]) / s,
-                z: (m[(0,2)] + m[(2,0)]) / s,
+                y: (m[(0, 1)] + m[(1, 0)]) / s,
+                z: (m[(0, 2)] + m[(2, 0)]) / s,
             }
-        } else if m[(1,1)] > m[(2,2)] {
-            let s = (1.0_f64 + m[(1,1)] - m[(0,0)] - m[(2,2)]).sqrt() * 2.0;
+        } else if m[(1, 1)] > m[(2, 2)] {
+            let s = (1.0_f64 + m[(1, 1)] - m[(0, 0)] - m[(2, 2)]).sqrt() * 2.0;
             Quaternion {
-                s: (m[(0,2)] - m[(2,0)]) / s,
-                x: (m[(0,1)] + m[(1,0)]) / s,
+                s: (m[(0, 2)] - m[(2, 0)]) / s,
+                x: (m[(0, 1)] + m[(1, 0)]) / s,
                 y: 0.25 * s,
-                z: (m[(1,2)] + m[(2,1)]) / s,
+                z: (m[(1, 2)] + m[(2, 1)]) / s,
             }
         } else {
-            let s = (1.0_f64 + m[(2,2)] - m[(0,0)] - m[(1,1)]).sqrt() * 2.0;
+            let s = (1.0_f64 + m[(2, 2)] - m[(0, 0)] - m[(1, 1)]).sqrt() * 2.0;
             Quaternion {
-                s: (m[(1,0)] - m[(0,1)]) / s,
-                x: (m[(0,2)] + m[(2,0)]) / s,
-                y: (m[(1,2)] + m[(2,1)]) / s,
+                s: (m[(1, 0)] - m[(0, 1)]) / s,
+                x: (m[(0, 2)] + m[(2, 0)]) / s,
+                y: (m[(1, 2)] + m[(2, 1)]) / s,
                 z: 0.25 * s,
             }
         }

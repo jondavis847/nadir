@@ -6,6 +6,7 @@ pub mod rotation_matrix;
 use axes::AlignedAxes;
 use euler_angles::{EulerAngles, EulerSequence};
 use nalgebra::Vector3;
+use serde::{Deserialize, Serialize};
 
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
@@ -48,7 +49,7 @@ pub trait RotationTrait {
 }
 
 /// Enum representing different types of rotations.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Rotation {
     EulerAngles(EulerAngles),
     Quaternion(Quaternion),

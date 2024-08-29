@@ -2,9 +2,10 @@ use super::*;
 use axes::{AlignedAxes, Axis};
 use nalgebra::{Matrix3, Vector3};
 use std::ops::Mul;
+use serde::{Serialize, Deserialize};
 
 /// A struct representing a 3x3 rotation matrix.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq,Serialize, Deserialize)]
 pub struct RotationMatrix(pub Matrix3<f64>);
 
 /// Errors that can occur when creating a `RotationMatrix`.
@@ -107,7 +108,7 @@ impl From<Quaternion> for RotationMatrix {
         let e13 = 2.0 * x * z - 2.0 * s * y;
         let e21 = 2.0 * x * y - 2.0 * s * z;
         let e22 = 1.0 - 2.0 * x * x - 2.0 * z * z;
-        let e23 = 2.0 * y * z - 2.0 * s * x;
+        let e23 = 2.0 * y * z + 2.0 * s * x;
         let e31 = 2.0 * x * z + 2.0 * s * y;
         let e32 = 2.0 * y * z - 2.0 * s * x;
         let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;
@@ -129,11 +130,11 @@ impl From<EulerAngles> for RotationMatrix {
     /// A new `RotationMatrix` representing the rotation defined by the euler angles.
     fn from(euler_angles: EulerAngles) -> RotationMatrix {
         let rotx =
-            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), -a.sin(), 0.0, a.sin(), a.cos());
+            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), a.sin(), 0.0, -a.sin(), a.cos());
         let roty =
-            |a: f64| Matrix3::new(a.cos(), 0.0, a.sin(), 0.0, 1.0, 0.0, -a.sin(), 0.0, a.cos());
+            |a: f64| Matrix3::new(a.cos(), 0.0, -a.sin(), 0.0, 1.0, 0.0, a.sin(), 0.0, a.cos());
         let rotz =
-            |a: f64| Matrix3::new(a.cos(), -a.sin(), 0.0, a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
+            |a: f64| Matrix3::new(a.cos(), a.sin(), 0.0, -a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
 
         let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
         match euler_angles.sequence {

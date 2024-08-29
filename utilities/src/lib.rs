@@ -2,10 +2,12 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn format_number(value: f64) -> String {
-    if value.abs() >= 10000.0 || value.abs() < 0.0001 {
-        format!("{: >10.4e}", value)
+    if value > 1e4 || value < 1e-2 {
+        // Format in scientific notation with 4 significant digits
+        format!("{:.4e}", value)
     } else {
-        format!("{: >10}", value)
+        // Format with up to 4 decimal places, removing trailing zeros
+        format!("{:.4}", value).trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }
 

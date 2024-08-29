@@ -1,10 +1,11 @@
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
-use aerospace::gravity::{Gravity, GravityTrait};
+use aerospace::gravity::GravityTrait;
 use geometry::Geometry;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
-use rotations::quaternion::Quaternion;
-use spatial_algebra::{Acceleration, Force, SpatialTransform};
+use rotations::{quaternion::Quaternion, RotationTrait};
+use serde::{Deserialize, Serialize};
+use spatial_algebra::{Force, SpatialTransform};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -27,7 +28,7 @@ pub trait BodyTrait: MultibodyTrait {
     fn get_outer_joints(&self) -> &Vec<Uuid>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     //actuators: Vec<BodyActuatorConnection>,
     pub id: Uuid,
@@ -127,11 +128,13 @@ impl MultibodyTrait for Body {
 /// Instead, create a Body and call BodySim::from(Body), or
 /// Body.into() if appropriate
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct BodySim {
     pub state: BodyState,
     pub geometry: Option<Geometry>,
     pub gravity: Vec<Uuid>,
+    pub mass_properties: MassProperties,
+    pub result: BodyResult,
 }
 
 impl From<Body> for BodySim {
@@ -141,6 +144,8 @@ impl From<Body> for BodySim {
             state,
             geometry: body.geometry,
             gravity: body.gravity,
+            mass_properties: body.mass_properties,
+            result: BodyResult::default(),
         }
     }
 }
@@ -150,43 +155,102 @@ impl BodySim {
         &self.state.external_spatial_force_body
     }
 
-    pub fn calculate_gravity_accleration_base(
+    pub fn calculate_gravity(
         &mut self,
+        body_from_base: &SpatialTransform,
         gravities: &HashMap<Uuid, MultibodyGravity>,
-    ) -> Vector3<f64> {
+    ) {
+        // loop over all gravities attached to body to calculate and sum the accelerations
         let mut g_vec = Vector3::zeros();
         self.gravity.iter().for_each(|gravity_id| {
             let gravity = gravities.get(gravity_id).unwrap();
             g_vec += gravity.gravity.calculate(self.state.position_base);
         });
-        g_vec
+
+        // convert g_vec to a force by multiplying by mass
+        // note that we just calculate gravity as translation of the cm
+        // any torque applied via gravity and it's joints is handled by
+        // the conversion to a joint force through spatial algebra
+        let g_vec = g_vec * self.mass_properties.mass;
+
+        self.state.gravity_force_base = g_vec;
+        // transform to the body frame
+        self.state.gravity_force_body = body_from_base.0.rotation.transform(g_vec);
     }
     pub fn calculate_external_force(&mut self) {
-        //reset
-        self.state.external_spatial_force_body = Vector6::zeros().into();
-        //just add body forces, gravity is treated differently
+        // convert gravity to spatial force
+        let gravity_force_body = Force::from(Vector6::new(
+            0.0,
+            0.0,
+            0.0,
+            self.state.gravity_force_body[0],
+            self.state.gravity_force_body[1],
+            self.state.gravity_force_body[2],
+        ));
+
+        // sum the forces
+        self.state.external_spatial_force_body = gravity_force_body
+            + self.state.actuator_force_body
+            + self.state.environments_force_body;
+
+        // populate values for reporting
+        self.state.external_force_body = *self.state.external_spatial_force_body.translation();
+        self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
+    }
+
+    pub fn set_result(&mut self) {
+        self.result.position_base.push(self.state.position_base);
+        self.result.velocity_base.push(self.state.velocity_base);
+        self.result
+            .acceleration_base
+            .push(self.state.acceleration_base);
+        self.result
+            .acceleration_body
+            .push(self.state.acceleration_body);
+        self.result
+            .angular_accel_body
+            .push(self.state.angular_accel_body);
+        self.result
+            .angular_rate_body
+            .push(self.state.angular_rate_body);
+        self.result.attitude_base.push(self.state.attitude_base);
+        self.result
+            .external_force_body
+            .push(self.state.external_force_body);
+        self.result
+            .external_torque_body
+            .push(self.state.external_torque_body);
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct BodyState {
     pub position_base: Vector3<f64>,
     pub velocity_base: Vector3<f64>,
+    pub velocity_body: Vector3<f64>,
     pub acceleration_base: Vector3<f64>,
     pub acceleration_body: Vector3<f64>,
     pub attitude_base: Quaternion,
     pub angular_rate_body: Vector3<f64>,
     pub angular_accel_body: Vector3<f64>,
+    pub actuator_force_body: Force,
+    pub environments_force_body: Force,
+    pub gravity_force_base: Vector3<f64>,
+    pub gravity_force_body: Vector3<f64>,
     pub external_spatial_force_body: Force, //used for calculations
-    pub external_spatial_force_joint: Force, //used for calculations
     pub external_force_body: Vector3<f64>,  //use for reporting
     pub external_torque_body: Vector3<f64>, //use for reporting
+    pub angular_momentum_body: Vector3<f64>,
+    pub angular_momentum_base: Vector3<f64>,
+    pub linear_momentum_body: Vector3<f64>,
+    pub linear_momentum_base: Vector3<f64>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BodyResult {
     pub position_base: Vec<Vector3<f64>>,
     pub velocity_base: Vec<Vector3<f64>>,
+    pub velocity_body: Vec<Vector3<f64>>,
     pub acceleration_base: Vec<Vector3<f64>>,
     pub acceleration_body: Vec<Vector3<f64>>,
     pub attitude_base: Vec<Quaternion>,
@@ -194,4 +258,8 @@ pub struct BodyResult {
     pub angular_accel_body: Vec<Vector3<f64>>,
     pub external_force_body: Vec<Vector3<f64>>,
     pub external_torque_body: Vec<Vector3<f64>>,
+    pub angular_momentum_body: Vec<Vector3<f64>>,
+    pub angular_momentum_base: Vec<Vector3<f64>>,
+    pub linear_momentum_body: Vec<Vector3<f64>>,
+    pub linear_momentum_base: Vec<Vector3<f64>>,
 }

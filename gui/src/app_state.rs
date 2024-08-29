@@ -303,6 +303,9 @@ impl AppState {
                                         dummy.geometry = GeometryPickList::Cuboid;
                                         self.nodebar.dummies.cuboid.get_values_from(cuboid)
                                     }
+                                    Geometry::Ellipsoid(ellipsoid) => {
+                                        todo!()
+                                    }
                                 }
                             } else {
                                 dummy.geometry = GeometryPickList::None;
@@ -693,6 +696,8 @@ impl AppState {
                     Some(id) => {
                         let gravity_ref = self.graph.system.gravities.get_mut(&id).unwrap();
                         *gravity_ref = gravity;
+                        let graph_node = self.graph.nodes.get_mut(&id).unwrap();
+                        graph_node.node.label = gravity_ref.get_name().to_string();
                     }
                     None => {
                         let id = *gravity.get_id();
@@ -975,9 +980,9 @@ impl AppState {
         let dummy = &mut self.nodebar.dummies.cuboid;
 
         match field {
-            CuboidField::Length => dummy.length = string,
-            CuboidField::Width => dummy.width = string,
-            CuboidField::Height => dummy.height = string,
+            CuboidField::Length => dummy.x = string,
+            CuboidField::Width => dummy.y = string,
+            CuboidField::Height => dummy.z = string,
         }
 
         Command::none()

@@ -1,5 +1,5 @@
 use differential_equations::solver::{Solver, SolverMethod};
-use std::ops::{Add, Div, Mul};
+use std::ops::{AddAssign, MulAssign};
 
 // PendulumState represents the state of the pendulum with angle `theta` and angular velocity `omega`.
 #[derive(Debug, Clone, Copy)]
@@ -8,33 +8,17 @@ struct PendulumState {
     omega: f64,
 }
 
-impl Add<Self> for PendulumState {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        PendulumState {
-            theta: self.theta + other.theta,
-            omega: self.omega + other.omega,
-        }
+impl<'a> AddAssign<&'a Self> for PendulumState {    
+    fn add_assign(&mut self, rhs: &'a Self) {
+        self.theta += rhs.theta;
+        self.omega += rhs.omega;        
     }
 }
 
-impl Mul<f64> for PendulumState {
-    type Output = Self;
-    fn mul(self, rhs: f64) -> Self {
-        Self {
-            theta: self.theta * rhs,
-            omega: self.omega * rhs,
-        }
-    }
-}
-
-impl Div<f64> for PendulumState {
-    type Output = Self;
-    fn div(self, rhs: f64) -> Self {
-        Self {
-            theta: self.theta / rhs,
-            omega: self.omega / rhs,
-        }
+impl MulAssign<f64> for PendulumState {    
+    fn mul_assign(&mut self, rhs: f64) {
+        self.theta *= rhs;
+        self.omega *= rhs;
     }
 }
 
@@ -44,13 +28,11 @@ struct PendulumParameters {
 }
 
 // Define the equations of motion for the pendulum.
-fn pendulum_dynamics(x: &PendulumState, p: &Option<PendulumParameters>, _t: f64) -> PendulumState {
+fn pendulum_dynamics(dx: &mut PendulumState, x: &PendulumState, p: &Option<PendulumParameters>, _t: f64) {
     let p = p.as_ref().unwrap();
 
-    PendulumState {
-        theta: x.omega,
-        omega: -(p.g / p.l) * x.theta.sin(),
-    }
+    dx.theta = x.omega;
+    dx.omega = -(p.g / p.l) * x.theta.sin();    
 }
 
 fn main() {
@@ -62,7 +44,7 @@ fn main() {
     let p = PendulumParameters { g: 9.81, l: 1.0 };
 
     let mut solver = Solver {
-        func: |x, p, t| pendulum_dynamics(x, p, t),
+        func: |dx,x, p, t| pendulum_dynamics(dx, x, p, t),
         x0: initial_state,
         parameters: Some(p),
         tstart: 0.0,

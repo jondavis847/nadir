@@ -1,5 +1,6 @@
 use nalgebra::{Matrix2, SimdBool, Vector3}; //DMatrix
 use std::f64::consts::PI;
+use serde::{Serialize, Deserialize};
 
 pub const EARTH: f64 = 3.986004418e14; // mu (m^3/s^2)
 // pub const EARTH_J2: f64 = 1082e-6;
@@ -57,7 +58,7 @@ pub trait GravityTrait {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Gravity {
     Constant(ConstantGravity),
     TwoBody(TwoBodyGravity),
@@ -65,7 +66,7 @@ pub enum Gravity {
     EGM96(EGM96Gravity),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstantGravity {
     pub value: Vector3<f64>,
 }
@@ -77,7 +78,7 @@ impl ConstantGravity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TwoBodyGravity {
     pub mu: f64,
 }
