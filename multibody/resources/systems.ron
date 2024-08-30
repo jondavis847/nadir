@@ -8,6 +8,7 @@
                 "a9922274-a992-4bee-97e4-135558e1b8c9",
             ],
             gravity: [],
+            is_earth: false,
         )),
         bodies: {
             "c7139c4b-b1ea-466b-83cc-33a9da87d2e5": (
@@ -134,6 +135,7 @@
             gravity: [
                 "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
             ],
+            is_earth: false,
         )),
         bodies: {
             "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
@@ -401,6 +403,7 @@
             gravity: [
                 "ed0274b7-c3fa-43ec-ab42-9cd6dd0f2638",
             ],
+            is_earth: false,
         )),
         bodies: {
             "687d0bb1-8148-449e-97e2-de6b80139158": (
@@ -587,6 +590,7 @@
             gravity: [
                 "efc7684d-8dd3-4ae1-be52-50eed332642e",
             ],
+            is_earth: false,
         )),
         bodies: {
             "7e488e3e-849a-44c7-85dc-b37929c7e1a3": (

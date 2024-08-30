@@ -1,3 +1,4 @@
+use glam::Vec3;
 use iced::{
     advanced::Shell,
     mouse::{self, Cursor, Interaction},
@@ -15,6 +16,7 @@ pub mod vertex;
 
 use geometries::{
     cuboid::{Cuboid, CuboidRaw},
+    earth::Earth,
     ellipsoid::{Ellipsoid, EllipsoidRaw},
 };
 
@@ -25,25 +27,57 @@ use crate::Message;
 
 #[derive(Debug, Clone)]
 pub struct Scene {
+    pub earth: Option<Earth>,
     pub cuboids: Vec<Cuboid>,
     pub ellipsoids: Vec<Ellipsoid>,
     pub camera: Camera,
     pub light_color: Color,
     pub light_pos: [f32; 3],
+    pub world_target: Vec3,
 }
 
 impl Default for Scene {
     fn default() -> Self {
         Self {
+            earth: None,
             cuboids: Vec::new(),
             ellipsoids: Vec::new(),
             camera: Camera::default(),
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
+            world_target: Vec3::ZERO,
         }
     }
 }
 impl Scene {
+    pub fn set_earth(&mut self, is_earth: bool) {
+        self.earth = if is_earth {
+            //TODO: calculate based on epoch
+            self.light_pos = [0.0, 151.0e9, 0.0];           
+
+            self.world_target = if !self.cuboids.is_empty() {                
+                self.cuboids[0].position                
+            } else if !self.ellipsoids.is_empty() {
+                self.ellipsoids[0].position
+            } else {
+                todo!("no other shapes yet")
+            };
+
+            // convert all positions to target frame
+            self.cuboids.iter_mut().for_each(|cuboid| cuboid.position -= self.world_target);
+            self.ellipsoids.iter_mut().for_each(|ellipsoid| ellipsoid.position -= self.world_target);
+            let unit = self.world_target.normalize();
+            self.camera.set_position(10.0 * unit);
+            self.camera.set_target(Vec3::ZERO);
+            self.camera.set_far(1.0e12);
+            
+            let mut earth = Earth::default();
+            earth.0.position -= self.world_target;
+            Some(earth)
+        } else {
+            None
+        };
+    }
 }
 
 #[derive(Default, Debug)]
@@ -54,6 +88,7 @@ pub struct SceneState {
 
 #[derive(Debug)]
 pub struct ScenePrimitive {
+    pub earth: Option<EllipsoidRaw>,
     pub uniforms: Uniforms,
     pub cuboids: Vec<CuboidRaw>,
     pub ellipsoids: Vec<EllipsoidRaw>,
@@ -61,6 +96,7 @@ pub struct ScenePrimitive {
 
 impl ScenePrimitive {
     pub fn new(
+        earth: &Option<Earth>,
         cuboids: &[Cuboid],
         ellipsoids: &[Ellipsoid],
         camera: &Camera,
@@ -69,8 +105,14 @@ impl ScenePrimitive {
         light_pos: [f32; 3],
     ) -> Self {
         let uniforms = pipeline::Uniforms::new(camera, bounds, light_color, light_pos);
+        let earth = if let Some(earth) = earth {
+            Some(EllipsoidRaw::from_ellipsoid(&earth.0))
+        } else {
+            None
+        };
 
         Self {
+            earth,
             cuboids: cuboids
                 .iter()
                 .map(CuboidRaw::from_cuboid)
@@ -96,11 +138,16 @@ impl Primitive for ScenePrimitive {
         storage: &mut Storage,
     ) {
         if !storage.has::<Pipeline>() {
-            storage.store(Pipeline::new(device, queue, format, target_size));
-          
-        }        
+            storage.store(Pipeline::new(
+                device,
+                queue,
+                format,
+                target_size,
+                self.earth.is_some(),
+            ));
+        }
 
-          //upload data to GPU            
+        //upload data to GPU
         let pipeline = storage.get_mut::<Pipeline>().unwrap();
         pipeline.update(
             device,
@@ -109,6 +156,7 @@ impl Primitive for ScenePrimitive {
             &self.uniforms,
             &self.cuboids,
             &self.ellipsoids,
+            &self.earth,
         );
     }
 
@@ -142,6 +190,7 @@ impl Program<Message> for Scene {
     // Required method
     fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
         ScenePrimitive::new(
+            &self.earth,
             &self.cuboids,
             &self.ellipsoids,
             &self.camera,

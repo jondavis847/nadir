@@ -49,6 +49,22 @@ impl Camera {
         glam::Vec4::from((self.eye, 0.0))
     }
 
+    pub fn set_far(&mut self, far: f32) {
+        self.far = far;
+    }
+
+    pub fn set_near(&mut self, near: f32) {
+        self.near = near;
+    }
+
+    pub fn set_position(&mut self, pos: Vec3) {
+        self.eye = pos;
+    }
+
+    pub fn set_target(&mut self, tar: Vec3) {
+        self.target = tar;
+    }
+
     pub fn update_position_from_mouse_delta(&mut self, mouse_delta: Vector) {
         let mouse_delta = Vec2::new(mouse_delta.y, mouse_delta.x); // Swap y and x to match the mouse movement direction
 
@@ -97,10 +113,15 @@ impl Camera {
             }
         };
 
-        // Calculate the vector from the target to the camera
+        let zoom_factor = 0.1;
         let target_to_camera = self.eye - self.target;
-
-        // Calculate the new camera position
-        self.eye = target_to_camera * (1.0 + 0.1 * delta);
+        let zoom_amount = if delta >= 0.0 {
+            1.0 + zoom_factor
+        } else {
+            1.0 - zoom_factor
+        };
+        let limit = target_to_camera.normalize() * 0.1;
+        let zoom_delta = (target_to_camera * zoom_amount);
+        self.eye = self.target + zoom_delta;
     }
 }

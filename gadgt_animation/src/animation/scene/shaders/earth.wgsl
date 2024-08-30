@@ -6,6 +6,10 @@ struct Uniforms {
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+@group(1) @binding(0) var earth_sampler: sampler;
+@group(1) @binding(1) var earth_texture: texture_2d<f32>; 
+@group(1) @binding(2) var earth_night: texture_2d<f32>; 
+@group(1) @binding(3) var earth_spec: texture_2d<f32>; 
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -14,12 +18,12 @@ struct Vertex {
     @location(3) uv: vec2<f32>,
 }
 
-struct Ellipsoid {
+struct Earth {
     @location(4) matrix_0: vec4<f32>,    
     @location(5) matrix_1: vec4<f32>,    
     @location(6) matrix_2: vec4<f32>,    
     @location(7) matrix_3: vec4<f32>,    
-    @location(8) color: vec4<f32>, // RGBA color for the ellipsoid
+    @location(8) color: vec4<f32>,
     @location(9) normal_matrix_0: vec3<f32>,    
     @location(10) normal_matrix_1: vec3<f32>,    
     @location(11) normal_matrix_2: vec3<f32>,    
@@ -31,11 +35,10 @@ struct Output {
     @location(0) uv: vec2<f32>,
     @location(1) world_pos: vec3<f32>,
     @location(2) normal: vec3<f32>,
-    @location(3) color: vec4<f32>,
 }
 
 @vertex
-fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {     
+fn vs_main(vertex: Vertex, ellipsoid: Earth) -> Output {     
     let ellipsoid_matrix = mat4x4<f32>(
          ellipsoid.matrix_0,
          ellipsoid.matrix_1,
@@ -57,21 +60,33 @@ fn vs_main(vertex: Vertex, ellipsoid: Ellipsoid) -> Output {
     out.uv = vertex.uv;
     out.world_pos = world_pos.xyz;
     out.normal = normal;
-    out.color = ellipsoid.color;
 
     return out;
 }
 
+struct FragOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(in: Output) -> @location(0) vec4<f32> {
+fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let ambient = 0.05 * in.color.rgb;
+
+    let diff = max(dot(in.normal, light_dir), 0.0);    
+    
+    let day_color = textureSample(earth_texture, earth_sampler, in.uv);
+    let night_color = textureSample(earth_night, earth_sampler, in.uv);
+
+    let color = diff * day_color + 0.1 * (1.0 - diff) * night_color;// 0.5 because it was just way too bright    
+
+    //let ambient = 0.05 * in.color.rgb;
+    let ambient = 0.0 * color.rgb;
 
     // Diffuse lighting (Lambertian reflectance)
-    let diff = max(dot(in.normal, light_dir), 0.0);           
-    let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
+    let diffuse = color.rgb * uniforms.light_color.rgb;
 
     // Specular lighting (Phong reflection model)
     let light_reflect = normalize(reflect(-light_dir, in.normal));
@@ -80,11 +95,22 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
 
     if (specular_factor > 0.0) {
         specular_factor = pow(specular_factor, 32.0);
-        specular = uniforms.light_color.rgb * specular_factor;
+        let spec_map_value = textureSample(earth_spec, earth_sampler, in.uv).rgb;
+         specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
     } 
 
     // Combine results
     let result = ambient + diffuse + specular;
 
-    return vec4<f32>(result, in.color.a);
+    // Compute the logarithmic depth
+    let far_plane = 1e12; // Adjust this value according to your far plane distance
+    let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
+    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+       
+
+    var out: FragOutput;
+    out.color = vec4<f32>(result, 1.0);
+    out.depth = log_depth;
+    
+    return out;
 }

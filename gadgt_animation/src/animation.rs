@@ -37,7 +37,7 @@ impl AnimationState {
             let (attitude, position) = result
                 .get_body_state_at_time_interp(&cuboid.name, self.animator.current_time as f64);
             cuboid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32);
+                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32) - self.scene.world_target;
             cuboid.rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
@@ -50,8 +50,8 @@ impl AnimationState {
             let (attitude, position) = result
                 .get_body_state_at_time_interp(&ellipsoid.name, self.animator.current_time as f64);
             ellipsoid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32);
-                ellipsoid.rotation = glam::quat(
+                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32) - self.scene.world_target;
+            ellipsoid.rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
                 attitude.z as f32,
@@ -61,7 +61,9 @@ impl AnimationState {
     }
 
     pub fn camera_rotated(&mut self, mouse_delta: Vector) -> Command<Message> {
-        self.scene.camera.update_position_from_mouse_delta(mouse_delta);
+        self.scene
+            .camera
+            .update_position_from_mouse_delta(mouse_delta);
         Command::none()
     }
 
@@ -98,6 +100,7 @@ impl AnimationState {
         let mut ellipsoids = Vec::<Ellipsoid>::new();
 
         let sys = &result.system;
+
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
             let q = body.state.attitude_base;
@@ -140,6 +143,13 @@ impl AnimationState {
 
         self.scene.cuboids = cuboids;
         self.scene.ellipsoids = ellipsoids;
+
+        if sys.base.is_earth {
+            // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
+            // otherwise defaults to close to the origin
+            // must do this after shapres are set in scene or it wont know where to place the camera
+            self.scene.set_earth(sys.base.is_earth);
+        }
 
         let t = &result.sim_time;
 

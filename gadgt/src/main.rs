@@ -313,6 +313,7 @@ fn main() {
                                     let mut child  = Command::new("gadgt_animation")
                                             .stdin(Stdio::piped())
                                             .stdout(Stdio::piped())
+                                            .stderr(Stdio::inherit())
                                             .spawn()
                                             .expect("Failed to execute animation");      
 
@@ -1095,6 +1096,7 @@ enum Prompts {
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
+    Earth,
     EllipsoidRadiusX,
     EllipsoidRadiusY,
     EllipsoidRadiusZ,
@@ -1189,6 +1191,7 @@ impl Prompts {
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
             Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
+            Prompts::Earth => "Animate base as earth? (default: 'n')",
             Prompts::EllipsoidLongitudeBands => "Number of longitude bands (default: 16)",
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
@@ -1446,7 +1449,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics | Prompts::Geometry => {
+            Prompts::JointMechanics | Prompts::Geometry | Prompts::Earth => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
                     return Ok(())
@@ -1503,8 +1506,14 @@ impl std::fmt::Display for InputErrors {
 }
 
 fn prompt_base() -> Result<Base,InputErrors> {
-    let name = Prompts::Name.prompt()?;
-    Ok(Base::new(&name))    
+    let name = Prompts::Name.validate_loop("base")?;
+    let earth = match Prompts::Earth.validate_loop("n")?.as_str() {
+        "y" => true,
+        "n" => false,
+        _ => panic!("not possible")
+    };
+    
+    Ok(Base::new(&name, earth))    
 }
 
 fn prompt_body() -> Result<Body, InputErrors> {

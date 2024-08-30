@@ -85,7 +85,7 @@ impl DummyBase {
     }
 
     pub fn to_base(&self) -> Base {
-        Base::new(self.name.as_str())
+        Base::new(self.name.as_str(), false)
     }
 }
 

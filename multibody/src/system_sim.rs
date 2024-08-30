@@ -6,6 +6,7 @@ use crate::{
         recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
     },
+    base::Base,
     body::{Body, BodySim, BodyTrait},
     joint::{
         joint_sim::{JointSim, JointSimTrait},
@@ -18,7 +19,7 @@ use crate::{
     MultibodyErrors, MultibodyTrait,
 };
 
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
@@ -32,6 +33,7 @@ pub struct MultibodyParameters;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
+    pub base: Base,
     pub bodies: Vec<BodySim>,
     pub body_names: Vec<String>,
     pub joints: Vec<JointSim>,
@@ -98,40 +100,38 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                     return Err(MultibodyErrors::JointNotFound);
                 }
             }
-        } else {
-            return Err(MultibodyErrors::BaseNotFound);
-        }
 
-        // push base gravity to all bodies if there is one
-        if let Some(base) = &sys.base {
+            // push base gravity to all bodies if there is one
             for body in &mut bodysims {
                 body.gravity.extend(base.gravity.clone())
             }
-        }
+            let crb_cache = match sys.algorithm {
+                MultibodyAlgorithm::CompositeRigidBody => {
+                    let mut n = 0;
+                    for joint in &mut jointsims {
+                        n += joint.get_ndof();
+                        joint.set_crb_index(n);
+                    }
 
-        let crb_cache = match sys.algorithm {
-            MultibodyAlgorithm::CompositeRigidBody => {
-                let mut n = 0;
-                for joint in &mut jointsims {
-                    n += joint.get_ndof();
-                    joint.set_crb_index(n);
+                    Some(CrbCache::new(n))
                 }
+                _ => None,
+            };
 
-                Some(CrbCache::new(n))
-            }
-            _ => None,
-        };
-
-        Ok(MultibodySystemSim {
-            algorithm: sys.algorithm,
-            bodies: bodysims,
-            body_names: bodynames,
-            joints: jointsims,
-            joint_names: jointnames,
-            gravity: sys.gravities,
-            parent_indeces: parent_indeces,
-            crb_cache,
-        })
+            Ok(MultibodySystemSim {                
+                algorithm: sys.algorithm,
+                base: base.clone(),
+                bodies: bodysims,
+                body_names: bodynames,
+                joints: jointsims,
+                joint_names: jointnames,
+                gravity: sys.gravities,
+                parent_indeces: parent_indeces,
+                crb_cache,
+            })
+        } else {
+            Err(MultibodyErrors::BaseNotFound)
+        }
     }
 }
 

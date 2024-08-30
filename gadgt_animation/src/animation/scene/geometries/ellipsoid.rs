@@ -56,11 +56,7 @@ impl Ellipsoid {
             color,
         }
     }
-
-    pub fn update(&mut self, rotation: Quat, position: Vec3) {
-        self.rotation = rotation;
-        self.position = position;
-    }
+    
 }
 
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]

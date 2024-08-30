@@ -1,8 +1,8 @@
 struct Uniforms {
     projection: mat4x4<f32>,
     camera_pos: vec4<f32>,    
-    light_pos: vec3<f32>, 
-    light_color: vec4<f32>,   
+    light_color: vec4<f32>,       
+    light_pos: vec3<f32>,     
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -61,9 +61,13 @@ fn vs_main(vertex: Vertex, cube: Cuboid) -> Output {
 
     return out;
 }
+struct FragOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
 
 @fragment
-fn fs_main(in: Output) -> @location(0) vec4<f32> {
+fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos - in.world_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
@@ -85,5 +89,15 @@ fn fs_main(in: Output) -> @location(0) vec4<f32> {
 
     // Combine results
     let result = ambient + diffuse + specular;
-    return vec4<f32>(result, in.color.a);
+
+    // Compute the logarithmic depth
+    let far_plane = 1e12; // Adjust this value according to your far plane distance
+    let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
+    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+
+
+    var out: FragOutput;
+    out.color = vec4<f32>(result, 1.0);
+    out.depth = log_depth;
+    return out;    
 }

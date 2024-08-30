@@ -4,6 +4,7 @@ mod uniforms;
 pub use uniforms::Uniforms;
 
 use super::geometries::cuboid::{Cuboid, CuboidRaw};
+use super::geometries::earth::Earth;
 use super::geometries::ellipsoid::{Ellipsoid, EllipsoidRaw};
 use super::vertex::Vertex;
 use buffer::DynamicBuffer;
@@ -11,18 +12,21 @@ use buffer::DynamicBuffer;
 use iced::widget::shader::wgpu::{self, util::DeviceExt};
 use iced::{Rectangle, Size};
 use image::{load_from_memory, GenericImageView};
-use std::num::NonZeroU8;
 
 pub struct Pipeline {
     depth_view: wgpu::TextureView,
     pipeline_cuboid: wgpu::RenderPipeline,
+    pipeline_earth: Option<wgpu::RenderPipeline>,
     pipeline_ellipsoid: wgpu::RenderPipeline,
     vertex_cuboid: wgpu::Buffer,
+    vertex_earth: Option<wgpu::Buffer>,
     vertex_ellipsoid: wgpu::Buffer,
     instance_cuboids: DynamicBuffer,
+    instance_earth: Option<DynamicBuffer>,
     instance_ellipsoids: DynamicBuffer,
     uniforms: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
+    earth_bind_group: Option<wgpu::BindGroup>,
 }
 
 impl Pipeline {
@@ -31,6 +35,7 @@ impl Pipeline {
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
         target_size: Size<u32>,
+        earth: bool,
     ) -> Self {
         //depth buffer
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -50,21 +55,7 @@ impl Pipeline {
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // earth
-        let (earth_texture, earth_texture_view) = load_earth_colors(device, queue);
-        let (earth_night_texture, earth_night_texture_view) = load_earth_night(device, queue);
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            anisotropy_clamp: 16,   
-            ..Default::default()
-        });
-
+        // cuboids
         let cuboid_raw = CuboidRaw::from_cuboid(&Cuboid::default());
 
         //vertices of one cube
@@ -75,7 +66,7 @@ impl Pipeline {
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-        //cube instance data
+        // cube instance data
         let instance_cuboids = DynamicBuffer::new(
             device,
             "cuboid instance buffer",
@@ -83,6 +74,7 @@ impl Pipeline {
             wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         );
 
+        // ellipsoids
         let ellipsoid_raw = EllipsoidRaw::from_ellipsoid(&Ellipsoid::default());
 
         //vertices of one ellipsoid
@@ -110,68 +102,26 @@ impl Pipeline {
 
         let uniform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("cuboid uniform bind group layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                label: Some("uniform bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                ],
+                    count: None,
+                }],
             });
 
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("uniform and texture bind group"),
             layout: &uniform_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniforms.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&earth_texture_view), // Assuming `texture_view` is your texture
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&sampler), // Assuming `sampler` is your texture sampler
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&earth_night_texture_view), // Assuming `texture_view` is your texture
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniforms.as_entire_binding(),
+            }],
         });
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -282,16 +232,192 @@ impl Pipeline {
             multiview: None,
         });
 
+        // earth
+        let (vertex_earth, instance_earth, pipeline_earth, earth_bind_group) = if earth {
+            let earth_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("earth shader"),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                    "shaders/earth.wgsl"
+                ))),
+            });
+
+            //vertex buffer
+            let vertex_earth = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("earth vertex buffer"),
+                contents: bytemuck::cast_slice(&ellipsoid_raw.vertices()),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+            //ellipsoid instance data
+            let instance_earth = DynamicBuffer::new(
+                device,
+                "earth instance buffer",
+                std::mem::size_of::<EllipsoidRaw>() as u64,
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            );
+
+            const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_4k.jpg");
+            const EARTH_NIGHT: &[u8] = include_bytes!("../../../resources/earth_night_4k.jpg");
+            const EARTH_SPEC: &[u8] = include_bytes!("../../../resources/earth_spec_4k.jpg");
+
+            let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
+            let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
+            let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
+
+            let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                address_mode_u: wgpu::AddressMode::Repeat,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                anisotropy_clamp: 16,
+                ..Default::default()
+            });
+
+            let earth_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("earth bind group layout"),
+                    entries: &[
+                        // sampler
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        //earth color
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        //earth night
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        //earth specular
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+
+            let earth_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("earth and texture bind group"),
+                layout: &earth_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&earth_day),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&earth_night),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::TextureView(&earth_spec),
+                    },
+                ],
+            });
+
+            let earth_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("earth pipeline layout"),
+                bind_group_layouts: &[&uniform_bind_group_layout, &earth_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let pipeline_earth = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("earth pipeline"),
+                layout: Some(&earth_layout),
+                vertex: wgpu::VertexState {
+                    module: &earth_shader,
+                    entry_point: "vs_main",
+                    buffers: &[Vertex::desc(), EllipsoidRaw::desc()],
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &earth_shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent {
+                                src_factor: wgpu::BlendFactor::SrcAlpha,
+                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                operation: wgpu::BlendOperation::Add,
+                            },
+                            alpha: wgpu::BlendComponent {
+                                src_factor: wgpu::BlendFactor::One,
+                                dst_factor: wgpu::BlendFactor::One,
+                                operation: wgpu::BlendOperation::Max,
+                            },
+                        }),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+            });
+            (
+                Some(vertex_earth),
+                Some(instance_earth),
+                Some(pipeline_earth),
+                Some(earth_bindgroup),
+            )
+        } else {
+            (None, None, None, None)
+        };
+
         Self {
             depth_view,
             pipeline_cuboid,
             pipeline_ellipsoid,
+            pipeline_earth,
             vertex_cuboid,
+            vertex_earth,
             vertex_ellipsoid,
             instance_cuboids,
+            instance_earth,
             instance_ellipsoids,
             uniforms,
             uniform_bind_group,
+            earth_bind_group,
         }
     }
 
@@ -303,6 +429,7 @@ impl Pipeline {
         uniforms: &Uniforms,
         cuboids: &[CuboidRaw],
         ellipsoids: &[EllipsoidRaw],
+        earth: &Option<EllipsoidRaw>,
     ) {
         //dbg!(&ellipsoids);
         // update uniforms
@@ -324,6 +451,12 @@ impl Pipeline {
             0,
             bytemuck::cast_slice(ellipsoids),
         );
+
+        if let Some(earth) = earth {
+            if let Some(instance_earth) = &self.instance_earth {                
+                queue.write_buffer(&instance_earth.raw, 0, bytemuck::bytes_of(earth));
+            }
+        }
     }
 
     pub fn render(
@@ -361,12 +494,31 @@ impl Pipeline {
             pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
+
+            if let Some(earth_bind_group) = &self.earth_bind_group {
+                pass.set_bind_group(1, earth_bind_group, &[]);
+            }
+
+            // Render Earth
+            if let Some(pipeline_earth) = &self.pipeline_earth {
+                pass.set_pipeline(pipeline_earth); 
+                if let Some(vertex_earth) = &self.vertex_earth {
+                    pass.set_vertex_buffer(0, vertex_earth.slice(..));
+                }
+                if let Some(instance_earth) = &self.instance_earth {
+                    pass.set_vertex_buffer(1, instance_earth.raw.slice(..));
+                    
+                }
+                pass.draw(0..1440, 0..1);
+            }
+
             // Render Cuboids
             pass.set_pipeline(&self.pipeline_cuboid); // Set the cuboid pipeline
             pass.set_vertex_buffer(0, self.vertex_cuboid.slice(..));
             pass.set_vertex_buffer(1, self.instance_cuboids.raw.slice(..));
-            pass.draw(0..36, 0..num_cuboids);
+            pass.draw(0..36, 0..num_cuboids);            
 
+        
             // Render Ellipsoids
             pass.set_pipeline(&self.pipeline_ellipsoid); // Switch to the ellipsoid pipeline
             pass.set_vertex_buffer(0, self.vertex_ellipsoid.slice(..)); // Use slot 0 for vertex data
@@ -380,14 +532,13 @@ impl Pipeline {
     }
 }
 
-fn load_earth_colors(
+fn load_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-) -> (wgpu::Texture, wgpu::TextureView) {
-    // earth
-    const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_4k.jpg");
-
-    let img = load_from_memory(EARTH_COLOR).expect("Failed to load image from embedded bytes");
+    texture_bytes: &[u8],
+    label: &str,
+) -> wgpu::TextureView {
+    let img = load_from_memory(texture_bytes).expect("Failed to load image from embedded bytes");
     let rgba = img.to_rgba8();
     let dimensions = img.dimensions();
 
@@ -398,7 +549,7 @@ fn load_earth_colors(
     };
 
     let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("earth_color"),
+        label: Some(label),
         size: texture_size,
         mip_level_count: 1,
         sample_count: 1,
@@ -426,54 +577,5 @@ fn load_earth_colors(
 
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-    (texture, texture_view)
-}
-
-fn load_earth_night(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> (wgpu::Texture, wgpu::TextureView) {
-    // earth
-    const EARTH_NIGHT: &[u8] = include_bytes!("../../../resources/earth_night_4k.jpg");
-
-    let img = load_from_memory(EARTH_NIGHT).expect("Failed to load image from embedded bytes");
-    let rgba = img.to_rgba8();
-    let dimensions = img.dimensions();
-
-    let texture_size = wgpu::Extent3d {
-        width: dimensions.0,
-        height: dimensions.1,
-        depth_or_array_layers: 1,
-    };
-
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("earth_night"),
-        size: texture_size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &rgba,
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * dimensions.0),
-            rows_per_image: Some(dimensions.1),
-        },
-        texture_size,
-    );
-
-    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    (texture, texture_view)
+    texture_view
 }
