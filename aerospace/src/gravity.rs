@@ -87,7 +87,10 @@ impl GravityTrait for ConstantGravity {
 impl GravityTrait for TwoBodyGravity {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64> {
         let position_mag = position.magnitude();
-        position * self.mu / position_mag.powi(3)
+        if position_mag < 0.1 {
+            println!("WARNING! division by zero on two body gravity!");
+        }
+        - position * self.mu / position_mag.powi(3)
     }
 }
 
