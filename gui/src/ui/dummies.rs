@@ -1,4 +1,4 @@
-use aerospace::gravity::{self, ConstantGravity, Gravity, TwoBodyGravity};
+use aerospace::gravity::{self, ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity};
 use coordinate_systems::{
     cartesian::Cartesian,
     cylindrical::{self, Cylindrical},
@@ -1132,6 +1132,7 @@ pub enum GravityPickList {
     None,
     TwoBody,
     Constant,
+    EGM96,
 }
 
 impl GravityPickList {
@@ -1151,6 +1152,7 @@ impl std::fmt::Display for GravityPickList {
                 GravityPickList::None => "None",
                 GravityPickList::Constant => "Constant",
                 GravityPickList::TwoBody => "TwoBody",
+                GravityPickList::EGM96 => "EGM96",
             }
         )
     }
@@ -1172,6 +1174,7 @@ impl DummyGravity {
         constant_gravity: &'a DummyConstantGravity,
         two_body: &'a DummyTwoBodyGravity,
         two_body_custom: &'a DummyTwoBodyCustom,
+        egm96: &'a DummyEGM96,
     ) -> Element<'a, Message, Theme> {
         let content = Column::new()
             .push(create_text_input(
@@ -1191,6 +1194,7 @@ impl DummyGravity {
             GravityPickList::None => content,
             GravityPickList::Constant => content.push(constant_gravity.content()),
             GravityPickList::TwoBody => content.push(two_body.content(two_body_custom)),
+            GravityPickList::EGM96 => content.push(egm96.content(egm96_custom)),
         };
         content.into()
     }
@@ -1201,6 +1205,7 @@ impl DummyGravity {
         dummy_constant: &mut DummyConstantGravity,
         dummy_two_body: &mut DummyTwoBodyGravity,
         dummy_two_body_custom: &mut DummyTwoBodyCustom,
+        dummy_egm96_custom: &mut DummyEGM96Custom,
     ) {
         match g {
             Gravity::Constant(constant) => {
@@ -1211,6 +1216,10 @@ impl DummyGravity {
                 dummy_two_body.get_values_from(two_body, dummy_two_body_custom);
                 self.model = GravityPickList::TwoBody;
             }
+            Gravity::EGM96(egm96) => {
+                dummy_egm96.get_values_from(egm96, dummy_egm96_custom);
+                self.model = GravityPickList::EGM96;               
+            }
         }
     }
 
@@ -1219,6 +1228,7 @@ impl DummyGravity {
         dummy_constant: &DummyConstantGravity,
         dummy_two_body: &DummyTwoBodyGravity,
         dummy_two_body_custom: &DummyTwoBodyCustom,
+        dummy_egm96_custom: &DummyEGM96Custom,
     ) -> MultibodyGravity {
         let name = self.name.clone();
         let gravity = match self.model {
@@ -1226,6 +1236,9 @@ impl DummyGravity {
             GravityPickList::Constant => Gravity::Constant(dummy_constant.to_gravity()),
             GravityPickList::TwoBody => {
                 Gravity::TwoBody(dummy_two_body.to_gravity(dummy_two_body_custom))
+            }
+            GravityPickList::EGM96 => {
+                Gravity::EGM96(dummy_egm96.to_gravity(dummy_egm96_custom))
             }
         };
         MultibodyGravity::new(&name,gravity)
@@ -1429,4 +1442,79 @@ impl DummyTwoBodyCustom {
     pub fn content(&self) -> Element<Message, Theme> {
         create_text_input("mu", self.mu.as_str(), Message::TwoBodyCustomMuChanged).into()
     }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DummyEGM96Gravity {
+    pub model: EGM96PickList,
+}
+
+impl DummyEGM96Gravity {
+    pub fn clear(&mut self) {
+        self.model = EGM96PickList::None;
+    }
+
+    pub fn content<'a>(
+        &'a self,
+        egm96_custom: &'a DummyEGM96Custom,
+    ) -> Element<'a, Message, Theme> {
+        let content = Column::new().push(
+            pick_list(
+                &EGM96PickList::ALL[..],
+                Some(self.model),
+                Message::EGM96ModelSelected,
+            )
+            .width(Length::FillPortion(1)),
+        );
+        let content = match self.model {
+            EGM96PickList::Custom => content.push(egm96_custom.content()),
+            _ => content,
+        };
+
+        content.into()
+    }
+
+    pub fn get_values_from(
+        &mut self,
+        g: &EGM96Gravity,
+        egm96_custom: &mut DummyEGM96Custom,
+    ) {
+/*        self.model = match g.mu {
+            0.0 => TwoBodyPickList::None,
+            gravity::EARTH => TwoBodyPickList::Earth,
+            gravity::SUN => TwoBodyPickList::Sun,
+            gravity::MOON => TwoBodyPickList::Moon,
+            gravity::MERCURY => TwoBodyPickList::Mercury,
+            gravity::VENUS => TwoBodyPickList::Venus,
+            gravity::JUPITER => TwoBodyPickList::Jupiter,
+            gravity::SATURN => TwoBodyPickList::Saturn,
+            gravity::URANUS => TwoBodyPickList::Uranus,
+            gravity::NEPTUNE => TwoBodyPickList::Neptune,
+            gravity::PLUTO => TwoBodyPickList::Pluto,
+            _ => {
+                two_body_custom.mu = g.mu.to_string();
+                TwoBodyPickList::Custom
+            }
+        };
+*/    }
+
+    pub fn to_gravity(&self, egm96_custom: &DummyEGM96Custom) -> EGM96Gravity {
+/*        match self.model {
+            TwoBodyPickList::None => TwoBodyGravity::new(0.0),
+            TwoBodyPickList::Earth => TwoBodyGravity::new(gravity::EARTH),
+            TwoBodyPickList::Sun => TwoBodyGravity::new(gravity::SUN),
+            TwoBodyPickList::Moon => TwoBodyGravity::new(gravity::MOON),
+            TwoBodyPickList::Mercury => TwoBodyGravity::new(gravity::MERCURY),
+            TwoBodyPickList::Venus => TwoBodyGravity::new(gravity::VENUS),
+            TwoBodyPickList::Mars => TwoBodyGravity::new(gravity::MARS),
+            TwoBodyPickList::Jupiter => TwoBodyGravity::new(gravity::JUPITER),
+            TwoBodyPickList::Saturn => TwoBodyGravity::new(gravity::SATURN),
+            TwoBodyPickList::Uranus => TwoBodyGravity::new(gravity::URANUS),
+            TwoBodyPickList::Neptune => TwoBodyGravity::new(gravity::NEPTUNE),
+            TwoBodyPickList::Pluto => TwoBodyGravity::new(gravity::PLUTO),
+            TwoBodyPickList::Custom => {
+                TwoBodyGravity::new(two_body_custom.mu.parse::<f64>().unwrap_or(0.0))
+            }
+        }
+*/    }
 }

@@ -111,7 +111,7 @@ impl TwoBodyGravity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EGM96Gravity {
     pub mu: f64, // is this neccessary?
     pub earth_re: f64,

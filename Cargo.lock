@@ -38,6 +38,9 @@ name = "aerospace"
 version = "0.1.0"
 dependencies = [
  "nalgebra",
+ "rotations",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
