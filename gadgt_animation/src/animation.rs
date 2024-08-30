@@ -26,7 +26,7 @@ impl AnimationGui {}
 pub struct AnimationState {
     animator: Animator,
     pub loaded: bool,
-    mouse: MouseProcessor,
+    //mouse: MouseProcessor,
     scene: Scene,
 }
 
@@ -37,7 +37,8 @@ impl AnimationState {
             let (attitude, position) = result
                 .get_body_state_at_time_interp(&cuboid.name, self.animator.current_time as f64);
             cuboid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32) - self.scene.world_target;
+                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
+                    - self.scene.world_target;
             cuboid.rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
@@ -50,13 +51,28 @@ impl AnimationState {
             let (attitude, position) = result
                 .get_body_state_at_time_interp(&ellipsoid.name, self.animator.current_time as f64);
             ellipsoid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32) - self.scene.world_target;
+                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
+                    - self.scene.world_target;
             ellipsoid.rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
                 attitude.z as f32,
                 attitude.s as f32,
             );
+        }
+
+        if let Some(earth) = &mut self.scene.earth {
+            const ROTATION_RATE: f32 = 2.0 * std::f32::consts::PI / 86400.0;
+            let rotation_axis = Vec3::Z;
+
+            // Calculate the angle of rotation for this time step
+            let angle = 100.0 * ROTATION_RATE * self.animator.dt;
+
+            // Create a quaternion representing this incremental rotation
+            let incremental_rotation = glam::Quat::from_axis_angle(rotation_axis, angle);
+
+            // Update the existing quaternion by applying the incremental rotation
+            earth.0.rotation = incremental_rotation * (earth.0.rotation);
         }
     }
 
