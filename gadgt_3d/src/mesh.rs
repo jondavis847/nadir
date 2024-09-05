@@ -1,11 +1,9 @@
-use std::any::TypeId;
-
-use super::geometry::{Geometry, GeometryState, GeometryTrait};
-use super::material::Material;
-use super::texture::Texture;
 use glam::{Mat3, Mat4, Quat, Vec3};
 use iced::widget::shader::wgpu;
 use serde::{Deserialize, Serialize};
+use super::geometry::{Geometry, GeometryState, GeometryTrait};
+use super::material::Material;
+use super::texture::Texture;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Mesh {

@@ -1,16 +1,9 @@
-mod buffer;
-mod uniforms;
-use std::fs;
-
-use gadgt_3d::geometry::{Geometry, GeometryTrait};
-use iced::widget::shader::wgpu::PipelineLayout;
-pub use uniforms::Uniforms;
-
 use gadgt_3d::{mesh::MeshGpu, vertex::Vertex};
-
-use iced::widget::shader::wgpu::{self, util::DeviceExt};
-use iced::{Rectangle, Size};
+use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
 use image::{load_from_memory, GenericImageView};
+
+pub mod buffer;
+pub mod uniforms;
 
 pub struct CuboidPipeline(pub Pipeline);
 pub struct Ellipsoid16Pipeline(pub Pipeline);
@@ -188,7 +181,7 @@ fn load_texture(
     texture_view
 }
 
-
+/*
  // earth
  let (vertex_earth, instance_earth, pipeline_earth, earth_bind_group) = if earth {
     let earth_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -301,6 +294,7 @@ fn load_texture(
             },
         ],
     });
+}
 
     let earth_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("earth pipeline layout"),
@@ -351,3 +345,5 @@ fn load_texture(
         }),
         multiview: None,
     });
+
+    */

@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
-use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid, Ellipsoid16}, Geometry, GeometryState}, material::Material, mesh::Mesh};
+use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid32, Ellipsoid16, Ellipsoid64}, Geometry, GeometryState}, material::Material, mesh::Mesh};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
@@ -1101,8 +1101,7 @@ enum Prompts {
     EllipsoidRadiusX,
     EllipsoidRadiusY,
     EllipsoidRadiusZ,
-    EllipsoidLatitudeBands,
-    EllipsoidLongitudeBands,
+    EllipsoidLatitudeBands,    
     Ixx,
     Iyy,
     Izz,
@@ -1194,8 +1193,7 @@ impl Prompts {
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
             Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
-            Prompts::Earth => "Animate base as earth? (default: 'n')",
-            Prompts::EllipsoidLongitudeBands => "Number of longitude bands (default: 16)",
+            Prompts::Earth => "Animate base as earth? (default: 'n')",            
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
             Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",            
@@ -1480,6 +1478,21 @@ impl Prompts {
                 }
                 Ok(())
             }
+            Prompts::EllipsoidLatitudeBands => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "16",                    
+                    "32",
+                    "64"                                        
+                ];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::EllipsoidLatitudeBands);
+                }
+                Ok(())
+            },
             _ => Ok(()),
         }
     }
@@ -1489,6 +1502,7 @@ impl Prompts {
 pub enum InputErrors {
     Body(BodyErrors),
     CtrlC,
+    EllipsoidLatitudeBands,
     InvalidColor,
     InvalidGeometry,
     InvalidGravity,
@@ -1511,6 +1525,7 @@ impl std::fmt::Display for InputErrors {
         match self {
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
+            InputErrors::EllipsoidLatitudeBands => write!(f,"Error: input must be ['16', '32', '64']"),
             InputErrors::InvalidColor => write!(f,"Error: input must be ['c' (constant), 'r' (rgba)]"),
             InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
@@ -1809,8 +1824,8 @@ fn prompt_ellipsoid() -> Result<Geometry, InputErrors> {
     
     let geometry = match lat.as_str() {
         "16" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
-        "32" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
-        "64" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
+        "32" => Geometry::Ellipsoid32(Ellipsoid32::new(x,y,z)),
+        "64" => Geometry::Ellipsoid64(Ellipsoid64::new(x,y,z)),
         _ => panic!("should not be possible, caught in validate loop")
     };
     Ok(geometry)

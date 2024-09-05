@@ -1,9 +1,8 @@
 mod animator;
 mod scene;
 
-use crate::{mouse::MouseProcessor, Message};
+use crate::Message;
 use animator::Animator;
-use gadgt_3d::geometry::Geometry;
 use glam::Vec3;
 use iced::{
     mouse::ScrollDelta,

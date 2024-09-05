@@ -9,7 +9,6 @@ pub mod ellipsoid;
 
 use cuboid::Cuboid;
 use ellipsoid::{Ellipsoid16,Ellipsoid32,Ellipsoid64};
-use super::vertex::Vertex;
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Geometry {

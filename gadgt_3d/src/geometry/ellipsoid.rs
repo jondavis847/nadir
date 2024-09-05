@@ -103,7 +103,7 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
         let sin_theta = theta.sin();
         let cos_theta = theta.cos();
 
-        for lon in 0..=32 {
+        for lon in 0..=n_lon {
             let phi = lon as f32 * 2.0 * std::f32::consts::PI / n_lon as f32;
             let sin_phi = phi.sin();
             let cos_phi = phi.cos();

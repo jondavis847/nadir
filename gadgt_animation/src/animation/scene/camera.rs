@@ -1,6 +1,5 @@
 use glam::{mat4, vec3, vec4, Quat, Vec2, Vec3};
 use iced::{mouse::ScrollDelta, Rectangle, Vector};
-use std::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Camera {
@@ -53,10 +52,11 @@ impl Camera {
         self.far = far;
     }
 
+    /*
     pub fn set_near(&mut self, near: f32) {
         self.near = near;
     }
-
+    */
     pub fn set_position(&mut self, pos: Vec3) {
         self.eye = pos;
     }
@@ -120,8 +120,8 @@ impl Camera {
         } else {
             1.0 - zoom_factor
         };
-        let limit = target_to_camera.normalize() * 0.1;
-        let zoom_delta = (target_to_camera * zoom_amount);
+        //let limit = target_to_camera.normalize() * 0.1;
+        let zoom_delta = target_to_camera * zoom_amount;
         self.eye = self.target + zoom_delta;
     }
 }

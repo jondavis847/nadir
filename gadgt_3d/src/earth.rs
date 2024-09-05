@@ -1,7 +1,7 @@
 use super::mesh::Mesh;
 use crate::{
     geometry::{
-        ellipsoid::{Ellipsoid, Ellipsoid64},
+        ellipsoid::Ellipsoid64,
         Geometry, GeometryState,
     },
     material::Material,

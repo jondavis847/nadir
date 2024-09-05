@@ -26,7 +26,7 @@ pub mod pipeline;
 use camera::Camera;
 use pipeline::{
     CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline, Ellipsoid64Pipeline, Pipeline,
-    Uniforms,
+    uniforms::Uniforms,
 };
 
 use crate::Message;
@@ -117,7 +117,7 @@ impl ScenePrimitive {
             None
         };
         let meshes: Vec<MeshPrimitive> = scene.meshes.iter().map(MeshPrimitive::from).collect();
-        let uniforms = pipeline::Uniforms::new(scene, bounds);
+        let uniforms = Uniforms::new(scene, bounds);
 
         Self {
             earth,
