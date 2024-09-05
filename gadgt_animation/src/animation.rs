@@ -3,18 +3,18 @@ mod scene;
 
 use crate::{mouse::MouseProcessor, Message};
 use animator::Animator;
-use geometry::Geometry;
+use gadgt_3d::geometry::Geometry;
 use glam::Vec3;
 use iced::{
     mouse::ScrollDelta,
     widget::{shader, Row},
     Command, Element, Length, Point, Theme, Vector,
 };
+
 use multibody::result::MultibodyResult;
-use scene::geometries::{cuboid::Cuboid, ellipsoid::Ellipsoid};
 use scene::Scene;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AnimationGui {
     pub state: AnimationState,
     pub result: Option<MultibodyResult>,
@@ -22,7 +22,7 @@ pub struct AnimationGui {
 
 impl AnimationGui {}
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct AnimationState {
     animator: Animator,
     pub loaded: bool,
@@ -33,32 +33,18 @@ pub struct AnimationState {
 impl AnimationState {
     pub fn animate(&mut self, result: &MultibodyResult, instant: iced::time::Instant) {
         self.animator.update(instant);
-        for cuboid in &mut self.scene.cuboids {
-            let (attitude, position) = result
-                .get_body_state_at_time_interp(&cuboid.name, self.animator.current_time as f64);
-            cuboid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
-                    - self.scene.world_target;
-            cuboid.rotation = glam::quat(
+        for mesh in &mut self.scene.meshes {
+            let (attitude, position) =
+                result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
+            let position = glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
+                - self.scene.world_target;
+            let rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
                 attitude.z as f32,
                 attitude.s as f32,
             );
-        }
-
-        for ellipsoid in &mut self.scene.ellipsoids {
-            let (attitude, position) = result
-                .get_body_state_at_time_interp(&ellipsoid.name, self.animator.current_time as f64);
-            ellipsoid.position =
-                glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
-                    - self.scene.world_target;
-            ellipsoid.rotation = glam::quat(
-                attitude.x as f32,
-                attitude.y as f32,
-                attitude.z as f32,
-                attitude.s as f32,
-            );
+            mesh.update(position, rotation);
         }
 
         if let Some(earth) = &mut self.scene.earth {
@@ -66,13 +52,13 @@ impl AnimationState {
             let rotation_axis = Vec3::Z;
 
             // Calculate the angle of rotation for this time step
-            let angle = 100.0 * ROTATION_RATE * self.animator.dt;
+            let angle = ROTATION_RATE * self.animator.dt;
 
             // Create a quaternion representing this incremental rotation
             let incremental_rotation = glam::Quat::from_axis_angle(rotation_axis, angle);
 
             // Update the existing quaternion by applying the incremental rotation
-            earth.0.rotation = incremental_rotation * (earth.0.rotation);
+            earth.0.state.rotation = incremental_rotation * (earth.0.state.rotation);
         }
     }
 
@@ -109,56 +95,21 @@ impl AnimationState {
         Command::none()
     }
 
-    pub fn update_from_result(&mut self, result: &MultibodyResult) {
-        //TODO: This clone is probably really bad. We should not have to do this but I don't want to deal with lifetimes yet.
-        // maybe do RC<RefCell<>> just for this?
-        let mut cuboids = Vec::<Cuboid>::new();
-        let mut ellipsoids = Vec::<Ellipsoid>::new();
-
+    pub fn initialize(&mut self, result: &MultibodyResult) {
         let sys = &result.system;
 
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
-            let q = body.state.attitude_base;
-            let r = body.state.position_base;
-            let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
-            let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
-            let body_name = &sys.body_names[i];
-
-            if let Some(geometry) = body.geometry {
-                match geometry {
-                    Geometry::Cuboid(cuboid) => {
-                        let cuboid = Cuboid::new(
-                            body_name.clone(),
-                            cuboid.x,
-                            cuboid.y,
-                            cuboid.z,
-                            rotation,
-                            position,
-                            cuboid.color,
-                        );
-                        cuboids.push(cuboid);
-                    }
-                    Geometry::Ellipsoid(ellipsoid) => {
-                        let ellipsoid = Ellipsoid::new(
-                            body_name.clone(),
-                            ellipsoid.radius_x,
-                            ellipsoid.radius_y,
-                            ellipsoid.radius_z,
-                            rotation,
-                            position,
-                            ellipsoid.latitude_bands,
-                            ellipsoid.longitude_bands,
-                            ellipsoid.color,
-                        );
-                        ellipsoids.push(ellipsoid);
-                    }
-                }
+            //let q = body.state.attitude_base;
+            //let r = body.state.position_base;
+            //let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
+            //let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
+            if let Some(mesh) = &body.mesh {
+                //  let mut mesh = mesh.clone();
+                //  mesh.update(position,rotation);
+                self.scene.meshes.push(mesh.clone());
             }
         }
-
-        self.scene.cuboids = cuboids;
-        self.scene.ellipsoids = ellipsoids;
 
         if sys.base.is_earth {
             // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light

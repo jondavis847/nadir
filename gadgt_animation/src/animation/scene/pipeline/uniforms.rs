@@ -1,6 +1,5 @@
-use super::super::camera::Camera;
-
-use iced::{Color, Rectangle};
+use super::super::Scene;
+use iced::Rectangle;
 
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -13,14 +12,14 @@ pub struct Uniforms {
 }
 
 impl Uniforms {
-    pub fn new(camera: &Camera, bounds: Rectangle, light_color: Color, light_pos: [f32;3]) -> Self {
-        let camera_proj = camera.build_view_proj_matrix(bounds);
+    pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
+        let camera_proj = scene.camera.build_view_proj_matrix(bounds);
 
         Self {
             camera_proj,
-            camera_pos: camera.position(),
-            light_color: glam::Vec4::from(light_color.into_linear()),
-            light_pos: glam::Vec3::from(light_pos),
+            camera_pos: scene.camera.position(),
+            light_color: glam::Vec4::from(scene.light_color.into_linear()),
+            light_pos: glam::Vec3::from(scene.light_pos),
             _padding: 0.0,
         }
     }

@@ -1,6 +1,6 @@
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
 use aerospace::gravity::GravityTrait;
-use geometry::Geometry;
+use gadgt_3d::mesh::Mesh;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
 use rotations::{quaternion::Quaternion, RotationTrait};
@@ -36,7 +36,7 @@ pub struct Body {
     pub mass_properties: MassProperties,
     pub name: String,
     pub outer_joints: Vec<Uuid>,
-    pub geometry: Option<Geometry>,
+    pub mesh: Option<Mesh>,
     pub gravity: Vec<Uuid>, // a vec in case say you want moon and earth or something
                             //sensors: Vec<BodySensorConnection>,
 }
@@ -69,7 +69,7 @@ impl Body {
         }
         Ok(Self {
             //actuators: Vec::new(),
-            geometry: None,
+            mesh: None,
             gravity: Vec::new(),
             id: Uuid::new_v4(),
             inner_joint: None,
@@ -79,8 +79,8 @@ impl Body {
         })
     }
 
-    pub fn with_geometry(mut self, geometry: Geometry) -> Self {
-        self.geometry = Some(geometry);
+    pub fn with_mesh(mut self, mesh: Mesh) -> Self {
+        self.mesh = Some(mesh);
         self
     }
 }
@@ -131,7 +131,7 @@ impl MultibodyTrait for Body {
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct BodySim {
     pub state: BodyState,
-    pub geometry: Option<Geometry>,
+    pub mesh: Option<Mesh>,
     pub gravity: Vec<Uuid>,
     pub mass_properties: MassProperties,
     pub result: BodyResult,
@@ -142,7 +142,7 @@ impl From<Body> for BodySim {
         let state = BodyState::default();
         Self {
             state,
-            geometry: body.geometry,
+            mesh: body.mesh,
             gravity: body.gravity,
             mass_properties: body.mass_properties,
             result: BodyResult::default(),

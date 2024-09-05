@@ -22,12 +22,10 @@ struct Earth {
     @location(4) matrix_0: vec4<f32>,    
     @location(5) matrix_1: vec4<f32>,    
     @location(6) matrix_2: vec4<f32>,    
-    @location(7) matrix_3: vec4<f32>,    
-    @location(8) color: vec4<f32>,
-    @location(9) normal_matrix_0: vec3<f32>,    
-    @location(10) normal_matrix_1: vec3<f32>,    
-    @location(11) normal_matrix_2: vec3<f32>,    
-    
+    @location(7) matrix_3: vec4<f32>,        
+    @location(8) normal_matrix_0: vec3<f32>,    
+    @location(9) normal_matrix_1: vec3<f32>,    
+    @location(10) normal_matrix_2: vec3<f32>,       
 }
 
 struct Output {
@@ -38,21 +36,21 @@ struct Output {
 }
 
 @vertex
-fn vs_main(vertex: Vertex, ellipsoid: Earth) -> Output {     
-    let ellipsoid_matrix = mat4x4<f32>(
-         ellipsoid.matrix_0,
-         ellipsoid.matrix_1,
-         ellipsoid.matrix_2,
-         ellipsoid.matrix_3,
+fn vs_main(vertex: Vertex, earth: Earth) -> Output {     
+    let transformation_matrix = mat4x4<f32>(
+         earth.matrix_0,
+         earth.matrix_1,
+         earth.matrix_2,
+         earth.matrix_3,
     );
 
     let normal_matrix = mat3x3<f32>(
-        ellipsoid.normal_matrix_0,
-        ellipsoid.normal_matrix_1,
-        ellipsoid.normal_matrix_2,
+        earth.normal_matrix_0,
+        earth.normal_matrix_1,
+        earth.normal_matrix_2,
     );
 
-    let world_pos = ellipsoid_matrix * vec4<f32>(vertex.position, 1.0);
+    let world_pos = transformation_matrix * vec4<f32>(vertex.position, 1.0);
     let normal = normalize(normal_matrix * vertex.normal);
 
     var out: Output;
@@ -73,7 +71,6 @@ struct FragOutput {
 fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
-
 
     let diff = max(dot(in.normal, light_dir), 0.0);    
     

@@ -70,7 +70,7 @@ impl Application for AnimationGui {
 
     fn new(flags: MultibodyResult) -> (Self, Command<Self::Message>) {
         let mut state = AnimationState::default();
-        state.update_from_result(&flags);
+        state.initialize(&flags);
         (
             Self {
                 state,

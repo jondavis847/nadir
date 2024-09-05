@@ -1,38 +1,43 @@
+use gadgt_3d::{
+    earth::Earth,
+    geometry::{
+        cuboid::Cuboid,
+        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
+        Geometry,
+    },
+    mesh::{Mesh, MeshGpu, MeshPrimitive},
+};
 use glam::Vec3;
 use iced::{
     advanced::Shell,
     mouse::{self, Cursor, Interaction},
     widget::{
         canvas::event::Status,
-        shader::{wgpu, Event, Primitive, Program, Storage},
+        shader::{
+            wgpu::{self, util::DeviceExt},
+            Event, Primitive, Program, Storage,
+        },
     },
     Color, Point, Rectangle, Size,
 };
-
 pub mod camera;
-pub mod geometries;
 pub mod pipeline;
-pub mod vertex;
-
-use geometries::{
-    cuboid::{Cuboid, CuboidRaw},
-    earth::Earth,
-    ellipsoid::{Ellipsoid, EllipsoidRaw},
-};
 
 use camera::Camera;
-use pipeline::{Pipeline, Uniforms};
+use pipeline::{
+    CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline, Ellipsoid64Pipeline, Pipeline,
+    Uniforms,
+};
 
 use crate::Message;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Scene {
-    pub earth: Option<Earth>,
-    pub cuboids: Vec<Cuboid>,
-    pub ellipsoids: Vec<Ellipsoid>,
     pub camera: Camera,
-    pub light_color: Color,
-    pub light_pos: [f32; 3],
+    pub earth: Option<Earth>,
+    light_color: Color,
+    light_pos: [f32; 3],
+    pub meshes: Vec<Mesh>,
     pub world_target: Vec3,
 }
 
@@ -40,11 +45,10 @@ impl Default for Scene {
     fn default() -> Self {
         Self {
             earth: None,
-            cuboids: Vec::new(),
-            ellipsoids: Vec::new(),
             camera: Camera::default(),
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
+            meshes: Vec::new(),
             world_target: Vec3::ZERO,
         }
     }
@@ -53,26 +57,26 @@ impl Scene {
     pub fn set_earth(&mut self, is_earth: bool) {
         self.earth = if is_earth {
             //TODO: calculate based on epoch
-            self.light_pos = [0.0, 151.0e9, 0.0];           
+            self.light_pos = [0.0, 151.0e9, 0.0];
 
-            self.world_target = if !self.cuboids.is_empty() {                
-                self.cuboids[0].position                
-            } else if !self.ellipsoids.is_empty() {
-                self.ellipsoids[0].position
+            self.world_target = if !self.meshes.is_empty() {
+                self.meshes[0].state.position
             } else {
-                todo!("no other shapes yet")
+                Vec3::new(0.0, 0.0, 0.0)
             };
 
             // convert all positions to target frame
-            self.cuboids.iter_mut().for_each(|cuboid| cuboid.position -= self.world_target);
-            self.ellipsoids.iter_mut().for_each(|ellipsoid| ellipsoid.position -= self.world_target);
+            self.meshes
+                .iter_mut()
+                .for_each(|mesh| mesh.set_position_from_target(self.world_target));
+
             let unit = self.world_target.normalize();
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            
+
             let mut earth = Earth::default();
-            earth.0.position -= self.world_target;
+            earth.0.set_position_from_target(self.world_target);
             Some(earth)
         } else {
             None
@@ -87,40 +91,37 @@ pub struct SceneState {
 }
 
 #[derive(Debug)]
+struct DepthView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct MultisampleView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct UniformBuffer(wgpu::Buffer);
+
+#[derive(Debug)]
+struct UniformBindGroup(wgpu::BindGroup);
+
+#[derive(Debug)]
 pub struct ScenePrimitive {
-    pub earth: Option<EllipsoidRaw>,
-    pub uniforms: Uniforms,
-    pub cuboids: Vec<CuboidRaw>,
-    pub ellipsoids: Vec<EllipsoidRaw>,
+    earth: Option<MeshGpu>,
+    meshes: Vec<MeshPrimitive>,
+    uniforms: Uniforms,
 }
 
 impl ScenePrimitive {
-    pub fn new(
-        earth: &Option<Earth>,
-        cuboids: &[Cuboid],
-        ellipsoids: &[Ellipsoid],
-        camera: &Camera,
-        bounds: Rectangle,
-        light_color: Color,
-        light_pos: [f32; 3],
-    ) -> Self {
-        let uniforms = pipeline::Uniforms::new(camera, bounds, light_color, light_pos);
-        let earth = if let Some(earth) = earth {
-            Some(EllipsoidRaw::from_ellipsoid(&earth.0))
+    pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
+        let earth = if let Some(earth) = &scene.earth {
+            Some(MeshGpu::from(&earth.0))
         } else {
             None
         };
+        let meshes: Vec<MeshPrimitive> = scene.meshes.iter().map(MeshPrimitive::from).collect();
+        let uniforms = pipeline::Uniforms::new(scene, bounds);
 
         Self {
             earth,
-            cuboids: cuboids
-                .iter()
-                .map(CuboidRaw::from_cuboid)
-                .collect::<Vec<CuboidRaw>>(),
-            ellipsoids: ellipsoids
-                .iter()
-                .map(EllipsoidRaw::from_ellipsoid)
-                .collect::<Vec<EllipsoidRaw>>(),
+            meshes,
             uniforms,
         }
     }
@@ -137,27 +138,228 @@ impl Primitive for ScenePrimitive {
         _scale_factor: f32,
         storage: &mut Storage,
     ) {
-        if !storage.has::<Pipeline>() {
-            storage.store(Pipeline::new(
-                device,
-                queue,
-                format,
-                target_size,
-                self.earth.is_some(),
-            ));
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("uniform bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        //Create and store the uniform bindgroup
+        if !storage.has::<UniformBindGroup>() {
+            let uniforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("uniform buffer"),
+                contents: bytemuck::bytes_of(&self.uniforms),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+            let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("uniform and texture bind group"),
+                layout: &uniform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniforms.as_entire_binding(),
+                }],
+            });
+            storage.store(UniformBuffer(uniforms));
+            storage.store(UniformBindGroup(uniform_bind_group));
+        } else {
+            if let Some(uniform_buffer) = storage.get::<UniformBuffer>() {
+                queue.write_buffer(
+                    &uniform_buffer.0,                  // Buffer to update
+                    0,                                  // Offset (start at the beginning)
+                    bytemuck::bytes_of(&self.uniforms), // New uniform data
+                );
+            }
         }
 
-        //upload data to GPU
-        let pipeline = storage.get_mut::<Pipeline>().unwrap();
-        pipeline.update(
-            device,
-            queue,
-            target_size,
-            &self.uniforms,
-            &self.cuboids,
-            &self.ellipsoids,
-            &self.earth,
-        );
+        // Create and store the depth_view
+        if !storage.has::<DepthView>() {
+            let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("depth texture"),
+                size: wgpu::Extent3d {
+                    width: target_size.width,
+                    height: target_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 4,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+
+            let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            storage.store(DepthView(depth_view));
+        }
+
+        if !storage.has::<MultisampleView>() {
+            // create the antialiasing textureview
+            let multisampled_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("multisampled.color.texture"),
+                size: wgpu::Extent3d {
+                    width: target_size.width,
+                    height: target_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 4, // Set the multisample count here to match the pipeline
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let multisampled_texture_view =
+                multisampled_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            storage.store(MultisampleView(multisampled_texture_view));
+        }
+
+        // create all pipelines for each geometry present in meshes
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pipeline layout"),
+            bind_group_layouts: &[&uniform_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        const MAIN_SHADER: &str = include_str!("scene/shaders/main.wgsl");
+
+        //cuboids
+        let cuboids: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Cuboid(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !cuboids.is_empty() {
+            if !storage.has::<CuboidPipeline>() {
+                storage.store(CuboidPipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "cuboid",
+                    Cuboid::vertices(),
+                    &cuboids,
+                )));
+            } else {
+                if let Some(cuboid_pipeline) = storage.get_mut::<CuboidPipeline>() {
+                    let pipeline = &mut cuboid_pipeline.0;
+                    pipeline.update(queue, &cuboids);
+                }
+            }
+        }
+
+        //ellipsoid16
+        let ellipsoid16s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid16(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid16s.is_empty() {
+            if !storage.has::<Ellipsoid16Pipeline>() {
+                storage.store(Ellipsoid16Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid16",
+                    Ellipsoid16::vertices(),
+                    &ellipsoid16s,
+                )));
+            } else {
+                if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
+                    let pipeline = &mut ellipsoid16_pipeline.0;
+                    pipeline.update(queue, &ellipsoid16s);
+                }
+            }
+        }
+
+        //ellipsoid32
+        let ellipsoid32s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid32(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid32s.is_empty() {
+            if !storage.has::<Ellipsoid32Pipeline>() {
+                storage.store(Ellipsoid32Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid32",
+                    Ellipsoid32::vertices(),
+                    &ellipsoid32s,
+                )));
+            } else {
+                if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
+                    let pipeline = &mut ellipsoid32_pipeline.0;
+                    pipeline.update(queue, &ellipsoid32s);
+                }
+            }
+        }
+
+        //ellipsoid64
+        let ellipsoid64s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid64(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid64s.is_empty() {
+            if !storage.has::<Ellipsoid64Pipeline>() {
+                storage.store(Ellipsoid64Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid64",
+                    Ellipsoid64::vertices(),
+                    &ellipsoid64s,
+                )));
+            } else {
+                if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
+                    let pipeline = &mut ellipsoid64_pipeline.0;
+                    pipeline.update(queue, &ellipsoid64s);
+                }
+            }
+        }
     }
 
     fn render(
@@ -168,18 +370,73 @@ impl Primitive for ScenePrimitive {
         viewport: Rectangle<u32>,
         encoder: &mut wgpu::CommandEncoder,
     ) {
-        //at this point our pipeline should always be initialized
-        let pipeline = storage.get::<Pipeline>().unwrap();
+        // unpack the depth_view and uniform_bind_group from storage
+        let depth_view = &storage.get::<DepthView>().unwrap().0;
+        let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
+        let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
-        //render primitive
-        pipeline.render(
-            target,
-            encoder,
-            viewport,
-            self.cuboids.len() as u32,
-            self.ellipsoids.len() as u32,
-            false,
-        );
+        // set up the render pass
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("gadgt.pipeline.pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                //view: target,
+                view: multisample_view,
+                resolve_target: Some(target),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
+        pass.set_bind_group(0, uniform_bind_group, &[]);
+
+        //render cuboids
+        if let Some(cuboid_pipeline) = storage.get::<CuboidPipeline>() {
+            let pipeline = &cuboid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid16s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid16Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid32s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid32Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid64s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid64Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
     }
 }
 
@@ -188,16 +445,8 @@ impl Program<Message> for Scene {
     type Primitive = ScenePrimitive;
 
     // Required method
-    fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
-        ScenePrimitive::new(
-            &self.earth,
-            &self.cuboids,
-            &self.ellipsoids,
-            &self.camera,
-            bounds,
-            self.light_color,
-            self.light_pos,
-        )
+    fn draw(&self, _state: &Self::State, _cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
+        ScenePrimitive::new(&self, bounds)
     }
 
     // Provided methods

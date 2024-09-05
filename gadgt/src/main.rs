@@ -4,9 +4,10 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
+use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
-use geometry::{cuboid::Cuboid, ellipsoid::Ellipsoid, Geometry};
+use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid, Ellipsoid16}, Geometry, GeometryState}, material::Material, mesh::Mesh};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
@@ -659,7 +660,7 @@ fn main() {
                                                     // maintaining id's and connections, then dropping new object
                                                     old_body.set_name(new_body.get_name().to_string());
                                                     old_body.mass_properties = new_body.mass_properties;
-                                                    old_body.geometry = new_body.geometry;
+                                                    old_body.mesh = new_body.mesh;
 
                                                 } else {
                                                     // i think this is impossible, since to find a base it has to exist
@@ -1108,8 +1109,7 @@ enum Prompts {
     Ixy,
     Ixz,
     Iyz,
-    Geometry,
-    GeometryType,
+    Geometry,    
     GravityType,
     GravityConstantX,
     GravityConstantY,
@@ -1139,6 +1139,8 @@ enum Prompts {
     JointSpringTranslationZ,
     Main,
     Mass,
+    Material,
+    Mesh,
     Name,
     Position,
     PositionX,
@@ -1154,6 +1156,7 @@ enum Prompts {
     //SphericalR,
     //SphericalA,
     //SphericalI,
+    SpecularPower,
     Transform,
     TransformRotation,
     TransformTranslation,
@@ -1195,9 +1198,8 @@ impl Prompts {
             Prompts::EllipsoidLongitudeBands => "Number of longitude bands (default: 16)",
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
-            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",
-            Prompts::Geometry => "Add geometry to body for animation? ['y'/'n'] (default: 'n')",
-            Prompts::GeometryType => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
+            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",            
+            Prompts::Geometry => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
             Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
@@ -1233,6 +1235,8 @@ impl Prompts {
             Prompts::JointSpringTranslationZ => "Translational spring constant Z (units: N/m, default: 0.0)",
             Prompts::Main => "GADGT",
             Prompts::Mass => "Mass (units: kg, default: 1.0)",
+            Prompts::Material => "material type? ['b' (basic) 'p' (phong)] (default: 'b')",            
+            Prompts::Mesh => "add mesh for animation? ['y','n'] (default: n)",
             Prompts::Name => "Name",
             Prompts::Position => "Initial position (units: m, default: 0.0)",
             Prompts::PositionX => "Initial position X (units: m, default: 0.0)",
@@ -1244,7 +1248,8 @@ impl Prompts {
             Prompts::QuaternionZ => "Quaternion Z (units: None, default: 0.0)",
             Prompts::SimulationDt => "dt (units: sec, default: 0.1)",
             Prompts::SimulationStart => "start_time (units: sec, default: 0.0)",
-            Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)",            
+            Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)", 
+            Prompts::SpecularPower => "specular power (default: 32.0)",
             //Prompts::SphericalR => "Spherical radius (units: m, default: 0.0)",
             //Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0)",
             //Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
@@ -1345,6 +1350,7 @@ impl Prompts {
             | Prompts::QuaternionX
             | Prompts::QuaternionY
             | Prompts::QuaternionZ
+            | Prompts::SpecularPower
             | Prompts::Velocity
             | Prompts::VelocityX
             | Prompts::VelocityY
@@ -1369,7 +1375,7 @@ impl Prompts {
                 }
                 Ok(())
             }
-            // Non-numeric and > 0
+            // numeric and > 0
             Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
                 if str.is_empty() {
                     //leave empty to use default
@@ -1395,7 +1401,7 @@ impl Prompts {
             //    Ok(())
             //}
             //GeometryType 
-            Prompts::GeometryType => {
+            Prompts::Geometry => {
                 if str.is_empty() {
                     //leave empty to use default
                     return Ok(())
@@ -1403,6 +1409,17 @@ impl Prompts {
                 let possible_values = ["c", "e"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidGeometry);
+                }
+                Ok(())
+            }
+            Prompts::Material => {
+                if str.is_empty() {
+                    //leave empty to use default
+                    return Ok(())
+                }
+                let possible_values = ["b", "p"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidMaterial);
                 }
                 Ok(())
             }
@@ -1449,7 +1466,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics | Prompts::Geometry | Prompts::Earth => {
+            Prompts::JointMechanics | Prompts::Earth | Prompts::Mesh => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
                     return Ok(())
@@ -1475,6 +1492,7 @@ pub enum InputErrors {
     InvalidColor,
     InvalidGeometry,
     InvalidGravity,
+    InvalidMaterial,
     InvalidRotation,
     InvalidTransform,
     NonNumeric,
@@ -1496,6 +1514,7 @@ impl std::fmt::Display for InputErrors {
             InputErrors::InvalidColor => write!(f,"Error: input must be ['c' (constant), 'r' (rgba)]"),
             InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
+            InputErrors::InvalidMaterial => write!(f,"Error: input must be ['b' (basic), 'p' (phong)]"),
             InputErrors::InvalidRotation => write!(f,"Error: input must be ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]"),
             InputErrors::InvalidTransform => write!(f,"Error: input must be ['i' (identity), 'c' (custom)]"),
             InputErrors::NonNumeric => write!(f,"Error: input must be numeric"),
@@ -1529,9 +1548,9 @@ fn prompt_body() -> Result<Body, InputErrors> {
     let ixz = Prompts::Ixz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
     let iyz = Prompts::Iyz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
 
-    let geometry = Prompts::Geometry.validate_loop("n")?;
-    let geometry = match geometry.as_str() {
-        "y" => Some(prompt_geometry()?),
+    let mesh = Prompts::Mesh.validate_loop("n")?;
+    let mesh = match mesh.as_str() {
+        "y" => Some(prompt_mesh(name.clone())?),
         "n" => None,
         _ => panic!("shouldnt be possible, caught in prompt_geometry")
     };
@@ -1542,24 +1561,24 @@ fn prompt_body() -> Result<Body, InputErrors> {
     let mass_properties =
         MassProperties::new(mass, com, inertia).unwrap();
 
-    let body = match geometry {
-        Some(geometry) => Body::new(&name, mass_properties)?.with_geometry(geometry),
+    let body = match mesh {
+        Some(mesh) => Body::new(&name, mass_properties)?.with_mesh(mesh),
         None => Body::new(&name, mass_properties)?
     };    
     Ok(body)    
 }
 
-fn prompt_color() -> Result<[f32;4], InputErrors> {
+fn prompt_color() -> Result<Color, InputErrors> {
     let color_type = Prompts::Color.validate_loop("c")?;
     let rgba = match color_type.as_str() {
         "c" => {
             
                 let color = Prompts::ColorConstant.validate_loop("white")?;
                 match color.as_str() {
-                    "white" => [1.0,1.0,1.0,1.0],
-                    "red" => [1.0,0.0,0.0,1.0],
-                    "green" => [0.0,1.0,0.0,1.0],
-                    "blue" => [0.0,0.0,1.0,1.0],
+                    "white" => Color::new(1.0,1.0,1.0,1.0),
+                    "red" => Color::new(1.0,0.0,0.0,1.0),
+                    "green" => Color::new(0.0,1.0,0.0,1.0),
+                    "blue" => Color::new(0.0,0.0,1.0,1.0),
                     _ => panic!("invalid color, should have been caught by validate loop")
                 }            
         },
@@ -1568,7 +1587,7 @@ fn prompt_color() -> Result<[f32;4], InputErrors> {
             let g = Prompts::ColorG.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
             let b = Prompts::ColorB.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
             let a = Prompts::ColorA.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-            [r,g,b,a]
+            Color::new(r,g,b,a)
         }
         _ => panic!("invalid option, should have been caught by validate loop")
     };
@@ -1778,24 +1797,39 @@ fn prompt_simulation() -> Result<(String,f64,f64,f64),InputErrors> {
 fn prompt_cuboid() -> Result<Cuboid, InputErrors> {
     let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
     let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let color = prompt_color()?;
-    Ok(Cuboid::new(x,y,z,color))
+    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);    
+    Ok(Cuboid::new(x,y,z))
 }
 
-fn prompt_ellipsoid() -> Result<Ellipsoid, InputErrors> {
+fn prompt_ellipsoid() -> Result<Geometry, InputErrors> {
     let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
     let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
     let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
-    let lon = Prompts::EllipsoidLongitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
+    let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?;
     
-    let color = prompt_color()?;
-    Ok(Ellipsoid::new(x,y,z,lat, lon, color))
+    let geometry = match lat.as_str() {
+        "16" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
+        "32" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
+        "64" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
+        _ => panic!("should not be possible, caught in validate loop")
+    };
+    Ok(geometry)
+}
+
+fn prompt_mesh(name: String) -> Result<Mesh, InputErrors> {
+    let geometry = prompt_geometry()?;
+    let material = prompt_material()?;
+    Ok(Mesh {
+        name,
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    })
 }
 
 fn prompt_geometry() -> Result<Geometry, InputErrors> {
-    let geometry_type = Prompts::GeometryType.validate_loop("c")?;
+    let geometry_type = Prompts::Geometry.validate_loop("c")?;
     match geometry_type.as_str() {
         "c" => {
             let cuboid = prompt_cuboid()?;
@@ -1803,13 +1837,33 @@ fn prompt_geometry() -> Result<Geometry, InputErrors> {
         }
         "e" => {
             let ellipsoid = prompt_ellipsoid()?;
-            Ok(Geometry::Ellipsoid(ellipsoid))
+            Ok(ellipsoid)
         }
         _ => {
             Err(InputErrors::CtrlC)
         }
     }
 }
+fn prompt_material() -> Result<Material, InputErrors> {
+    let material_type = Prompts::Material.validate_loop("b")?;
+    match material_type.as_str() {
+        "b" => {
+            let color = prompt_color()?;
+            Ok(Material::Basic{color})
+        }
+        "p" => {
+            let color = prompt_color()?;
+            let specular_power = Prompts::SpecularPower.validate_loop("32.0")?.parse::<f32>().unwrap_or(32.0);
+            Ok(Material::Phong{color, specular_power})
+        }
+        _ => {
+            Err(InputErrors::CtrlC)
+        }
+    }
+}
+
+
+
 
 fn success(s: &str) {
     println!("{}",colored::Colorize::green(s))
