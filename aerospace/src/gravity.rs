@@ -1,15 +1,25 @@
-use nalgebra::{Matrix2, SimdBool, Vector3}; //DMatrix
+use nalgebra::{DMatrix, Matrix2, Matrix3, SimdBool, Vector3}; //DMatrix
 use std::f64::consts::PI;
 use serde::{Serialize, Deserialize};
 
 pub const EARTH: f64 = 3.986004418e14; // mu (m^3/s^2)
 // pub const EARTH_J2: f64 = 1082e-6;
 pub const EARTH_RE: f64 = 6378137.0; // (m)  TODO: implement WGS84
-pub const MAX_DEG: u8 = 2; //16; // degrees of spherical harmonics
+// pub const MAX_DEG: u8 = 2; //16; // degrees of spherical harmonics
+
 //pub const EGM96_C:Vec<Vec<f64>> = (e11=-1.01,  0.86],[3.98,  0.53]];
 //pub const EGM96_S:Vec<Vec<f64>> = Matrix2::new(-1.01,  0.86, 3.98,  0.53);
-pub const EGM96_C: Matrix2<f64> = Matrix2::new(-1.01, 0.86, 3.98, 0.53);
-pub const EGM96_S: Matrix2<f64> = Matrix2::new(-1.01, 0.86, 3.98, 0.53);
+//pub const EGM96_C: Matrix3<f64> = Matri::from_diagonal(&DVector::from_row_slice(&[1.0, 2.0, 3.0]));
+//pub const EGM96_S: Matrix2<f64> = Matrix2::new(-1.01, 0.86, 3.98, 0.53);
+
+/*  pub const EGM96_C: Matrix3<f64> = Matrix3::new(0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0,
+          -0.000484165371736000, -0.000000000186987636, 0.000002439143523980);
+
+pub const EGM96_S: Matrix3<f64> = Matrix3::new(0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            0.0, 0.000119528012031e-5,  -0.140016683654000e-5);
+*/
 
 //pub const EGM96_C2:DMatrix<f64> = DMatrix::from_data(C);
 /*pub fn coeff(){
@@ -113,21 +123,28 @@ impl TwoBodyGravity {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EGM96Gravity {
-    pub mu: f64, // is this neccessary?
-    pub earth_re: f64,
-    pub maxdeg: u8,
-    pub c: Matrix2<f64>, // Vec<Vec<f64>>, // Matrix2<f64>,
-    pub s: Matrix2<f64>, // Vec<Vec<f64>>, // Matrix2<f64>,
+    // pub mu: f64, // is this neccessary?
+    // pub earth_re: f64,
+    pub deg: u8,
+    pub c: DMatrix<f64>, //Matrix2<f64>, // Vec<Vec<f64>>, // Matrix2<f64>,
+    pub s: DMatrix<f64>, // Vec<Vec<f64>>, // Matrix2<f64>,
 }
 impl EGM96Gravity {
-    pub const EGM96_COEFF: Self = Self {
+    /*pub const EGM96_COEFF: Self = Self {
         mu: EARTH,
         earth_re: EARTH_RE,
         maxdeg: MAX_DEG,
         c: EGM96_C,
         s: EGM96_S,
-    };
-}
+    */
+    pub fn new(deg:u8)-> Self{
+        let mut c = // load a matrix
+        let s = // load a matrix
+
+        Self{deg, c, s }
+    
+};
+
 /* pub struct J2Harmonic {
     pub mu: f64, // is this neccessary?
     pub j2: f64,
@@ -230,8 +247,8 @@ impl GravityTrait for EGM96Gravity {
             pos: Vector3<f64>, // position
             maxdeg: usize,
             p: Vec<Vec<f64>>,
-            c: Matrix2<f64>,
-            s: Matrix2<f64>,
+            c: Matrix3<f64>, //Matrix2<f64>,
+            s: Matrix3<f64>,
             smlambda: Vec<f64>,
             cmlambda: Vec<f64>,
             mu: f64,
@@ -342,31 +359,27 @@ impl GravityTrait for Gravity {
     }
 }
 
-/* #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
-    use std::f64::consts::PI;
-    const TOL: f64 = 1e-12;
 
-    /// Unittest for EGM96 (J2 Harmonics).
+    /// Unittest for EGM96
     #[test]
-    fn test_j2_harmonics() {
-        let p = Vector3::
+    fn grav_egm96() {
+        let grav = EGM96Gravity{};
+        let mu = EARTH;
+        let re = EARTH_RE;
+        let pos_ecef = Vector3::new(
+            -821562.9892,
+            -906648.2064,
+            -6954665.433);
+        
+        let g_rust = grav.calculate(pos_ecef);
+        let g_pace_model = Vector3::new(
+            0.925275834249670,
+            1.021116966682443,
+            7.853494446974462);
 
-
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0).normalize();
-
-        assert_approx_eq!(q.x, 0.18257418583505536, TOL);
+        assert_eq!(g_rust, g_pace_model);
     }
-
-    /// Test for quaternion inversion.
-    #[test]
-    fn test_quaternion_inv() {
-        let quat = Quaternion::rand();
-        let inv = quat.inv();
-
-        assert_approx_eq!(inv.s, quat.s);
-        assert_approx_eq!(inv.x, -quat.x);
-    }
-} */
+} 
