@@ -39,7 +39,7 @@ impl Camera {
         let aspect_ratio = bounds.width / bounds.height;
 
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = glam::Mat4::perspective_rh(self.fov_y, aspect_ratio, self.near, self.far);
+        let proj = glam::Mat4::perspective_rh(self.fov_y * std::f32::consts::PI / 180.0, aspect_ratio, self.near, self.far);
 
         OPENGL_TO_WGPU_MATRIX * proj * view
     }
@@ -50,6 +50,10 @@ impl Camera {
 
     pub fn set_far(&mut self, far: f32) {
         self.far = far;
+    }
+
+    pub fn set_fov(&mut self, fov: f32) {
+        self.fov_y = fov;
     }
 
     /*

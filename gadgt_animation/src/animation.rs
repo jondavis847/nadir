@@ -47,7 +47,7 @@ impl AnimationState {
         }
 
         if let Some(earth) = &mut self.scene.earth {
-            const ROTATION_RATE: f32 = 2.0 * std::f32::consts::PI / 86400.0;
+            const ROTATION_RATE: f32 = 100.0 * 2.0 * std::f32::consts::PI / 86400.0;
             let rotation_axis = Vec3::Z;
 
             // Calculate the angle of rotation for this time step
@@ -99,14 +99,14 @@ impl AnimationState {
 
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
-            //let q = body.state.attitude_base;
-            //let r = body.state.position_base;
-            //let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
-            //let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
+            let q = body.state.attitude_base;
+            let r = body.state.position_base;
+            let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
+            let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
             if let Some(mesh) = &body.mesh {
-                //  let mut mesh = mesh.clone();
-                //  mesh.update(position,rotation);
-                self.scene.meshes.push(mesh.clone());
+                let mut mesh = mesh.clone();
+                mesh.update(position, rotation);
+                self.scene.meshes.push(mesh);
             }
         }
 
