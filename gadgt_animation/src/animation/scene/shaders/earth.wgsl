@@ -79,20 +79,16 @@ fn fs_main(in: Output) -> FragOutput {
 
     let day_color = textureSample(earth_texture, earth_sampler, in.uv);
     let night_color = textureSample(earth_night, earth_sampler, in.uv);
-
-    var color = vec4<f32>(0.0);
-    if diff > 0.0 { //turn off the lights
-        color = diff * day_color;
-    } else {
-        color = diff * day_color + 0.1 * (1.0 - diff) * night_color;// 0.5 because it was just way too bright    
-    }    
-
     let ambient = 0.0 * day_color.rgb;
+    //let result = ambient;
+    
+    let color = diff * day_color.rgb + 0.1 * (1.0 - diff) * night_color.rgb;// 0.5 because it was just way too bright    
+        
 
-    let light_color = vec3<f32>(1.0, 1.0, 0.7);
+    
     // Diffuse lighting (Lambertian reflectance)
-    //let diffuse = color.rgb * uniforms.light_color.rgb;
-    let diffuse = color.rgb * light_color;
+    let diffuse = color.rgb * uniforms.light_color.rgb;
+    
 
     // Specular lighting (Phong reflection model)
     let light_reflect = normalize(reflect(-light_dir, in.normal));
@@ -103,7 +99,7 @@ fn fs_main(in: Output) -> FragOutput {
         specular_factor = pow(specular_factor, 100.0);
         let spec_map_value = textureSample(earth_spec, earth_sampler, in.uv).rgb;
         //specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
-        specular = light_color * specular_factor * spec_map_value;
+        specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
     } 
 
         // **Fresnel Effect Calculation**
@@ -117,15 +113,15 @@ fn fs_main(in: Output) -> FragOutput {
     let fresnel_color = mix(diffuse, specular, fresnel_factor);
 
     // Combine results
-    //let result = ambient + diffuse + specular;
-    let result = ambient + fresnel_color;
-
+    let result = ambient + diffuse;// + specular;
+    //let result = ambient + fresnel_color;
+    
     // Compute the logarithmic depth
     let far_plane = 1e12; // Adjust this value according to your far plane distance
     let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
-
+    
     var out: FragOutput;
     out.color = vec4<f32>(result, 1.0);
     out.depth = log_depth;

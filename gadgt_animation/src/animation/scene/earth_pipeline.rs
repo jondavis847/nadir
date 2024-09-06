@@ -66,7 +66,7 @@ impl EarthPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),            
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: 1,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -114,16 +114,5 @@ impl EarthPipeline {
             0,
             bytemuck::cast_slice(meshes),
         );
-    }
-
-    pub fn render<'a>(
-        &'a self,
-        pass: &'a mut wgpu::RenderPass<'a>,
-    ) {
-        {
-            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            pass.draw(0..self.n_vertices, 0..self.n_instances);
-        }
     }
 }

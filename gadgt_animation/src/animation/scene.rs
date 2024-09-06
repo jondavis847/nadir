@@ -79,7 +79,7 @@ impl Scene {
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            self.camera.set_fov(75.0);
+            self.camera.set_fov(70.0);
 
             let mut earth = Earth::default();
             earth.0.set_position_from_target(self.world_target);
@@ -197,7 +197,7 @@ impl Primitive for ScenePrimitive {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 4,
+                sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -219,7 +219,7 @@ impl Primitive for ScenePrimitive {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 4, // Set the multisample count here to match the pipeline
+                sample_count: 1, // Set the multisample count here to match the pipeline
                 dimension: wgpu::TextureDimension::D2,
                 format,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -370,8 +370,8 @@ impl Primitive for ScenePrimitive {
         //earth
         if let Some(earth) = &self.earth {
             if !storage.has::<EarthPipeline>() {
-                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
-                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
+                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
                 //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_21k.jpg");
                 const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
                 const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_4k.jpg");
@@ -480,7 +480,7 @@ impl Primitive for ScenePrimitive {
                     format,
                     &earth_layout,
                     &[*earth],
-                    Ellipsoid64::vertices(),
+                    Ellipsoid64::vertices(),                    
                 ));
             } else {
                 if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
@@ -508,8 +508,8 @@ impl Primitive for ScenePrimitive {
             label: Some("gadgt.pipeline.pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 //view: target,
-                view: multisample_view,
-                resolve_target: Some(target),
+                view: target,//multisample_view,
+                resolve_target: None,//Some(target),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
