@@ -63,6 +63,7 @@ impl Scene {
         self.earth = if is_earth {
             //TODO: calculate based on epoch
             self.light_pos = [0.0, 151.0e9, 0.0];
+            self.light_color = Color::new(1.0, 1.0, 0.9,1.0);
 
             self.world_target = if !self.meshes.is_empty() {                
                 self.meshes[0].state.position
@@ -79,7 +80,7 @@ impl Scene {
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            self.camera.set_fov(70.0);
+            self.camera.set_fov(40.0);
 
             let mut earth = Earth::default();
             earth.0.set_position_from_target(self.world_target);
@@ -370,15 +371,20 @@ impl Primitive for ScenePrimitive {
         //earth
         if let Some(earth) = &self.earth {
             if !storage.has::<EarthPipeline>() {
-                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_color_5k.png");
+                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_8K.tif");
                 //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
                 //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_21k.jpg");
-                const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
+                //const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
+                const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_nightlights_10K.tif");
+                const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
                 const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_4k.jpg");
 
                 let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
                 let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
                 let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
+                let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
 
                 let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
                     address_mode_u: wgpu::AddressMode::Repeat,
@@ -441,6 +447,19 @@ impl Primitive for ScenePrimitive {
                                 },
                                 count: None,
                             },
+                            //earth clouds
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 4,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
                         ],
                     });
 
@@ -463,6 +482,10 @@ impl Primitive for ScenePrimitive {
                         wgpu::BindGroupEntry {
                             binding: 3,
                             resource: wgpu::BindingResource::TextureView(&earth_spec),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: wgpu::BindingResource::TextureView(&earth_clouds),
                         },
                     ],
                 });

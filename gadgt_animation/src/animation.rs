@@ -47,7 +47,7 @@ impl AnimationState {
         }
 
         if let Some(earth) = &mut self.scene.earth {
-            const ROTATION_RATE: f32 = 100.0 * 2.0 * std::f32::consts::PI / 86400.0;
+            const ROTATION_RATE: f32 = 500.0 * 2.0 * std::f32::consts::PI / 86400.0;
             let rotation_axis = Vec3::Z;
 
             // Calculate the angle of rotation for this time step

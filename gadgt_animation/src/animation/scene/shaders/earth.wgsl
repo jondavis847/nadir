@@ -10,6 +10,7 @@ struct Uniforms {
 @group(1) @binding(1) var earth_texture: texture_2d<f32>; 
 @group(1) @binding(2) var earth_night: texture_2d<f32>; 
 @group(1) @binding(3) var earth_spec: texture_2d<f32>; 
+@group(1) @binding(4) var earth_clouds: texture_2d<f32>; 
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -75,20 +76,25 @@ fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let diff = max(dot(in.normal, light_dir), 0.0);
-
-    let day_color = textureSample(earth_texture, earth_sampler, in.uv);
-    let night_color = textureSample(earth_night, earth_sampler, in.uv);
-    let ambient = 0.0 * day_color.rgb;
-    //let result = ambient;
+    let day_color_raw = 1.5 * textureSample(earth_texture, earth_sampler, in.uv).rgb;
+    let cloud_texture  = textureSample(earth_clouds, earth_sampler, in.uv);
+    let cloud_color = cloud_texture.rgb;
+    let cloud_alpha = cloud_texture.a;
+    let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
+    let night_color = vec3<f32>(1.0,0.8745,0.7843) * night_texture;
     
-    let color = diff * day_color.rgb + 0.1 * (1.0 - diff) * night_color.rgb;// 0.5 because it was just way too bright    
-        
+    let cloud_intensity = 0.5;
+    let day_color = mix(day_color_raw,cloud_color,cloud_intensity);
 
-    
+    // Ambient lighting
+    let ambient = 0.1 * day_color;
+
     // Diffuse lighting (Lambertian reflectance)
-    let diffuse = color.rgb * uniforms.light_color.rgb;
-    
+    let diff = dot(in.normal, light_dir);
+    let night_diff = dot(in.normal,-light_dir);    
+
+    let color = diff * day_color + 0.5 * night_diff * night_color;        
+    let diffuse = color * uniforms.light_color.rgb;    
 
     // Specular lighting (Phong reflection model)
     let light_reflect = normalize(reflect(-light_dir, in.normal));
@@ -97,12 +103,15 @@ fn fs_main(in: Output) -> FragOutput {
 
     if specular_factor > 0.0 {
         specular_factor = pow(specular_factor, 100.0);
-        let spec_map_value = textureSample(earth_spec, earth_sampler, in.uv).rgb;
-        //specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
+        let spec_map_value = textureSample(earth_spec, earth_sampler, in.uv).rgb;        
         specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
     } 
 
-        // **Fresnel Effect Calculation**
+    // Adjust specular intensity based on the cloud alpha (less specular on clouds)
+    let cloud_specular_multiplier = mix(1.0, 0.1, cloud_alpha); // Reduce specular on clouds
+    let final_specular = specular * cloud_specular_multiplier;
+    /*
+    // Fresnel Effect 
     let view_normal_angle = max(dot(view_dir, in.normal), 0.0);
     
     // Schlick's approximation for Fresnel effect
@@ -111,9 +120,9 @@ fn fs_main(in: Output) -> FragOutput {
 
     // Blend the diffuse and specular components with the Fresnel effect
     let fresnel_color = mix(diffuse, specular, fresnel_factor);
-
+    */
     // Combine results
-    let result = ambient + diffuse;// + specular;
+    let result = ambient + diffuse + final_specular;
     //let result = ambient + fresnel_color;
     
     // Compute the logarithmic depth
