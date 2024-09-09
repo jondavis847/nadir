@@ -73,13 +73,6 @@ struct FragmentOutput {
     @builtin(frag_depth) depth: f32,
 }
 
-// Rayleigh scattering constants for RGB
-const PI: f32 = 3.14159265;
-const EARTH_RADIUS: f32 = 6378137.0;
-const ATMOSPHERE_HEIGHT: f32 = 100000.0; //100km
-const MIE_COEFFICIENT: vec3<f32> = vec3<f32>(2.0e-6);
-const MIE_SCATTERING: f32 = 0.9; // Mie forward scattering factor
-
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     let light_dir = normalize(uniforms.light_pos - in.world_pos);
@@ -114,12 +107,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor * scatter_factor * scatter_color;    
     
     let final_color = vec3<f32>(scattering);
-    // Add a more pronounced rim glow
-    //final_color += rim_glow_intensity * vec3<f32>(0.2, 0.2, 0.4);
-    // Add a subtle atmosphere glow
-    //final_color += atmosphere_intensity * vec3<f32>(0.1, 0.1, 0.3);
-
-
+    
     // Compute logarithmic depth
     let far_plane = 1e12;
     let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
