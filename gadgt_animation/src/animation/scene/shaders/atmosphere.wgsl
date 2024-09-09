@@ -89,19 +89,30 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let night_angle = max(dot(in.normal,-light_dir),0.0);
     let view_angle = dot(view_dir, in.normal);    
 
-    let scatter_factor = 0.05; // controls flat scattering intensity
-    let scatter_color = normalize(vec3<f32>(0.3, 0.4, 1.0));
+    let scatter_factor = 0.2; // controls flat scattering intensity
+    let scatter_color = normalize(vec3<f32>(0.4, 0.6, 1.0));
     
-    let light_angle_factor = 1.2; // controls how much the angle towards the sun affects lighting
-    let view_angle_factor = 1.5; // controls how much the angle towards the camera affects the color
-    let night_angle_factor = 2.0; // controls how much to reduce atmosphere color on the night side
+    let light_angle_factor = 0.5; // controls how much the angle towards the sun affects lighting
+    let view_angle_factor = 5.0; // controls how much the angle towards the camera affects the color
+    let night_angle_factor = 5.0; // controls how much to reduce atmosphere color on the night side
 
-    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * scatter_factor * scatter_color;
+    // fade out values with very small normals so that the atmosphere "blurs" into space
+    let fade_start = 0.0;
+    let fade_end = 0.2;
+    let fade_strength = 3.0;
 
+    var fade_factor: f32;
+    if view_angle < fade_start {
+        fade_factor = 0.0;
+    } else if view_angle > fade_end {
+        fade_factor = 1.0;
+    } else {
+        let t = (view_angle - fade_start) / (fade_end - fade_start);
+        fade_factor = pow(t, fade_strength);
+    }
+
+    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor * scatter_factor * scatter_color;    
     
-    // Calculate atmosphere intensity, stronger at the rim
-    let rim_factor = pow(1.0 - view_angle, 6.0);
-    let rim_glow_intensity = pow(rim_factor, 10.0);
     let final_color = vec3<f32>(scattering);
     // Add a more pronounced rim glow
     //final_color += rim_glow_intensity * vec3<f32>(0.2, 0.2, 0.4);
