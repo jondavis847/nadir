@@ -2,7 +2,7 @@ struct Uniforms {
     projection: mat4x4<f32>,
     camera_pos: vec4<f32>,    
     light_color: vec4<f32>,       
-    light_pos: vec3<f32>,     
+    light_pos: vec3<f32>,         
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -67,54 +67,57 @@ fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
 
     return out;
 }
+
 struct FragmentOutput {
     @location(0) color: vec4<f32>,
     @builtin(frag_depth) depth: f32,
 }
 
+// Rayleigh scattering constants for RGB
+const PI: f32 = 3.14159265;
+const EARTH_RADIUS: f32 = 6378137.0;
+const ATMOSPHERE_HEIGHT: f32 = 100000.0; //100km
+const ATMOSPHERE_DENSITY: f32 = 0.0001;
+const RAYLEIGH_COEFFICIENT: vec3<f32> = vec3<f32>(5.5e-6, 1.35e-5, 3.31e-5);
+const MIE_COEFFICIENT: vec3<f32> = vec3<f32>(2.0e-6);
+const MIE_SCATTERING: f32 = 0.9; // Mie forward scattering factor
+
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
+    let light_dir = normalize(uniforms.light_pos - in.world_pos);
+    let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    var final_color: vec3<f32>;
+    // Calculate the dot product between the normal and the light direction
+    var light_angle = dot(in.normal, light_dir);
+    if light_angle <= 0.0 {
+        light_angle = dot(in.normal, -light_dir);
+    }
 
-    if in.material_type > 0 {        
-        // phong shading
+    let view_angle = dot(view_dir, in.normal);
 
-        let ambient = 0.05 * in.color.rgb;
 
-        let light_dir = normalize(uniforms.light_pos - in.world_pos);
-        let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
+    // Smooth the transition between day and night
+    //let atmosphere_intensity = smoothstep(0.0, 1.0, light_angle);
+    let atmosphere_intensity = (1.0-view_angle) * light_angle; // strongest at horizons, not when looking straight down
 
-        // Diffuse lighting (Lambertian reflectance)
-        let diff = max(dot(in.normal, light_dir), 0.0);
-        let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
+    // Apply Rayleigh and Mie scattering, modulated by the atmosphere intensity
+    let rayleigh_scatter = exp(-light_angle / ATMOSPHERE_DENSITY) * RAYLEIGH_COEFFICIENT;
+    let mie_scatter = exp(-light_angle * MIE_SCATTERING) * MIE_COEFFICIENT;
 
-        // Specular lighting (Phong reflection model)
-        let light_reflect = normalize(reflect(-light_dir, in.normal));
-        var specular_factor = dot(view_dir, light_reflect);    
-        var specular = vec3<f32>(0.0);
+    // Combine the scattering
+    let scattering = rayleigh_scatter;// + mie_scatter;
 
-        if (specular_factor > 0.0) {
-            specular_factor = pow(specular_factor, in.specular_power);
-            specular = uniforms.light_color.rgb * specular_factor;
-        } 
+    // Final color blending with Earth's texture
+    var final_color = in.color.rgb * atmosphere_intensity * scattering;
 
-        // Combine results
-        final_color = ambient + diffuse + specular;
-
-    } else {
-        // just basic color
-        final_color = in.color.rgb;
-    };
-   
-   
-    // Compute the logarithmic depth
-    let far_plane = 1e12; // Adjust this value according to your far plane distance
+    // Compute logarithmic depth
+    let far_plane = 1e12;
     let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, in.color[3]);    
+    out.color = vec4<f32>(final_color, in.color.a);    
     out.depth = log_depth;
-    return out;    
+
+    return out;
 }

@@ -1,5 +1,5 @@
 use gadgt_3d::{
-    earth::Earth,
+    earth::{Atmosphere, Earth},
     geometry::{
         cuboid::Cuboid,
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
@@ -28,7 +28,7 @@ pub mod earth_pipeline;
 pub mod pipeline;
 
 use camera::Camera;
-use earth_pipeline::{EarthBindGroup, EarthPipeline};
+use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
 use pipeline::{
     uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
     Ellipsoid64Pipeline, Pipeline,
@@ -63,14 +63,14 @@ impl Scene {
         self.earth = if is_earth {
             //TODO: calculate based on epoch
             self.light_pos = [0.0, 151.0e9, 0.0];
-            self.light_color = Color::new(1.0, 1.0, 0.9,1.0);
+            self.light_color = Color::new(1.0, 1.0, 0.9, 1.0);
 
-            self.world_target = if !self.meshes.is_empty() {                
+            self.world_target = if !self.meshes.is_empty() {
                 self.meshes[0].state.position
             } else {
                 Vec3::new(0.0, 0.0, 0.0)
             };
-            
+
             // convert all positions to target frame
             self.meshes
                 .iter_mut()
@@ -80,7 +80,7 @@ impl Scene {
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            self.camera.set_fov(40.0);
+            self.camera.set_fov(75.0);
 
             let mut earth = Earth::default();
             earth.0.set_position_from_target(self.world_target);
@@ -112,22 +112,29 @@ struct UniformBindGroup(wgpu::BindGroup);
 #[derive(Debug)]
 pub struct ScenePrimitive {
     earth: Option<MeshGpu>,
+    earth_atmosphere: Option<MeshGpu>,
     meshes: Vec<MeshPrimitive>,
     uniforms: Uniforms,
 }
 
 impl ScenePrimitive {
     pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
-        let earth = if let Some(earth) = &scene.earth {
-            Some(MeshGpu::from(&earth.0))
+        let (earth, earth_atmosphere) = if let Some(earth) = &scene.earth {
+            let atmosphere = Atmosphere::from(earth);
+            (
+                Some(MeshGpu::from(&earth.0)),
+                Some(MeshGpu::from(&atmosphere.0)),
+            )
         } else {
-            None
+            (None, None)
         };
+
         let meshes: Vec<MeshPrimitive> = scene.meshes.iter().map(MeshPrimitive::from).collect();
         let uniforms = Uniforms::new(scene, bounds);
 
         Self {
             earth,
+            earth_atmosphere,
             meshes,
             uniforms,
         }
@@ -377,7 +384,8 @@ impl Primitive for ScenePrimitive {
                 //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
                 //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_21k.jpg");
                 //const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
-                const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_nightlights_10K.tif");
+                const EARTH_NIGHT: &[u8] =
+                    include_bytes!("../../resources/earth_nightlights_10K.tif");
                 const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
                 const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_4k.jpg");
 
@@ -503,11 +511,28 @@ impl Primitive for ScenePrimitive {
                     format,
                     &earth_layout,
                     &[*earth],
-                    Ellipsoid64::vertices(),                    
+                    Ellipsoid64::vertices(),
                 ));
             } else {
                 if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
                     earth_pipeline.update(queue, &[*earth]);
+                }
+            }
+        }
+
+        if let Some(atmosphere) = &self.earth_atmosphere {
+            // atmosphere
+            if !storage.has::<AtmospherePipeline>() {
+                storage.store(AtmospherePipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    &[*atmosphere],
+                    Ellipsoid32::vertices(),
+                ));
+            } else {
+                if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
+                    atmosphere_pipeline.update(queue, &[*atmosphere]);
                 }
             }
         }
@@ -531,8 +556,8 @@ impl Primitive for ScenePrimitive {
             label: Some("gadgt.pipeline.pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 //view: target,
-                view: target,//multisample_view,
-                resolve_target: None,//Some(target),
+                view: target,         //multisample_view,
+                resolve_target: None, //Some(target),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
@@ -597,6 +622,18 @@ impl Primitive for ScenePrimitive {
                 pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
                 pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
             }
+        }
+
+        // need to render earth first so atmosphere pipeline knows how to blend
+        if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
+            let pipeline = &atmosphere_pipeline.pipeline;
+            pass.set_pipeline(pipeline);
+            pass.set_vertex_buffer(0, atmosphere_pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, atmosphere_pipeline.instance_buffer.slice(..));
+            pass.draw(
+                0..atmosphere_pipeline.n_vertices,
+                0..atmosphere_pipeline.n_instances,
+            );
         }
     }
 }

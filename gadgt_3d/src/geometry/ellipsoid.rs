@@ -34,7 +34,7 @@ impl Ellipsoid {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid16(Ellipsoid);
+pub struct Ellipsoid16(pub Ellipsoid);
 impl Ellipsoid16 {
     pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
@@ -51,7 +51,7 @@ impl GeometryTrait for Ellipsoid16 {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid32(Ellipsoid);
+pub struct Ellipsoid32(pub Ellipsoid);
 impl Ellipsoid32 {
     pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
@@ -68,7 +68,7 @@ impl GeometryTrait for Ellipsoid32 {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid64(Ellipsoid);
+pub struct Ellipsoid64(pub Ellipsoid);
 impl Ellipsoid64 {
     pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
