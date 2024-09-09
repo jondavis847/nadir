@@ -56,7 +56,12 @@ impl EarthPipeline {
                 entry_point: "vs_main",
                 buffers: &[Vertex::desc(), MeshGpu::desc()],
             },
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Back), // Cull backfaces for performance and artifact reduction
+                front_face: wgpu::FrontFace::Ccw,
+                ..Default::default()
+            },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: true,
@@ -76,14 +81,14 @@ impl EarthPipeline {
                     format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
                             operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::One,
                             dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Max,
+                            operation: wgpu::BlendOperation::Add,
                         },
                     }),
                     write_mask: wgpu::ColorWrites::ALL,
@@ -183,8 +188,8 @@ impl AtmospherePipeline {
                     format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha, // Source color is multiplied by source alpha
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, // Destination color is multiplied by (1 - source alpha)
+                            src_factor: wgpu::BlendFactor::One, // Source color is multiplied by source alpha
+                            dst_factor: wgpu::BlendFactor::One, // Destination color is multiplied by (1 - source alpha)
                             operation: wgpu::BlendOperation::Add, // Blend by adding the two components
                         },
                         alpha: wgpu::BlendComponent {

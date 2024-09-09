@@ -80,7 +80,7 @@ impl Scene {
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            self.camera.set_fov(75.0);
+            self.camera.set_fov(45.0);
 
             let mut earth = Earth::default();
             earth.0.set_position_from_target(self.world_target);

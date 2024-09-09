@@ -77,8 +77,6 @@ struct FragmentOutput {
 const PI: f32 = 3.14159265;
 const EARTH_RADIUS: f32 = 6378137.0;
 const ATMOSPHERE_HEIGHT: f32 = 100000.0; //100km
-const ATMOSPHERE_DENSITY: f32 = 0.0001;
-const RAYLEIGH_COEFFICIENT: vec3<f32> = vec3<f32>(5.5e-6, 1.35e-5, 3.31e-5);
 const MIE_COEFFICIENT: vec3<f32> = vec3<f32>(2.0e-6);
 const MIE_SCATTERING: f32 = 0.9; // Mie forward scattering factor
 
@@ -87,28 +85,29 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let light_dir = normalize(uniforms.light_pos - in.world_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    // Calculate the dot product between the normal and the light direction
-    var light_angle = dot(in.normal, light_dir);
-    if light_angle <= 0.0 {
-        light_angle = dot(in.normal, -light_dir);
-    }
+    let light_angle = abs(dot(in.normal, light_dir));
+    let night_angle = max(dot(in.normal,-light_dir),0.0);
+    let view_angle = dot(view_dir, in.normal);    
 
-    let view_angle = dot(view_dir, in.normal);
+    let scatter_factor = 0.05; // controls flat scattering intensity
+    let scatter_color = normalize(vec3<f32>(0.3, 0.4, 1.0));
+    
+    let light_angle_factor = 1.2; // controls how much the angle towards the sun affects lighting
+    let view_angle_factor = 1.5; // controls how much the angle towards the camera affects the color
+    let night_angle_factor = 2.0; // controls how much to reduce atmosphere color on the night side
 
+    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * scatter_factor * scatter_color;
 
-    // Smooth the transition between day and night
-    //let atmosphere_intensity = smoothstep(0.0, 1.0, light_angle);
-    let atmosphere_intensity = (1.0-view_angle) * light_angle; // strongest at horizons, not when looking straight down
+    
+    // Calculate atmosphere intensity, stronger at the rim
+    let rim_factor = pow(1.0 - view_angle, 6.0);
+    let rim_glow_intensity = pow(rim_factor, 10.0);
+    let final_color = vec3<f32>(scattering);
+    // Add a more pronounced rim glow
+    //final_color += rim_glow_intensity * vec3<f32>(0.2, 0.2, 0.4);
+    // Add a subtle atmosphere glow
+    //final_color += atmosphere_intensity * vec3<f32>(0.1, 0.1, 0.3);
 
-    // Apply Rayleigh and Mie scattering, modulated by the atmosphere intensity
-    let rayleigh_scatter = exp(-light_angle / ATMOSPHERE_DENSITY) * RAYLEIGH_COEFFICIENT;
-    let mie_scatter = exp(-light_angle * MIE_SCATTERING) * MIE_COEFFICIENT;
-
-    // Combine the scattering
-    let scattering = rayleigh_scatter;// + mie_scatter;
-
-    // Final color blending with Earth's texture
-    var final_color = in.color.rgb * atmosphere_intensity * scattering;
 
     // Compute logarithmic depth
     let far_plane = 1e12;
@@ -116,7 +115,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, in.color.a);    
+    out.color = vec4<f32>(final_color, 1.0);    
     out.depth = log_depth;
 
     return out;
