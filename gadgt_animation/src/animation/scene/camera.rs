@@ -1,11 +1,12 @@
-use glam::{mat4, vec3, vec4, Quat, Vec2, Vec3};
+use glam::{mat4, vec3, vec4, Mat3, Quat, Vec2, Vec3};
 use iced::{mouse::ScrollDelta, Rectangle, Vector};
 
 #[derive(Copy, Clone, Debug)]
-pub struct Camera {
+pub struct Camera {    
     eye: Vec3,
     target: Vec3,
     up: Vec3,
+    rotation: Quat,
     fov_y: f32,
     near: f32,
     far: f32,
@@ -13,16 +14,21 @@ pub struct Camera {
 }
 
 impl Default for Camera {
-    fn default() -> Self {
-        Self {
+    fn default() -> Self {        
+        let mut camera = Self {
             eye: vec3(5.0, 0.0, 0.0),
-            target: Vec3::ZERO,
-            up: Vec3::Z,
+            target: Vec3::ZERO,            
+            up: Vec3::Z,       
+            rotation: Quat::IDENTITY, 
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
-            sensitivity: 0.002,
-        }
+            sensitivity: 0.01,
+        };
+
+        //update rotation to not be identity
+        camera.update_rotation();
+        camera
     }
 }
 
@@ -36,8 +42,7 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 impl Camera {
     pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> glam::Mat4 {
         //TODO looks distorted without padding; base on surface texture size instead?
-        let aspect_ratio = bounds.width / bounds.height;
-
+        let aspect_ratio = bounds.width / bounds.height;        
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = glam::Mat4::perspective_rh(self.fov_y * std::f32::consts::PI / 180.0, aspect_ratio, self.near, self.far);
 
@@ -70,28 +75,27 @@ impl Camera {
     }
 
     pub fn update_position_from_mouse_delta(&mut self, mouse_delta: Vector) {
-        let mouse_delta = Vec2::new(mouse_delta.y, mouse_delta.x); // Swap y and x to match the mouse movement direction
-
-        // Calculate the vector from the target to the camera
-        let target_to_camera = self.eye - self.target;
+        
+        // Calculate the vector from the camera to the target
+        let camera_to_target = self.target - self.eye;
 
         // Calculate the current forward, up, and right vectors
-        let forward = target_to_camera.normalize();
-        let up = Vec3::Y;
-        let right = forward.cross(up).normalize();
+        let forward = camera_to_target.normalize();        
+        let right = forward.cross(self.up).normalize();
 
-        // Convert mouse delta to yaw and pitch
-        let yaw = Quat::from_axis_angle(up, -mouse_delta.x * self.sensitivity);
+        // Convert mouse delta to yaw and pitch        
+        let yaw = Quat::from_axis_angle(self.up, -mouse_delta.x * self.sensitivity);
         let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
 
-        // Combine yaw and pitch into a single rotation quaternion
-        let rotation = yaw * pitch;
+        // Combine yaw and pitch into a single rotation quaternion and update camera rotation
+        let incremental_rotation = yaw * pitch;
+        self.rotation = incremental_rotation * self.rotation;
 
-        // Apply the rotation to the forward vector
-        let new_forward = rotation * forward;
+        // Apply the updated rotation to the forward vector
+        let new_forward = incremental_rotation * camera_to_target;
 
         // Calculate the new camera position
-        let new_camera_pos = self.target + new_forward * target_to_camera.length();
+        let new_camera_pos = self.target - new_forward; 
 
         // Update the camera position
         self.eye = new_camera_pos;
@@ -127,5 +131,12 @@ impl Camera {
         //let limit = target_to_camera.normalize() * 0.1;
         let zoom_delta = target_to_camera * zoom_amount;
         self.eye = self.target + zoom_delta;
+    }
+
+    fn update_rotation(&mut self) {
+        let forward = (self.target-self.eye).normalize();
+        let right = forward.cross(self.up).normalize();
+        let rotation_matrix = Mat3::from_cols(right,self.up,forward);
+        self.rotation = Quat::from_mat3(&rotation_matrix);
     }
 }
