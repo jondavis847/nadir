@@ -92,7 +92,7 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
 
     // using wikipedia spherical coordinate frame.
     // z up.
-    // theta is angle from z, 0 to pi. (latitude)
+    // theta is angle from z, 0 to pi. 0 at top (latitude)
     // phi is angle from phi, 0 to 2pi (longitude)
 
     // Generate grid points
@@ -114,7 +114,9 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
 
             let normal = vec3(x, y, z).normalize();
             // Tangent vector at the point on the sphere
-            let tangent = vec3(-phi.sin() * theta.sin(), phi.sin() * theta.cos(), 0.0).normalize();
+            // at north pole, tangent should 0 in x,y 1 in z axes -> theta = 0 => sin_theta
+            // at equator and 0 longitude 
+            let tangent = vec3(-sin_phi * sin_theta, cos_phi * sin_theta, 0.0).normalize();
             let uv = vec2(lon as f32 / n_lon as f32, lat as f32 / n_lat as f32);
 
             row.push(Vertex {

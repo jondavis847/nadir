@@ -80,7 +80,7 @@ impl Scene {
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
-            self.camera.set_fov(75.0);
+            self.camera.set_fov(45.0);
 
             let mut earth = Earth::default();
             earth.0.set_position_from_target(self.world_target);
@@ -387,12 +387,14 @@ impl Primitive for ScenePrimitive {
                 const EARTH_NIGHT: &[u8] =
                     include_bytes!("../../resources/earth_nightlights_10K.tif");
                 const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
-                const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_4k.jpg");
+                const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_8k.tif");
+                const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
                 let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
                 let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
                 let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
                 let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
+                let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
 
                 let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
                     address_mode_u: wgpu::AddressMode::Repeat,
@@ -468,6 +470,19 @@ impl Primitive for ScenePrimitive {
                                 },
                                 count: None,
                             },
+                            //earth topography
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 5,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
                         ],
                     });
 
@@ -494,6 +509,10 @@ impl Primitive for ScenePrimitive {
                         wgpu::BindGroupEntry {
                             binding: 4,
                             resource: wgpu::BindingResource::TextureView(&earth_clouds),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: wgpu::BindingResource::TextureView(&earth_topography),
                         },
                     ],
                 });

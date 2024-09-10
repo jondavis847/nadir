@@ -11,6 +11,7 @@ struct Uniforms {
 @group(1) @binding(2) var earth_night: texture_2d<f32>; 
 @group(1) @binding(3) var earth_spec: texture_2d<f32>; 
 @group(1) @binding(4) var earth_clouds: texture_2d<f32>; 
+@group(1) @binding(5) var earth_topo: texture_2d<f32>; 
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -37,6 +38,7 @@ struct Output {
     @location(0) uv: vec2<f32>,
     @location(1) world_pos: vec3<f32>,
     @location(2) normal: vec3<f32>,
+    @location(3) tangent: vec3<f32>,
 }
 
 @vertex
@@ -56,12 +58,14 @@ fn vs_main(vertex: Vertex, earth: Earth) -> Output {
 
     let world_pos = transformation_matrix * vec4<f32>(vertex.position, 1.0);
     let normal = normalize(normal_matrix * vertex.normal);
+    let tangent = normalize(normal_matrix * vertex.tangent);
 
     var out: Output;
     out.clip_pos = uniforms.projection * world_pos;
     out.uv = vertex.uv;
     out.world_pos = world_pos.xyz;
     out.normal = normal;
+    out.tangent = tangent;
 
     return out;
 }
@@ -83,6 +87,24 @@ fn fs_main(in: Output) -> FragOutput {
     let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
     let night_color = vec3<f32>(1.0,0.8745,0.7843) * night_texture;
     
+    // calculate bump map perturbation
+    var tangent_space_normal_perturbation = textureSample(earth_topo, earth_sampler, in.uv).xyz;
+    // convert from [0,1] to [-1,1]
+    tangent_space_normal_perturbation = tangent_space_normal_perturbation * 2.0 - 1.0;
+    // Adjust this factor for more/less perturbation
+    let perturbation_strength = 0.025; 
+    
+    // Construct the TBN matrix
+    let N = in.normal;
+    let T = in.tangent;
+    let B = normalize(cross(N, T));
+    let TBN = mat3x3<f32>(T, B, N);
+
+    // Transform the tangent space normal to world space
+    let world_space_normal_perturbation = normalize(TBN * tangent_space_normal_perturbation); 
+    // perturb the normal vector by the perturbation
+    let perturbed_normal = normalize(mix(N, world_space_normal_perturbation, perturbation_strength));
+
     let cloud_intensity = 0.5;
     let day_color = mix(day_color_raw,cloud_color,cloud_intensity);
 
@@ -90,14 +112,14 @@ fn fs_main(in: Output) -> FragOutput {
     let ambient = 0.1 * day_color;
 
     // Diffuse lighting (Lambertian reflectance)
-    let diff = dot(in.normal, light_dir);
-    let night_diff = dot(in.normal,-light_dir);    
+    let diff = dot(perturbed_normal, light_dir);
+    let night_diff = dot(perturbed_normal,-light_dir);    
 
     let color = diff * day_color + 0.5 * night_diff * night_color;        
     let diffuse = color * uniforms.light_color.rgb;    
 
     // Specular lighting (Phong reflection model)
-    let light_reflect = normalize(reflect(-light_dir, in.normal));
+    let light_reflect = normalize(reflect(-light_dir, perturbed_normal));
     var specular_factor = dot(view_dir, light_reflect);
     var specular = vec3<f32>(0.0);
 
