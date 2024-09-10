@@ -43,7 +43,7 @@ pub struct Scene {
     light_color: Color,
     light_pos: [f32; 3],
     pub meshes: Vec<Mesh>,
-    pub world_target: Vec3,
+    pub world_target: Option<usize>, // Some(index into meshes), None is the origin
 }
 
 impl Default for Scene {
@@ -54,7 +54,7 @@ impl Default for Scene {
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
             meshes: Vec::new(),
-            world_target: Vec3::ZERO,
+            world_target: None, 
         }
     }
 }
@@ -66,24 +66,29 @@ impl Scene {
             self.light_color = Color::new(1.0, 1.0, 0.9, 1.0);
 
             self.world_target = if !self.meshes.is_empty() {
-                self.meshes[0].state.position
+                Some(0)
             } else {
-                Vec3::new(0.0, 0.0, 0.0)
+                None
+            };
+            let world_target = if let Some(index) = self.world_target {
+                self.meshes[index].state.position
+            } else {
+                Vec3::ZERO
             };
 
             // convert all positions to target frame
             self.meshes
                 .iter_mut()
-                .for_each(|mesh| mesh.set_position_from_target(self.world_target));
+                .for_each(|mesh| mesh.set_position_from_target(world_target));
 
-            let unit = self.world_target.normalize();
+            let unit = world_target.normalize();
             self.camera.set_position(10.0 * unit);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
             self.camera.set_fov(45.0);
 
             let mut earth = Earth::default();
-            earth.0.set_position_from_target(self.world_target);
+            earth.0.set_position_from_target(world_target);
             Some(earth)
         } else {
             None

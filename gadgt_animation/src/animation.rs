@@ -31,12 +31,12 @@ pub struct AnimationState {
 
 impl AnimationState {
     pub fn animate(&mut self, result: &MultibodyResult, instant: iced::time::Instant) {
-        self.animator.update(instant);
+        self.animator.update(instant);        
+
         for mesh in &mut self.scene.meshes {
             let (attitude, position) =
                 result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
-            let position = glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32)
-                - self.scene.world_target;
+            let position = glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32);                
             let rotation = glam::quat(
                 attitude.x as f32,
                 attitude.y as f32,
@@ -46,8 +46,19 @@ impl AnimationState {
             mesh.update(position, rotation);
         }
 
+        // adjust mesh positions so target is at origin and all other meshes are relative to it
+        let camera_target = if let Some(index) = self.scene.world_target {
+            let camera_target = self.scene.meshes[index].state.position;
+            for mesh in &mut self.scene.meshes {
+                mesh.set_position_from_target(camera_target);
+            }            
+            camera_target
+        } else {
+            Vec3::ZERO
+        };
+
         if let Some(earth) = &mut self.scene.earth {
-            const ROTATION_RATE: f32 = 500.0 * 2.0 * std::f32::consts::PI / 86400.0;
+            const ROTATION_RATE: f32 = 2.0 * std::f32::consts::PI / 86400.0;
             let rotation_axis = Vec3::Z;
 
             // Calculate the angle of rotation for this time step
@@ -58,6 +69,10 @@ impl AnimationState {
 
             // Update the existing quaternion by applying the incremental rotation
             earth.0.state.rotation = incremental_rotation * (earth.0.state.rotation);
+
+            // Adjust earth position based on camera target
+            earth.0.state.position = Vec3::ZERO; // reset to 0.0 first or earth accumulates the error
+            earth.0.set_position_from_target(camera_target);
         }
     }
 
