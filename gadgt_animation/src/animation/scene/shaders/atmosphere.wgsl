@@ -82,8 +82,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let night_angle = max(dot(in.normal,-light_dir),0.0);
     let view_angle = dot(view_dir, in.normal);    
 
-    let scatter_factor = 0.2; // controls flat scattering intensity
-    let scatter_color = normalize(vec3<f32>(0.3, 0.4, 1.0));
+    let scatter_factor = 0.1; // controls flat scattering intensity
+    let scatter_color = normalize(vec3<f32>(0.4, 0.5, 1.0));
     
     let light_angle_factor = 0.5; // controls how much the angle towards the sun affects lighting
     let view_angle_factor = 5.0; // controls how much the angle towards the camera affects the color
