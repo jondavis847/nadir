@@ -11,7 +11,7 @@ use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid32, Ellipsoid16, 
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
-    }, result::MultibodyResult, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
+    }, result::MultibodyResult, sensors::{noise::{gaussian::GaussianNoise, uniform::UniformNoise, Noise, NoiseModels}, simple::{rate3::Rate3Sensor, SimpleSensors}, Sensor, SensorModel}, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
 use nalgebra::Vector3;
 use ratatui::{
@@ -94,6 +94,7 @@ enum Components {
     Gravity,    
     Prismatic,
     Revolute,
+    Sensor,
 }
 
 fn main() {
@@ -290,7 +291,22 @@ fn main() {
                                                     Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                     Err(e) => eprintln!("{:?}",e)
                                                 }                                           
-                                        }                                        
+                                            }  
+                                            Components::Sensor => {
+                                                let sensor = match prompt_sensor() {
+                                                    Ok(sensor) => sensor,
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                };
+                                                let name = sensor.get_name().to_string();
+                                                let r = system.add_sensor(sensor);
+                                                match r {
+                                                    Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }  
+                                            }                                      
                                         }
                                     } else {
                                         println!("Error: system '{}' not found.", system_name);
@@ -1097,6 +1113,7 @@ enum Prompts {
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
+    Delay,
     Earth,
     EllipsoidRadiusX,
     EllipsoidRadiusY,
@@ -1139,8 +1156,12 @@ enum Prompts {
     Main,
     Mass,
     Material,
+    Max,
+    Mean,
     Mesh,
+    Min,
     Name,
+    NoiseModel,        
     Position,
     PositionX,
     PositionY,
@@ -1149,6 +1170,7 @@ enum Prompts {
     QuaternionX,
     QuaternionY,
     QuaternionZ,
+    Sensor,
     SimulationDt,
     SimulationStart,
     SimulationStop,
@@ -1156,6 +1178,7 @@ enum Prompts {
     //SphericalA,
     //SphericalI,
     SpecularPower,
+    Std,
     Transform,
     TransformRotation,
     TransformTranslation,
@@ -1192,6 +1215,7 @@ impl Prompts {
             //Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
+            Prompts::Delay => "delay (sec):\n     {default: 0.0}",
             Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
             Prompts::Earth => "Animate base as earth? (default: 'n')",            
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
@@ -1232,18 +1256,23 @@ impl Prompts {
             Prompts::JointSpringTranslationY => "Translational spring constant Y (units: N/m, default: 0.0)",
             Prompts::JointSpringTranslationZ => "Translational spring constant Z (units: N/m, default: 0.0)",
             Prompts::Main => "GADGT",
-            Prompts::Mass => "Mass (units: kg, default: 1.0)",
-            Prompts::Material => "material type? ['b' (basic) 'p' (phong)] (default: 'b')",            
+            Prompts::Mass => "mass (units: kg, default: 1.0)",
+            Prompts::Material => "material type? ['b' (basic) 'p' (phong)] (default: 'b')",                        
+            Prompts::Max => "maximum value:\n     {default: 1.0}",
+            Prompts::Mean => "mean:\n     {default: 0.0}",
             Prompts::Mesh => "add mesh for animation? ['y','n'] (default: n)",
-            Prompts::Name => "Name",
-            Prompts::Position => "Initial position (units: m, default: 0.0)",
-            Prompts::PositionX => "Initial position X (units: m, default: 0.0)",
-            Prompts::PositionY => "Initial position Y (units: m, default: 0.0)",
-            Prompts::PositionZ => "Initial position Z (units: m, default: 0.0)",
-            Prompts::QuaternionW => "Quaternion W (units: None, default: 1.0)",
-            Prompts::QuaternionX => "Quaternion X (units: None, default: 0.0)",
-            Prompts::QuaternionY => "Quaternion Y (units: None, default: 0.0)",
-            Prompts::QuaternionZ => "Quaternion Z (units: None, default: 0.0)",
+            Prompts::Min => "minimum value:\n     {default: 0.0}",
+            Prompts::Name => "name",
+            Prompts::NoiseModel => "noise model:\n     {default: none}\n     0. none\n     1. uniform\n     2. gaussian",                        
+            Prompts::Position => "initial position (units: m, default: 0.0)",
+            Prompts::PositionX => "initial position x (units: m, default: 0.0)",
+            Prompts::PositionY => "initial position y (units: m, default: 0.0)",
+            Prompts::PositionZ => "initial position z (units: m, default: 0.0)",
+            Prompts::QuaternionW => "quaternion w (units: None, default: 1.0)",
+            Prompts::QuaternionX => "quaternion x (units: None, default: 0.0)",
+            Prompts::QuaternionY => "quaternion y (units: None, default: 0.0)",
+            Prompts::QuaternionZ => "quaternion z (units: None, default: 0.0)",
+            Prompts::Sensor => "sensor model:\n     1. body rate 3-axis (default)\n     2. body rate 1-axis",
             Prompts::SimulationDt => "dt (units: sec, default: 0.1)",
             Prompts::SimulationStart => "start_time (units: sec, default: 0.0)",
             Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)", 
@@ -1251,6 +1280,7 @@ impl Prompts {
             //Prompts::SphericalR => "Spherical radius (units: m, default: 0.0)",
             //Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0)",
             //Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
+            Prompts::Std => "standard deviation:\n     {default: 1.0}",
             Prompts::Transform => "Transform ('i/identity','c/custom',  default: i)",
             Prompts::TransformRotation => "Rotation ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]",
             Prompts::TransformTranslation => "Translation ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
@@ -1740,6 +1770,52 @@ fn prompt_revolute() -> Result<Revolute, InputErrors> {
         JointParameters::new(force, damping, spring);
 
     Ok(Revolute::new(&name, parameters, state))
+}
+
+fn prompt_sensor() -> Result<Sensor, InputErrors> {
+    let name = Prompts::Name.prompt()?;
+    let model = Prompts::Sensor.validate_loop("1")?;
+    let model = match model.as_str() {
+        //Rate 3-axis
+        "1" => {
+            let rate3 = prompt_sensor_rate3()?;
+            SensorModel::Simple(SimpleSensors::Rate3(rate3))
+        },
+        //Rate 1-axis
+        "2" => {
+            todo!()
+        },
+        _ => {
+            panic!("not possible to get here, should have been caught in validate loop")
+        },
+    };
+    Ok(Sensor::new(name,model))
+}
+
+fn prompt_noise() -> Result<NoiseModels, InputErrors> {
+    match Prompts::NoiseModel.validate_loop("0")?.as_str() {
+        "0" => Ok(NoiseModels::None),
+        "1" => {
+            let min = Prompts::Min.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+            let max = Prompts::Max.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+            let uniform = UniformNoise::new(min,max);
+            Ok(NoiseModels::Uniform(uniform))
+        },
+        "2" => {
+            let mean = Prompts::Mean.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+            let sigma = Prompts::Std.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+            let gaussian = GaussianNoise::new(mean,sigma);
+            Ok(NoiseModels::Gaussian(gaussian))
+        },
+        _ => panic!("should not be possible, caught in validate loop"),
+    }
+}
+
+fn prompt_sensor_rate3() -> Result<Rate3Sensor, InputErrors> {    
+    let delay = Prompts::Delay.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let noise_model = prompt_noise()?;
+    let noise = Noise::new(noise_model);
+    Ok(Rate3Sensor::new(delay,noise))    
 }
 
 fn prompt_transform() -> Result<Transform,InputErrors> {

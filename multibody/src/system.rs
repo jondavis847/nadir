@@ -1,4 +1,4 @@
-use crate::component::MultibodyComponent;
+use crate::{component::MultibodyComponent, sensors::Sensor};
 
 use super::{
     aerospace::MultibodyGravity,
@@ -22,6 +22,7 @@ pub struct MultibodySystem {
     pub bodies: HashMap<Uuid, Body>,
     pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
+    pub sensors: HashMap<Uuid, Sensor>,
 }
 
 impl MultibodySystem {
@@ -32,6 +33,7 @@ impl MultibodySystem {
             bodies: HashMap::new(),
             gravities: HashMap::new(),
             joints: HashMap::new(),
+            sensors: HashMap::new(),
         }
     }
 
@@ -74,6 +76,15 @@ impl MultibodySystem {
         Ok(())
     }
 
+    pub fn add_sensor(&mut self, sensor: Sensor) -> Result<(), MultibodyErrors> {
+        // Return if a component with this name already exists
+        if self.check_name_taken(sensor.get_name()) {
+            return Err(MultibodyErrors::NameTaken);
+        }
+
+        self.sensors.insert(*sensor.get_id(), sensor);
+        Ok(())
+    }
     pub fn connect_gravity(
         &mut self,
         gravity_id: &Uuid,
@@ -298,6 +309,10 @@ impl MultibodySystem {
             .iter()
             .any(|(_, joint)| joint.get_name() == name)
         {
+            return true;
+        }
+
+        if self.sensors.iter().any(|(_, sensor)| sensor.get_name() == name) {
             return true;
         }
 

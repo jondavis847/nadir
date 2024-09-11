@@ -7,6 +7,7 @@ use rotations::{quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
 use std::collections::HashMap;
+use transforms::Transform;
 use uuid::Uuid;
 
 pub mod body_enum;
@@ -35,10 +36,10 @@ pub struct Body {
     pub inner_joint: Option<Uuid>,
     pub mass_properties: MassProperties,
     pub name: String,
-    pub outer_joints: Vec<Uuid>,
+    pub outer_joints: Vec<Uuid>, // id of joint in system.joints, joint contains the transform information
     pub mesh: Option<Mesh>,
     pub gravity: Vec<Uuid>, // a vec in case say you want moon and earth or something
-                            //sensors: Vec<BodySensorConnection>,
+    pub sensors: Vec<Uuid>, // id of sensor in system.sensors, sensor contains the transform information
 }
 
 impl Body {
@@ -49,10 +50,24 @@ impl Body {
         }
         Ok(())
     }
+
+    pub fn connect_sensor(&mut self, sensor: Uuid) -> Result<(),BodyErrors> {
+        // only add if it's not already there
+        if !self.sensors.contains(&sensor) {
+            self.sensors.push(sensor);
+        }
+        Ok(())
+    }    
+
     pub fn delete_inner_joint(&mut self) {
         if self.inner_joint.is_some() {
             self.inner_joint = None;
         }
+    }
+
+    pub fn delete_sensor(&mut self, sensor: Uuid) -> Result<(),BodyErrors> {
+        self.sensors.retain(|&id| id != sensor);
+        Ok(())
     }
 
     pub fn get_inner_joint_id(&self) -> &Option<Uuid> {
@@ -76,6 +91,7 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
+            sensors: Vec::new(),
         })
     }
 
@@ -262,4 +278,15 @@ pub struct BodyResult {
     pub angular_momentum_base: Vec<Vector3<f64>>,
     pub linear_momentum_body: Vec<Vector3<f64>>,
     pub linear_momentum_base: Vec<Vector3<f64>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodyConnection {
+    pub body_id: Uuid,
+    pub transform: Transform,
+}
+impl BodyConnection {
+    pub fn new(body_id: Uuid, transform: Transform) -> Self {
+        Self { body_id, transform }
+    }
 }

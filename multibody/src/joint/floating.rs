@@ -5,12 +5,12 @@ use crate::{
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
     },
-    body::{Body, BodyTrait},
+    body::{Body, BodyConnection, BodyTrait},
     joint::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
 };
@@ -102,7 +102,7 @@ impl JointTrait for Floating {
             return Err(JointErrors::InnerBodyExists);
         }
         body.connect_outer_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.inner_body = Some(connection);
         Ok(())
     }
@@ -121,7 +121,7 @@ impl JointTrait for Floating {
         //let joint_mass_properties = spatial_transform * spatial_inertia;
         //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
         body.connect_inner_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
         Ok(())
     }

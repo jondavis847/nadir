@@ -25,6 +25,8 @@ ron = "0.8.1"
 serde = { version = "1.0.204", features = ["derive"] }
 dhat = "0.3.3"
 dirs-next = "2.0.0"
+rand = { version = "0.8.5", features = ["serde", "serde1"] }
+rand_distr = { version = "0.4.3", features = ["serde", "serde1"] }
 
 [features]
 dhat-heap = []

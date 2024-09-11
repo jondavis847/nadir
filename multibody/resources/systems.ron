@@ -59,6 +59,7 @@
                     texture: None,
                 )),
                 gravity: [],
+                sensors: [],
             ),
             "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
                 id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
@@ -106,6 +107,7 @@
                     texture: None,
                 )),
                 gravity: [],
+                sensors: [],
             ),
             "42ba7228-82ba-473a-8c75-eb20d796168b": (
                 id: "42ba7228-82ba-473a-8c75-eb20d796168b",
@@ -151,6 +153,7 @@
                     texture: None,
                 )),
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {
@@ -314,6 +317,7 @@
                 ),
             )),
         },
+        sensors: {},
     ),
     "pace": (
         algorithm: ArticulatedBody,
@@ -373,6 +377,7 @@
                     texture: None,
                 )),
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {
@@ -463,119 +468,8 @@
                 ),
             )),
         },
-    ),
-    "sys": (
-        algorithm: ArticulatedBody,
-        base: Some((
-            id: "c6bb9cf7-e2cd-4b6e-8b86-59c44b174971",
-            name: "base",
-            is_earth: false,
-            outer_joints: [
-                "e2c3dae0-0eff-4368-85eb-70d3ed5b3f30",
-            ],
-            gravity: [],
-        )),
-        bodies: {
-            "055223a8-880c-41d7-b37c-15103db152a0": (
-                id: "055223a8-880c-41d7-b37c-15103db152a0",
-                inner_joint: Some("e2c3dae0-0eff-4368-85eb-70d3ed5b3f30"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b",
-                outer_joints: [],
-                mesh: Some((
-                    name: "b",
-                    geometry: Cuboid((
-                        x: 0.1,
-                        y: 0.1,
-                        z: 1.0,
-                    )),
-                    material: Phong(
-                        color: (
-                            r: 1.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        ),
-                        specular_power: 32.0,
-                    ),
-                    state: (
-                        position: (0.0, 0.0, 0.0),
-                        rotation: (0.0, 0.0, 0.0, 1.0),
-                    ),
-                    texture: None,
-                )),
-                gravity: [],
-            ),
-        },
-        gravities: {},
-        joints: {
-            "e2c3dae0-0eff-4368-85eb-70d3ed5b3f30": Revolute((
-                common: (
-                    id: "e2c3dae0-0eff-4368-85eb-70d3ed5b3f30",
-                    name: "r",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "c6bb9cf7-e2cd-4b6e-8b86-59c44b174971",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "055223a8-880c-41d7-b37c-15103db152a0",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                    mass_properties: None,
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 1.0,
-                    omega: 0.0,
-                ),
-            )),
-        },
-    ),
+        sensors: {},
+    ),    
     "2pend": (
         algorithm: ArticulatedBody,
         base: Some((
@@ -613,6 +507,7 @@
                 outer_joints: [],
                 mesh: None,
                 gravity: [],
+                sensors: [],
             ),
             "cb458608-05b9-4155-9562-fa2d3529a94d": (
                 id: "cb458608-05b9-4155-9562-fa2d3529a94d",
@@ -639,6 +534,7 @@
                 ],
                 mesh: None,
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {
@@ -752,6 +648,7 @@
                 ),
             )),
         },
+        sensors: {},
     ),
     "earth": (
         algorithm: ArticulatedBody,
@@ -809,6 +706,7 @@
                     texture: None,
                 )),
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {},
@@ -891,6 +789,7 @@
                 ),
             )),
         },
+        sensors: {},
     ),
     "floater": (
         algorithm: ArticulatedBody,
@@ -927,6 +826,7 @@
                 outer_joints: [],
                 mesh: None,
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {},
@@ -1009,6 +909,7 @@
                 ),
             )),
         },
+        sensors: {},
     ),
     "pend": (
         algorithm: ArticulatedBody,
@@ -1047,6 +948,7 @@
                 outer_joints: [],
                 mesh: None,
                 gravity: [],
+                sensors: [],
             ),
         },
         gravities: {
@@ -1110,5 +1012,6 @@
                 ),
             )),
         },
+        sensors: {},
     ),
 }

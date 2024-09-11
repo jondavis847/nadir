@@ -6,6 +6,8 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
+use crate::body::BodyConnection;
+
 use super::{
     body::{Body, BodyTrait},
     MultibodyTrait,
@@ -206,21 +208,10 @@ impl JointTrait for Joint {
 // We also choose to make the transform be from the body frame to the joint frame.
 // This is because the location of things like actuators or other components are typically expressed in the body frame.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Connection {
-    pub body_id: Uuid,
-    pub transform: Transform,
-}
-impl Connection {
-    pub fn new(body_id: Uuid, transform: Transform) -> Self {
-        Self { body_id, transform }
-    }
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointConnection {
-    pub inner_body: Option<Connection>,
-    pub outer_body: Option<Connection>,
+    pub inner_body: Option<BodyConnection>,
+    pub outer_body: Option<BodyConnection>,
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
