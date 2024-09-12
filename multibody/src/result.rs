@@ -398,25 +398,7 @@ impl MultibodyResult {
                     "velocity_base_z".to_string(),
                 ]
             }
-            ResultEntry::Joint(joint) => {
-                match joint {
-                    JointResult::Floating(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(),
-                    JointResult::Revolute(_) => {
-                        vec![
-                            "accel".to_string(),
-                            "omega".to_string(),
-                            "theta".to_string(),
-                        ]
-                    }
-                    JointResult::Prismatic(_) => {
-                        vec![
-                            "accel".to_string(),
-                            "position".to_string(),
-                            "velocity".to_string(),
-                        ]
-                    } //_ => panic!("Invalid joint type"),
-                }
-            }
+            ResultEntry::Joint(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(), // TODO: better result structure
             ResultEntry::Sensor(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(), // TODO: better result structure
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
         }
