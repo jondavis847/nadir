@@ -1,3 +1,5 @@
+use crate::sensor::Sensor;
+
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
 use aerospace::gravity::GravityTrait;
 use gadgt_3d::mesh::Mesh;
@@ -151,6 +153,7 @@ pub struct BodySim {
     pub gravity: Vec<Uuid>,
     pub mass_properties: MassProperties,
     pub result: BodyResult,
+    pub sensors: Vec<Uuid>,
 }
 
 impl From<Body> for BodySim {
@@ -162,6 +165,7 @@ impl From<Body> for BodySim {
             gravity: body.gravity,
             mass_properties: body.mass_properties,
             result: BodyResult::default(),
+            sensors: body.sensors,
         }
     }
 }
@@ -236,6 +240,14 @@ impl BodySim {
         self.result
             .external_torque_body
             .push(self.state.external_torque_body);
+    }
+
+    pub fn update_sensors(&self, sensors: &mut HashMap<Uuid,Sensor>) {
+        self.sensors.iter().for_each(|id| {
+            if let Some(sensor) = sensors.get_mut(id) {
+                sensor.update(self);
+            }
+        })
     }
 }
 

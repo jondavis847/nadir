@@ -1,22 +1,14 @@
 use crate::{
-    aerospace::MultibodyGravity,
-    algorithms::{
+    aerospace::MultibodyGravity, algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
         composite_rigid_body::{CompositeRigidBody, CrbCache},
         recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
-    },
-    base::Base,
-    body::{Body, BodySim, BodyTrait},
-    joint::{
+    }, base::Base, body::{Body, BodySim, BodyTrait}, joint::{
         joint_sim::{JointSim, JointSimTrait},
         joint_state::{JointState, JointStates},
         Joint, JointTrait,
-    },
-    result::{update_body_states, MultibodyResult},
-    solver::rk4::solve_fixed_rk4,
-    system::MultibodySystem,
-    MultibodyErrors, MultibodyTrait,
+    }, result::{update_body_states, MultibodyResult}, sensor::Sensor, solver::rk4::solve_fixed_rk4, system::MultibodySystem, MultibodyErrors, MultibodyTrait
 };
 
 use serde::{Deserialize, Serialize};
@@ -41,6 +33,7 @@ pub struct MultibodySystemSim {
     gravity: HashMap<Uuid, MultibodyGravity>,
     parent_indeces: Vec<Option<usize>>,
     crb_cache: Option<CrbCache>,
+    sensors: HashMap<Uuid, Sensor>,
 }
 
 impl TryFrom<MultibodySystem> for MultibodySystemSim {
@@ -128,6 +121,7 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                 gravity: sys.gravities,
                 parent_indeces: parent_indeces,
                 crb_cache,
+                sensors: sys.sensors,
             })
         } else {
             Err(MultibodyErrors::BaseNotFound)
@@ -148,6 +142,7 @@ impl MultibodySystemSim {
     pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, _t: f64) {
         self.set_state(x.clone());
         self.update_joints();
+        self.update_sensors();
         self.update_forces();
 
         match self.algorithm {
@@ -251,8 +246,9 @@ impl MultibodySystemSim {
                         let parent = &mut self.joints[parent_index];
                         parent.add_ic(joint_ic_in_parent);
 
-                        let j = i;
-                        while let Some(parent_index) = self.parent_indeces[j] {}
+                        // just commented out until we finish the crb
+                        //let j = i;
+                        //while let Some(parent_index) = self.parent_indeces[j] {}
                     };
                 }
             }
@@ -347,6 +343,12 @@ impl MultibodySystemSim {
         for joint in &mut self.joints {
             joint.calculate_vj();
             joint.calculate_tau();
+        }
+    }
+
+    fn update_sensors(&mut self) {
+        for body in &mut self.bodies {
+            body.update_sensors(&mut self.sensors);
         }
     }
 }

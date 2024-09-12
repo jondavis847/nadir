@@ -1,6 +1,6 @@
 use crate::{
     body::{BodyConnection, BodySim},
-    sensors::{noise::Noise, SensorTrait},
+    sensor::{noise::Noise, SensorTrait},
 };
 use nalgebra::Vector3;
 use rotations::RotationTrait;
@@ -12,9 +12,20 @@ use serde::{Deserialize, Serialize};
 /// about the desired rotation axis in the body frame
 /// You can use Rotation::AlignedAxes to simplify the logic
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate3Sensor {    
+pub struct Rate3Sensor {
+    parameters: Rate3SensorParameters,
+    state: Rate3SensorState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Rate3SensorParameters {
     delay: f64,
     noise: [Noise; 3],
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Rate3SensorState {
+    noise: Vector3<f64>,
     value: Vector3<f64>,
 }
 
@@ -26,20 +37,26 @@ impl Rate3Sensor {
         noise1.new_seed();
         noise2.new_seed();
         noise3.new_seed();
+        let noise = [noise1, noise2, noise3];
 
-        Self {            
-            delay,
-            noise: [noise1, noise2, noise3],
-            value: Vector3::zeros(), // just a default value, will be updated during sim
-        }
+        let parameters = Rate3SensorParameters { delay, noise };
+        let state = Rate3SensorState::default();
+
+        Self { parameters, state }
     }
 }
 
 impl SensorTrait for Rate3Sensor {
-    fn update(&mut self, connection: &BodyConnection, body: &BodySim) {
+    fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
         let rotation = connection.transform.rotation;
         let body_rate = &body.state.angular_rate_body;
         let sensor_rate = rotation.transform(*body_rate);
-        self.value = sensor_rate;
+        let noise1 = self.parameters.noise[0].sample();
+        let noise2 = self.parameters.noise[1].sample();
+        let noise3 = self.parameters.noise[2].sample();
+        self.state.noise = Vector3::new(noise1,noise2,noise3);
+        self.state.value = sensor_rate + self.state.noise;
     }
 }
+
+pub struct Rate3SensorResult(pub Vec<Rate3SensorState>);

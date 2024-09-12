@@ -5,7 +5,7 @@ pub mod body;
 pub mod component;
 pub mod joint;
 pub mod result;
-pub mod sensors;
+pub mod sensor;
 pub mod solver;
 pub mod system;
 pub mod system_sim;

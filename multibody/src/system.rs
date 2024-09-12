@@ -1,4 +1,4 @@
-use crate::{component::MultibodyComponent, sensors::Sensor};
+use crate::{component::MultibodyComponent, sensor::Sensor};
 
 use super::{
     aerospace::MultibodyGravity,

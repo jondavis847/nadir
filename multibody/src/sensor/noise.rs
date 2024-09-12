@@ -3,8 +3,8 @@ pub mod uniform;
 
 use gaussian::GaussianNoise;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 use uniform::UniformNoise;
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NoiseModels {
@@ -13,12 +13,22 @@ pub enum NoiseModels {
     Uniform(UniformNoise),
 }
 
+impl NoiseTrait for NoiseModels {
+    fn sample(&self, rng: &mut SmallRng) -> f64 {
+        match self {
+            NoiseModels::None => 0.0,
+            NoiseModels::Gaussian(noise) => noise.sample(rng),
+            NoiseModels::Uniform(noise) => noise.sample(rng),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Noise {
     model: NoiseModels,
     #[serde(skip)]
     rng: SmallRng,
-    seed: u64,    
+    seed: u64,
 }
 
 impl Noise {
@@ -31,6 +41,10 @@ impl Noise {
     pub fn new_seed(&mut self) {
         let seed = rand::thread_rng().gen();
         self.seed = seed;
+    }
+
+    pub fn sample(&mut self) -> f64 {
+        self.model.sample(&mut self.rng)
     }
 }
 

@@ -23,7 +23,7 @@ impl Default for Camera {
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
-            sensitivity: 0.01,
+            sensitivity: 0.005,
         };
 
         //update rotation to not be identity
