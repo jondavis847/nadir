@@ -17,7 +17,12 @@ use crate::{
         joint_sim::{JointSim, JointSimTrait},
         JointResult,
     },
+    sensor::SensorResult,
 };
+
+pub trait MultibodyResultTrait {
+    fn get_state_names(&self) -> Vec<&'static str>;
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MultibodyResult {
@@ -395,30 +400,7 @@ impl MultibodyResult {
             }
             ResultEntry::Joint(joint) => {
                 match joint {
-                    JointResult::Floating(_) => {
-                        // these are not labeled as body/base frame since they are all just in the joint frame
-                        vec![
-                            "accel_x".to_string(),
-                            "accel_y".to_string(),
-                            "accel_z".to_string(),
-                            "angular_rate_x".to_string(),
-                            "angular_rate_y".to_string(),
-                            "angular_rate_z".to_string(),
-                            "angular_accel_x".to_string(),
-                            "angular_accel_y".to_string(),
-                            "angular_accel_z".to_string(),
-                            "attitude_x".to_string(),
-                            "attitude_y".to_string(),
-                            "attitude_z".to_string(),
-                            "attitude_s".to_string(),
-                            "position_x".to_string(),
-                            "position_y".to_string(),
-                            "position_z".to_string(),
-                            "velocity_x".to_string(),
-                            "velocity_y".to_string(),
-                            "velocity_z".to_string(),
-                        ]
-                    } //_ => panic!("Invalid joint type"),
+                    JointResult::Floating(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(),
                     JointResult::Revolute(_) => {
                         vec![
                             "accel".to_string(),
@@ -435,6 +417,7 @@ impl MultibodyResult {
                     } //_ => panic!("Invalid joint type"),
                 }
             }
+            ResultEntry::Sensor(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(), // TODO: better result structure
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
         }
     }
@@ -519,6 +502,7 @@ pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),
     VecF64(Vec<f64>),
+    Sensor(SensorResult),
 }
 
 impl fmt::Debug for MultibodyResult {

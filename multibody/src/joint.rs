@@ -6,7 +6,7 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
-use crate::body::BodyConnection;
+use crate::{body::BodyConnection, result::MultibodyResultTrait};
 
 use super::{
     body::{Body, BodyTrait},
@@ -236,4 +236,14 @@ pub enum JointResult {
     Floating(FloatingResult),
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
+}
+
+impl MultibodyResultTrait for JointResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        match self {
+            JointResult::Floating(result) => result.get_state_names(),
+            JointResult::Prismatic(result) => result.get_state_names(),
+            JointResult::Revolute(result) => result.get_state_names(),
+        }
+    }
 }

@@ -11,6 +11,7 @@ use crate::{
         JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
+    result::MultibodyResultTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
@@ -484,4 +485,15 @@ pub struct PrismaticResult {
     pub velocity: Vec<f64>,
     pub acceleration: Vec<f64>,
     pub internal_force: Vec<f64>,
+}
+
+impl MultibodyResultTrait for PrismaticResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec![            
+            "position",            
+            "velocity",            
+            "acceleration",            
+            "internal_force",
+        ]
+    }
 }

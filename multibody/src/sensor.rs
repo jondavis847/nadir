@@ -1,9 +1,9 @@
 pub mod noise;
 pub mod simple;
 
-use crate::body::{BodyConnection, BodySim};
+use crate::{body::{BodyConnection, BodySim}, result::MultibodyResultTrait};
 use serde::{Deserialize, Serialize};
-use simple::SimpleSensors;
+use simple::{SimpleSensor, SimpleSensorResult};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -48,7 +48,7 @@ pub trait SensorTrait {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SensorModel {
     Custom,
-    Simple(SimpleSensors),
+    Simple(SimpleSensor),
 }
 
 impl SensorTrait for SensorModel {
@@ -60,3 +60,16 @@ impl SensorTrait for SensorModel {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SensorResult {
+    Simple(SimpleSensorResult),
+    //Custom(CustomSensorResult), TODO
+}
+
+impl MultibodyResultTrait for SensorResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        match self {
+            SensorResult::Simple(result) => result.get_state_names()
+        }
+    }
+}

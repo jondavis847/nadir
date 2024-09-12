@@ -1,5 +1,6 @@
 use crate::{
     body::{BodyConnection, BodySim},
+    result::MultibodyResultTrait,
     sensor::{noise::Noise, SensorTrait},
 };
 use rotations::RotationTrait;
@@ -46,4 +47,11 @@ impl SensorTrait for RateSensor {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateSensorResult(pub Vec<RateSensorState>);
+
+impl MultibodyResultTrait for RateSensorResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec!["value","noise"]
+    }
+}

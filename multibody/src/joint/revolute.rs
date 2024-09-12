@@ -13,6 +13,7 @@ use crate::{
         JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
+    result::MultibodyResultTrait,
 };
 use coordinate_systems::CoordinateSystem;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
@@ -63,6 +64,18 @@ pub struct RevoluteResult {
     pub angular_accel: Vec<f64>,
     pub internal_torque: Vec<f64>,
 }
+
+impl MultibodyResultTrait for RevoluteResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec![            
+            "theta",
+            "omega",
+            "angular_accel",
+            "internal_torque",
+        ]
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Revolute {

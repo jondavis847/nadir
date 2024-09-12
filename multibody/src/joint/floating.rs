@@ -13,6 +13,7 @@ use crate::{
         JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
     },
     MultibodyTrait,
+    result::MultibodyResultTrait,
 };
 use coordinate_systems::cartesian::Cartesian;
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
@@ -73,6 +74,31 @@ pub struct FloatingResult {
     pub a: Vec<Vector3<f64>>,
 }
 
+impl MultibodyResultTrait for FloatingResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec![
+            "quaternion_x",
+            "quaternion_y",
+            "quaternion_z",
+            "quaternion_w",
+            "angular_rate_x",
+            "angular_rate_y",
+            "angular_rate_z",
+            "angular_accel_x",
+            "angular_accel_y",
+            "angular_accel_z",
+            "position_x",
+            "position_y",
+            "position_z",
+            "velocity_x",
+            "velocity_y",
+            "velocity_z",
+            "acceleration_x",
+            "acceleration_y",
+            "acceleration_z",
+        ]
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
     pub common: JointCommon,

@@ -1,5 +1,6 @@
 use crate::{
     body::{BodyConnection, BodySim},
+    result::MultibodyResultTrait,
     sensor::{noise::Noise, SensorTrait},
 };
 use nalgebra::Vector3;
@@ -59,4 +60,11 @@ impl SensorTrait for Rate3Sensor {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rate3SensorResult(pub Vec<Rate3SensorState>);
+
+impl MultibodyResultTrait for Rate3SensorResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec!["value","noise"]
+    }
+}
