@@ -1779,7 +1779,7 @@ fn prompt_sensor() -> Result<Sensor, InputErrors> {
         //Rate 3-axis
         "1" => {
             let rate3 = prompt_sensor_rate3()?;
-            SensorModel::Simple(SimpleSensors::Rate3(rate3))
+            SensorModel::Simple(SimpleSensor::Rate3(rate3))
         },
         //Rate 1-axis
         "2" => {
