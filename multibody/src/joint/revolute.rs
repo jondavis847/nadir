@@ -10,10 +10,10 @@ use crate::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
     },
+    result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
-    result::MultibodyResultTrait,
 };
 use coordinate_systems::CoordinateSystem;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
@@ -67,15 +67,13 @@ pub struct RevoluteResult {
 
 impl MultibodyResultTrait for RevoluteResult {
     fn get_state_names(&self) -> Vec<&'static str> {
-        vec![            
-            "theta",
-            "omega",
-            "angular_accel",
-            "internal_torque",
-        ]
+        vec!["theta", "omega", "angular_accel", "internal_torque"]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Joint(JointResult::Revolute(self.clone()))
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Revolute {

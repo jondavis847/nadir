@@ -8,10 +8,10 @@ use crate::{
     body::{Body, BodyConnection, BodyTrait},
     joint::{
         joint_sim::JointSimTrait, joint_state::JointState, joint_transforms::JointTransforms,
-        JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
     },
+    result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
-    result::MultibodyResultTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
@@ -489,11 +489,10 @@ pub struct PrismaticResult {
 
 impl MultibodyResultTrait for PrismaticResult {
     fn get_state_names(&self) -> Vec<&'static str> {
-        vec![            
-            "position",            
-            "velocity",            
-            "acceleration",            
-            "internal_force",
-        ]
+        vec!["position", "velocity", "acceleration", "internal_force"]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Joint(JointResult::Prismatic(self.clone()))
     }
 }

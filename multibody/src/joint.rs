@@ -6,7 +6,10 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
-use crate::{body::BodyConnection, result::MultibodyResultTrait};
+use crate::{
+    body::BodyConnection,
+    result::{MultibodyResultTrait, ResultEntry},
+};
 
 use super::{
     body::{Body, BodyTrait},
@@ -244,6 +247,14 @@ impl MultibodyResultTrait for JointResult {
             JointResult::Floating(result) => result.get_state_names(),
             JointResult::Prismatic(result) => result.get_state_names(),
             JointResult::Revolute(result) => result.get_state_names(),
+        }
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        match self {
+            JointResult::Floating(result) => result.get_result_entry(),
+            JointResult::Prismatic(result) => result.get_result_entry(),
+            JointResult::Revolute(result) => result.get_result_entry(),
         }
     }
 }

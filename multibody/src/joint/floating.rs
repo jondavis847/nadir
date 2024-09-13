@@ -10,10 +10,10 @@ use crate::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
     },
+    result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
-    result::MultibodyResultTrait,
 };
 use coordinate_systems::cartesian::Cartesian;
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
@@ -97,6 +97,10 @@ impl MultibodyResultTrait for FloatingResult {
             "acceleration_y",
             "acceleration_z",
         ]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Joint(JointResult::Floating(self.clone()))
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
