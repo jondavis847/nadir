@@ -254,6 +254,13 @@ impl JointResult {
 }
 
 impl MultibodyResultTrait for JointResult {
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        match self {
+            JointResult::Floating(floating) => floating.add_to_dataframe(df),
+            JointResult::Revolute(revolute) => revolute.add_to_dataframe(df),
+            JointResult::Prismatic(prismatic) => prismatic.add_to_dataframe(df),
+        }
+    }
     fn get_state_names(&self) -> Vec<&'static str> {
         match self {
             JointResult::Floating(result) => result.get_state_names(),

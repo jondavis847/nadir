@@ -3,6 +3,7 @@ use crate::{
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{noise::Noise, SensorResult, SensorTrait},
 };
+use polars::prelude::*;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
@@ -73,6 +74,13 @@ impl RateSensorResult {
 }
 
 impl MultibodyResultTrait for RateSensorResult {
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        let value = Series::new("value", self.value.clone());
+        let noise = Series::new("noise", self.noise.clone());
+
+        df.with_column(value).unwrap();
+        df.with_column(noise).unwrap();
+    }
     fn get_state_names(&self) -> Vec<&'static str> {
         vec!["value", "noise"]
     }

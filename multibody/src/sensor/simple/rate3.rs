@@ -1,11 +1,10 @@
 use crate::{
     body::{BodyConnection, BodySim},
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::{
-        noise::Noise, simple::SimpleSensorResult, SensorResult, SensorTrait,
-    },
+    sensor::{noise::Noise, simple::SimpleSensorResult, SensorResult, SensorTrait},
 };
 use nalgebra::Vector3;
+use polars::prelude::*;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
@@ -74,31 +73,59 @@ impl SensorTrait for Rate3Sensor {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Rate3SensorResult {
-    value_x: Vec<f64>,
-    value_y: Vec<f64>,
-    value_z: Vec<f64>,
-    noise_x: Vec<f64>,
-    noise_y: Vec<f64>,
-    noise_z: Vec<f64>,
+    value: Vec<Vector3<f64>>,
+    noise: Vec<Vector3<f64>>,
 }
 
 impl Rate3SensorResult {
     pub fn update(&mut self, sensor: &Rate3Sensor) {
-        self.value_x.push(sensor.state.value[0]);
-        self.value_y.push(sensor.state.value[1]);
-        self.value_z.push(sensor.state.value[2]);
-        self.noise_x.push(sensor.state.noise[0]);
-        self.noise_y.push(sensor.state.noise[1]);
-        self.noise_z.push(sensor.state.noise[2]);
+        self.value.push(sensor.state.value);
+        self.noise.push(sensor.state.noise);
     }
 }
 
 impl MultibodyResultTrait for Rate3SensorResult {
+    fn add_to_dataframe(&self, df: &mut DataFrame) {
+        let value_x = Series::new(
+            "value_x",
+            self.value.iter().map(|v| v[0]).collect::<Vec<_>>(),
+        );
+        let value_y = Series::new(
+            "value_y",
+            self.value.iter().map(|v| v[1]).collect::<Vec<_>>(),
+        );
+        let value_z = Series::new(
+            "value_z",
+            self.value.iter().map(|v| v[2]).collect::<Vec<_>>(),
+        );
+        let noise_x = Series::new(
+            "noise_x",
+            self.noise.iter().map(|v| v[0]).collect::<Vec<_>>(),
+        );
+        let noise_y = Series::new(
+            "noise_y",
+            self.noise.iter().map(|v| v[1]).collect::<Vec<_>>(),
+        );
+        let noise_z = Series::new(
+            "noise_z",
+            self.noise.iter().map(|v| v[2]).collect::<Vec<_>>(),
+        );
+
+        df.with_column(value_x).unwrap();
+        df.with_column(value_y).unwrap();
+        df.with_column(value_z).unwrap();
+        df.with_column(noise_x).unwrap();
+        df.with_column(noise_y).unwrap();
+        df.with_column(noise_z).unwrap();
+    }
+
     fn get_state_names(&self) -> Vec<&'static str> {
         vec!["value", "noise"]
     }
 
     fn get_result_entry(&self) -> ResultEntry {
-        ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate3(self.clone())))
+        ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate3(
+            self.clone(),
+        )))
     }
 }

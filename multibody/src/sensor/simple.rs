@@ -57,6 +57,12 @@ impl SimpleSensorResult {
 }
 
 impl MultibodyResultTrait for SimpleSensorResult {
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        match self {
+            SimpleSensorResult::Rate(result) => result.add_to_dataframe(df),
+            SimpleSensorResult::Rate3(result) => result.add_to_dataframe(df),
+        }
+    }
     fn get_state_names(&self) -> Vec<&'static str> {
         match self {
             SimpleSensorResult::Rate(result) => result.get_state_names(),

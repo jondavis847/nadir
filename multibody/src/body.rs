@@ -8,6 +8,7 @@ use aerospace::gravity::GravityTrait;
 use gadgt_3d::mesh::Mesh;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
+use polars::prelude::*;
 use rotations::{quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
@@ -290,6 +291,214 @@ impl BodyResult {
 }
 
 impl MultibodyResultTrait for BodyResult {
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        let position_base_x = Series::new(
+            "position_base_x",
+            self.position_base
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<f64>>(),
+        );
+        let position_base_y = Series::new(
+            "position_base_y",
+            self.position_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
+        );
+        let position_base_z = Series::new(
+            "position_base_z",
+            self.position_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
+        );
+
+        let velocity_base_x = Series::new(
+            "velocity_base_x",
+            self.velocity_base.iter().map(|v| v[0]).collect::<Vec<_>>(),
+        );
+        let velocity_base_y = Series::new(
+            "velocity_base_y",
+            self.velocity_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
+        );
+        let velocity_base_z = Series::new(
+            "velocity_base_z",
+            self.velocity_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
+        );
+
+        let acceleration_base_x = Series::new(
+            "accel_base_x",
+            self.acceleration_base
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let acceleration_base_y = Series::new(
+            "accel_base_y",
+            self.acceleration_base
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let acceleration_base_z = Series::new(
+            "accel_base_z",
+            self.acceleration_base
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        let acceleration_body_x = Series::new(
+            "accel_body_x",
+            self.acceleration_body
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let acceleration_body_y = Series::new(
+            "accel_body_y",
+            self.acceleration_body
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let acceleration_body_z = Series::new(
+            "accel_body_z",
+            self.acceleration_body
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        let angular_accel_body_x = Series::new(
+            "angular_accel_body_x",
+            self.angular_accel_body
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let angular_accel_body_y = Series::new(
+            "angular_accel_body_y",
+            self.angular_accel_body
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let angular_accel_body_z = Series::new(
+            "angular_accel_body_z",
+            self.angular_accel_body
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        let angular_rate_body_x = Series::new(
+            "angular_rate_body_x",
+            self.angular_rate_body
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let angular_rate_body_y = Series::new(
+            "angular_rate_body_y",
+            self.angular_rate_body
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let angular_rate_body_z = Series::new(
+            "angular_rate_body_z",
+            self.angular_rate_body
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        let attitude_base_s = Series::new(
+            "attitude_base_s",
+            self.attitude_base.iter().map(|q| q.s).collect::<Vec<_>>(),
+        );
+        let attitude_base_x = Series::new(
+            "attitude_base_x",
+            self.attitude_base.iter().map(|q| q.x).collect::<Vec<_>>(),
+        );
+        let attitude_base_y = Series::new(
+            "attitude_base_y",
+            self.attitude_base.iter().map(|q| q.y).collect::<Vec<_>>(),
+        );
+        let attitude_base_z = Series::new(
+            "attitude_base_z",
+            self.attitude_base.iter().map(|q| q.z).collect::<Vec<_>>(),
+        );
+
+        let external_force_body_x = Series::new(
+            "external_force_body_x",
+            self.external_force_body
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let external_force_body_y = Series::new(
+            "external_force_body_y",
+            self.external_force_body
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let external_force_body_z = Series::new(
+            "external_force_body_z",
+            self.external_force_body
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        let external_torque_body_x = Series::new(
+            "external_torque_body_x",
+            self.external_torque_body
+                .iter()
+                .map(|v| v[0])
+                .collect::<Vec<_>>(),
+        );
+        let external_torque_body_y = Series::new(
+            "external_torque_body_y",
+            self.external_torque_body
+                .iter()
+                .map(|v| v[1])
+                .collect::<Vec<_>>(),
+        );
+        let external_torque_body_z = Series::new(
+            "external_torque_body_z",
+            self.external_torque_body
+                .iter()
+                .map(|v| v[2])
+                .collect::<Vec<_>>(),
+        );
+
+        df.with_column(position_base_x).unwrap();
+        df.with_column(position_base_y).unwrap();
+        df.with_column(position_base_z).unwrap();
+        df.with_column(velocity_base_x).unwrap();
+        df.with_column(velocity_base_y).unwrap();
+        df.with_column(velocity_base_z).unwrap();
+        df.with_column(acceleration_base_x).unwrap();
+        df.with_column(acceleration_base_y).unwrap();
+        df.with_column(acceleration_base_z).unwrap();
+        df.with_column(acceleration_body_x).unwrap();
+        df.with_column(acceleration_body_y).unwrap();
+        df.with_column(acceleration_body_z).unwrap();
+        df.with_column(angular_accel_body_x).unwrap();
+        df.with_column(angular_accel_body_y).unwrap();
+        df.with_column(angular_accel_body_z).unwrap();
+        df.with_column(angular_rate_body_x).unwrap();
+        df.with_column(angular_rate_body_y).unwrap();
+        df.with_column(angular_rate_body_z).unwrap();
+        df.with_column(attitude_base_s).unwrap();
+        df.with_column(attitude_base_x).unwrap();
+        df.with_column(attitude_base_y).unwrap();
+        df.with_column(attitude_base_z).unwrap();
+        df.with_column(external_force_body_x).unwrap();
+        df.with_column(external_force_body_y).unwrap();
+        df.with_column(external_force_body_z).unwrap();
+        df.with_column(external_torque_body_x).unwrap();
+        df.with_column(external_torque_body_y).unwrap();
+        df.with_column(external_torque_body_z).unwrap();
+    }
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Body(self.clone())
     }

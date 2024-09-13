@@ -15,6 +15,7 @@ use crate::{
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
+use polars::prelude::*;
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -492,6 +493,17 @@ impl PrismaticResult {
 }
 
 impl MultibodyResultTrait for PrismaticResult {
+fn add_to_dataframe(&self, df: &mut DataFrame) {
+    let position = Series::new("position", self.position.clone());
+    let velocity = Series::new("velocity", self.velocity.clone());
+    let accel = Series::new("accel", self.acceleration.clone());
+    let tau = Series::new("internal_force", self.internal_force.clone());
+    df.with_column(position).unwrap();
+    df.with_column(velocity).unwrap();
+    df.with_column(accel).unwrap();
+    df.with_column(tau).unwrap();
+}
+
     fn get_state_names(&self) -> Vec<&'static str> {
         vec!["position", "velocity", "acceleration", "internal_force"]
     }

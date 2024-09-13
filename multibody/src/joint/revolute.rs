@@ -17,6 +17,7 @@ use crate::{
 };
 use coordinate_systems::CoordinateSystem;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
+use polars::prelude::*;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
@@ -82,6 +83,17 @@ impl MultibodyResultTrait for RevoluteResult {
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Joint(JointResult::Revolute(self.clone()))
+    }
+
+    fn add_to_dataframe(&self, df: &mut DataFrame) {
+        let theta = Series::new("theta", self.theta.clone());
+        let omega = Series::new("omega", self.omega.clone());
+        let accel = Series::new("accel", self.angular_accel.clone());
+        let tau = Series::new("internal_torque", self.internal_torque.clone());
+        df.with_column(theta).unwrap();
+        df.with_column(omega).unwrap();
+        df.with_column(accel).unwrap();
+        df.with_column(tau).unwrap();
     }
 }
 

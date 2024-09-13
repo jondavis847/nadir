@@ -3,16 +3,19 @@ pub mod simple;
 
 use crate::{
     body::{Body, BodyConnection, BodySim},
-    result::{MultibodyResultTrait,ResultEntry}, MultibodyTrait,
+    result::{MultibodyResultTrait, ResultEntry},
+    MultibodyTrait,
 };
 use serde::{Deserialize, Serialize};
 use simple::{SimpleSensor, SimpleSensorResult};
 use transforms::Transform;
 use uuid::Uuid;
 
+#[derive(Debug, Clone)]
 pub enum SensorErrors {
     AlreadyConnected,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Sensor {
     name: String,
@@ -22,24 +25,24 @@ pub struct Sensor {
 }
 
 impl Sensor {
-    fn connect_to_body(
+    pub fn connect_to_body(
         &mut self,
         body: &mut Body,
         transform: Transform,
-    ) -> Result<(), SensorErrors> {        
+    ) -> Result<(), SensorErrors> {
         if self.connection.is_some() {
-            return Err(SensorErrors::AlreadyConnected)
-        }        
-        
+            return Err(SensorErrors::AlreadyConnected);
+        }
+
         if !body.sensors.contains(&self.id) {
             body.sensors.push(self.id);
         }
 
-        self.connection = Some(BodyConnection::new(body.id,transform));
+        self.connection = Some(BodyConnection::new(body.id, transform));
         Ok(())
     }
 
-    pub fn get_model(&self) -> &SensorModel { 
+    pub fn get_model(&self) -> &SensorModel {
         &self.model
     }
 
@@ -52,7 +55,7 @@ impl Sensor {
         }
     }
 
-    pub fn set_model(&mut self, model: SensorModel) { 
+    pub fn set_model(&mut self, model: SensorModel) {
         self.model = model;
     }
 
@@ -126,17 +129,25 @@ impl SensorResult {
     pub fn update(&mut self, sensor: &Sensor) {
         match (self, &sensor.model) {
             (SensorResult::Simple(result), SensorModel::Simple(sensor)) => result.update(sensor),
-           // _ => unreachable!("invalid combo"),
+            // _ => unreachable!("invalid combo"),
         }
     }
 }
 
 impl MultibodyResultTrait for SensorResult {
+    #[inline]
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        match self {
+            SensorResult::Simple(result) => result.add_to_dataframe(df),
+        }
+    }
+    #[inline]
     fn get_state_names(&self) -> Vec<&'static str> {
         match self {
             SensorResult::Simple(result) => result.get_state_names(),
         }
     }
+    #[inline]
     fn get_result_entry(&self) -> ResultEntry {
         match self {
             SensorResult::Simple(result) => result.get_result_entry(),
