@@ -185,8 +185,7 @@ pub struct PrismaticSim {
     cache: PrismaticCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
-    parameters: JointParameters,
-    pub result: PrismaticResult,
+    parameters: JointParameters,    
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -217,8 +216,7 @@ impl From<Prismatic> for PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),
             mass_properties: None,
-            parameters: prismatic.parameters,
-            result: PrismaticResult::default(),
+            parameters: prismatic.parameters,            
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -424,11 +422,8 @@ impl JointSimTrait for PrismaticSim {
         &self.cache.common.v
     }
 
-    fn set_result(&mut self) {
-        self.result.position.push(self.state.position);
-        self.result.velocity.push(self.state.velocity);
-        self.result.acceleration.push(self.cache.q_ddot);
-        self.result.internal_force.push(self.cache.tau);
+    fn initialize_result(&self) -> JointResult {
+        JointResult::Prismatic(PrismaticResult::default())
     }
 
     fn set_state(&mut self, state: JointState) {
@@ -485,6 +480,15 @@ pub struct PrismaticResult {
     pub velocity: Vec<f64>,
     pub acceleration: Vec<f64>,
     pub internal_force: Vec<f64>,
+}
+
+impl PrismaticResult {
+    pub fn update(&mut self, joint: &PrismaticSim) {
+        self.position.push(joint.state.position);
+        self.velocity.push(joint.state.velocity);
+        self.acceleration.push(joint.cache.q_ddot);
+        self.internal_force.push(joint.cache.tau)
+    }
 }
 
 impl MultibodyResultTrait for PrismaticResult {

@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
-use rotations::{quaternion::Quaternion, RotationTrait};
-use serde::{Serialize,Deserialize};
-use spatial_algebra::{MotionVector, SpatialVector, Velocity};
+use rotations::quaternion::Quaternion;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::{Duration, SystemTime};
@@ -11,14 +10,7 @@ use utilities::format_duration;
 use polars::prelude::*;
 
 use crate::system_sim::MultibodySystemSim;
-use crate::{
-    body::{BodyResult, BodySim},
-    joint::{
-        joint_sim::{JointSim, JointSimTrait},
-        JointResult,
-    },
-    sensor::SensorResult,
-};
+use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 
 pub trait MultibodyResultTrait {
     fn get_state_names(&self) -> Vec<&'static str>;
@@ -46,17 +38,31 @@ impl MultibodyResult {
 
         match component {
             ResultEntry::Joint(joint) => match joint {
-                JointResult::Floating(floating) => {                      
-
-                    let accel_x = Series::new("accel_x", floating.a.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let accel_y = Series::new("accel_y", floating.a.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let accel_z = Series::new("accel_z", floating.a.iter().map(|f| f[2]).collect::<Vec<f64>>());
-                    let angular_rate_x =
-                        Series::new("angular_rate_x", floating.w.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let angular_rate_y =
-                        Series::new("angular_rate_y", floating.w.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let angular_rate_z =
-                        Series::new("angular_rate_z", floating.w.iter().map(|f| f[2]).collect::<Vec<f64>>());
+                JointResult::Floating(floating) => {
+                    let accel_x = Series::new(
+                        "accel_x",
+                        floating.a.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+                    );
+                    let accel_y = Series::new(
+                        "accel_y",
+                        floating.a.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+                    );
+                    let accel_z = Series::new(
+                        "accel_z",
+                        floating.a.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+                    );
+                    let angular_rate_x = Series::new(
+                        "angular_rate_x",
+                        floating.w.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+                    );
+                    let angular_rate_y = Series::new(
+                        "angular_rate_y",
+                        floating.w.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+                    );
+                    let angular_rate_z = Series::new(
+                        "angular_rate_z",
+                        floating.w.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+                    );
                     let angular_accel_x = Series::new(
                         "angular_accel_x",
                         floating.aa.iter().map(|f| f[0]).collect::<Vec<f64>>(),
@@ -69,26 +75,46 @@ impl MultibodyResult {
                         "angular_accel_z",
                         floating.aa.iter().map(|f| f[2]).collect::<Vec<f64>>(),
                     );
-                    let attitude_x =
-                        Series::new("attitude_x", floating.q.iter().map(|q| q.x).collect::<Vec<f64>>());
-                    let attitude_y =
-                        Series::new("attitude_y", floating.q.iter().map(|q| q.y).collect::<Vec<f64>>());
-                    let attitude_z =
-                        Series::new("attitude_z", floating.q.iter().map(|q| q.z).collect::<Vec<f64>>());
-                    let attitude_s =
-                        Series::new("attitude_s", floating.q.iter().map(|q| q.s).collect::<Vec<f64>>());
-                    let position_x =
-                        Series::new("position_x", floating.r.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let position_y =
-                        Series::new("position_y", floating.r.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let position_z =
-                        Series::new("position_z", floating.r.iter().map(|f| f[2]).collect::<Vec<f64>>());
-                    let velocity_x =
-                        Series::new("velocity_x", floating.v.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let velocity_y =
-                        Series::new("velocity_y", floating.v.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let velocity_z =
-                        Series::new("velocity_z", floating.v.iter().map(|f| f[2]).collect::<Vec<f64>>());
+                    let attitude_x = Series::new(
+                        "attitude_x",
+                        floating.q.iter().map(|q| q.x).collect::<Vec<f64>>(),
+                    );
+                    let attitude_y = Series::new(
+                        "attitude_y",
+                        floating.q.iter().map(|q| q.y).collect::<Vec<f64>>(),
+                    );
+                    let attitude_z = Series::new(
+                        "attitude_z",
+                        floating.q.iter().map(|q| q.z).collect::<Vec<f64>>(),
+                    );
+                    let attitude_s = Series::new(
+                        "attitude_s",
+                        floating.q.iter().map(|q| q.s).collect::<Vec<f64>>(),
+                    );
+                    let position_x = Series::new(
+                        "position_x",
+                        floating.r.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+                    );
+                    let position_y = Series::new(
+                        "position_y",
+                        floating.r.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+                    );
+                    let position_z = Series::new(
+                        "position_z",
+                        floating.r.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+                    );
+                    let velocity_x = Series::new(
+                        "velocity_x",
+                        floating.v.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+                    );
+                    let velocity_y = Series::new(
+                        "velocity_y",
+                        floating.v.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+                    );
+                    let velocity_z = Series::new(
+                        "velocity_z",
+                        floating.v.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+                    );
 
                     df.with_column(accel_x).unwrap();
                     df.with_column(accel_y).unwrap();
@@ -400,8 +426,16 @@ impl MultibodyResult {
                     "velocity_base_z".to_string(),
                 ]
             }
-            ResultEntry::Joint(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(), // TODO: better result structure
-            ResultEntry::Sensor(result) => result.get_state_names().iter().map(|state| state.to_string()).collect(), // TODO: better result structure
+            ResultEntry::Joint(result) => result
+                .get_state_names()
+                .iter()
+                .map(|state| state.to_string())
+                .collect(), // TODO: better result structure
+            ResultEntry::Sensor(result) => result
+                .get_state_names()
+                .iter()
+                .map(|state| state.to_string())
+                .collect(), // TODO: better result structure
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
         }
     }
@@ -481,7 +515,7 @@ impl MultibodyResult {
     }
 }
 
-#[derive(Debug, Clone,Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),
@@ -514,45 +548,5 @@ impl fmt::Debug for MultibodyResult {
         }
 
         Ok(())
-    }
-}
-
-pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
-    for i in 0..bodies.len() {
-        let body = &mut bodies[i];
-        let inner_joint = &joints[i];
-        let transforms = inner_joint.get_transforms();
-        let body_from_joint = transforms.ob_from_jof;
-
-        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
-        let joint_a = inner_joint.get_a_jof();
-
-        let body_a = body_from_joint * *joint_a;        
-        // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
-        let body_a_in_base = base_from_body * body_a;
-        //let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
-        //let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
-        //let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
-            //body_a_in_base_rotation,
-            //body_a_in_base_translation,
-        //)));        
-        let joint_v = inner_joint.get_v();
-        let body_v = body_from_joint * *joint_v;        
-        // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
-        let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
-        let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
-        let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
-            body_v_in_base_rotation,
-            body_v_in_base_translation,
-        )));        
-        body.state.acceleration_body = *body_a.translation();
-        body.state.acceleration_base = *body_a_in_base.translation();
-        body.state.angular_accel_body = *body_a.rotation();
-        body.state.velocity_base = *body_v_in_base.translation();
-        body.state.angular_rate_body = *body_v.rotation();
-
-        let body_from_base = base_from_body.0.inv();
-        body.state.position_base = body_from_base.translation.vec();        
-        body.state.attitude_base = Quaternion::from(body_from_base.rotation);
     }
 }

@@ -17,6 +17,7 @@ use super::{
 };
 use errors::JointErrors;
 use floating::{Floating, FloatingResult};
+use joint_sim::JointSim;
 use prismatic::{Prismatic, PrismaticResult};
 use revolute::{Revolute, RevoluteResult};
 use serde::{Deserialize, Serialize};
@@ -239,6 +240,17 @@ pub enum JointResult {
     Floating(FloatingResult),
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
+}
+
+impl JointResult {
+    pub fn update(&mut self, joint: &JointSim) {
+        match (self, &joint) {
+            (JointResult::Floating(result), JointSim::Floating(joint)) => result.update(joint),
+            (JointResult::Prismatic(result), JointSim::Prismatic(joint)) => result.update(joint),
+            (JointResult::Revolute(result), JointSim::Revolute(joint)) => result.update(joint),
+            _ => unreachable!("invalid combo"),
+        }
+    }
 }
 
 impl MultibodyResultTrait for JointResult {

@@ -65,6 +65,16 @@ pub struct RevoluteResult {
     pub internal_torque: Vec<f64>,
 }
 
+impl RevoluteResult {
+    pub fn update(&mut self, joint: &RevoluteSim) {
+        self.theta.push(joint.state.theta);
+        self.omega.push(joint.state.omega);
+        self.angular_accel.push(joint.cache.q_ddot);
+        self.internal_torque.push(joint.cache.tau);
+    }
+}
+
+
 impl MultibodyResultTrait for RevoluteResult {
     fn get_state_names(&self) -> Vec<&'static str> {
         vec!["theta", "omega", "angular_accel", "internal_torque"]
@@ -205,8 +215,7 @@ pub struct RevoluteSim {
     cache: RevoluteCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
-    parameters: JointParameters,
-    pub result: RevoluteResult,
+    parameters: JointParameters,    
     state: RevoluteState,
     transforms: JointTransforms,
 }
@@ -237,8 +246,7 @@ impl From<Revolute> for RevoluteSim {
             cache: RevoluteCache::default(),
             id: *revolute.get_id(),
             mass_properties: None,
-            parameters: revolute.parameters,
-            result: RevoluteResult::default(),
+            parameters: revolute.parameters,            
             state: revolute.state,
             transforms,
         }
@@ -407,20 +415,17 @@ impl JointSimTrait for RevoluteSim {
         &self.cache.common.v
     }
 
+    fn initialize_result(&self) -> JointResult {
+        JointResult::Revolute(RevoluteResult::default())
+    }
+
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
         self.mass_properties = inertia;
     }
 
     fn set_force(&mut self, force: Force) {
         self.cache.common.f = force;
-    }
-
-    fn set_result(&mut self) {
-        self.result.omega.push(self.state.omega);
-        self.result.theta.push(self.state.theta);
-        self.result.angular_accel.push(self.cache.q_ddot);
-        self.result.internal_torque.push(self.cache.tau);
-    }
+    }    
 
     fn set_state(&mut self, state: JointState) {
         if let JointState::Revolute(revolute_state) = state {

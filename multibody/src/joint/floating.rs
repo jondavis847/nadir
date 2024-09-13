@@ -74,6 +74,17 @@ pub struct FloatingResult {
     pub a: Vec<Vector3<f64>>,
 }
 
+impl FloatingResult {
+    pub fn update(&mut self, joint: &FloatingSim) {
+        self.q.push(joint.state.q);
+        self.w.push(joint.state.w);
+        self.aa.push(joint.cache.q_ddot.fixed_rows::<3>(0).into());
+        self.r.push(joint.state.r);
+        self.v.push(joint.state.v);
+        self.v.push(joint.cache.q_ddot.fixed_rows::<3>(3).into());
+    }
+}
+
 impl MultibodyResultTrait for FloatingResult {
     fn get_state_names(&self) -> Vec<&'static str> {
         vec![
@@ -233,8 +244,7 @@ pub struct FloatingSim {
     cache: FloatingCache,
     id: Uuid,
     parameters: [JointParameters; 6],
-    mass_properties: Option<SpatialInertia>,
-    pub result: FloatingResult,
+    mass_properties: Option<SpatialInertia>,    
     state: FloatingState,
     transforms: JointTransforms,
 }
@@ -251,22 +261,21 @@ impl From<Floating> for FloatingSim {
             transforms.jif_from_ib = inner_body.transform.into();
             transforms.ib_from_jif = inner_body.transform.inv().into();
         } else {
-            panic!("should always be an inner body connected")
+            unreachable!("no inner body, should have been caught in system validation")
         }
 
         if let Some(outer_body) = &floating.common.connection.outer_body {
             transforms.jof_from_ob = outer_body.transform.into();
             transforms.ob_from_jof = outer_body.transform.inv().into();
         } else {
-            panic!("should always be an inner body connected")
+            unreachable!("no outer body, should have been caught in system validation")
         }
 
         FloatingSim {
             cache: FloatingCache::default(),
             id: *floating.get_id(),
             mass_properties: floating.common.mass_properties,
-            parameters: floating.parameters,
-            result: FloatingResult::default(),
+            parameters: floating.parameters,            
             state: floating.state,
             transforms,
         }
@@ -475,25 +484,16 @@ impl JointSimTrait for FloatingSim {
         &self.cache.common.v
     }
 
+    fn initialize_result(&self) -> JointResult {
+        JointResult::Floating(FloatingResult::default())
+    }
+
     fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
         self.mass_properties = inertia;
     }
 
     fn set_force(&mut self, force: Force) {
         self.cache.common.f = force;
-    }
-
-    fn set_result(&mut self) {
-        self.result.q.push(self.state.q);
-        self.result.w.push(self.state.w);
-        self.result.r.push(self.state.r);
-        self.result.v.push(self.state.v);
-        self.result
-            .aa
-            .push(self.cache.q_ddot.fixed_rows::<3>(0).clone_owned());
-        self.result
-            .a
-            .push(self.cache.q_ddot.fixed_rows::<3>(3).clone_owned());
     }
 
     fn set_state(&mut self, state: JointState) {

@@ -8,11 +8,12 @@ use crate::{
         joint_sim::{JointSim, JointSimTrait},
         joint_state::{JointState, JointStates},
         Joint, JointTrait,
-    }, result::{update_body_states, MultibodyResult}, sensor::Sensor, solver::rk4::solve_fixed_rk4, system::MultibodySystem, MultibodyErrors, MultibodyTrait
+    }, result::MultibodyResult, sensor::Sensor, solver::rk4::solve_fixed_rk4, system::MultibodySystem, MultibodyErrors, MultibodyTrait
 };
+use rotations::{RotationTrait, quaternion::Quaternion};
 
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
+use spatial_algebra::{Acceleration, MotionVector, SpatialInertia, SpatialVector, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
@@ -141,9 +142,8 @@ impl MultibodySystemSim {
 
     pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, _t: f64) {
         self.set_state(x.clone());
-        self.update_joints();
-        self.update_sensors();
-        self.update_forces();
+        self.update_joints();        
+        self.update_forces();        
 
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
@@ -254,7 +254,8 @@ impl MultibodySystemSim {
             }
         }
 
-        update_body_states(&mut self.bodies, &self.joints);
+        self.update_body_states(); //only update body states once joint accels have been calculated (so we can update body accel based on joint accel)
+        self.update_sensors(); //only update sensors after body states have been updated
         let new_dx = self.collect_state();
         dx.clone_from(&new_dx);
     }
@@ -303,6 +304,47 @@ impl MultibodySystemSim {
             total_duration: total_duration,
         })
     }
+
+    pub fn update_body_states(&mut self) {
+        for i in 0..self.bodies.len() {
+            let body = &mut self.bodies[i];
+            let inner_joint = &self.joints[i];
+            let transforms = inner_joint.get_transforms();
+            let body_from_joint = transforms.ob_from_jof;
+    
+            let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+            let joint_a = inner_joint.get_a_jof();
+    
+            let body_a = body_from_joint * *joint_a;        
+            // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
+            let body_a_in_base = base_from_body * body_a;
+            //let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
+            //let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
+            //let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
+                //body_a_in_base_rotation,
+                //body_a_in_base_translation,
+            //)));        
+            let joint_v = inner_joint.get_v();
+            let body_v = body_from_joint * *joint_v;        
+            // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
+            let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
+            let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
+            let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
+                body_v_in_base_rotation,
+                body_v_in_base_translation,
+            )));        
+            body.state.acceleration_body = *body_a.translation();
+            body.state.acceleration_base = *body_a_in_base.translation();
+            body.state.angular_accel_body = *body_a.rotation();
+            body.state.velocity_base = *body_v_in_base.translation();
+            body.state.angular_rate_body = *body_v.rotation();
+    
+            let body_from_base = base_from_body.0.inv();
+            body.state.position_base = body_from_base.translation.vec();        
+            body.state.attitude_base = Quaternion::from(body_from_base.rotation);
+        }
+    }
+    
 
     fn update_forces(&mut self) {
         for i in 0..self.joints.len() {
