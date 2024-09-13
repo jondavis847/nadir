@@ -4,7 +4,7 @@ use crate::{
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{SensorResult, SensorTrait},
     system_sim::MultibodySystemSim,
-    MultibodyErrors,
+    MultibodyErrors, MultibodyTrait,
 };
 use std::collections::HashMap;
 

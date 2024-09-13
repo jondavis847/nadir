@@ -2,13 +2,17 @@ pub mod noise;
 pub mod simple;
 
 use crate::{
-    body::{BodyConnection, BodySim},
-    result::{MultibodyResultTrait,ResultEntry},
+    body::{Body, BodyConnection, BodySim},
+    result::{MultibodyResultTrait,ResultEntry}, MultibodyTrait,
 };
 use serde::{Deserialize, Serialize};
 use simple::{SimpleSensor, SimpleSensorResult};
+use transforms::Transform;
 use uuid::Uuid;
 
+pub enum SensorErrors {
+    AlreadyConnected,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Sensor {
     name: String,
@@ -18,6 +22,27 @@ pub struct Sensor {
 }
 
 impl Sensor {
+    fn connect_to_body(
+        &mut self,
+        body: &mut Body,
+        transform: Transform,
+    ) -> Result<(), SensorErrors> {        
+        if self.connection.is_some() {
+            return Err(SensorErrors::AlreadyConnected)
+        }        
+        
+        if !body.sensors.contains(&self.id) {
+            body.sensors.push(self.id);
+        }
+
+        self.connection = Some(BodyConnection::new(body.id,transform));
+        Ok(())
+    }
+
+    pub fn get_model(&self) -> &SensorModel { 
+        &self.model
+    }
+
     pub fn new(name: String, model: SensorModel) -> Self {
         Self {
             name,
@@ -27,12 +52,8 @@ impl Sensor {
         }
     }
 
-    pub fn get_id(&self) -> &Uuid {
-        &self.id
-    }
-
-    pub fn get_name(&self) -> &str {
-        &self.name
+    pub fn set_model(&mut self, model: SensorModel) { 
+        self.model = model;
     }
 
     pub fn update(&mut self, body: &BodySim) {
@@ -41,6 +62,20 @@ impl Sensor {
         } else {
             panic!("no sensor connection found. should not be possible, should be caught in system validation.")
         }
+    }
+}
+
+impl MultibodyTrait for Sensor {
+    fn get_id(&self) -> &Uuid {
+        &self.id
+    }
+
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_name(&mut self, name: String) {
+        self.name = name;
     }
 }
 

@@ -253,6 +253,10 @@ impl MultibodySystem {
                     self.delete_gravity(&id);
                     Ok(())
                 }
+                MultibodyComponent::Sensor => {
+                    self.delete_sensor(&id);
+                    Ok(())
+                }
             }
         } else {
             Err(MultibodyErrors::ComponentNotFound(name.to_string()))
@@ -280,6 +284,11 @@ impl MultibodySystem {
                 return Some((MultibodyComponent::Gravity, *gravity.get_id()));
             }
         }
+        for (_, sensor) in &self.sensors {
+            if sensor.get_name() == name {
+                return Some((MultibodyComponent::Sensor, *sensor.get_id()));
+            }
+        }
         None
     }
 
@@ -292,6 +301,15 @@ impl MultibodySystem {
         }
         self.gravities.remove(gravity_id);
     }
+
+    pub fn delete_sensor(&mut self, sensor_id: &Uuid) {        
+        for (_, body) in &mut self.bodies {
+            body.sensors.retain(|&id| id != *sensor_id);
+        }
+        self.sensors.remove(sensor_id);
+    }
+
+    
 
     fn check_name_taken(&self, name: &str) -> bool {
         if let Some(base) = &self.base {
@@ -309,6 +327,10 @@ impl MultibodySystem {
             .iter()
             .any(|(_, joint)| joint.get_name() == name)
         {
+            return true;
+        }
+
+        if self.gravities.iter().any(|(_, g)| g.get_name() == name) {
             return true;
         }
 

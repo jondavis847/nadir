@@ -401,6 +401,19 @@ fn main() {
                                                 MultibodyComponent::Gravity,
                                                 MultibodyComponent::Base | MultibodyComponent::Body,
                                             ) => None,
+                                            (
+                                                MultibodyComponent::Sensor,
+                                                MultibodyComponent::Body
+                                            ) => {
+                                                let transform = prompt_transform();
+                                                match transform {
+                                                    Ok(transform) => Some(transform),
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                }
+                                            },
                                             _ => {
                                                 eprintln!(
                                                     "Error: invalid connection ({:?} to {:?})",
@@ -595,12 +608,22 @@ fn main() {
                                                     error("Joint not found...")
                                                 }
                                             }
-                                            
-
+                                            MultibodyComponent::Sensor => {                                                
+                                                match to_type {                                                    
+                                                    MultibodyComponent::Body => {
+                                                        if let Some(body) = sys.bodies.get_mut(&to_id) {
+                                                            if body.sensors.contains(&to_id) {
+                                                                body.sensors.retain(|id| *id != to_id);
+                                                                success("Components disconnected!");
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            }                                                            
+                                                        }                                                                                                                
+                                                    }
+                                                    _ => error("Invalid component combo...")
+                                                }
+                                            }
                                         }
-
-
-
                                     } else {
                                         error("Could not find system in systems"); // this should not be possible i believe
                                         continue
@@ -769,6 +792,33 @@ fn main() {
                                                     old_gravity.set_name(new_gravity.get_name().to_string());
                                                     old_gravity.gravity = new_gravity.gravity;
 
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            },
+                                            MultibodyComponent::Sensor => {
+                                                if let Some(old_sensor) = sys.sensors.get_mut(&id) {
+                                                    // create a new object via prompt to get values for old object
+                                                    let new_sensor = match prompt_sensor() {
+                                                        Ok(s) => {
+                                                            s
+                                                        }
+                                                        Err(e) => match e {
+                                                            InputErrors::CtrlC => continue,
+                                                            _ => {
+                                                                eprintln!("{:?}",e);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    };
+
+                                                    // Set values for the old object from the new one, 
+                                                    // maintaining id's and connections, then dropping new object
+                                                    old_sensor.set_name(new_sensor.get_name().to_string());
+                                                    old_sensor.set_model(new_sensor.get_model().clone());
                                                 } else {
                                                     // i think this is impossible, since to find a base it has to exist
                                                     let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
