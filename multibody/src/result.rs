@@ -22,6 +22,7 @@ use crate::{
 
 pub trait MultibodyResultTrait {
     fn get_state_names(&self) -> Vec<&'static str>;
+    fn get_result_entry(&self) -> ResultEntry;
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -338,6 +339,7 @@ impl MultibodyResult {
                 df.with_column(external_torque_body_y).unwrap();
                 df.with_column(external_torque_body_z).unwrap();
             }
+
             _ => panic!("Invalid component type"),
         }
         df

@@ -1,10 +1,12 @@
 use crate::{
     body::{BodyConnection, BodySim},
-    result::MultibodyResultTrait,
-    sensor::{noise::Noise, SensorTrait},
+    result::{MultibodyResultTrait, ResultEntry},
+    sensor::{noise::Noise, SensorResult, SensorTrait},
 };
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
+
+use super::SimpleSensorResult;
 
 /// A simple rate sensor with gaussian white noise & constant delay
 /// The sensor frame is right hand rotation about X
@@ -16,13 +18,19 @@ use serde::{Deserialize, Serialize};
 pub struct RateSensor {
     parameters: RateSensorParameters,
     state: RateSensorState,
+    result: RateSensorResult,
 }
 
 impl RateSensor {
     pub fn new(delay: f64, noise: Noise) -> Self {
         let parameters = RateSensorParameters { delay, noise };
         let state = RateSensorState::default();
-        Self { parameters, state }
+        let result = RateSensorResult::default();
+        Self {
+            parameters,
+            state,
+            result,
+        }
     }
 }
 
@@ -38,6 +46,10 @@ pub struct RateSensorState {
     value: f64,
 }
 impl SensorTrait for RateSensor {
+    fn initialize_result(&self) -> SensorResult {
+        SensorResult::Simple(SimpleSensorResult::Rate(RateSensorResult::default()))
+    }
+
     fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
         let rotation = connection.transform.rotation;
         let body_rate = &body.state.angular_rate_body;
@@ -47,11 +59,25 @@ impl SensorTrait for RateSensor {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateSensorResult(pub Vec<RateSensorState>);
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RateSensorResult {
+    value: Vec<f64>,
+    noise: Vec<f64>,
+}
+
+impl RateSensorResult {
+    pub fn update(&mut self, sensor: &RateSensor) {
+        self.value.push(sensor.state.value);
+        self.noise.push(sensor.state.noise);
+    }
+}
 
 impl MultibodyResultTrait for RateSensorResult {
     fn get_state_names(&self) -> Vec<&'static str> {
-        vec!["value","noise"]
+        vec!["value", "noise"]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate(self.clone())))
     }
 }

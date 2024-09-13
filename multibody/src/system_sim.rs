@@ -33,7 +33,7 @@ pub struct MultibodySystemSim {
     gravity: HashMap<Uuid, MultibodyGravity>,
     parent_indeces: Vec<Option<usize>>,
     crb_cache: Option<CrbCache>,
-    sensors: HashMap<Uuid, Sensor>,
+    pub sensors: HashMap<Uuid, Sensor>,
 }
 
 impl TryFrom<MultibodySystem> for MultibodySystemSim {

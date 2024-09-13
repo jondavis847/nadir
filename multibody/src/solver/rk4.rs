@@ -1,10 +1,11 @@
-use crate::{    
+use crate::{
     joint::{
         joint_sim::{JointSim, JointSimTrait},
-        joint_state::JointStates,        
+        joint_state::JointStates,
         JointResult,
     },
-    result::{update_body_states, ResultEntry},
+    result::{update_body_states, MultibodyResultTrait, ResultEntry},
+    sensor::{SensorResult, SensorTrait},
     system_sim::MultibodySystemSim,
     MultibodyErrors,
 };
@@ -19,6 +20,14 @@ pub fn solve_fixed_rk4(
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };
+
+    // Initialize sensor results    
+
+    let mut sensor_results: Vec<SensorResult> = sys
+        .sensors
+        .iter()
+        .map(|(_, sensor)| sensor.initialize_result())
+        .collect();
 
     // Create a vec of JointStates as the initial state
     let x0 = JointStates(sys.joints.iter().map(|joint| joint.get_state()).collect());
@@ -52,6 +61,10 @@ pub fn solve_fixed_rk4(
         time[i] = t;
         sys.joints.iter_mut().for_each(|joint| joint.set_result());
         sys.bodies.iter_mut().for_each(|body| body.set_result());
+        // update sensor results
+        sys.sensors
+            .iter().enumerate()
+            .for_each(|(index, (_,sensor))| sensor_results[index].update(sensor));
 
         // change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {
@@ -130,6 +143,9 @@ pub fn solve_fixed_rk4(
             sys.body_names[i].clone(),
             ResultEntry::Body(std::mem::take(&mut body.result)),
         );
+    });
+    sys.sensors.iter().enumerate().for_each(|(index, (_, sensor))| {
+        result_hm.insert(sensor.get_name().to_string(), sensor_results[index].get_result_entry());
     });
 
     Ok((time, result_hm))
