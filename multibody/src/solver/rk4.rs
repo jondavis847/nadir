@@ -1,4 +1,5 @@
 use crate::{
+    body::BodyResult,
     joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{SensorResult, SensorTrait},
@@ -16,6 +17,13 @@ pub fn solve_fixed_rk4(
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };
+
+    // initialize body results
+    let mut body_results: Vec<BodyResult> = sys
+        .bodies
+        .iter()
+        .map(|body| body.initialize_result())
+        .collect();
 
     // initialize joint results
     let mut joint_results: Vec<JointResult> = sys
@@ -61,7 +69,12 @@ pub fn solve_fixed_rk4(
         // update the result vectors with the current values
         time[i] = t;
 
-        sys.bodies.iter_mut().for_each(|body| body.set_result());
+        // update body results
+        sys.bodies
+            .iter()
+            .enumerate()
+            .for_each(|(index, body)| body_results[index].update(body));
+
 
         // update joint results
         sys.joints
@@ -129,12 +142,15 @@ pub fn solve_fixed_rk4(
             result_hm.insert(sys.joint_names[index].clone(), result.get_result_entry());
         });
 
-    sys.bodies.iter_mut().enumerate().for_each(|(i, body)| {
-        result_hm.insert(
-            sys.body_names[i].clone(),
-            ResultEntry::Body(std::mem::take(&mut body.result)),
-        );
-    });
+        body_results
+        .iter()
+        .enumerate()
+        .for_each(|(index, result)| {
+            result_hm.insert(
+                sys.body_names[index].clone(),
+                result.get_result_entry(),
+            );
+        });
     sys.sensors
         .iter()
         .enumerate()

@@ -391,51 +391,12 @@ impl MultibodyResult {
         df.select(columns).unwrap()
     }
 
-    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
+    pub fn get_component_states(&self, component_name: &str) -> Vec<&'static str> {
         let component = self.result.get(component_name).unwrap();
         match component {
-            ResultEntry::Body(_) => {
-                vec![
-                    "accel_base_x".to_string(),
-                    "accel_base_y".to_string(),
-                    "accel_base_z".to_string(),
-                    "accel_body_x".to_string(),
-                    "acceleration_body_y".to_string(),
-                    "acceleration_body_z".to_string(),
-                    "angular_accel_body_x".to_string(),
-                    "angular_accel_body_y".to_string(),
-                    "angular_accel_body_z".to_string(),
-                    "angular_rate_body_x".to_string(),
-                    "angular_rate_body_y".to_string(),
-                    "angular_rate_body_z".to_string(),
-                    "attitude_base_s".to_string(),
-                    "attitude_base_x".to_string(),
-                    "attitude_base_y".to_string(),
-                    "attitude_base_z".to_string(),
-                    "external_force_body_x".to_string(),
-                    "external_force_body_y".to_string(),
-                    "external_force_body_z".to_string(),
-                    "external_torque_body_x".to_string(),
-                    "external_torque_body_y".to_string(),
-                    "external_torque_body_z".to_string(),
-                    "position_base_x".to_string(),
-                    "position_base_y".to_string(),
-                    "position_base_z".to_string(),
-                    "velocity_base_x".to_string(),
-                    "velocity_base_y".to_string(),
-                    "velocity_base_z".to_string(),
-                ]
-            }
-            ResultEntry::Joint(result) => result
-                .get_state_names()
-                .iter()
-                .map(|state| state.to_string())
-                .collect(), // TODO: better result structure
-            ResultEntry::Sensor(result) => result
-                .get_state_names()
-                .iter()
-                .map(|state| state.to_string())
-                .collect(), // TODO: better result structure
+            ResultEntry::Body(result) => result.get_state_names(),
+            ResultEntry::Joint(result) => result.get_state_names(),
+            ResultEntry::Sensor(result) => result.get_state_names(),
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
         }
     }

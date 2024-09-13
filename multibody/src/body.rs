@@ -1,4 +1,7 @@
-use crate::sensor::Sensor;
+use crate::{
+    result::{MultibodyResultTrait, ResultEntry},
+    sensor::Sensor,
+};
 
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
 use aerospace::gravity::GravityTrait;
@@ -53,13 +56,13 @@ impl Body {
         Ok(())
     }
 
-    pub fn connect_sensor(&mut self, sensor: Uuid) -> Result<(),BodyErrors> {
+    pub fn connect_sensor(&mut self, sensor: Uuid) -> Result<(), BodyErrors> {
         // only add if it's not already there
         if !self.sensors.contains(&sensor) {
             self.sensors.push(sensor);
         }
         Ok(())
-    }    
+    }
 
     pub fn delete_inner_joint(&mut self) {
         if self.inner_joint.is_some() {
@@ -67,7 +70,7 @@ impl Body {
         }
     }
 
-    pub fn delete_sensor(&mut self, sensor: Uuid) -> Result<(),BodyErrors> {
+    pub fn delete_sensor(&mut self, sensor: Uuid) -> Result<(), BodyErrors> {
         self.sensors.retain(|&id| id != sensor);
         Ok(())
     }
@@ -152,7 +155,6 @@ pub struct BodySim {
     pub mesh: Option<Mesh>,
     pub gravity: Vec<Uuid>,
     pub mass_properties: MassProperties,
-    pub result: BodyResult,
     pub sensors: Vec<Uuid>,
 }
 
@@ -164,7 +166,6 @@ impl From<Body> for BodySim {
             mesh: body.mesh,
             gravity: body.gravity,
             mass_properties: body.mass_properties,
-            result: BodyResult::default(),
             sensors: body.sensors,
         }
     }
@@ -218,31 +219,11 @@ impl BodySim {
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
 
-    pub fn set_result(&mut self) {
-        self.result.position_base.push(self.state.position_base);
-        self.result.velocity_base.push(self.state.velocity_base);
-        self.result
-            .acceleration_base
-            .push(self.state.acceleration_base);
-        self.result
-            .acceleration_body
-            .push(self.state.acceleration_body);
-        self.result
-            .angular_accel_body
-            .push(self.state.angular_accel_body);
-        self.result
-            .angular_rate_body
-            .push(self.state.angular_rate_body);
-        self.result.attitude_base.push(self.state.attitude_base);
-        self.result
-            .external_force_body
-            .push(self.state.external_force_body);
-        self.result
-            .external_torque_body
-            .push(self.state.external_torque_body);
+    pub fn initialize_result(&self) -> BodyResult {
+        BodyResult::default()
     }
 
-    pub fn update_sensors(&self, sensors: &mut HashMap<Uuid,Sensor>) {
+    pub fn update_sensors(&self, sensors: &mut HashMap<Uuid, Sensor>) {
         self.sensors.iter().for_each(|id| {
             if let Some(sensor) = sensors.get_mut(id) {
                 sensor.update(self);
@@ -292,6 +273,59 @@ pub struct BodyResult {
     pub linear_momentum_base: Vec<Vector3<f64>>,
 }
 
+impl BodyResult {
+    pub fn update(&mut self, body: &BodySim) {
+        self.position_base.push(body.state.position_base);
+        self.velocity_base.push(body.state.velocity_base);
+        self.acceleration_base.push(body.state.acceleration_base);
+        self.acceleration_body.push(body.state.acceleration_body);
+        self.angular_accel_body.push(body.state.angular_accel_body);
+        self.angular_rate_body.push(body.state.angular_rate_body);
+        self.attitude_base.push(body.state.attitude_base);
+        self.external_force_body
+            .push(body.state.external_force_body);
+        self.external_torque_body
+            .push(body.state.external_torque_body);
+    }
+}
+
+impl MultibodyResultTrait for BodyResult {
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Body(self.clone())
+    }
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec![
+                    "accel_base_x",
+                    "accel_base_y",
+                    "accel_base_z",
+                    "accel_body_x",
+                    "acceleration_body_y",
+                    "acceleration_body_z",
+                    "angular_accel_body_x",
+                    "angular_accel_body_y",
+                    "angular_accel_body_z",
+                    "angular_rate_body_x",
+                    "angular_rate_body_y",
+                    "angular_rate_body_z",
+                    "attitude_base_s",
+                    "attitude_base_x",
+                    "attitude_base_y",
+                    "attitude_base_z",
+                    "external_force_body_x",
+                    "external_force_body_y",
+                    "external_force_body_z",
+                    "external_torque_body_x",
+                    "external_torque_body_y",
+                    "external_torque_body_z",
+                    "position_base_x",
+                    "position_base_y",
+                    "position_base_z",
+                    "velocity_base_x",
+                    "velocity_base_y",
+                    "velocity_base_z",
+                ]
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BodyConnection {
     pub body_id: Uuid,
