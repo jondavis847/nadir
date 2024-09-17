@@ -65,12 +65,8 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                             // calculate the joint mass properties
                             let joint_sim = &mut jointsims[0];
                             let body_mass_properties = next_body.get_mass_properties();
-                            joint_sim.update_transforms(None);
-                            let transforms = joint_sim.get_transforms();
-                            let jof_from_ob = transforms.jof_from_ob;
-                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-                            let joint_mass_properties = jof_from_ob * spatial_inertia;
-                            joint_sim.set_inertia(Some(joint_mass_properties));
+                            joint_sim.update_transforms(None);                            
+                            joint_sim.set_inertia(body_mass_properties);
 
                             recursive_sys_creation(
                                 &sys.algorithm,
@@ -362,7 +358,6 @@ impl MultibodySystemSim {
 
             // transform force to joint
             // cross product terms in spatial calculation will convert force at body cg to torque about joint
-
             joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());
         }
     }
@@ -425,11 +420,7 @@ fn recursive_sys_creation(
                     let joint = &mut jointsims[joint_index];
                     let body_mass_properties = next_body.get_mass_properties();
                     joint.update_transforms(None);
-                    let transforms = joint.get_transforms();
-                    let jof_from_ob = transforms.jof_from_ob;
-                    let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-                    let joint_mass_properties = jof_from_ob * spatial_inertia;
-                    joint.set_inertia(Some(joint_mass_properties));
+                    joint.set_inertia(body_mass_properties);
 
                     recursive_sys_creation(
                         algorithm,

@@ -16,6 +16,7 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::CoordinateSystem;
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use polars::prelude::*;
 use rotations::{
@@ -138,12 +139,7 @@ impl JointTrait for Revolute {
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
-        }
-        //let body_mass_properties = body.get_mass_properties();
-        //let spatial_transform = SpatialTransform::from(transform);
-        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-        //let joint_mass_properties = spatial_transform * spatial_inertia;
-        //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
+        }        
         body.connect_inner_joint(self).unwrap();
         let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -431,8 +427,11 @@ impl JointSimTrait for RevoluteSim {
         JointResult::Revolute(RevoluteResult::default())
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
-        self.mass_properties = inertia;
+    fn set_inertia(&mut self, inertia: &MassProperties) {
+        let jof_from_ob = self.transforms.jof_from_ob;
+        let spatial_inertia = SpatialInertia::from(*inertia);
+        let joint_mass_properties = jof_from_ob * spatial_inertia;
+        self.mass_properties = Some(joint_mass_properties);
     }
 
     fn set_force(&mut self, force: Force) {

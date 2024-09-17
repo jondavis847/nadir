@@ -3,7 +3,7 @@ mod scene;
 
 use crate::Message;
 use animator::Animator;
-use glam::Vec3;
+use glam::DVec3;
 use iced::{
     mouse::ScrollDelta,
     widget::{shader, Row},
@@ -36,12 +36,12 @@ impl AnimationState {
         for mesh in &mut self.scene.meshes {
             let (attitude, position) =
                 result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
-            let position = glam::vec3(position[0] as f32, position[1] as f32, position[2] as f32);                
-            let rotation = glam::quat(
-                attitude.x as f32,
-                attitude.y as f32,
-                attitude.z as f32,
-                attitude.s as f32,
+            let position = glam::dvec3(position[0], position[1], position[2]);                
+            let rotation = glam::dquat(
+                attitude.x,
+                attitude.y,
+                attitude.z,
+                attitude.s,
             );
             mesh.update(position, rotation);
         }
@@ -54,24 +54,24 @@ impl AnimationState {
             }            
             camera_target
         } else {
-            Vec3::ZERO
+            DVec3::ZERO
         };
 
         if let Some(earth) = &mut self.scene.earth {
-            const ROTATION_RATE: f32 = 2.0 * std::f32::consts::PI / 86400.0;
-            let rotation_axis = Vec3::Z;
+            const ROTATION_RATE: f64 = 2.0 * std::f64::consts::PI / 86400.0;
+            let rotation_axis = DVec3::Z;
 
             // Calculate the angle of rotation for this time step
             let angle = ROTATION_RATE * self.animator.dt;
 
             // Create a quaternion representing this incremental rotation
-            let incremental_rotation = glam::Quat::from_axis_angle(rotation_axis, angle);
+            let incremental_rotation = glam::DQuat::from_axis_angle(rotation_axis, angle);
 
             // Update the existing quaternion by applying the incremental rotation
             earth.0.state.rotation = incremental_rotation * (earth.0.state.rotation);
 
             // Adjust earth position based on camera target
-            earth.0.state.position = Vec3::ZERO; // reset to 0.0 first or earth accumulates the error
+            earth.0.state.position = DVec3::ZERO; // reset to 0.0 first or earth accumulates the error
             earth.0.set_position_from_target(camera_target);
         }
     }
@@ -116,8 +116,8 @@ impl AnimationState {
             let body = &sys.bodies[i];
             let q = body.state.attitude_base;
             let r = body.state.position_base;
-            let rotation = glam::Quat::from_xyzw(q.x as f32, q.y as f32, q.z as f32, q.s as f32);
-            let position = glam::vec3(r[0] as f32, r[1] as f32, r[2] as f32);
+            let rotation = glam::DQuat::from_xyzw(q.x, q.y, q.z, q.s);
+            let position = glam::dvec3(r[0], r[1], r[2]);
             if let Some(mesh) = &body.mesh {
                 let mut mesh = mesh.clone();
                 mesh.update(position, rotation);
@@ -134,8 +134,8 @@ impl AnimationState {
 
         let t = &result.sim_time;
 
-        let start_time = t[0] as f32;
-        let end_time = t[t.len() - 1] as f32;
+        let start_time = t[0];
+        let end_time = t[t.len() - 1];
 
         let animator = Animator::new(start_time, end_time);
 

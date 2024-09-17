@@ -1,13 +1,13 @@
 use super::mesh::Mesh;
 use crate::{
     geometry::{
-        ellipsoid::{Ellipsoid32, Ellipsoid64},
+        ellipsoid::Ellipsoid64,
         Geometry, GeometryState,
     },
     material::Material,
 };
 use color::Color;
-use glam::{Quat, Vec3};
+use glam::{DQuat, DVec3};
 
 #[derive(Debug)]
 pub struct Earth(pub Mesh);
@@ -22,8 +22,8 @@ impl Default for Earth {
                 specular_power: 80.0,
             },
             state: GeometryState {
-                position: Vec3::ZERO,
-                rotation: Quat::from_rotation_x(23.439281 * std::f32::consts::PI / 180.0),
+                position: DVec3::ZERO,
+                rotation: DQuat::from_rotation_x(23.439281 * std::f64::consts::PI / 180.0),
             },
             texture: None,
         };

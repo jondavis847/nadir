@@ -7,7 +7,7 @@ use gadgt_3d::{
     },
     mesh::{Mesh, MeshGpu, MeshPrimitive},
 };
-use glam::Vec3;
+use glam::{DVec3, Vec3};
 use iced::{
     advanced::Shell,
     mouse::{self, Cursor, Interaction},
@@ -41,7 +41,7 @@ pub struct Scene {
     pub camera: Camera,
     pub earth: Option<Earth>,
     light_color: Color,
-    light_pos: [f32; 3],
+    light_pos: [f64; 3],
     pub meshes: Vec<Mesh>,
     pub world_target: Option<usize>, // Some(index into meshes), None is the origin
 }
@@ -54,7 +54,7 @@ impl Default for Scene {
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
             meshes: Vec::new(),
-            world_target: None, 
+            world_target: None,
         }
     }
 }
@@ -73,7 +73,7 @@ impl Scene {
             let world_target = if let Some(index) = self.world_target {
                 self.meshes[index].state.position
             } else {
-                Vec3::ZERO
+                DVec3::ZERO
             };
 
             // convert all positions to target frame
@@ -82,7 +82,12 @@ impl Scene {
                 .for_each(|mesh| mesh.set_position_from_target(world_target));
 
             let unit = world_target.normalize();
-            self.camera.set_position(10.0 * unit);
+            let camera_position = Vec3::new(
+                10.0 * unit[0] as f32,
+                10.0 * unit[1] as f32,
+                10.0 * unit[2] as f32,
+            );
+            self.camera.set_position(camera_position);
             self.camera.set_target(Vec3::ZERO);
             self.camera.set_far(1.0e12);
             self.camera.set_fov(45.0);
@@ -572,7 +577,7 @@ impl Primitive for ScenePrimitive {
     ) {
         // unpack the depth_view and uniform_bind_group from storage
         let depth_view = &storage.get::<DepthView>().unwrap().0;
-        let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
+        //let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
         let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
         // set up the render pass

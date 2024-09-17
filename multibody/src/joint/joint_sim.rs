@@ -2,10 +2,15 @@ use super::{
     floating::FloatingSim, joint_state::JointState, joint_transforms::JointTransforms,
     prismatic::PrismaticSim, revolute::RevoluteSim, Joint, JointResult,
 };
-use crate::algorithms::{
-    articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
-    recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
+use crate::{
+    algorithms::{
+        articulated_body_algorithm::ArticulatedBodyAlgorithm,
+        composite_rigid_body::CompositeRigidBody, recursive_newton_euler::RecursiveNewtonEuler,
+        MultibodyAlgorithm,
+    },
+    body::BodySim,
 };
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -37,9 +42,9 @@ pub trait JointSimTrait {
     fn get_inertia(&self) -> SpatialInertia;
     fn get_ndof(&self) -> usize;
     fn get_state(&self) -> JointState;
-    fn get_v(&self) -> &Velocity;
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
-    fn set_force(&mut self, force: Force);    
+    fn get_v(&self) -> &Velocity;    
+    fn set_inertia(&mut self, inertia: &MassProperties);
+    fn set_force(&mut self, force: Force);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
@@ -136,7 +141,7 @@ impl JointSimTrait for JointSim {
     }
 
     #[inline]
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+    fn set_inertia(&mut self, inertia: &MassProperties) {
         match self {
             JointSim::Floating(joint) => joint.set_inertia(inertia),
             JointSim::Prismatic(joint) => joint.set_inertia(inertia),

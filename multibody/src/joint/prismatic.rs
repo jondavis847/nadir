@@ -14,6 +14,7 @@ use crate::{
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
 use polars::prelude::*;
 use rotations::{Rotation, RotationTrait};
@@ -186,7 +187,7 @@ pub struct PrismaticSim {
     cache: PrismaticCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
-    parameters: JointParameters,    
+    parameters: JointParameters,
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -217,7 +218,7 @@ impl From<Prismatic> for PrismaticSim {
             cache: PrismaticCache::default(),
             id: *prismatic.get_id(),
             mass_properties: None,
-            parameters: prismatic.parameters,            
+            parameters: prismatic.parameters,
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -433,8 +434,11 @@ impl JointSimTrait for PrismaticSim {
         }
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
-        self.mass_properties = inertia;
+    fn set_inertia(&mut self, inertia: &MassProperties) {
+        let jof_from_ob = self.transforms.jof_from_ob;
+        let spatial_inertia = SpatialInertia::from(*inertia);
+        let joint_mass_properties = jof_from_ob * spatial_inertia;
+        self.mass_properties = Some(joint_mass_properties);
     }
 
     fn set_force(&mut self, force: Force) {
@@ -493,16 +497,16 @@ impl PrismaticResult {
 }
 
 impl MultibodyResultTrait for PrismaticResult {
-fn add_to_dataframe(&self, df: &mut DataFrame) {
-    let position = Series::new("position", self.position.clone());
-    let velocity = Series::new("velocity", self.velocity.clone());
-    let accel = Series::new("accel", self.acceleration.clone());
-    let tau = Series::new("internal_force", self.internal_force.clone());
-    df.with_column(position).unwrap();
-    df.with_column(velocity).unwrap();
-    df.with_column(accel).unwrap();
-    df.with_column(tau).unwrap();
-}
+    fn add_to_dataframe(&self, df: &mut DataFrame) {
+        let position = Series::new("position", self.position.clone());
+        let velocity = Series::new("velocity", self.velocity.clone());
+        let accel = Series::new("accel", self.acceleration.clone());
+        let tau = Series::new("internal_force", self.internal_force.clone());
+        df.with_column(position).unwrap();
+        df.with_column(velocity).unwrap();
+        df.with_column(accel).unwrap();
+        df.with_column(tau).unwrap();
+    }
 
     fn get_state_names(&self) -> Vec<&'static str> {
         vec!["position", "velocity", "acceleration", "internal_force"]

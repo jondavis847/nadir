@@ -7,7 +7,7 @@ pub mod prismatic;
 pub mod revolute;
 
 use crate::{
-    body::BodyConnection,
+    body::{BodyConnection, BodySim},
     result::{MultibodyResultTrait, ResultEntry},
 };
 
@@ -82,7 +82,7 @@ pub trait JointTrait: MultibodyTrait {
     fn get_connections(&self) -> &JointConnection;
     fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;
+    fn get_outer_body_id(&self) -> Option<&Uuid>;    
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

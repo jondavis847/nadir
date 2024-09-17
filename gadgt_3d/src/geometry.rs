@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glam::{Mat3, Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, DQuat, DVec3};
 use serde::{Deserialize, Serialize};
 
 pub mod cuboid;
@@ -20,8 +20,8 @@ pub enum Geometry {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GeometryState {
-    pub position: Vec3,
-    pub rotation: Quat,
+    pub position: DVec3,
+    pub rotation: DQuat,
 }
 
 #[derive(Debug)]

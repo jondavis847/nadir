@@ -1,6 +1,6 @@
 use super::{GeometryState, GeometryTrait, GeometryTransform};
 use crate::vertex::Vertex;
-use glam::{vec2, vec3, Mat3, Mat4};
+use glam::{vec2, vec3, Mat3, Mat4, Quat};
 use serde::{Deserialize, Serialize};
 
 // I wanted to make this a generic Ellipsoid<LAT,LON> but struggled to find a way to make it dynamic and generic for the gpu
@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Ellipsoid {
-    pub radius_x: f32, // Radius along the x-axis
-    pub radius_y: f32, // Radius along the y-axis
-    pub radius_z: f32, // Radius along the z-axis
+    pub radius_x: f64, // Radius along the x-axis
+    pub radius_y: f64, // Radius along the y-axis
+    pub radius_z: f64, // Radius along the z-axis
 }
 
 impl Ellipsoid {
-    pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
         Self {
             radius_x,
             radius_y,
@@ -23,9 +23,18 @@ impl Ellipsoid {
     }
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
-            vec3(self.radius_x, self.radius_y, self.radius_z),
-            state.rotation,
-            state.position,
+            vec3(self.radius_x as f32, self.radius_y  as f32, self.radius_z  as f32),
+            Quat::from_xyzw(
+                state.rotation.x as f32,
+                state.rotation.y as f32,
+                state.rotation.z as f32,
+                state.rotation.w as f32,
+            ),
+            vec3(
+                state.position.x as f32,
+                state.position.y as f32,
+                state.position.z as f32,
+            ),
         );
         let normal = transformation.inverse().transpose();
         let normal = Mat3::from_mat4(normal);
@@ -36,7 +45,7 @@ impl Ellipsoid {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Ellipsoid16(pub Ellipsoid);
 impl Ellipsoid16 {
-    pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
     }
     pub fn vertices() -> Vec<Vertex> {
@@ -53,7 +62,7 @@ impl GeometryTrait for Ellipsoid16 {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Ellipsoid32(pub Ellipsoid);
 impl Ellipsoid32 {
-    pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
     }
     pub fn vertices() -> Vec<Vertex> {
@@ -70,7 +79,7 @@ impl GeometryTrait for Ellipsoid32 {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Ellipsoid64(pub Ellipsoid);
 impl Ellipsoid64 {
-    pub fn new(radius_x: f32, radius_y: f32, radius_z: f32) -> Self {
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
         Self(Ellipsoid::new(radius_x, radius_y, radius_z))
     }
     pub fn vertices() -> Vec<Vertex> {
@@ -89,6 +98,8 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
 
     let mut grid_points = Vec::with_capacity(n_lat as usize + 1);
     let mut vertices = Vec::new();
+
+    let up = vec3(0.0, 0.0, 1.0);
 
     // using wikipedia spherical coordinate frame.
     // z up.
@@ -113,10 +124,7 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
             let z = cos_theta;
 
             let normal = vec3(x, y, z).normalize();
-            // Tangent vector at the point on the sphere
-            // at north pole, tangent should 0 in x,y 1 in z axes -> theta = 0 => sin_theta
-            // at equator and 0 longitude 
-            let tangent = vec3(-sin_phi * sin_theta, cos_phi * sin_theta, 0.0).normalize();
+            let tangent = up.cross(normal).normalize();
             let uv = vec2(lon as f32 / n_lon as f32, lat as f32 / n_lat as f32);
 
             row.push(Vertex {

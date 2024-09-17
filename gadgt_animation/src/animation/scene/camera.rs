@@ -1,8 +1,8 @@
-use glam::{mat4, vec3, vec4, Mat3, Quat, Vec2, Vec3};
+use glam::{mat4, vec3, vec4, Mat3, Quat, Vec3};
 use iced::{mouse::ScrollDelta, Rectangle, Vector};
 
 #[derive(Copy, Clone, Debug)]
-pub struct Camera {    
+pub struct Camera {
     eye: Vec3,
     target: Vec3,
     up: Vec3,
@@ -14,12 +14,12 @@ pub struct Camera {
 }
 
 impl Default for Camera {
-    fn default() -> Self {        
+    fn default() -> Self {
         let mut camera = Self {
             eye: vec3(5.0, 0.0, 0.0),
-            target: Vec3::ZERO,            
-            up: Vec3::Z,       
-            rotation: Quat::IDENTITY, 
+            target: Vec3::ZERO,
+            up: Vec3::Z,
+            rotation: Quat::IDENTITY,
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
@@ -42,9 +42,14 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 impl Camera {
     pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> glam::Mat4 {
         //TODO looks distorted without padding; base on surface texture size instead?
-        let aspect_ratio = bounds.width / bounds.height;        
+        let aspect_ratio = bounds.width / bounds.height;
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = glam::Mat4::perspective_rh(self.fov_y * std::f32::consts::PI / 180.0, aspect_ratio, self.near, self.far);
+        let proj = glam::Mat4::perspective_rh(
+            self.fov_y * std::f32::consts::PI / 180.0,
+            aspect_ratio,
+            self.near,
+            self.far,
+        );
 
         OPENGL_TO_WGPU_MATRIX * proj * view
     }
@@ -75,15 +80,14 @@ impl Camera {
     }
 
     pub fn update_position_from_mouse_delta(&mut self, mouse_delta: Vector) {
-        
         // Calculate the vector from the camera to the target
         let camera_to_target = self.target - self.eye;
 
         // Calculate the current forward, up, and right vectors
-        let forward = camera_to_target.normalize();        
+        let forward = camera_to_target.normalize();
         let right = forward.cross(self.up).normalize();
 
-        // Convert mouse delta to yaw and pitch        
+        // Convert mouse delta to yaw and pitch
         let yaw = Quat::from_axis_angle(self.up, -mouse_delta.x * self.sensitivity);
         let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
 
@@ -95,7 +99,7 @@ impl Camera {
         let new_forward = incremental_rotation * camera_to_target;
 
         // Calculate the new camera position
-        let new_camera_pos = self.target - new_forward; 
+        let new_camera_pos = self.target - new_forward;
 
         // Update the camera position
         self.eye = new_camera_pos;
@@ -134,9 +138,9 @@ impl Camera {
     }
 
     fn update_rotation(&mut self) {
-        let forward = (self.target-self.eye).normalize();
+        let forward = (self.target - self.eye).normalize();
         let right = forward.cross(self.up).normalize();
-        let rotation_matrix = Mat3::from_cols(right,self.up,forward);
+        let rotation_matrix = Mat3::from_cols(right, self.up, forward);
         self.rotation = Quat::from_mat3(&rotation_matrix);
     }
 }

@@ -15,7 +15,8 @@ use crate::{
     result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
 };
-use coordinate_systems::cartesian::Cartesian;
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
+use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
 use polars::prelude::*;
 use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, RotationTrait};
@@ -105,12 +106,7 @@ impl JointTrait for Floating {
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
-        }
-        //let body_mass_properties = body.get_mass_properties();
-        //let spatial_transform = SpatialTransform::from(transform);
-        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-        //let joint_mass_properties = spatial_transform * spatial_inertia;
-        //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
+        }        
         body.connect_inner_joint(self).unwrap();
         let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -438,8 +434,33 @@ impl JointSimTrait for FloatingSim {
         JointResult::Floating(FloatingResult::default())
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
-        self.mass_properties = inertia;
+    fn set_inertia(&mut self, inertia: &MassProperties) {
+        let jof_from_ob = self.transforms.jof_from_ob;
+        // IMPORTANT: floating joint must assume that jof is at cm
+        // otherwise you will have a moment arm and body will torque with linear force at cm
+        // jof_from_ob has already made this correction, but so do mass props
+        let original_cm = inertia.center_of_mass.vector();
+        let mut inertia = inertia.clone();
+        inertia.center_of_mass = CenterOfMass::new(0.0,0.0,0.0);
+        let spatial_inertia = SpatialInertia::from(inertia);
+
+        // only rotate the inertia to the jof, dont translate since cm is @ jof
+        let mut jof_from_ob_rotation_only = jof_from_ob.clone();
+        jof_from_ob_rotation_only.0.translation = CoordinateSystem::ZERO;
+        let joint_mass_properties = jof_from_ob_rotation_only * spatial_inertia;
+        self.mass_properties = Some(joint_mass_properties);
+
+        // if there is translation in jof_from_ob or the body frame cm is non zero
+        // then we need to add them to the joint state position so that the jof frame is at the cm
+        // r is in the jif frame, so need to transform jof and cm to jif frame
+        let jif_from_jof = self.transforms.jif_from_jof;
+        let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
+        let ob_from_jof_translation = Cartesian::from(self.transforms.ob_from_jof.0.translation).vec();
+        let total_in_jof = cm_in_jof + ob_from_jof_translation;
+        let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
+        let r = &mut self.state.r;
+        *r += total_in_jif;
+        
     }
 
     fn set_force(&mut self, force: Force) {

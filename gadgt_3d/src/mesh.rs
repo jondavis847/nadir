@@ -1,4 +1,4 @@
-use glam::{Mat3, Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, DQuat, DVec3};
 use iced::widget::shader::wgpu;
 use serde::{Deserialize, Serialize};
 use super::geometry::{Geometry, GeometryState, GeometryTrait};
@@ -15,11 +15,11 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn set_position_from_target(&mut self, target: Vec3) {
+    pub fn set_position_from_target(&mut self, target: DVec3) {
         self.state.position -= target;
     }
 
-    pub fn update(&mut self, position: Vec3, rotation: Quat) {
+    pub fn update(&mut self, position: DVec3, rotation: DQuat) {
         self.state.position = position;
         self.state.rotation = rotation;
     }
@@ -32,8 +32,8 @@ pub struct MeshGpu {
     normal: Mat3,         // 9 * 4 = 36 bytes
     color: [f32; 4],      // 16 bytes
     material: u32,        // 4
-    specular_power: f32,  // 4
-    _padding: f32,
+    specular_power: f32,  // 4   
+    _padding: f32, 
 }
 
 impl MeshGpu {
@@ -74,8 +74,8 @@ impl From<&Mesh> for MeshGpu {
             normal: transforms.normal_matrix,
             color: color.into(),
             material,
-            specular_power,
-            _padding: 0.0,
+            specular_power,      
+            _padding: 0.0,      
         }
     }
 }
@@ -101,8 +101,8 @@ impl From<&Mesh> for MeshPrimitive {
             normal: transforms.normal_matrix,
             color: color.into(),
             material,
-            specular_power,
-            _padding: 0.0,
+            specular_power,  
+            _padding: 0.0,          
         };
 
         MeshPrimitive {

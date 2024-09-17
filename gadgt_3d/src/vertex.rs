@@ -4,9 +4,9 @@ use iced::widget::shader::wgpu;
 #[repr(C)]
 pub struct Vertex {
     pub pos: glam::Vec3,
-    pub normal: glam::Vec3,
+    pub normal: glam::Vec3,    
     pub tangent: glam::Vec3,
-    pub uv: glam::Vec2,
+    pub uv: glam::Vec2,    
 }
 
 impl Vertex {
@@ -14,8 +14,8 @@ impl Vertex {
         //position
         0 => Float32x3,
         //normal
-        1 => Float32x3,
-        //tangent
+        1 => Float32x3, 
+        //tangent       
         2 => Float32x3,
         //uv
         3 => Float32x2,

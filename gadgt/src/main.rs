@@ -27,7 +27,7 @@ use ratatui::{
 use reedline::{FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
-use rotations::{Rotation, quaternion::Quaternion};
+use rotations::{axes::{AlignedAxes, AxisPair}, quaternion::Quaternion, Rotation};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File,OpenOptions};
@@ -1145,6 +1145,10 @@ enum Prompts {
     AngularRateX,
     AngularRateY,
     AngularRateZ,
+    AxisNewPrimary,
+    AxisNewSecondary,
+    AxisOldPrimary,
+    AxisOldSecondary,
     CartesianX,
     CartesianY,
     CartesianZ,
@@ -1247,6 +1251,10 @@ impl Prompts {
             Prompts::AngularRateX => "Initial angular rate X (units: rad/sec, default: 0.0)",
             Prompts::AngularRateY => "Initial angular rate Y (units: rad/sec, default: 0.0)",
             Prompts::AngularRateZ => "Initial angular rate Z (units: rad/sec, default: 0.0)",
+            Prompts::AxisNewPrimary => "new primary axis (default: x)",
+            Prompts::AxisOldPrimary => "old primary axis (default: x)",
+            Prompts::AxisNewSecondary => "new secondary axis (default: y)",
+            Prompts::AxisOldSecondary => "old secondary axis (default: y)",
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
             Prompts::CartesianY => "Cartesian [Y] (units: m, default: 0.0)",
             Prompts::CartesianZ => "Cartesian [Z] (units: m, default: 0.0)",            
@@ -1573,6 +1581,24 @@ impl Prompts {
                 }
                 Ok(())
             },
+            Prompts::AxisNewPrimary | Prompts::AxisNewSecondary | Prompts::AxisOldPrimary | Prompts::AxisOldSecondary => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "x",                    
+                    "y",
+                    "z",
+                    "-x",
+                    "-y",
+                    "-z",
+                ];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::Axis);
+                }
+                Ok(())
+            },
             _ => Ok(()),
         }
     }
@@ -1580,6 +1606,7 @@ impl Prompts {
 
 #[derive(Debug)]
 pub enum InputErrors {
+    Axis,
     Body(BodyErrors),
     CtrlC,
     EllipsoidLatitudeBands,
@@ -1603,6 +1630,7 @@ impl From<BodyErrors> for InputErrors {
 impl std::fmt::Display for InputErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            InputErrors::Axis =>  write!(f,"Error: invalid axis, must be ['x','y','z','-x','-y','-z']"),
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
             InputErrors::EllipsoidLatitudeBands => write!(f,"Error: input must be ['16', '32', '64']"),
@@ -1890,6 +1918,10 @@ fn prompt_rotation() -> Result<Rotation,InputErrors> {
             let q = prompt_quaternion()?;
             Ok(Rotation::from(q))
         },    
+        "a" => {
+            let a = prompt_aligned_axes()?;
+            Ok(Rotation::from(a))
+        },    
         _ => panic!("shouldn't be possible. other characters caught in validation loop")       
     }
 }
@@ -1904,6 +1936,31 @@ fn prompt_quaternion() -> Result<Quaternion, InputErrors> {
     let q = Quaternion::new(x,y,z,w);
     println!("{:?}", q);
     Ok(q)
+}
+
+fn prompt_aligned_axes() -> Result<AlignedAxes, InputErrors> {    
+    
+    fn to_axis(val: String) -> rotations::axes::Axis {
+        match val.as_str() {
+            "x" | "+x" => rotations::axes::Axis::Xp,
+            "y" | "+y" => rotations::axes::Axis::Yp,
+            "z" | "+z" => rotations::axes::Axis::Zp,
+            "-x" => rotations::axes::Axis::Xn,
+            "-y" => rotations::axes::Axis::Yn,
+            "-z" => rotations::axes::Axis::Zn,
+            _ => unreachable!("should have been caught in validate loop")
+        }
+    }
+
+    let primary_old = to_axis(Prompts::AxisOldPrimary.validate_loop("x")?);
+    let primary_new = to_axis(Prompts::AxisNewPrimary.validate_loop("x")?);
+    let secondary_old = to_axis(Prompts::AxisOldSecondary.validate_loop("y")?);
+    let secondary_new = to_axis(Prompts::AxisNewSecondary.validate_loop("y")?);
+    
+    let primary = AxisPair::new(primary_old,primary_new);
+    let secondary = AxisPair::new(secondary_old,secondary_new);    
+    let a = AlignedAxes::new(primary,secondary);
+    Ok(a)
 }
 
 fn prompt_translation() -> Result<CoordinateSystem,InputErrors> {
@@ -1936,16 +1993,16 @@ fn prompt_simulation() -> Result<(String,f64,f64,f64),InputErrors> {
 }
 
 fn prompt_cuboid() -> Result<Cuboid, InputErrors> {
-    let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);    
+    let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);    
     Ok(Cuboid::new(x,y,z))
 }
 
 fn prompt_ellipsoid() -> Result<Geometry, InputErrors> {
-    let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
+    let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
     let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?;
     
     let geometry = match lat.as_str() {
