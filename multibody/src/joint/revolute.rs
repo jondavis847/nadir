@@ -273,7 +273,8 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         *v = transforms.jof_from_ij_jof * v_ij + *vj;
         aba.common.c = v.cross_motion(*vj); // + cj
         aba.common.inertia_articulated = *joint_inertia;
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f;
+
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f;        
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -283,7 +284,8 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix.column(0).into();
         aba.big_d_inv = 1.0 / aba.big_u[0];
-        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 1
+        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 
+        
 
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
@@ -306,7 +308,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn aba_third_pass(&mut self, a_ij: Acceleration) {
         let aba = self.cache.aba.as_mut().unwrap();
         let a = &mut self.cache.common.a;
-        let q_ddot = &mut self.cache.q_ddot;
+        let q_ddot = &mut self.cache.q_ddot;        
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
 

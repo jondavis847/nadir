@@ -357,7 +357,7 @@ impl MultibodySystemSim {
             body.calculate_external_force();
 
             // transform force to joint
-            // cross product terms in spatial calculation will convert force at body cg to torque about joint
+            // cross product terms in spatial calculation will convert force at body cg to torque about joint            
             joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());
         }
     }

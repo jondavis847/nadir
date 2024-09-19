@@ -27,7 +27,7 @@ use ratatui::{
 use reedline::{FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
-use rotations::{axes::{AlignedAxes, AxisPair}, quaternion::Quaternion, Rotation};
+use rotations::{axes::{AlignedAxes, AxisPair}, prelude::{EulerAngles, EulerSequence}, quaternion::Quaternion, Rotation};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File,OpenOptions};
@@ -1172,7 +1172,11 @@ enum Prompts {
     EllipsoidRadiusX,
     EllipsoidRadiusY,
     EllipsoidRadiusZ,
-    EllipsoidLatitudeBands,    
+    EllipsoidLatitudeBands, 
+    EulerPhi,
+    EulerPsi,   
+    EulerSequence,
+    EulerTheta,
     Ixx,
     Iyy,
     Izz,
@@ -1278,7 +1282,11 @@ impl Prompts {
             Prompts::Earth => "Animate base as earth? (default: 'n')",            
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
-            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",            
+            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",    
+            Prompts::EulerPhi => "phi (1st) angle (rad, default: 0.0)",
+            Prompts::EulerPsi => "psi (3rd) angle (rad, default: 0.0)",
+            Prompts::EulerSequence => "EulerSequence (default: 'zyx')",
+            Prompts::EulerTheta => "theta (2nd) angle (rad, default: 0.0)",
             Prompts::Geometry => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
             Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
@@ -1401,6 +1409,9 @@ impl Prompts {
             | Prompts::Cmx
             | Prompts::Cmy
             | Prompts::Cmz
+            | Prompts::EulerPhi
+            | Prompts::EulerPsi
+            | Prompts::EulerTheta
             | Prompts::GravityConstantX
             | Prompts::GravityConstantY
             | Prompts::GravityConstantZ
@@ -1599,6 +1610,31 @@ impl Prompts {
                 }
                 Ok(())
             },
+            Prompts::EulerSequence => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "XYZ",
+                    "XZY",
+                    "YXZ",
+                    "YZX",
+                    "ZXY",
+                    "ZYX",
+                    "XYX",
+                    "XZX",
+                    "YXY",
+                    "YZY",
+                    "ZXZ",
+                    "ZYZ",
+                ];
+
+                if !possible_values.contains(&(str.to_uppercase().as_str())) {
+                    return Err(InputErrors::EulerSequence);
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -1609,6 +1645,7 @@ pub enum InputErrors {
     Axis,
     Body(BodyErrors),
     CtrlC,
+    EulerSequence,
     EllipsoidLatitudeBands,
     InvalidColor,
     InvalidGeometry,
@@ -1634,6 +1671,7 @@ impl std::fmt::Display for InputErrors {
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
             InputErrors::EllipsoidLatitudeBands => write!(f,"Error: input must be ['16', '32', '64']"),
+            InputErrors::EulerSequence => write!(f,"Error: input must be a valid euler sequence like 'zyx'"),
             InputErrors::InvalidColor => write!(f,"Error: input must be ['c' (constant), 'r' (rgba)]"),
             InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
@@ -1921,20 +1959,22 @@ fn prompt_rotation() -> Result<Rotation,InputErrors> {
         "a" => {
             let a = prompt_aligned_axes()?;
             Ok(Rotation::from(a))
-        },    
+        },
+        "e" => {
+            let e = prompt_euler_angles()?;
+            Ok(Rotation::from(e))
+        }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")       
     }
 }
 
-fn prompt_quaternion() -> Result<Quaternion, InputErrors> {
-
-    let w = Prompts::QuaternionW.validate_loop("1")?.parse::<f64>().unwrap_or(1.0);        
+fn prompt_quaternion() -> Result<Quaternion, InputErrors> {    
     let x = Prompts::QuaternionX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);        
     let y = Prompts::QuaternionY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
     let z = Prompts::QuaternionZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);        
-    
-    let q = Quaternion::new(x,y,z,w);
-    println!("{:?}", q);
+    let w = Prompts::QuaternionW.validate_loop("1")?.parse::<f64>().unwrap_or(1.0);        
+
+    let q = Quaternion::new(x,y,z,w);    
     Ok(q)
 }
 
@@ -1961,6 +2001,31 @@ fn prompt_aligned_axes() -> Result<AlignedAxes, InputErrors> {
     let secondary = AxisPair::new(secondary_old,secondary_new);    
     let a = AlignedAxes::new(primary,secondary);
     Ok(a)
+}
+
+fn prompt_euler_angles() -> Result<EulerAngles, InputErrors> {
+    let sequence = Prompts::EulerSequence.validate_loop("zyx")?;
+    let sequence = match sequence.as_str() {
+        "xyz" => EulerSequence::XYZ,
+        "xzy" => EulerSequence::XZY,
+        "yxz" => EulerSequence::YXZ,
+        "yzx" => EulerSequence::YZX,
+        "zxy" => EulerSequence::ZXY,
+        "zyx" => EulerSequence::ZYX,
+        "xyx" => EulerSequence::XYX,
+        "xzx" => EulerSequence::XZX,
+        "yxy" => EulerSequence::YXY,
+        "yzy" => EulerSequence::YZY,
+        "zxz" => EulerSequence::ZXZ,
+        "zyz" => EulerSequence::ZYZ,
+        _ => unreachable!("should have been caught in validation"),
+    };
+    let phi = Prompts::EulerPhi.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let theta = Prompts::EulerTheta.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let psi = Prompts::EulerPsi.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+
+    let euler_angles = EulerAngles::new(phi,theta,psi,sequence);
+    Ok(euler_angles)
 }
 
 fn prompt_translation() -> Result<CoordinateSystem,InputErrors> {

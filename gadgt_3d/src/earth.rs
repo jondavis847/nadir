@@ -36,7 +36,7 @@ pub struct Atmosphere(pub Mesh);
 
 impl From<&Earth> for Atmosphere {
     fn from(earth: &Earth) -> Self {
-        let atmosphere_thickness = 2.0 * 1.0e5; // 100 km?
+        let atmosphere_thickness = 1.0e5; // 100 km?
         let earth_ellipsoid = match earth.0.geometry {
             Geometry::Ellipsoid16(ellipsoid) => ellipsoid.0,
             Geometry::Ellipsoid32(ellipsoid) => ellipsoid.0,
