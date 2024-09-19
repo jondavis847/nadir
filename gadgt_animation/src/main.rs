@@ -1,7 +1,7 @@
 use std::io::Read;
 
 mod animation;
-mod mouse;
+//mod mouse;
 
 use animation::{AnimationGui, AnimationState};
 use iced::{

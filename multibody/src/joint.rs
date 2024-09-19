@@ -7,7 +7,7 @@ pub mod prismatic;
 pub mod revolute;
 
 use crate::{
-    body::{BodyConnection, BodySim},
+    body::BodyConnection,
     result::{MultibodyResultTrait, ResultEntry},
 };
 

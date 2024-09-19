@@ -13,7 +13,7 @@ use crate::{
 use rotations::{RotationTrait, quaternion::Quaternion};
 
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Acceleration, MotionVector, SpatialInertia, SpatialVector, Velocity};
+use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
