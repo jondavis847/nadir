@@ -1127,8 +1127,11 @@ fn main() {
                             println!("Unrecognized command");
                         }
                     }
-                    Signal::CtrlC | Signal::CtrlD => {
+                    Signal::CtrlD => {
                         break
+                    }
+                    Signal::CtrlC => {
+                        continue
                     }
                 }
                 
