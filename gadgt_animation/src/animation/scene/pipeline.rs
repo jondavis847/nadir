@@ -1,6 +1,5 @@
 use gadgt_3d::{mesh::MeshGpu, vertex::Vertex};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
-use image::{load_from_memory, GenericImageView};
 
 pub mod buffer;
 pub mod uniforms;
@@ -71,7 +70,7 @@ impl Pipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),            
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: 4,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },

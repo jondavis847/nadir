@@ -237,7 +237,7 @@ impl Primitive for ScenePrimitive {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 1, // Set the multisample count here to match the pipeline
+                sample_count: 4, // Set the multisample count here to match the pipeline
                 dimension: wgpu::TextureDimension::D2,
                 format,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -577,7 +577,7 @@ impl Primitive for ScenePrimitive {
     ) {
         // unpack the depth_view and uniform_bind_group from storage
         let depth_view = &storage.get::<DepthView>().unwrap().0;
-        //let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
+        let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
         let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
         // set up the render pass
@@ -585,8 +585,8 @@ impl Primitive for ScenePrimitive {
             label: Some("gadgt.pipeline.pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 //view: target,
-                view: target,         //multisample_view,
-                resolve_target: None, //Some(target),
+                view: multisample_view,
+                resolve_target: Some(target),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,

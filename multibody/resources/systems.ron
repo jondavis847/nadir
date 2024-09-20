@@ -1,324 +1,4 @@
 {
-    "3pend": (
-        algorithm: ArticulatedBody,
-        base: Some((
-            id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
-            name: "base",
-            is_earth: false,
-            outer_joints: [
-                "b3bd38d7-16f0-4478-9c52-625164a73a19",
-            ],
-            gravity: [
-                "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
-            ],
-        )),
-        bodies: {
-            "322e0d37-6831-44b4-903e-7341dacc949b": (
-                id: "322e0d37-6831-44b4-903e-7341dacc949b",
-                inner_joint: Some("c1df79ba-859c-40b9-b072-b659c9a96fb6"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b2",
-                outer_joints: [
-                    "6626c60b-d583-4e8b-936e-b38015571a69",
-                ],
-                mesh: Some((
-                    name: "b2",
-                    geometry: Cuboid((
-                        x: 0.1,
-                        y: 0.1,
-                        z: 1.0,
-                    )),
-                    material: Phong(
-                        color: (
-                            r: 0.0,
-                            g: 0.0,
-                            b: 1.0,
-                            a: 1.0,
-                        ),
-                        specular_power: 32.0,
-                    ),
-                    state: (
-                        position: (0.0, 0.0, 0.0),
-                        rotation: (0.0, 0.0, 0.0, 1.0),
-                    ),
-                    texture: None,
-                )),
-                gravity: [],
-                sensors: [],
-            ),
-            "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
-                id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
-                inner_joint: Some("b3bd38d7-16f0-4478-9c52-625164a73a19"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b1",
-                outer_joints: [
-                    "c1df79ba-859c-40b9-b072-b659c9a96fb6",
-                ],
-                mesh: Some((
-                    name: "b1",
-                    geometry: Cuboid((
-                        x: 0.1,
-                        y: 0.1,
-                        z: 1.0,
-                    )),
-                    material: Phong(
-                        color: (
-                            r: 1.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        ),
-                        specular_power: 32.0,
-                    ),
-                    state: (
-                        position: (0.0, 0.0, 0.0),
-                        rotation: (0.0, 0.0, 0.0, 1.0),
-                    ),
-                    texture: None,
-                )),
-                gravity: [],
-                sensors: [],
-            ),
-            "42ba7228-82ba-473a-8c75-eb20d796168b": (
-                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
-                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b3",
-                outer_joints: [],
-                mesh: Some((
-                    name: "b3",
-                    geometry: Cuboid((
-                        x: 0.1,
-                        y: 0.1,
-                        z: 1.0,
-                    )),
-                    material: Phong(
-                        color: (
-                            r: 0.0,
-                            g: 1.0,
-                            b: 0.0,
-                            a: 1.0,
-                        ),
-                        specular_power: 32.0,
-                    ),
-                    state: (
-                        position: (0.0, 0.0, 0.0),
-                        rotation: (0.0, 0.0, 0.0, 1.0),
-                    ),
-                    texture: None,
-                )),
-                gravity: [],
-                sensors: [],
-            ),
-        },
-        gravities: {
-            "d1b2b2c7-b89b-43a0-98af-63ca92c24e14": (
-                id: "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
-                name: "g",
-                gravity: Constant((
-                    value: (0.0, 0.0, -9.8),
-                )),
-            ),
-        },
-        joints: {
-            "6626c60b-d583-4e8b-936e-b38015571a69": Revolute((
-                common: (
-                    id: "6626c60b-d583-4e8b-936e-b38015571a69",
-                    name: "r3",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "322e0d37-6831-44b4-903e-7341dacc949b",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: -0.5,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "42ba7228-82ba-473a-8c75-eb20d796168b",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                    mass_properties: None,
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.1,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 0.0,
-                    omega: 0.0,
-                ),
-            )),
-            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
-                common: (
-                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
-                    name: "r1",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 1.5,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                    mass_properties: None,
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.1,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 1.0,
-                    omega: 0.0,
-                ),
-            )),
-            "c1df79ba-859c-40b9-b072-b659c9a96fb6": Revolute((
-                common: (
-                    id: "c1df79ba-859c-40b9-b072-b659c9a96fb6",
-                    name: "r2",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: -0.5,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "322e0d37-6831-44b4-903e-7341dacc949b",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.5,
-                                )),
-                            ),
-                        )),
-                    ),
-                    mass_properties: None,
-                ),
-                parameters: (
-                    constant_force: 0.0,
-                    damping: 0.1,
-                    spring_constant: 0.0,
-                ),
-                state: (
-                    theta: 0.0,
-                    omega: 0.0,
-                ),
-            )),
-        },
-        sensors: {},
-    ),
     "pace": (
         algorithm: ArticulatedBody,
         base: Some((
@@ -333,6 +13,54 @@
             ],
         )),
         bodies: {
+            "b886ea21-0c7c-4c14-b2cd-7ce777929974": (
+                id: "b886ea21-0c7c-4c14-b2cd-7ce777929974",
+                inner_joint: Some("9d329257-ece4-4e8e-988b-c5dfaf1bf98f"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "panel2",
+                outer_joints: [
+                    "9c8f3658-8d55-4ca5-922f-21e3575db838",
+                ],
+                mesh: Some((
+                    name: "panel2",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 2.0,
+                        z: 4.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 0.05,
+                            g: 0.05,
+                            b: 0.05,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
             "fbfcd54f-a5b0-4a54-9e06-aa8f3f77d6c4": (
                 id: "fbfcd54f-a5b0-4a54-9e06-aa8f3f77d6c4",
                 inner_joint: Some("f710f016-f871-4f97-a3f1-853fcd61c2e5"),
@@ -353,19 +81,115 @@
                     ),
                 ),
                 name: "pace",
-                outer_joints: [],
+                outer_joints: [
+                    "f0998472-6ef1-4dd7-8528-464827c31139",
+                ],
                 mesh: Some((
                     name: "pace",
                     geometry: Cuboid((
-                        x: 3.0,
+                        x: 2.0,
                         y: 2.0,
-                        z: 2.0,
+                        z: 3.0,
                     )),
                     material: Phong(
                         color: (
                             r: 1.0,
                             g: 1.0,
                             b: 1.0,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
+            "3ddd33f3-ed92-4825-8973-21137aa5fa7b": (
+                id: "3ddd33f3-ed92-4825-8973-21137aa5fa7b",
+                inner_joint: Some("9c8f3658-8d55-4ca5-922f-21e3575db838"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "panel3",
+                outer_joints: [],
+                mesh: Some((
+                    name: "panel3",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 2.0,
+                        z: 4.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 0.05,
+                            g: 0.05,
+                            b: 0.05,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
+            "5b79181c-1c23-406c-a6a4-0b4dea9c1875": (
+                id: "5b79181c-1c23-406c-a6a4-0b4dea9c1875",
+                inner_joint: Some("f0998472-6ef1-4dd7-8528-464827c31139"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "panel1",
+                outer_joints: [
+                    "9d329257-ece4-4e8e-988b-c5dfaf1bf98f",
+                ],
+                mesh: Some((
+                    name: "panel1",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 2.0,
+                        z: 4.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 0.05,
+                            g: 0.05,
+                            b: 0.05,
                             a: 1.0,
                         ),
                         specular_power: 32.0,
@@ -390,6 +214,156 @@
             ),
         },
         joints: {
+            "9d329257-ece4-4e8e-988b-c5dfaf1bf98f": Revolute((
+                common: (
+                    id: "9d329257-ece4-4e8e-988b-c5dfaf1bf98f",
+                    name: "hinge2",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "5b79181c-1c23-406c-a6a4-0b4dea9c1875",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.05,
+                                    y: 1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "b886ea21-0c7c-4c14-b2cd-7ce777929974",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.05,
+                                    y: -1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 1.0,
+                    spring_constant: 0.2,
+                ),
+                state: (
+                    theta: -3.14,
+                    omega: 0.0,
+                ),
+            )),
+            "9c8f3658-8d55-4ca5-922f-21e3575db838": Revolute((
+                common: (
+                    id: "9c8f3658-8d55-4ca5-922f-21e3575db838",
+                    name: "hinge3",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "b886ea21-0c7c-4c14-b2cd-7ce777929974",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: -0.05,
+                                    y: 1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "3ddd33f3-ed92-4825-8973-21137aa5fa7b",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: -0.05,
+                                    y: -1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 1.0,
+                    spring_constant: 0.2,
+                ),
+                state: (
+                    theta: 3.14,
+                    omega: 0.0,
+                ),
+            )),
+            "f0998472-6ef1-4dd7-8528-464827c31139": Revolute((
+                common: (
+                    id: "f0998472-6ef1-4dd7-8528-464827c31139",
+                    name: "hinge1",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "fbfcd54f-a5b0-4a54-9e06-aa8f3f77d6c4",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: 1.0,
+                                    y: 1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "5b79181c-1c23-406c-a6a4-0b4dea9c1875",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: -0.7071067811865475,
+                                    z: 0.0,
+                                    s: 0.7071067811865475,
+                                )),
+                                translation: Cartesian((
+                                    x: -0.05,
+                                    y: -1.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 1.0,
+                    spring_constant: 0.2,
+                ),
+                state: (
+                    theta: 1.57,
+                    omega: 0.0,
+                ),
+            )),
             "f710f016-f871-4f97-a3f1-853fcd61c2e5": Floating((
                 common: (
                     id: "f710f016-f871-4f97-a3f1-853fcd61c2e5",
@@ -469,7 +443,7 @@
             )),
         },
         sensors: {},
-    ),    
+    ),
     "2pend": (
         algorithm: ArticulatedBody,
         base: Some((
@@ -484,31 +458,6 @@
             ],
         )),
         bodies: {
-            "687d0bb1-8148-449e-97e2-de6b80139158": (
-                id: "687d0bb1-8148-449e-97e2-de6b80139158",
-                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b2",
-                outer_joints: [],
-                mesh: None,
-                gravity: [],
-                sensors: [],
-            ),
             "cb458608-05b9-4155-9562-fa2d3529a94d": (
                 id: "cb458608-05b9-4155-9562-fa2d3529a94d",
                 inner_joint: Some("12a30e81-2a03-4a5d-92b2-381ea996588e"),
@@ -532,6 +481,31 @@
                 outer_joints: [
                     "a4a09acd-8032-4636-ac65-a91b82031efc",
                 ],
+                mesh: None,
+                gravity: [],
+                sensors: [],
+            ),
+            "687d0bb1-8148-449e-97e2-de6b80139158": (
+                id: "687d0bb1-8148-449e-97e2-de6b80139158",
+                inner_joint: Some("a4a09acd-8032-4636-ac65-a91b82031efc"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b2",
+                outer_joints: [],
                 mesh: None,
                 gravity: [],
                 sensors: [],
@@ -645,6 +619,126 @@
                 state: (
                     theta: 1.0,
                     omega: 0.0,
+                ),
+            )),
+        },
+        sensors: {},
+    ),
+    "floater": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
+            name: "base",
+            is_earth: false,
+            outer_joints: [
+                "a9922274-a992-4bee-97e4-135558e1b8c9",
+            ],
+            gravity: [],
+        )),
+        bodies: {
+            "c7139c4b-b1ea-466b-83cc-33a9da87d2e5": (
+                id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
+                inner_joint: Some("a9922274-a992-4bee-97e4-135558e1b8c9"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b",
+                outer_joints: [],
+                mesh: None,
+                gravity: [],
+                sensors: [],
+            ),
+        },
+        gravities: {},
+        joints: {
+            "a9922274-a992-4bee-97e4-135558e1b8c9": Floating((
+                common: (
+                    id: "a9922274-a992-4bee-97e4-135558e1b8c9",
+                    name: "f",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: ((
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                ), (
+                    constant_force: 0.0,
+                    damping: 0.0,
+                    spring_constant: 0.0,
+                )),
+                state: (
+                    q: (
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        s: 1.0,
+                    ),
+                    w: (0.0, 0.0, 0.1),
+                    r: (0.0, 0.0, 0.0),
+                    v: (0.0, 0.0, 0.0),
                 ),
             )),
         },
@@ -791,126 +885,6 @@
         },
         sensors: {},
     ),
-    "floater": (
-        algorithm: ArticulatedBody,
-        base: Some((
-            id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
-            name: "base",
-            is_earth: false,
-            outer_joints: [
-                "a9922274-a992-4bee-97e4-135558e1b8c9",
-            ],
-            gravity: [],
-        )),
-        bodies: {
-            "c7139c4b-b1ea-466b-83cc-33a9da87d2e5": (
-                id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
-                inner_joint: Some("a9922274-a992-4bee-97e4-135558e1b8c9"),
-                mass_properties: (
-                    center_of_mass: (
-                        cmx: 0.0,
-                        cmy: 0.0,
-                        cmz: 0.0,
-                    ),
-                    mass: 1.0,
-                    inertia: (
-                        ixx: 1.0,
-                        ixy: 0.0,
-                        ixz: 0.0,
-                        iyy: 1.0,
-                        iyz: 0.0,
-                        izz: 1.0,
-                    ),
-                ),
-                name: "b",
-                outer_joints: [],
-                mesh: None,
-                gravity: [],
-                sensors: [],
-            ),
-        },
-        gravities: {},
-        joints: {
-            "a9922274-a992-4bee-97e4-135558e1b8c9": Floating((
-                common: (
-                    id: "a9922274-a992-4bee-97e4-135558e1b8c9",
-                    name: "f",
-                    connection: (
-                        inner_body: Some((
-                            body_id: "7775610b-ff87-467d-bd03-2b0970eb9c87",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                )),
-                            ),
-                        )),
-                        outer_body: Some((
-                            body_id: "c7139c4b-b1ea-466b-83cc-33a9da87d2e5",
-                            transform: (
-                                rotation: Quaternion((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                    s: 1.0,
-                                )),
-                                translation: Cartesian((
-                                    x: 0.0,
-                                    y: 0.0,
-                                    z: 0.0,
-                                )),
-                            ),
-                        )),
-                    ),
-                    mass_properties: None,
-                ),
-                parameters: ((
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ), (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ), (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ), (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ), (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                ), (
-                    constant_force: 0.0,
-                    damping: 0.0,
-                    spring_constant: 0.0,
-                )),
-                state: (
-                    q: (
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                        s: 1.0,
-                    ),
-                    w: (0.0, 0.0, 0.1),
-                    r: (0.0, 0.0, 0.0),
-                    v: (0.0, 0.0, 0.0),
-                ),
-            )),
-        },
-        sensors: {},
-    ),
     "pend": (
         algorithm: ArticulatedBody,
         base: Some((
@@ -1008,6 +982,326 @@
                 ),
                 state: (
                     theta: 1.0,
+                    omega: 0.0,
+                ),
+            )),
+        },
+        sensors: {},
+    ),
+    "3pend": (
+        algorithm: ArticulatedBody,
+        base: Some((
+            id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+            name: "base",
+            is_earth: false,
+            outer_joints: [
+                "b3bd38d7-16f0-4478-9c52-625164a73a19",
+            ],
+            gravity: [
+                "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
+            ],
+        )),
+        bodies: {
+            "cb9f433d-1b19-4cb2-b242-511d2a8f1d69": (
+                id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                inner_joint: Some("b3bd38d7-16f0-4478-9c52-625164a73a19"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b1",
+                outer_joints: [
+                    "c1df79ba-859c-40b9-b072-b659c9a96fb6",
+                ],
+                mesh: Some((
+                    name: "b1",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 0.1,
+                        z: 1.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 1.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
+            "322e0d37-6831-44b4-903e-7341dacc949b": (
+                id: "322e0d37-6831-44b4-903e-7341dacc949b",
+                inner_joint: Some("c1df79ba-859c-40b9-b072-b659c9a96fb6"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b2",
+                outer_joints: [
+                    "6626c60b-d583-4e8b-936e-b38015571a69",
+                ],
+                mesh: Some((
+                    name: "b2",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 0.1,
+                        z: 1.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 0.0,
+                            g: 0.0,
+                            b: 1.0,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
+            "42ba7228-82ba-473a-8c75-eb20d796168b": (
+                id: "42ba7228-82ba-473a-8c75-eb20d796168b",
+                inner_joint: Some("6626c60b-d583-4e8b-936e-b38015571a69"),
+                mass_properties: (
+                    center_of_mass: (
+                        cmx: 0.0,
+                        cmy: 0.0,
+                        cmz: 0.0,
+                    ),
+                    mass: 1.0,
+                    inertia: (
+                        ixx: 1.0,
+                        ixy: 0.0,
+                        ixz: 0.0,
+                        iyy: 1.0,
+                        iyz: 0.0,
+                        izz: 1.0,
+                    ),
+                ),
+                name: "b3",
+                outer_joints: [],
+                mesh: Some((
+                    name: "b3",
+                    geometry: Cuboid((
+                        x: 0.1,
+                        y: 0.1,
+                        z: 1.0,
+                    )),
+                    material: Phong(
+                        color: (
+                            r: 0.0,
+                            g: 1.0,
+                            b: 0.0,
+                            a: 1.0,
+                        ),
+                        specular_power: 32.0,
+                    ),
+                    state: (
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                    ),
+                    texture: None,
+                )),
+                gravity: [],
+                sensors: [],
+            ),
+        },
+        gravities: {
+            "d1b2b2c7-b89b-43a0-98af-63ca92c24e14": (
+                id: "d1b2b2c7-b89b-43a0-98af-63ca92c24e14",
+                name: "g",
+                gravity: Constant((
+                    value: (0.0, 0.0, -9.8),
+                )),
+            ),
+        },
+        joints: {
+            "b3bd38d7-16f0-4478-9c52-625164a73a19": Revolute((
+                common: (
+                    id: "b3bd38d7-16f0-4478-9c52-625164a73a19",
+                    name: "r1",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "05949e7c-d496-4fa9-84aa-1c42d9ef0ea1",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 1.5,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.1,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 1.0,
+                    omega: 0.0,
+                ),
+            )),
+            "c1df79ba-859c-40b9-b072-b659c9a96fb6": Revolute((
+                common: (
+                    id: "c1df79ba-859c-40b9-b072-b659c9a96fb6",
+                    name: "r2",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "cb9f433d-1b19-4cb2-b242-511d2a8f1d69",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: -0.5,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "322e0d37-6831-44b4-903e-7341dacc949b",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.1,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 0.0,
+                    omega: 0.0,
+                ),
+            )),
+            "6626c60b-d583-4e8b-936e-b38015571a69": Revolute((
+                common: (
+                    id: "6626c60b-d583-4e8b-936e-b38015571a69",
+                    name: "r3",
+                    connection: (
+                        inner_body: Some((
+                            body_id: "322e0d37-6831-44b4-903e-7341dacc949b",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: -0.5,
+                                )),
+                            ),
+                        )),
+                        outer_body: Some((
+                            body_id: "42ba7228-82ba-473a-8c75-eb20d796168b",
+                            transform: (
+                                rotation: Quaternion((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.0,
+                                    s: 1.0,
+                                )),
+                                translation: Cartesian((
+                                    x: 0.0,
+                                    y: 0.0,
+                                    z: 0.5,
+                                )),
+                            ),
+                        )),
+                    ),
+                    mass_properties: None,
+                ),
+                parameters: (
+                    constant_force: 0.0,
+                    damping: 0.1,
+                    spring_constant: 0.0,
+                ),
+                state: (
+                    theta: 0.0,
                     omega: 0.0,
                 ),
             )),
