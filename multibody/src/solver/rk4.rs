@@ -60,6 +60,9 @@ pub fn solve_fixed_rk4(
     let mut k4 = x0.clone();
     let mut tmp = x0.clone();
 
+    //update body states based on initial joint states so that things like gravity can be calculated on first pass
+    sys.update_body_states();
+
     for i in 0..result_length {
         // calculate all secondary states with the current state
         // only joint states are required to integrate, but
