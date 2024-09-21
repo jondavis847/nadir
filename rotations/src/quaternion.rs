@@ -1,5 +1,5 @@
 use super::*;
-use nalgebra::{Vector3, Vector4};
+use nalgebra::{Matrix3, Vector3, Vector4};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -321,8 +321,8 @@ impl<'a> AddAssign<&'a Quaternion> for Quaternion {
         self.x += rhs.x;
         self.y += rhs.y;
         self.z += rhs.z;
-        self.s += rhs.s;     
-        self.normalize(); // normalize here since this is last step of ODE   
+        self.s += rhs.s;
+        self.normalize(); // normalize here since this is last step of ODE
     }
 }
 
@@ -339,7 +339,7 @@ impl MulAssign<f64> for Quaternion {
         self.x *= rhs;
         self.y *= rhs;
         self.z *= rhs;
-        self.s *= rhs;        
+        self.s *= rhs;
     }
 }
 
@@ -358,7 +358,7 @@ impl From<Vector4<f64>> for Quaternion {
             y: q[1],
             z: q[2],
             s: q[3],
-        }        
+        }
     }
 }
 
@@ -398,7 +398,7 @@ impl From<EulerAngles> for Quaternion {
 
         let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
 
-        match euler_angles.sequence {
+        let q = match euler_angles.sequence {
             EulerSequence::XYZ => Quaternion {
                 x: s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
                 y: c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
@@ -471,7 +471,8 @@ impl From<EulerAngles> for Quaternion {
                 z: c(theta) * s(phi + psi),
                 s: c(theta) * c(phi + psi),
             },
-        }
+        };
+        q.normalize() // normalize here since it's going to be a rotation
     }
 }
 
@@ -489,6 +490,8 @@ impl From<RotationMatrix> for Quaternion {
         let m = matrix.get_value();
         let trace = m[(0, 0)] + m[(1, 1)] + m[(2, 2)];
 
+        // this is derived from markley
+        /*
         if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
             Quaternion {
@@ -522,6 +525,31 @@ impl From<RotationMatrix> for Quaternion {
                 z: 0.25 * s,
             }
         }
+        */
+        // this is just copy paste from featherstone
+        let v = [
+            (m[(2, 1)] - m[(1, 2)]) * 0.5,
+            (m[(0, 2)] - m[(2, 0)]) * 0.5,
+            (m[(1, 0)] - m[(0, 1)]) * 0.5,
+        ];
+
+        let mut q = if trace > 0.0 {
+            Quaternion::new(v[0], v[1], v[2], (trace + 1.0) / 2.0)
+        } else {
+            let mut m = m - (trace - 1.0) / 2.0 * Matrix3::identity();
+            m = m + m.transpose();
+            if m[(0, 0)] >= m[(1, 1)] && m[(0, 0)] >= m[(2, 2)] {
+                Quaternion::new(m[(0, 0)], m[(1, 0)], m[(2, 0)], 2.0 * v[0])
+            } else if m[(1, 1)] >= m[(2, 2)] {
+                Quaternion::new(m[(0, 1)], m[(1, 1)], m[(2, 1)], 2.0 * v[1])
+            } else {
+                Quaternion::new(m[(0, 2)], m[(1, 2)], m[(2, 2)], 2.0 * v[2])
+            }
+        };
+        if q.s < 0.0 {
+            q = -q
+        };
+        q.normalize()
     }
 }
 

@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
-use rotations::{quaternion::Quaternion, RotationTrait};
-use serde::{Serialize,Deserialize};
-use spatial_algebra::{MotionVector, SpatialVector, Velocity};
+use rotations::quaternion::Quaternion;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::{Duration, SystemTime};
@@ -11,13 +10,13 @@ use utilities::format_duration;
 use polars::prelude::*;
 
 use crate::system_sim::MultibodySystemSim;
-use crate::{
-    body::{BodyResult, BodySim},
-    joint::{
-        joint_sim::{JointSim, JointSimTrait},
-        JointResult,
-    },
-};
+use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
+
+pub trait MultibodyResultTrait {
+    fn get_state_names(&self) -> Vec<&'static str>;
+    fn get_result_entry(&self) -> ResultEntry;
+    fn add_to_dataframe(&self, df: &mut DataFrame);
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MultibodyResult {
@@ -39,301 +38,10 @@ impl MultibodyResult {
         df.with_column(t).unwrap();
 
         match component {
-            ResultEntry::Joint(joint) => match joint {
-                JointResult::Floating(floating) => {                      
-
-                    let accel_x = Series::new("accel_x", floating.a.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let accel_y = Series::new("accel_y", floating.a.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let accel_z = Series::new("accel_z", floating.a.iter().map(|f| f[2]).collect::<Vec<f64>>());
-                    let angular_rate_x =
-                        Series::new("angular_rate_x", floating.w.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let angular_rate_y =
-                        Series::new("angular_rate_y", floating.w.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let angular_rate_z =
-                        Series::new("angular_rate_z", floating.w.iter().map(|f| f[2]).collect::<Vec<f64>>());
-                    let angular_accel_x = Series::new(
-                        "angular_accel_x",
-                        floating.aa.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-                    );
-                    let angular_accel_y = Series::new(
-                        "angular_accel_y",
-                        floating.aa.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-                    );
-                    let angular_accel_z = Series::new(
-                        "angular_accel_z",
-                        floating.aa.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-                    );
-                    let attitude_x =
-                        Series::new("attitude_x", floating.q.iter().map(|q| q.x).collect::<Vec<f64>>());
-                    let attitude_y =
-                        Series::new("attitude_y", floating.q.iter().map(|q| q.y).collect::<Vec<f64>>());
-                    let attitude_z =
-                        Series::new("attitude_z", floating.q.iter().map(|q| q.z).collect::<Vec<f64>>());
-                    let attitude_s =
-                        Series::new("attitude_s", floating.q.iter().map(|q| q.s).collect::<Vec<f64>>());
-                    let position_x =
-                        Series::new("position_x", floating.r.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let position_y =
-                        Series::new("position_y", floating.r.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let position_z =
-                        Series::new("position_z", floating.r.iter().map(|f| f[2]).collect::<Vec<f64>>());
-                    let velocity_x =
-                        Series::new("velocity_x", floating.v.iter().map(|f| f[0]).collect::<Vec<f64>>());
-                    let velocity_y =
-                        Series::new("velocity_y", floating.v.iter().map(|f| f[1]).collect::<Vec<f64>>());
-                    let velocity_z =
-                        Series::new("velocity_z", floating.v.iter().map(|f| f[2]).collect::<Vec<f64>>());
-
-                    df.with_column(accel_x).unwrap();
-                    df.with_column(accel_y).unwrap();
-                    df.with_column(accel_z).unwrap();
-                    df.with_column(angular_rate_x).unwrap();
-                    df.with_column(angular_rate_y).unwrap();
-                    df.with_column(angular_rate_z).unwrap();
-                    df.with_column(angular_accel_x).unwrap();
-                    df.with_column(angular_accel_y).unwrap();
-                    df.with_column(angular_accel_z).unwrap();
-                    df.with_column(attitude_x).unwrap();
-                    df.with_column(attitude_y).unwrap();
-                    df.with_column(attitude_z).unwrap();
-                    df.with_column(attitude_s).unwrap();
-                    df.with_column(position_x).unwrap();
-                    df.with_column(position_y).unwrap();
-                    df.with_column(position_z).unwrap();
-                    df.with_column(velocity_x).unwrap();
-                    df.with_column(velocity_y).unwrap();
-                    df.with_column(velocity_z).unwrap();
-                }
-                JointResult::Revolute(revolute) => {
-                    let theta = Series::new("theta", revolute.theta.clone());
-                    let omega = Series::new("omega", revolute.omega.clone());
-                    let accel = Series::new("accel", revolute.angular_accel.clone());
-                    let tau = Series::new("internal_torque", revolute.internal_torque.clone());
-                    df.with_column(theta).unwrap();
-                    df.with_column(omega).unwrap();
-                    df.with_column(accel).unwrap();
-                    df.with_column(tau).unwrap();
-                }
-                JointResult::Prismatic(prismatic) => {
-                    let position = Series::new("position", prismatic.position.clone());
-                    let velocity = Series::new("velocity", prismatic.velocity.clone());
-                    let accel = Series::new("accel", prismatic.acceleration.clone());
-                    let tau = Series::new("internal_force", prismatic.internal_force.clone());
-                    df.with_column(position).unwrap();
-                    df.with_column(velocity).unwrap();
-                    df.with_column(accel).unwrap();
-                    df.with_column(tau).unwrap();
-                } //_ => panic!("Invalid joint type"),
-            },
-            ResultEntry::Body(body) => {
-                let position_base_x = Series::new(
-                    "position_base_x",
-                    body.position_base
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<f64>>(),
-                );
-                let position_base_y = Series::new(
-                    "position_base_y",
-                    body.position_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
-                );
-                let position_base_z = Series::new(
-                    "position_base_z",
-                    body.position_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
-                );
-
-                let velocity_base_x = Series::new(
-                    "velocity_base_x",
-                    body.velocity_base.iter().map(|v| v[0]).collect::<Vec<_>>(),
-                );
-                let velocity_base_y = Series::new(
-                    "velocity_base_y",
-                    body.velocity_base.iter().map(|v| v[1]).collect::<Vec<_>>(),
-                );
-                let velocity_base_z = Series::new(
-                    "velocity_base_z",
-                    body.velocity_base.iter().map(|v| v[2]).collect::<Vec<_>>(),
-                );
-
-                let acceleration_base_x = Series::new(
-                    "accel_base_x",
-                    body.acceleration_base
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let acceleration_base_y = Series::new(
-                    "accel_base_y",
-                    body.acceleration_base
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let acceleration_base_z = Series::new(
-                    "accel_base_z",
-                    body.acceleration_base
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                let acceleration_body_x = Series::new(
-                    "accel_body_x",
-                    body.acceleration_body
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let acceleration_body_y = Series::new(
-                    "accel_body_y",
-                    body.acceleration_body
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let acceleration_body_z = Series::new(
-                    "accel_body_z",
-                    body.acceleration_body
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                let angular_accel_body_x = Series::new(
-                    "angular_accel_body_x",
-                    body.angular_accel_body
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let angular_accel_body_y = Series::new(
-                    "angular_accel_body_y",
-                    body.angular_accel_body
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let angular_accel_body_z = Series::new(
-                    "angular_accel_body_z",
-                    body.angular_accel_body
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                let angular_rate_body_x = Series::new(
-                    "angular_rate_body_x",
-                    body.angular_rate_body
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let angular_rate_body_y = Series::new(
-                    "angular_rate_body_y",
-                    body.angular_rate_body
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let angular_rate_body_z = Series::new(
-                    "angular_rate_body_z",
-                    body.angular_rate_body
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                let attitude_base_s = Series::new(
-                    "attitude_base_s",
-                    body.attitude_base.iter().map(|q| q.s).collect::<Vec<_>>(),
-                );
-                let attitude_base_x = Series::new(
-                    "attitude_base_x",
-                    body.attitude_base.iter().map(|q| q.x).collect::<Vec<_>>(),
-                );
-                let attitude_base_y = Series::new(
-                    "attitude_base_y",
-                    body.attitude_base.iter().map(|q| q.y).collect::<Vec<_>>(),
-                );
-                let attitude_base_z = Series::new(
-                    "attitude_base_z",
-                    body.attitude_base.iter().map(|q| q.z).collect::<Vec<_>>(),
-                );
-
-                let external_force_body_x = Series::new(
-                    "external_force_body_x",
-                    body.external_force_body
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let external_force_body_y = Series::new(
-                    "external_force_body_y",
-                    body.external_force_body
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let external_force_body_z = Series::new(
-                    "external_force_body_z",
-                    body.external_force_body
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                let external_torque_body_x = Series::new(
-                    "external_torque_body_x",
-                    body.external_torque_body
-                        .iter()
-                        .map(|v| v[0])
-                        .collect::<Vec<_>>(),
-                );
-                let external_torque_body_y = Series::new(
-                    "external_torque_body_y",
-                    body.external_torque_body
-                        .iter()
-                        .map(|v| v[1])
-                        .collect::<Vec<_>>(),
-                );
-                let external_torque_body_z = Series::new(
-                    "external_torque_body_z",
-                    body.external_torque_body
-                        .iter()
-                        .map(|v| v[2])
-                        .collect::<Vec<_>>(),
-                );
-
-                df.with_column(position_base_x).unwrap();
-                df.with_column(position_base_y).unwrap();
-                df.with_column(position_base_z).unwrap();
-                df.with_column(velocity_base_x).unwrap();
-                df.with_column(velocity_base_y).unwrap();
-                df.with_column(velocity_base_z).unwrap();
-                df.with_column(acceleration_base_x).unwrap();
-                df.with_column(acceleration_base_y).unwrap();
-                df.with_column(acceleration_base_z).unwrap();
-                df.with_column(acceleration_body_x).unwrap();
-                df.with_column(acceleration_body_y).unwrap();
-                df.with_column(acceleration_body_z).unwrap();
-                df.with_column(angular_accel_body_x).unwrap();
-                df.with_column(angular_accel_body_y).unwrap();
-                df.with_column(angular_accel_body_z).unwrap();
-                df.with_column(angular_rate_body_x).unwrap();
-                df.with_column(angular_rate_body_y).unwrap();
-                df.with_column(angular_rate_body_z).unwrap();
-                df.with_column(attitude_base_s).unwrap();
-                df.with_column(attitude_base_x).unwrap();
-                df.with_column(attitude_base_y).unwrap();
-                df.with_column(attitude_base_z).unwrap();
-                df.with_column(external_force_body_x).unwrap();
-                df.with_column(external_force_body_y).unwrap();
-                df.with_column(external_force_body_z).unwrap();
-                df.with_column(external_torque_body_x).unwrap();
-                df.with_column(external_torque_body_y).unwrap();
-                df.with_column(external_torque_body_z).unwrap();
-            }
-            _ => panic!("Invalid component type"),
+            ResultEntry::Joint(joint) => joint.add_to_dataframe(&mut df),
+            ResultEntry::Body(body) => body.add_to_dataframe(&mut df),
+            ResultEntry::Sensor(sensor) => sensor.add_to_dataframe(&mut df),       
+            ResultEntry::VecF64(_) => todo!("this is only for time vector, which was alreay added to df. this should probably just be a result type"),
         }
         df
     }
@@ -358,83 +66,12 @@ impl MultibodyResult {
         df.select(columns).unwrap()
     }
 
-    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
+    pub fn get_component_states(&self, component_name: &str) -> Vec<&'static str> {
         let component = self.result.get(component_name).unwrap();
         match component {
-            ResultEntry::Body(_) => {
-                vec![
-                    "accel_base_x".to_string(),
-                    "accel_base_y".to_string(),
-                    "accel_base_z".to_string(),
-                    "accel_body_x".to_string(),
-                    "acceleration_body_y".to_string(),
-                    "acceleration_body_z".to_string(),
-                    "angular_accel_body_x".to_string(),
-                    "angular_accel_body_y".to_string(),
-                    "angular_accel_body_z".to_string(),
-                    "angular_rate_body_x".to_string(),
-                    "angular_rate_body_y".to_string(),
-                    "angular_rate_body_z".to_string(),
-                    "attitude_base_s".to_string(),
-                    "attitude_base_x".to_string(),
-                    "attitude_base_y".to_string(),
-                    "attitude_base_z".to_string(),
-                    "external_force_body_x".to_string(),
-                    "external_force_body_y".to_string(),
-                    "external_force_body_z".to_string(),
-                    "external_torque_body_x".to_string(),
-                    "external_torque_body_y".to_string(),
-                    "external_torque_body_z".to_string(),
-                    "position_base_x".to_string(),
-                    "position_base_y".to_string(),
-                    "position_base_z".to_string(),
-                    "velocity_base_x".to_string(),
-                    "velocity_base_y".to_string(),
-                    "velocity_base_z".to_string(),
-                ]
-            }
-            ResultEntry::Joint(joint) => {
-                match joint {
-                    JointResult::Floating(_) => {
-                        // these are not labeled as body/base frame since they are all just in the joint frame
-                        vec![
-                            "accel_x".to_string(),
-                            "accel_y".to_string(),
-                            "accel_z".to_string(),
-                            "angular_rate_x".to_string(),
-                            "angular_rate_y".to_string(),
-                            "angular_rate_z".to_string(),
-                            "angular_accel_x".to_string(),
-                            "angular_accel_y".to_string(),
-                            "angular_accel_z".to_string(),
-                            "attitude_x".to_string(),
-                            "attitude_y".to_string(),
-                            "attitude_z".to_string(),
-                            "attitude_s".to_string(),
-                            "position_x".to_string(),
-                            "position_y".to_string(),
-                            "position_z".to_string(),
-                            "velocity_x".to_string(),
-                            "velocity_y".to_string(),
-                            "velocity_z".to_string(),
-                        ]
-                    } //_ => panic!("Invalid joint type"),
-                    JointResult::Revolute(_) => {
-                        vec![
-                            "accel".to_string(),
-                            "omega".to_string(),
-                            "theta".to_string(),
-                        ]
-                    }
-                    JointResult::Prismatic(_) => {
-                        vec![
-                            "accel".to_string(),
-                            "position".to_string(),
-                            "velocity".to_string(),
-                        ]
-                    } //_ => panic!("Invalid joint type"),
-                }
-            }
+            ResultEntry::Body(result) => result.get_state_names(),
+            ResultEntry::Joint(result) => result.get_state_names(),
+            ResultEntry::Sensor(result) => result.get_state_names(),
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
         }
     }
@@ -514,11 +151,12 @@ impl MultibodyResult {
     }
 }
 
-#[derive(Debug, Clone,Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResultEntry {
     Body(BodyResult),
     Joint(JointResult),
     VecF64(Vec<f64>),
+    Sensor(SensorResult),
 }
 
 impl fmt::Debug for MultibodyResult {
@@ -546,45 +184,5 @@ impl fmt::Debug for MultibodyResult {
         }
 
         Ok(())
-    }
-}
-
-pub fn update_body_states(bodies: &mut Vec<BodySim>, joints: &Vec<JointSim>) {
-    for i in 0..bodies.len() {
-        let body = &mut bodies[i];
-        let inner_joint = &joints[i];
-        let transforms = inner_joint.get_transforms();
-        let body_from_joint = transforms.ob_from_jof;
-
-        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
-        let joint_a = inner_joint.get_a_jof();
-
-        let body_a = body_from_joint * *joint_a;        
-        // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
-        let body_a_in_base = base_from_body * body_a;
-        //let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
-        //let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
-        //let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
-            //body_a_in_base_rotation,
-            //body_a_in_base_translation,
-        //)));        
-        let joint_v = inner_joint.get_v();
-        let body_v = body_from_joint * *joint_v;        
-        // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
-        let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
-        let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
-        let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
-            body_v_in_base_rotation,
-            body_v_in_base_translation,
-        )));        
-        body.state.acceleration_body = *body_a.translation();
-        body.state.acceleration_base = *body_a_in_base.translation();
-        body.state.angular_accel_body = *body_a.rotation();
-        body.state.velocity_base = *body_v_in_base.translation();
-        body.state.angular_rate_body = *body_v.rotation();
-
-        let body_from_base = base_from_body.0.inv();
-        body.state.position_base = body_from_base.translation.vec();        
-        body.state.attitude_base = Quaternion::from(body_from_base.rotation);
     }
 }

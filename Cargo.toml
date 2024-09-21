@@ -1,9 +1,9 @@
 [workspace]
 members = [ "aerospace", "gadgt_animation", "benchmarks", "gadgt",    
-    "coordinate_systems", "differential_equations","gui", "mass_properties",
+    "coordinate_systems", "differential_equations", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
-    "transforms", "utilities",    
+    "transforms", "utilities", "color", "gadgt_3d",    
 ]
 resolver = "2"
 

@@ -1,41 +1,25 @@
-use iced::widget::shader::wgpu;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use iced::widget::shader::wgpu::Buffer;
 
-// A custom buffer container for dynamic resizing.
-pub struct DynamicBuffer {
-    pub raw: wgpu::Buffer,
-    label: &'static str,
-    size: u64,
-    usage: wgpu::BufferUsages,
+struct BufferManager {
+    buffers: HashMap<TypeId, Buffer>,
 }
 
-impl DynamicBuffer {
-    pub fn new(
-        device: &wgpu::Device,
-        label: &'static str,
-        size: u64,
-        usage: wgpu::BufferUsages,
-    ) -> Self {
-        Self {
-            raw: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label),
-                size,
-                usage,
-                mapped_at_creation: false,
-            }),
-            label,
-            size,
-            usage,
+impl BufferManager {
+    fn new() -> Self {
+        BufferManager {
+            buffers: HashMap::new(),
         }
     }
 
-    pub fn resize(&mut self, device: &wgpu::Device, new_size: u64) {
-        if new_size > self.size {
-            self.raw = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(self.label),
-                size: new_size,
-                usage: self.usage,
-                mapped_at_creation: false,
-            });
-        }
+    fn insert<T: 'static>(&mut self, buffer: Buffer) {
+        let type_id = TypeId::of::<T>();
+        self.buffers.insert(type_id, buffer);
+    }
+
+    fn get<T: 'static>(&self) -> Option<&Buffer> {
+        let type_id = TypeId::of::<T>();
+        self.buffers.get(&type_id)
     }
 }

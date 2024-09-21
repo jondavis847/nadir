@@ -1,4 +1,4 @@
-use crate::component::MultibodyComponent;
+use crate::{component::MultibodyComponent, sensor::Sensor};
 
 use super::{
     aerospace::MultibodyGravity,
@@ -10,7 +10,7 @@ use super::{
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
@@ -22,6 +22,7 @@ pub struct MultibodySystem {
     pub bodies: HashMap<Uuid, Body>,
     pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
+    pub sensors: HashMap<Uuid, Sensor>,
 }
 
 impl MultibodySystem {
@@ -32,6 +33,7 @@ impl MultibodySystem {
             bodies: HashMap::new(),
             gravities: HashMap::new(),
             joints: HashMap::new(),
+            sensors: HashMap::new(),
         }
     }
 
@@ -65,15 +67,24 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn add_gravity(&mut self, gravity: MultibodyGravity) -> Result<(), MultibodyErrors>{
-         // Return if a component with this name already exists
-         if self.check_name_taken(gravity.get_name()) {
+    pub fn add_gravity(&mut self, gravity: MultibodyGravity) -> Result<(), MultibodyErrors> {
+        // Return if a component with this name already exists
+        if self.check_name_taken(gravity.get_name()) {
             return Err(MultibodyErrors::NameTaken);
         }
         self.gravities.insert(*gravity.get_id(), gravity);
         Ok(())
     }
 
+    pub fn add_sensor(&mut self, sensor: Sensor) -> Result<(), MultibodyErrors> {
+        // Return if a component with this name already exists
+        if self.check_name_taken(sensor.get_name()) {
+            return Err(MultibodyErrors::NameTaken);
+        }
+
+        self.sensors.insert(*sensor.get_id(), sensor);
+        Ok(())
+    }
     pub fn connect_gravity(
         &mut self,
         gravity_id: &Uuid,
@@ -175,6 +186,14 @@ impl MultibodySystem {
                     }
                 }
 
+                // body specific sensors
+                for (_, sensor) in &mut self.sensors {
+                    if sensor.get_name() == from_name {
+                        sensor.connect_to_body(body, transform.unwrap())?;
+                        return Ok(());
+                    }
+                }
+
                 // no valid connections found
                 return Err(MultibodyErrors::InvalidConnection);
             }
@@ -185,11 +204,11 @@ impl MultibodySystem {
     }
 
     pub fn delete(&mut self, name: &str) -> Result<(), MultibodyErrors> {
-        if let Some((component,id)) = self.get_from_name(name) {
+        if let Some((component, id)) = self.get_from_name(name) {
             match component {
                 MultibodyComponent::Base => {
-                    // remove the base from any connected components 
-                    self.joints.iter_mut().for_each(|(id,joint)| {
+                    // remove the base from any connected components
+                    self.joints.iter_mut().for_each(|(id, joint)| {
                         if let Some(inner_connection) = &joint.get_connections().inner_body {
                             if inner_connection.body_id == *id {
                                 joint.delete_inner_body_id();
@@ -200,8 +219,8 @@ impl MultibodySystem {
                     Ok(())
                 }
                 MultibodyComponent::Body => {
-                    // remove the body from any connected components 
-                    self.joints.iter_mut().for_each(|(id,joint)| {
+                    // remove the body from any connected components
+                    self.joints.iter_mut().for_each(|(id, joint)| {
                         if let Some(connection) = &joint.get_connections().inner_body {
                             if connection.body_id == *id {
                                 joint.delete_inner_body_id();
@@ -217,18 +236,18 @@ impl MultibodySystem {
                     Ok(())
                 }
                 MultibodyComponent::Joint => {
-                    // remove the joint from any connected components 
+                    // remove the joint from any connected components
                     if let Some(joint) = self.joints.get_mut(&id) {
                         if let Some(connection) = &joint.get_connections().inner_body {
-                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                            self.bodies.iter_mut().for_each(|(body_id, body)| {
                                 if connection.body_id == *body_id {
                                     body.delete_outer_joint(&id);
                                 }
-                                });
-                            }
-                        
+                            });
+                        }
+
                         if let Some(connection) = &joint.get_connections().outer_body {
-                            self.bodies.iter_mut().for_each(|(body_id,body)| {                                
+                            self.bodies.iter_mut().for_each(|(body_id, body)| {
                                 if connection.body_id == *body_id {
                                     body.delete_inner_joint();
                                 }
@@ -240,6 +259,10 @@ impl MultibodySystem {
                 }
                 MultibodyComponent::Gravity => {
                     self.delete_gravity(&id);
+                    Ok(())
+                }
+                MultibodyComponent::Sensor => {
+                    self.delete_sensor(&id);
                     Ok(())
                 }
             }
@@ -269,6 +292,11 @@ impl MultibodySystem {
                 return Some((MultibodyComponent::Gravity, *gravity.get_id()));
             }
         }
+        for (_, sensor) in &self.sensors {
+            if sensor.get_name() == name {
+                return Some((MultibodyComponent::Sensor, *sensor.get_id()));
+            }
+        }
         None
     }
 
@@ -280,6 +308,13 @@ impl MultibodySystem {
             body.gravity.retain(|&id| id != *gravity_id);
         }
         self.gravities.remove(gravity_id);
+    }
+
+    pub fn delete_sensor(&mut self, sensor_id: &Uuid) {
+        for (_, body) in &mut self.bodies {
+            body.sensors.retain(|&id| id != *sensor_id);
+        }
+        self.sensors.remove(sensor_id);
     }
 
     fn check_name_taken(&self, name: &str) -> bool {
@@ -301,10 +336,28 @@ impl MultibodySystem {
             return true;
         }
 
+        if self.gravities.iter().any(|(_, g)| g.get_name() == name) {
+            return true;
+        }
+
+        if self
+            .sensors
+            .iter()
+            .any(|(_, sensor)| sensor.get_name() == name)
+        {
+            return true;
+        }
+
         false
     }
 
-    pub fn simulate(&self, name: String, tstart: f64, tstop: f64, dt: f64) -> Result<MultibodyResult, MultibodyErrors> {
+    pub fn simulate(
+        &self,
+        name: String,
+        tstart: f64,
+        tstop: f64,
+        dt: f64,
+    ) -> Result<MultibodyResult, MultibodyErrors> {
         let mut sim = MultibodySystemSim::try_from(self.clone())?;
         sim.simulate(name, tstart, tstop, dt)
     }
@@ -374,7 +427,7 @@ impl MultibodySystem {
                     return Err(MultibodyErrors::BodyNotFound);
                 }
             }
-        }        
+        }
         Ok(())
     }
 }

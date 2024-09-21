@@ -73,7 +73,7 @@ impl Primitive for ScenePrimitive {
         target_size: Size<u32>,
         _scale_factor: f32,
         storage: &mut Storage,
-    ) {
+    ) {        
         if !storage.has::<Pipeline>() {
             storage.store(Pipeline::new(device, queue, format, target_size));
         }

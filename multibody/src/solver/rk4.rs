@@ -1,12 +1,10 @@
-use crate::{    
-    joint::{
-        joint_sim::{JointSim, JointSimTrait},
-        joint_state::JointStates,        
-        JointResult,
-    },
-    result::{update_body_states, ResultEntry},
+use crate::{
+    body::BodyResult,
+    joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
+    result::{MultibodyResultTrait, ResultEntry},
+    sensor::{SensorResult, SensorTrait},
     system_sim::MultibodySystemSim,
-    MultibodyErrors,
+    MultibodyErrors, MultibodyTrait,
 };
 use std::collections::HashMap;
 
@@ -19,6 +17,27 @@ pub fn solve_fixed_rk4(
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };
+
+    // initialize body results
+    let mut body_results: Vec<BodyResult> = sys
+        .bodies
+        .iter()
+        .map(|body| body.initialize_result())
+        .collect();
+
+    // initialize joint results
+    let mut joint_results: Vec<JointResult> = sys
+        .joints
+        .iter()
+        .map(|joint| joint.initialize_result())
+        .collect();
+
+    // initialize sensor results
+    let mut sensor_results: Vec<SensorResult> = sys
+        .sensors
+        .iter()
+        .map(|(_, sensor)| sensor.initialize_result())
+        .collect();
 
     // Create a vec of JointStates as the initial state
     let x0 = JointStates(sys.joints.iter().map(|joint| joint.get_state()).collect());
@@ -41,17 +60,36 @@ pub fn solve_fixed_rk4(
     let mut k4 = x0.clone();
     let mut tmp = x0.clone();
 
+    //update body states based on initial joint states so that things like gravity can be calculated on first pass
+    sys.update_body_states();
+
     for i in 0..result_length {
         // calculate all secondary states with the current state
-        // i.e. only joint states are required to integrate, but
+        // only joint states are required to integrate, but
         // we want to save things like body states, gravity , etc.
         sys.run(&mut tmp, &x, t);
-        update_body_states(&mut sys.bodies, &sys.joints);
 
         // update the result vectors with the current values
         time[i] = t;
-        sys.joints.iter_mut().for_each(|joint| joint.set_result());
-        sys.bodies.iter_mut().for_each(|body| body.set_result());
+
+        // update body results
+        sys.bodies
+            .iter()
+            .enumerate()
+            .for_each(|(index, body)| body_results[index].update(body));
+
+
+        // update joint results
+        sys.joints
+            .iter()
+            .enumerate()
+            .for_each(|(index, joint)| joint_results[index].update(joint));
+
+        // update sensor results
+        sys.sensors
+            .iter()
+            .enumerate()
+            .for_each(|(index, (_, sensor))| sensor_results[index].update(sensor));
 
         // change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {
@@ -100,37 +138,31 @@ pub fn solve_fixed_rk4(
     }
 
     let mut result_hm = HashMap::<String, ResultEntry>::new();
-    sys.joints
-        .iter_mut()
+    joint_results
+        .iter()
         .enumerate()
-        .for_each(|(i, joint)| match joint {
-            JointSim::Floating(floating) => {
-                result_hm.insert(
-                    sys.joint_names[i].clone(),
-                    ResultEntry::Joint(JointResult::Floating(std::mem::take(&mut floating.result))),
-                );
-            }
-            JointSim::Revolute(revolute) => {
-                result_hm.insert(
-                    sys.joint_names[i].clone(),
-                    ResultEntry::Joint(JointResult::Revolute(std::mem::take(&mut revolute.result))),
-                );
-            }
-            JointSim::Prismatic(prismatic) => {
-                result_hm.insert(
-                    sys.joint_names[i].clone(),
-                    ResultEntry::Joint(JointResult::Prismatic(std::mem::take(
-                        &mut prismatic.result,
-                    ))),
-                );
-            }
+        .for_each(|(index, result)| {
+            result_hm.insert(sys.joint_names[index].clone(), result.get_result_entry());
         });
-    sys.bodies.iter_mut().enumerate().for_each(|(i, body)| {
-        result_hm.insert(
-            sys.body_names[i].clone(),
-            ResultEntry::Body(std::mem::take(&mut body.result)),
-        );
-    });
+
+        body_results
+        .iter()
+        .enumerate()
+        .for_each(|(index, result)| {
+            result_hm.insert(
+                sys.body_names[index].clone(),
+                result.get_result_entry(),
+            );
+        });
+    sys.sensors
+        .iter()
+        .enumerate()
+        .for_each(|(index, (_, sensor))| {
+            result_hm.insert(
+                sensor.get_name().to_string(),
+                sensor_results[index].get_result_entry(),
+            );
+        });
 
     Ok((time, result_hm))
 }

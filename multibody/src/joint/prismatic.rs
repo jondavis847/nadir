@@ -5,15 +5,18 @@ use crate::{
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
     },
-    body::{Body, BodyTrait},
+    body::{Body, BodyConnection, BodyTrait},
     joint::{
         joint_sim::JointSimTrait, joint_state::JointState, joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
     },
+    result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
+use polars::prelude::*;
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -82,7 +85,7 @@ impl JointTrait for Prismatic {
             return Err(JointErrors::InnerBodyExists);
         }
         body.connect_outer_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.inner_body = Some(connection);
         Ok(())
     }
@@ -102,7 +105,7 @@ impl JointTrait for Prismatic {
         //let joint_mass_properties = spatial_transform * spatial_inertia;
         //self.parameters.mass_properties = Some(joint_mass_properties);
         body.connect_inner_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
         Ok(())
     }
@@ -181,11 +184,10 @@ struct PrismaticCache {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrismaticSim {
-    cache: PrismaticCache,    
+    cache: PrismaticCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
     parameters: JointParameters,
-    pub result: PrismaticResult,
     state: PrismaticState,
     transforms: JointTransforms,
 }
@@ -214,10 +216,9 @@ impl From<Prismatic> for PrismaticSim {
 
         PrismaticSim {
             cache: PrismaticCache::default(),
-            id: *prismatic.get_id(),            
+            id: *prismatic.get_id(),
             mass_properties: None,
             parameters: prismatic.parameters,
-            result: PrismaticResult::default(),
             state: prismatic.state,
             transforms: JointTransforms::default(),
         }
@@ -423,11 +424,8 @@ impl JointSimTrait for PrismaticSim {
         &self.cache.common.v
     }
 
-    fn set_result(&mut self) {
-        self.result.position.push(self.state.position);
-        self.result.velocity.push(self.state.velocity);
-        self.result.acceleration.push(self.cache.q_ddot);
-        self.result.internal_force.push(self.cache.tau);
+    fn initialize_result(&self) -> JointResult {
+        JointResult::Prismatic(PrismaticResult::default())
     }
 
     fn set_state(&mut self, state: JointState) {
@@ -436,8 +434,11 @@ impl JointSimTrait for PrismaticSim {
         }
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
-        self.mass_properties = inertia;
+    fn set_inertia(&mut self, inertia: &MassProperties) {
+        let jof_from_ob = self.transforms.jof_from_ob;
+        let spatial_inertia = SpatialInertia::from(*inertia);
+        let joint_mass_properties = jof_from_ob * spatial_inertia;
+        self.mass_properties = Some(joint_mass_properties);
     }
 
     fn set_force(&mut self, force: Force) {
@@ -484,4 +485,34 @@ pub struct PrismaticResult {
     pub velocity: Vec<f64>,
     pub acceleration: Vec<f64>,
     pub internal_force: Vec<f64>,
+}
+
+impl PrismaticResult {
+    pub fn update(&mut self, joint: &PrismaticSim) {
+        self.position.push(joint.state.position);
+        self.velocity.push(joint.state.velocity);
+        self.acceleration.push(joint.cache.q_ddot);
+        self.internal_force.push(joint.cache.tau)
+    }
+}
+
+impl MultibodyResultTrait for PrismaticResult {
+    fn add_to_dataframe(&self, df: &mut DataFrame) {
+        let position = Series::new("position", self.position.clone());
+        let velocity = Series::new("velocity", self.velocity.clone());
+        let accel = Series::new("accel", self.acceleration.clone());
+        let tau = Series::new("internal_force", self.internal_force.clone());
+        df.with_column(position).unwrap();
+        df.with_column(velocity).unwrap();
+        df.with_column(accel).unwrap();
+        df.with_column(tau).unwrap();
+    }
+
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec!["position", "velocity", "acceleration", "internal_force"]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Joint(JointResult::Prismatic(self.clone()))
+    }
 }

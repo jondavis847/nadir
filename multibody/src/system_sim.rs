@@ -1,25 +1,19 @@
 use crate::{
-    aerospace::MultibodyGravity,
-    algorithms::{
+    aerospace::MultibodyGravity, algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
         composite_rigid_body::{CompositeRigidBody, CrbCache},
         recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
-    },
-    body::{Body, BodySim, BodyTrait},
-    joint::{
+    }, base::Base, body::{Body, BodySim, BodyTrait}, joint::{
         joint_sim::{JointSim, JointSimTrait},
         joint_state::{JointState, JointStates},
         Joint, JointTrait,
-    },
-    result::{update_body_states, MultibodyResult},
-    solver::rk4::solve_fixed_rk4,
-    system::MultibodySystem,
-    MultibodyErrors, MultibodyTrait,
+    }, result::MultibodyResult, sensor::Sensor, solver::rk4::solve_fixed_rk4, system::MultibodySystem, MultibodyErrors, MultibodyTrait
 };
+use rotations::{RotationTrait, quaternion::Quaternion};
 
-use serde::{Serialize,Deserialize};
-use spatial_algebra::{Acceleration, SpatialInertia, Velocity};
+use serde::{Deserialize, Serialize};
+use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
@@ -32,6 +26,7 @@ pub struct MultibodyParameters;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemSim {
     algorithm: MultibodyAlgorithm,
+    pub base: Base,
     pub bodies: Vec<BodySim>,
     pub body_names: Vec<String>,
     pub joints: Vec<JointSim>,
@@ -39,6 +34,7 @@ pub struct MultibodySystemSim {
     gravity: HashMap<Uuid, MultibodyGravity>,
     parent_indeces: Vec<Option<usize>>,
     crb_cache: Option<CrbCache>,
+    pub sensors: HashMap<Uuid, Sensor>,
 }
 
 impl TryFrom<MultibodySystem> for MultibodySystemSim {
@@ -69,12 +65,8 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                             // calculate the joint mass properties
                             let joint_sim = &mut jointsims[0];
                             let body_mass_properties = next_body.get_mass_properties();
-                            joint_sim.update_transforms(None);
-                            let transforms = joint_sim.get_transforms();
-                            let jof_from_ob = transforms.jof_from_ob;
-                            let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-                            let joint_mass_properties = jof_from_ob * spatial_inertia;
-                            joint_sim.set_inertia(Some(joint_mass_properties));
+                            joint_sim.update_transforms(None);                            
+                            joint_sim.set_inertia(body_mass_properties);
 
                             recursive_sys_creation(
                                 &sys.algorithm,
@@ -98,40 +90,39 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                     return Err(MultibodyErrors::JointNotFound);
                 }
             }
-        } else {
-            return Err(MultibodyErrors::BaseNotFound);
-        }
 
-        // push base gravity to all bodies if there is one
-        if let Some(base) = &sys.base {
+            // push base gravity to all bodies if there is one
             for body in &mut bodysims {
                 body.gravity.extend(base.gravity.clone())
             }
-        }
+            let crb_cache = match sys.algorithm {
+                MultibodyAlgorithm::CompositeRigidBody => {
+                    let mut n = 0;
+                    for joint in &mut jointsims {
+                        n += joint.get_ndof();
+                        joint.set_crb_index(n);
+                    }
 
-        let crb_cache = match sys.algorithm {
-            MultibodyAlgorithm::CompositeRigidBody => {
-                let mut n = 0;
-                for joint in &mut jointsims {
-                    n += joint.get_ndof();
-                    joint.set_crb_index(n);
+                    Some(CrbCache::new(n))
                 }
+                _ => None,
+            };
 
-                Some(CrbCache::new(n))
-            }
-            _ => None,
-        };
-
-        Ok(MultibodySystemSim {
-            algorithm: sys.algorithm,
-            bodies: bodysims,
-            body_names: bodynames,
-            joints: jointsims,
-            joint_names: jointnames,
-            gravity: sys.gravities,
-            parent_indeces: parent_indeces,
-            crb_cache,
-        })
+            Ok(MultibodySystemSim {                
+                algorithm: sys.algorithm,
+                base: base.clone(),
+                bodies: bodysims,
+                body_names: bodynames,
+                joints: jointsims,
+                joint_names: jointnames,
+                gravity: sys.gravities,
+                parent_indeces: parent_indeces,
+                crb_cache,
+                sensors: sys.sensors,
+            })
+        } else {
+            Err(MultibodyErrors::BaseNotFound)
+        }
     }
 }
 
@@ -147,8 +138,8 @@ impl MultibodySystemSim {
 
     pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, _t: f64) {
         self.set_state(x.clone());
-        self.update_joints();
-        self.update_forces();
+        self.update_joints();        
+        self.update_forces();        
 
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
@@ -251,14 +242,16 @@ impl MultibodySystemSim {
                         let parent = &mut self.joints[parent_index];
                         parent.add_ic(joint_ic_in_parent);
 
-                        let j = i;
-                        while let Some(parent_index) = self.parent_indeces[j] {}
+                        // just commented out until we finish the crb
+                        //let j = i;
+                        //while let Some(parent_index) = self.parent_indeces[j] {}
                     };
                 }
             }
         }
 
-        update_body_states(&mut self.bodies, &self.joints);
+        self.update_body_states(); //only update body states once joint accels have been calculated (so we can update body accel based on joint accel)
+        self.update_sensors(); //only update sensors after body states have been updated
         let new_dx = self.collect_state();
         dx.clone_from(&new_dx);
     }
@@ -308,6 +301,47 @@ impl MultibodySystemSim {
         })
     }
 
+    pub fn update_body_states(&mut self) {
+        for i in 0..self.bodies.len() {
+            let body = &mut self.bodies[i];
+            let inner_joint = &self.joints[i];
+            let transforms = inner_joint.get_transforms();
+            let body_from_joint = transforms.ob_from_jof;
+    
+            let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+            let joint_a = inner_joint.get_a_jof();
+    
+            let body_a = body_from_joint * *joint_a;        
+            // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
+            let body_a_in_base = base_from_body * body_a;
+            //let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
+            //let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
+            //let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
+                //body_a_in_base_rotation,
+                //body_a_in_base_translation,
+            //)));        
+            let joint_v = inner_joint.get_v();
+            let body_v = body_from_joint * *joint_v;        
+            // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
+            let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
+            let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
+            let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
+                body_v_in_base_rotation,
+                body_v_in_base_translation,
+            )));        
+            body.state.acceleration_body = *body_a.translation();
+            body.state.acceleration_base = *body_a_in_base.translation();
+            body.state.angular_accel_body = *body_a.rotation();
+            body.state.velocity_base = *body_v_in_base.translation();
+            body.state.angular_rate_body = *body_v.rotation();
+    
+            let body_from_base = base_from_body.0.inv();
+            body.state.position_base = body_from_base.translation.vec();        
+            body.state.attitude_base = Quaternion::from(body_from_base.rotation);
+        }
+    }
+    
+
     fn update_forces(&mut self) {
         for i in 0..self.joints.len() {
             let body = &mut self.bodies[i];
@@ -323,8 +357,7 @@ impl MultibodySystemSim {
             body.calculate_external_force();
 
             // transform force to joint
-            // cross product terms in spatial calculation will convert force at body cg to torque about joint
-
+            // cross product terms in spatial calculation will convert force at body cg to torque about joint            
             joint.set_force(transforms.jof_from_ob * *body.get_external_force_body());
         }
     }
@@ -347,6 +380,12 @@ impl MultibodySystemSim {
         for joint in &mut self.joints {
             joint.calculate_vj();
             joint.calculate_tau();
+        }
+    }
+
+    fn update_sensors(&mut self) {
+        for body in &mut self.bodies {
+            body.update_sensors(&mut self.sensors);
         }
     }
 }
@@ -381,11 +420,7 @@ fn recursive_sys_creation(
                     let joint = &mut jointsims[joint_index];
                     let body_mass_properties = next_body.get_mass_properties();
                     joint.update_transforms(None);
-                    let transforms = joint.get_transforms();
-                    let jof_from_ob = transforms.jof_from_ob;
-                    let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-                    let joint_mass_properties = jof_from_ob * spatial_inertia;
-                    joint.set_inertia(Some(joint_mass_properties));
+                    joint.set_inertia(body_mass_properties);
 
                     recursive_sys_creation(
                         algorithm,

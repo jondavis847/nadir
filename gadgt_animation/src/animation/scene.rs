@@ -1,49 +1,106 @@
+use gadgt_3d::{
+    earth::{Atmosphere, Earth},
+    geometry::{
+        cuboid::Cuboid,
+        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
+        Geometry,
+    },
+    mesh::{Mesh, MeshGpu, MeshPrimitive},
+};
+use glam::{DVec3, Vec3};
 use iced::{
     advanced::Shell,
     mouse::{self, Cursor, Interaction},
     widget::{
         canvas::event::Status,
-        shader::{wgpu, Event, Primitive, Program, Storage},
+        shader::{
+            wgpu::{self, util::DeviceExt},
+            Event, Primitive, Program, Storage,
+        },
     },
     Color, Point, Rectangle, Size,
 };
 
-pub mod camera;
-pub mod geometries;
-pub mod pipeline;
-pub mod vertex;
+use image::{load_from_memory, GenericImageView};
 
-use geometries::{
-    cuboid::{Cuboid, CuboidRaw},
-    ellipsoid::{Ellipsoid, EllipsoidRaw},
-};
+pub mod camera;
+pub mod earth_pipeline;
+pub mod pipeline;
 
 use camera::Camera;
-use pipeline::{Pipeline, Uniforms};
+use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
+use pipeline::{
+    uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
+    Ellipsoid64Pipeline, Pipeline,
+};
 
 use crate::Message;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Scene {
-    pub cuboids: Vec<Cuboid>,
-    pub ellipsoids: Vec<Ellipsoid>,
     pub camera: Camera,
-    pub light_color: Color,
-    pub light_pos: [f32; 3],
+    pub earth: Option<Earth>,
+    light_color: Color,
+    light_pos: [f64; 3],
+    pub meshes: Vec<Mesh>,
+    pub world_target: Option<usize>, // Some(index into meshes), None is the origin
+    pub sample_count: u32,
 }
 
 impl Default for Scene {
     fn default() -> Self {
         Self {
-            cuboids: Vec::new(),
-            ellipsoids: Vec::new(),
+            earth: None,
             camera: Camera::default(),
             light_color: Color::WHITE,
-            light_pos: [10.0, 10.0, 10.0],
+            light_pos: [0.0, 10.0, 0.0],
+            meshes: Vec::new(),
+            world_target: None,
+            sample_count: 4,
         }
     }
 }
 impl Scene {
+    pub fn set_earth(&mut self, is_earth: bool) {
+        self.earth = if is_earth {
+            //TODO: calculate based on epoch
+            self.light_pos = [0.0, 151.0e9, 0.0];
+            self.light_color = Color::new(1.0, 1.0, 0.9, 1.0);
+
+            self.world_target = if !self.meshes.is_empty() {
+                Some(0)
+            } else {
+                None
+            };
+            let world_target = if let Some(index) = self.world_target {
+                self.meshes[index].state.position
+            } else {
+                DVec3::ZERO
+            };
+
+            // convert all positions to target frame
+            self.meshes
+                .iter_mut()
+                .for_each(|mesh| mesh.set_position_from_target(world_target));
+
+            let unit = world_target.normalize();
+            let camera_position = Vec3::new(
+                10.0 * unit[0] as f32,
+                10.0 * unit[1] as f32,
+                10.0 * unit[2] as f32,
+            );
+            self.camera.set_position(camera_position);
+            self.camera.set_target(Vec3::ZERO);
+            self.camera.set_far(1.0e12);
+            self.camera.set_fov(45.0);
+
+            let mut earth = Earth::default();
+            earth.0.set_position_from_target(world_target);
+            Some(earth)
+        } else {
+            None
+        };
+    }
 }
 
 #[derive(Default, Debug)]
@@ -53,33 +110,47 @@ pub struct SceneState {
 }
 
 #[derive(Debug)]
+struct DepthView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct MultisampleView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct UniformBuffer(wgpu::Buffer);
+
+#[derive(Debug)]
+struct UniformBindGroup(wgpu::BindGroup);
+
+#[derive(Debug)]
 pub struct ScenePrimitive {
-    pub uniforms: Uniforms,
-    pub cuboids: Vec<CuboidRaw>,
-    pub ellipsoids: Vec<EllipsoidRaw>,
+    earth: Option<MeshGpu>,
+    earth_atmosphere: Option<MeshGpu>,
+    meshes: Vec<MeshPrimitive>,
+    uniforms: Uniforms,
+    sample_count: u32,
 }
 
 impl ScenePrimitive {
-    pub fn new(
-        cuboids: &[Cuboid],
-        ellipsoids: &[Ellipsoid],
-        camera: &Camera,
-        bounds: Rectangle,
-        light_color: Color,
-        light_pos: [f32; 3],
-    ) -> Self {
-        let uniforms = pipeline::Uniforms::new(camera, bounds, light_color, light_pos);
+    pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
+        let (earth, earth_atmosphere) = if let Some(earth) = &scene.earth {
+            let atmosphere = Atmosphere::from(earth);
+            (
+                Some(MeshGpu::from(&earth.0)),
+                Some(MeshGpu::from(&atmosphere.0)),
+            )
+        } else {
+            (None, None)
+        };
+
+        let meshes: Vec<MeshPrimitive> = scene.meshes.iter().map(MeshPrimitive::from).collect();
+        let uniforms = Uniforms::new(scene, bounds);
 
         Self {
-            cuboids: cuboids
-                .iter()
-                .map(CuboidRaw::from_cuboid)
-                .collect::<Vec<CuboidRaw>>(),
-            ellipsoids: ellipsoids
-                .iter()
-                .map(EllipsoidRaw::from_ellipsoid)
-                .collect::<Vec<EllipsoidRaw>>(),
+            earth,
+            earth_atmosphere,
+            meshes,
             uniforms,
+            sample_count: scene.sample_count,
         }
     }
 }
@@ -95,21 +166,415 @@ impl Primitive for ScenePrimitive {
         _scale_factor: f32,
         storage: &mut Storage,
     ) {
-        if !storage.has::<Pipeline>() {
-            storage.store(Pipeline::new(device, queue, format, target_size));
-          
-        }        
+        let uniform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("uniform bind group layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
 
-          //upload data to GPU            
-        let pipeline = storage.get_mut::<Pipeline>().unwrap();
-        pipeline.update(
-            device,
-            queue,
-            target_size,
-            &self.uniforms,
-            &self.cuboids,
-            &self.ellipsoids,
-        );
+        //Create and store the uniform bindgroup
+        if !storage.has::<UniformBindGroup>() {
+            let uniforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("uniform buffer"),
+                contents: bytemuck::bytes_of(&self.uniforms),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+            let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("uniform and texture bind group"),
+                layout: &uniform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniforms.as_entire_binding(),
+                }],
+            });
+            storage.store(UniformBuffer(uniforms));
+            storage.store(UniformBindGroup(uniform_bind_group));
+        } else {
+            if let Some(uniform_buffer) = storage.get::<UniformBuffer>() {
+                queue.write_buffer(
+                    &uniform_buffer.0,                  // Buffer to update
+                    0,                                  // Offset (start at the beginning)
+                    bytemuck::bytes_of(&self.uniforms), // New uniform data
+                );
+            }
+        }
+
+        // Create and store the depth_view
+        if !storage.has::<DepthView>() {
+            let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("depth.texture"),
+                size: wgpu::Extent3d {
+                    width: target_size.width,
+                    height: target_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: self.sample_count,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+
+            let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            storage.store(DepthView(depth_view));
+        }
+
+        if !storage.has::<MultisampleView>() {
+            // create the antialiasing textureview
+            let multisampled_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("multisampled.color.texture"),
+                size: wgpu::Extent3d {
+                    width: target_size.width,
+                    height: target_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: self.sample_count, // Set the multisample count here to match the pipeline
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let multisampled_texture_view =
+                multisampled_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            storage.store(MultisampleView(multisampled_texture_view));
+        }
+
+        // create all pipelines for each geometry present in meshes
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pipeline layout"),
+            bind_group_layouts: &[&uniform_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        const MAIN_SHADER: &str = include_str!("scene/shaders/main.wgsl");
+
+        //cuboids
+        let cuboids: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Cuboid(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !cuboids.is_empty() {
+            if !storage.has::<CuboidPipeline>() {
+                storage.store(CuboidPipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "cuboid",
+                    Cuboid::vertices(),
+                    &cuboids,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(cuboid_pipeline) = storage.get_mut::<CuboidPipeline>() {
+                    let pipeline = &mut cuboid_pipeline.0;
+                    pipeline.update(queue, &cuboids);
+                }
+            }
+        }
+
+        //ellipsoid16
+        let ellipsoid16s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid16(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid16s.is_empty() {
+            if !storage.has::<Ellipsoid16Pipeline>() {
+                storage.store(Ellipsoid16Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid16",
+                    Ellipsoid16::vertices(),
+                    &ellipsoid16s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
+                    let pipeline = &mut ellipsoid16_pipeline.0;
+                    pipeline.update(queue, &ellipsoid16s);
+                }
+            }
+        }
+
+        //ellipsoid32
+        let ellipsoid32s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid32(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid32s.is_empty() {
+            if !storage.has::<Ellipsoid32Pipeline>() {
+                storage.store(Ellipsoid32Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid32",
+                    Ellipsoid32::vertices(),
+                    &ellipsoid32s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
+                    let pipeline = &mut ellipsoid32_pipeline.0;
+                    pipeline.update(queue, &ellipsoid32s);
+                }
+            }
+        }
+
+        //ellipsoid64
+        let ellipsoid64s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid64(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid64s.is_empty() {
+            if !storage.has::<Ellipsoid64Pipeline>() {
+                storage.store(Ellipsoid64Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid64",
+                    Ellipsoid64::vertices(),
+                    &ellipsoid64s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
+                    let pipeline = &mut ellipsoid64_pipeline.0;
+                    pipeline.update(queue, &ellipsoid64s);
+                }
+            }
+        }
+
+        //earth
+        if let Some(earth) = &self.earth {
+            if !storage.has::<EarthPipeline>() {
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_color_5k.png");
+                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_8K.tif");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
+                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_21k.jpg");
+                //const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
+                const EARTH_NIGHT: &[u8] =
+                    include_bytes!("../../resources/earth_nightlights_10K.tif");
+                const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
+                const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_8k.tif");
+                const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
+
+                let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
+                let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
+                let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
+                let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
+                let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
+
+                let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                    address_mode_u: wgpu::AddressMode::Repeat,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Linear,
+                    anisotropy_clamp: 16,
+                    ..Default::default()
+                });
+
+                let earth_bind_group_layout =
+                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("earth bind group layout"),
+                        entries: &[
+                            // sampler
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                            //earth color
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            //earth night
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            //earth specular
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 3,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            //earth clouds
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 4,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                            //earth topography
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 5,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                        ],
+                    });
+
+                let earth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("earth and texture bind group"),
+                    layout: &earth_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Sampler(&sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&earth_day),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(&earth_night),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: wgpu::BindingResource::TextureView(&earth_spec),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: wgpu::BindingResource::TextureView(&earth_clouds),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: wgpu::BindingResource::TextureView(&earth_topography),
+                        },
+                    ],
+                });
+
+                storage.store(EarthBindGroup(earth_bind_group));
+
+                let earth_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("earth pipeline layout"),
+                    bind_group_layouts: &[&uniform_bind_group_layout, &earth_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+                storage.store(EarthPipeline::new(
+                    device,
+                    format,
+                    &earth_layout,
+                    &[*earth],
+                    Ellipsoid64::vertices(),
+                    self.sample_count,
+                ));
+            } else {
+                if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
+                    earth_pipeline.update(queue, &[*earth]);
+                }
+            }
+        }
+
+        if let Some(atmosphere) = &self.earth_atmosphere {
+            // atmosphere
+            if !storage.has::<AtmospherePipeline>() {
+                storage.store(AtmospherePipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    &[*atmosphere],
+                    Ellipsoid64::vertices(),
+                    self.sample_count,
+                ));
+            } else {
+                if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
+                    atmosphere_pipeline.update(queue, &[*atmosphere]);
+                }
+            }
+        }
     }
 
     fn render(
@@ -120,18 +585,100 @@ impl Primitive for ScenePrimitive {
         viewport: Rectangle<u32>,
         encoder: &mut wgpu::CommandEncoder,
     ) {
-        //at this point our pipeline should always be initialized
-        let pipeline = storage.get::<Pipeline>().unwrap();
+        // unpack the depth_view and uniform_bind_group from storage
+        let depth_view = &storage.get::<DepthView>().unwrap().0;
+        let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
+        let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
-        //render primitive
-        pipeline.render(
-            target,
-            encoder,
-            viewport,
-            self.cuboids.len() as u32,
-            self.ellipsoids.len() as u32,
-            false,
-        );
+        let (view, resolve_target) = match self.sample_count {
+            1 => (target, None),
+            4 => (multisample_view, Some(target)),
+            _ => unreachable!("needs to be 1 or 4, error should be thrown earlier"),
+        };
+
+        // set up the render pass
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("gadgt.pipeline.pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
+        pass.set_bind_group(0, uniform_bind_group, &[]);
+
+        //render cuboids
+        if let Some(cuboid_pipeline) = storage.get::<CuboidPipeline>() {
+            let pipeline = &cuboid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid16s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid16Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid32s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid32Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        //render ellipsoid64s
+        if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid64Pipeline>() {
+            let pipeline = &ellipsoid_pipeline.0;
+            pass.set_pipeline(&pipeline.pipeline);
+            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        if let Some(pipeline) = storage.get::<EarthPipeline>() {
+            if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
+                pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
+                pass.set_pipeline(&pipeline.pipeline);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            }
+        }
+
+        // need to render earth first so atmosphere pipeline knows how to blend
+        if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
+            let pipeline = &atmosphere_pipeline.pipeline;
+            pass.set_pipeline(pipeline);
+            pass.set_vertex_buffer(0, atmosphere_pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, atmosphere_pipeline.instance_buffer.slice(..));
+            pass.draw(
+                0..atmosphere_pipeline.n_vertices,
+                0..atmosphere_pipeline.n_instances,
+            );
+        }
     }
 }
 
@@ -140,15 +687,8 @@ impl Program<Message> for Scene {
     type Primitive = ScenePrimitive;
 
     // Required method
-    fn draw(&self, state: &Self::State, cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
-        ScenePrimitive::new(
-            &self.cuboids,
-            &self.ellipsoids,
-            &self.camera,
-            bounds,
-            self.light_color,
-            self.light_pos,
-        )
+    fn draw(&self, _state: &Self::State, _cursor: Cursor, bounds: Rectangle) -> Self::Primitive {
+        ScenePrimitive::new(&self, bounds)
     }
 
     // Provided methods
@@ -217,4 +757,52 @@ impl Program<Message> for Scene {
     ) -> Interaction {
         Interaction::Pointer
     }
+}
+
+fn load_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture_bytes: &[u8],
+    label: &str,
+) -> wgpu::TextureView {
+    let img = load_from_memory(texture_bytes).expect("Failed to load image from embedded bytes");
+    let rgba = img.to_rgba8();
+    let dimensions = img.dimensions();
+
+    let texture_size = wgpu::Extent3d {
+        width: dimensions.0,
+        height: dimensions.1,
+        depth_or_array_layers: 1,
+    };
+
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &rgba,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * dimensions.0),
+            rows_per_image: Some(dimensions.1),
+        },
+        texture_size,
+    );
+
+    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    texture_view
 }
