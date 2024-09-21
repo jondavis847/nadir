@@ -80,7 +80,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     if in.material_type > 0 {        
         // phong shading
 
-        let ambient = 0.05 * in.color.rgb;
+        let ambient = in.color.rgb * 0.05;
 
         let light_dir = normalize(uniforms.light_pos - in.world_pos);
         let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
@@ -114,7 +114,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, in.color[3]);    
+    out.color = vec4<f32>(5.0 * final_color, in.color[3]);    
     out.depth = log_depth;
     return out;    
 }

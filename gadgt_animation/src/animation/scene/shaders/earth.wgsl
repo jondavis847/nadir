@@ -80,12 +80,16 @@ fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    let day_color_raw = 1.5 * textureSample(earth_texture, earth_sampler, in.uv).rgb;
+    // i cant figure out why turning on msaa darkens the image, this is a bandaid
+    let msaa_scale = 5.0;
+    let cloud_scale = 5.0;
+
+    let day_color_raw = msaa_scale * textureSample(earth_texture, earth_sampler, in.uv).rgb;
     let cloud_texture  = textureSample(earth_clouds, earth_sampler, in.uv);
-    let cloud_color = cloud_texture.rgb;
+    let cloud_color = cloud_scale * cloud_texture.rgb;
     let cloud_alpha = cloud_texture.a;
     let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
-    let night_color = vec3<f32>(1.0,0.8745,0.7843) * night_texture;
+    let night_color = msaa_scale * vec3<f32>(1.0,0.8745,0.7843) * night_texture;
     
     // calculate bump map perturbation
     var tangent_space_normal_perturbation = textureSample(earth_topo, earth_sampler, in.uv).xyz;
@@ -105,11 +109,11 @@ fn fs_main(in: Output) -> FragOutput {
     // perturb the normal vector by the perturbation
     let perturbed_normal = normalize(mix(N, world_space_normal_perturbation, perturbation_strength));
 
-    let cloud_intensity = 0.5;
+    let cloud_intensity = 0.8;
     let day_color = mix(day_color_raw,cloud_color,cloud_intensity);
 
     // Ambient lighting
-    let ambient = 0.1 * day_color;
+    let ambient = day_color * 0.1;
 
     // Diffuse lighting (Lambertian reflectance)
     let diff = dot(perturbed_normal, light_dir);
@@ -154,7 +158,7 @@ fn fs_main(in: Output) -> FragOutput {
 
     
     var out: FragOutput;
-    out.color = vec4<f32>(result, 1.0);
+    out.color = vec4<f32>(result, 1.0);    
     out.depth = log_depth;
 
     return out;

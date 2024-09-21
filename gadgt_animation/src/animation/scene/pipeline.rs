@@ -27,6 +27,7 @@ impl Pipeline {
         label: &str,
         vertices: Vec<Vertex>,
         meshes: &[MeshGpu],
+        sample_count: u32,
     ) -> Self {        
         let vertex_label = format!("{label}.vertex.buffer");
         let instance_label = format!("{label}.instance.buffer");
@@ -70,7 +71,7 @@ impl Pipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),            
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -86,9 +87,9 @@ impl Pipeline {
                             operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Max,
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,//Max,
                         },
                     }),
                     write_mask: wgpu::ColorWrites::ALL,

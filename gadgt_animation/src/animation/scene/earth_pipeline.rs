@@ -1,5 +1,5 @@
 use gadgt_3d::{
-    earth::Atmosphere, geometry::ellipsoid::Ellipsoid32, mesh::MeshGpu, vertex::Vertex,
+    mesh::MeshGpu, vertex::Vertex,
 };
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
 
@@ -22,6 +22,7 @@ impl EarthPipeline {
         layout: &PipelineLayout,
         meshes: &[MeshGpu],
         vertices: Vec<Vertex>,
+        sample_count: u32,
     ) -> Self {
         const VERTEX_LABEL: &str = "earth.vertex.buffer";
         const INSTANCE_LABEL: &str = "earth.instance.buffer";
@@ -70,7 +71,7 @@ impl EarthPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -81,13 +82,13 @@ impl EarthPipeline {
                     format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                             operation: wgpu::BlendOperation::Add,
                         },
                     }),
@@ -129,6 +130,7 @@ impl AtmospherePipeline {
         layout: &PipelineLayout,
         meshes: &[MeshGpu],
         vertices: Vec<Vertex>,
+        sample_count: u32,
     ) -> Self {
         const VERTEX_LABEL: &str = "atmosphere.vertex.buffer";
         const INSTANCE_LABEL: &str = "atmosphere.instance.buffer";
@@ -177,7 +179,7 @@ impl AtmospherePipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -188,13 +190,13 @@ impl AtmospherePipeline {
                     format,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One, // Source color is multiplied by source alpha
-                            dst_factor: wgpu::BlendFactor::One, // Destination color is multiplied by (1 - source alpha)
+                            src_factor: wgpu::BlendFactor::SrcAlpha, // Source color is multiplied by source alpha
+                            dst_factor: wgpu::BlendFactor::DstAlpha, // Destination color is multiplied by (1 - source alpha)
                             operation: wgpu::BlendOperation::Add, // Blend by adding the two components
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,  // Source alpha is taken as is
-                            dst_factor: wgpu::BlendFactor::Zero, // No contribution from the destination alpha
+                            src_factor: wgpu::BlendFactor::SrcAlpha,  // Source alpha is taken as is
+                            dst_factor: wgpu::BlendFactor::DstAlpha, // No contribution from the destination alpha
                             operation: wgpu::BlendOperation::Add, // Blend by adding the two components
                         },
                     }),

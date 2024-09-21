@@ -44,6 +44,7 @@ pub struct Scene {
     light_pos: [f64; 3],
     pub meshes: Vec<Mesh>,
     pub world_target: Option<usize>, // Some(index into meshes), None is the origin
+    pub sample_count: u32,
 }
 
 impl Default for Scene {
@@ -55,6 +56,7 @@ impl Default for Scene {
             light_pos: [0.0, 10.0, 0.0],
             meshes: Vec::new(),
             world_target: None,
+            sample_count: 4,
         }
     }
 }
@@ -125,6 +127,7 @@ pub struct ScenePrimitive {
     earth_atmosphere: Option<MeshGpu>,
     meshes: Vec<MeshPrimitive>,
     uniforms: Uniforms,
+    sample_count: u32,
 }
 
 impl ScenePrimitive {
@@ -147,6 +150,7 @@ impl ScenePrimitive {
             earth_atmosphere,
             meshes,
             uniforms,
+            sample_count: scene.sample_count,
         }
     }
 }
@@ -215,7 +219,7 @@ impl Primitive for ScenePrimitive {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 1,
+                sample_count: self.sample_count,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -237,7 +241,7 @@ impl Primitive for ScenePrimitive {
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 4, // Set the multisample count here to match the pipeline
+                sample_count: self.sample_count, // Set the multisample count here to match the pipeline
                 dimension: wgpu::TextureDimension::D2,
                 format,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -280,6 +284,7 @@ impl Primitive for ScenePrimitive {
                     "cuboid",
                     Cuboid::vertices(),
                     &cuboids,
+                    self.sample_count,
                 )));
             } else {
                 if let Some(cuboid_pipeline) = storage.get_mut::<CuboidPipeline>() {
@@ -312,6 +317,7 @@ impl Primitive for ScenePrimitive {
                     "ellipsoid16",
                     Ellipsoid16::vertices(),
                     &ellipsoid16s,
+                    self.sample_count,
                 )));
             } else {
                 if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
@@ -344,6 +350,7 @@ impl Primitive for ScenePrimitive {
                     "ellipsoid32",
                     Ellipsoid32::vertices(),
                     &ellipsoid32s,
+                    self.sample_count,
                 )));
             } else {
                 if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
@@ -376,6 +383,7 @@ impl Primitive for ScenePrimitive {
                     "ellipsoid64",
                     Ellipsoid64::vertices(),
                     &ellipsoid64s,
+                    self.sample_count,
                 )));
             } else {
                 if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
@@ -541,6 +549,7 @@ impl Primitive for ScenePrimitive {
                     &earth_layout,
                     &[*earth],
                     Ellipsoid64::vertices(),
+                    self.sample_count,
                 ));
             } else {
                 if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
@@ -558,6 +567,7 @@ impl Primitive for ScenePrimitive {
                     &layout,
                     &[*atmosphere],
                     Ellipsoid64::vertices(),
+                    self.sample_count,
                 ));
             } else {
                 if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
@@ -580,13 +590,18 @@ impl Primitive for ScenePrimitive {
         let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
         let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
+        let (view, resolve_target) = match self.sample_count {
+            1 => (target, None),
+            4 => (multisample_view, Some(target)),
+            _ => unreachable!("needs to be 1 or 4, error should be thrown earlier"),
+        };
+
         // set up the render pass
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("gadgt.pipeline.pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                //view: target,
-                view: multisample_view,
-                resolve_target: Some(target),
+                view,
+                resolve_target,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,

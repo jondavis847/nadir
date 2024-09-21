@@ -82,12 +82,13 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let night_angle = max(dot(in.normal,-light_dir),0.0);
     let view_angle = dot(view_dir, in.normal);    
 
-    let scatter_factor = 0.1; // controls flat scattering intensity
-    let scatter_color = normalize(vec3<f32>(0.4, 0.5, 1.0));
+    //5.0 is just added due to darkening from MSAA
+    let scatter_factor = 100.0 * 0.1; // controls flat scattering intensity    
+    let scatter_color = normalize(vec3<f32>(0.4, 0.5, 1.0)); 
     
     let light_angle_factor = 0.5; // controls how much the angle towards the sun affects lighting
     let view_angle_factor = 5.0; // controls how much the angle towards the camera affects the color
-    let night_angle_factor = 5.0; // controls how much to reduce atmosphere color on the night side
+    let night_angle_factor = 6.0; // controls how much to reduce atmosphere color on the night side
 
     // fade out values with very small normals so that the atmosphere "blurs" into space
     let fade_start = 0.0;
@@ -104,7 +105,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         fade_factor = pow(t, fade_strength);
     }
 
-    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor * scatter_factor * scatter_color;    
+    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor* scatter_color * scatter_factor ;    
     
     let final_color = vec3<f32>(scattering);
     
