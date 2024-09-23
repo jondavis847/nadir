@@ -30,40 +30,47 @@ pub struct MultibodyResult {
 }
 
 impl MultibodyResult {
-    pub fn get_component(&self, component_name: &str) -> DataFrame {
-        let component = self.result.get(component_name).unwrap();
-        let mut df = DataFrame::default();
+    pub fn get_component(&self, component_name: &str) -> Option<DataFrame> {
+        if let Some(component) = self.result.get(component_name) {
+            let mut df = DataFrame::default();
 
-        let t = Series::new("t", self.sim_time.clone());
-        df.with_column(t).unwrap();
+            let t = Series::new("t", self.sim_time.clone());
+            df.with_column(t).unwrap();
 
-        match component {
-            ResultEntry::Joint(joint) => joint.add_to_dataframe(&mut df),
-            ResultEntry::Body(body) => body.add_to_dataframe(&mut df),
-            ResultEntry::Sensor(sensor) => sensor.add_to_dataframe(&mut df),       
-            ResultEntry::VecF64(_) => todo!("this is only for time vector, which was alreay added to df. this should probably just be a result type"),
+            match component {
+                ResultEntry::Joint(joint) => joint.add_to_dataframe(&mut df),
+                ResultEntry::Body(body) => body.add_to_dataframe(&mut df),
+                ResultEntry::Sensor(sensor) => sensor.add_to_dataframe(&mut df),       
+                ResultEntry::VecF64(_) => todo!("this is only for time vector, which was alreay added to df. this should probably just be a result type"),
+            }
+            Some(df)
+        } else {
+            None
         }
-        df
     }
 
-    pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> DataFrame {
-        let df = self.get_component(component_name);
-        let df_column_names = df.get_column_names();
-        // check to make sure that the states exist in the dataframe
-        // by getting intersection
-        let state_names: Vec<&str> = {
-            let df_set: HashSet<&str> = df_column_names.into_iter().collect();
-            state_name
-                .into_iter()
-                .filter(|state| df_set.contains(state))
-                .collect()
-        };
+    pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> Option<DataFrame> {
+        if let Some(df) = self.get_component(component_name) {
+            let df_column_names = df.get_column_names();
+            // check to make sure that the states exist in the dataframe
+            // by getting intersection
+            let state_names: Vec<&str> = {
+                let df_set: HashSet<&str> = df_column_names.into_iter().collect();
+                state_name
+                    .into_iter()
+                    .filter(|state| df_set.contains(state))
+                    .collect()
+            };
 
-        let mut columns: Vec<&str> = Vec::with_capacity(state_names.len() + 1);
-        columns.push("t");
-        columns.extend(state_names);
+            let mut columns: Vec<&str> = Vec::with_capacity(state_names.len() + 1);
+            columns.push("t");
+            columns.extend(state_names);
 
-        df.select(columns).unwrap()
+            df.select(columns).unwrap();
+            Some(df)
+        } else {
+            None
+        }
     }
 
     pub fn get_component_states(&self, component_name: &str) -> Vec<&'static str> {

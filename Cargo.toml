@@ -3,7 +3,7 @@ members = [ "aerospace", "gadgt_animation", "benchmarks", "gadgt",
     "coordinate_systems", "differential_equations", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
-    "transforms", "utilities", "color", "gadgt_3d",    
+    "transforms", "utilities", "color", "gadgt_3d", "spice",    
 ]
 resolver = "2"
 

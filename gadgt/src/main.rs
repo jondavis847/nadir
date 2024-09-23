@@ -2,7 +2,7 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
+use aerospace::gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
 use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -870,6 +870,13 @@ fn main() {
                                         let mut datasets = Vec::new();
 
                                         let df = result.get_component_state(&component, vec![&state]);
+                                        let df = match df {
+                                            Some(df) => df,
+                                            None => {
+                                                error("Error: component or state not found");
+                                                continue
+                                            }
+                                        };
                                         let t = df.column("t").unwrap().f64().unwrap();
                                                                                                                         
                                         let data = match df.column(&state) {
@@ -1062,6 +1069,13 @@ fn main() {
                                             if let Some(res) = results.get(&name) {
                                                 if let Some(component) = component {
                                                     let res = res.get_component(&component);
+                                                    let res = match res {
+                                                        Some(res) => res,
+                                                        None => {
+                                                            error("Error: component or state not found");
+                                                            continue
+                                                        }
+                                                    };
                                                     if let Some(state) = state {
                                                         match res.column(&state) {
                                                             Ok(res) => println!("{}", res),
@@ -1291,7 +1305,7 @@ impl Prompts {
             Prompts::EulerSequence => "EulerSequence (default: 'zyx')",
             Prompts::EulerTheta => "theta (2nd) angle (rad, default: 0.0)",
             Prompts::Geometry => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
-            Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
+            Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body), '96' (egm96)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
             Prompts::GravityConstantZ => "Constant gravity Z (m/sec^2), default: 0.0)",
@@ -1529,7 +1543,7 @@ impl Prompts {
                     //leave empty to use default
                     return Ok(())
                 }
-                let possible_values = ["c", "2"];
+                let possible_values = ["c", "2", "96"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidGravity);
                 }
@@ -1775,6 +1789,9 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
             let earth_string = earth.to_string();            
             let mu = Prompts::GravityTwoBodyMu.validate_loop(&earth_string)?.parse::<f64>().unwrap_or(earth);                
             Gravity::TwoBody(TwoBodyGravity::new(mu))
+        }
+        "96" => {                
+            Gravity::EGM96(EGM96Gravity{})
         }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")
     };
