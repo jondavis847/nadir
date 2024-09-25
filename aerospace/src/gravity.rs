@@ -362,6 +362,8 @@ impl GravityTrait for Gravity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx_eq::assert_approx_eq;
+    const TOL: f64 = 1e-12;
 
     /// Unittest for EGM96
     #[test]
@@ -378,9 +380,8 @@ mod tests {
             1.021116998885220,
             7.853405068561626);
 
-        //assert_eq!(g_rust, g_pace_model);
-        approx_eq::rel_diff(g_rust.x, g_pace_model.x);
-        approx_eq::rel_diff(g_rust.y, g_pace_model.y);
-        approx_eq::rel_diff(g_rust.z, g_pace_model.z);
+        assert_approx_eq!(g_rust.x,g_pace_model.x, TOL);
+        assert_approx_eq!(g_rust.y,g_pace_model.y, TOL);
+        assert_approx_eq!(g_rust.z,g_pace_model.z, TOL);
         }
 } 

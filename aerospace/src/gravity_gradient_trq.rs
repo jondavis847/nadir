@@ -31,6 +31,11 @@ impl GravGradientTrq {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx_eq::assert_approx_eq;
+    //use approx_derive::AbsDiffEq;
+    const TOL: f64 = 10e-12;
+    
+    //#[derive(AbsDiffEq, PartialEq, Debug)]
 
     #[test]
     fn test_gravity_gradient() {
@@ -62,12 +67,10 @@ mod tests {
             0.872625864581703e-3,
             -0.595283109273388e-3,
             -0.116261767084494e-3); // get this from Matlab
-
-        // assert_eq!(gg, expected_gg);
-        approx_eq::rel_diff(gg.x, expected_gg.x);
-        approx_eq::rel_diff(gg.y, expected_gg.y);
-        approx_eq::rel_diff(gg.z, expected_gg.z);
-
+        
+        assert_approx_eq!(gg.x, expected_gg.x);
+        assert_approx_eq!(gg.y,expected_gg.y);
+        assert_approx_eq!(gg.z,expected_gg.z);
     }
 
 }
