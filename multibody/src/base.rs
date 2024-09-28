@@ -11,12 +11,13 @@ use serde::{Serialize, Deserialize};
 pub struct Base {
     id: Uuid,
     name: String,
+    pub is_earth: bool,
     pub outer_joints: Vec<Uuid>,
     pub gravity: Vec<Uuid>,
 }
 
 impl Base {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, is_earth: bool) -> Self {
         let mut name = name;
         if name.is_empty() {
             name = "base";
@@ -24,6 +25,7 @@ impl Base {
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
+            is_earth,
             outer_joints: Vec::new(),
             gravity: Vec::new(),
         }

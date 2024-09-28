@@ -1,7 +1,7 @@
 use std::io::Read;
 
 mod animation;
-mod mouse;
+//mod mouse;
 
 use animation::{AnimationGui, AnimationState};
 use iced::{
@@ -11,10 +11,9 @@ use iced::{
     window::{self, icon},
     Application, Command, Element, Length, Point, Settings, Size, Subscription, Theme, Vector,
 };
-use mouse::MouseProcessor;
+
 use multibody::result::MultibodyResult;
-use std::sync::{mpsc as std_mpsc, Arc, Mutex};
-use std::{path::Path, time::Instant};
+use std::time::Instant;
 
 // Define the possible user interactions
 #[derive(Debug, Clone)]
@@ -70,7 +69,7 @@ impl Application for AnimationGui {
 
     fn new(flags: MultibodyResult) -> (Self, Command<Self::Message>) {
         let mut state = AnimationState::default();
-        state.update_from_result(&flags);
+        state.initialize(&flags);
         (
             Self {
                 state,
@@ -104,7 +103,7 @@ impl Application for AnimationGui {
             Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
             Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
             Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
-            Message::WindowResized(size) => Command::none(), //state.window_resized(size),
+            Message::WindowResized(_size) => Command::none(), //state.window_resized(size),
         }
     }
 

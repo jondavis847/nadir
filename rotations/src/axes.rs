@@ -42,6 +42,9 @@ impl AxisPair {
         Self { old, new }
     }
 }
+
+/// Please note the convertion for the defintion
+/// You should be saying 'my new <x> direction is in my old <y> direction'
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AlignedAxes {
     pub primary: AxisPair,

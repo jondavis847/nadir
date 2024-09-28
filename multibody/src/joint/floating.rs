@@ -5,17 +5,20 @@ use crate::{
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
     },
-    body::{Body, BodyTrait},
+    body::{Body, BodyConnection, BodyTrait},
     joint::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
-        Connection, JointCommon, JointConnection, JointErrors, JointParameters, JointTrait,
+        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
     },
+    result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
 };
-use coordinate_systems::cartesian::Cartesian;
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
+use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
+use polars::prelude::*;
 use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -62,17 +65,6 @@ impl MulAssign<f64> for FloatingState {
         self.v *= rhs;
     }
 }
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct FloatingResult {
-    pub q: Vec<Quaternion>,
-    pub w: Vec<Vector3<f64>>,
-    pub aa: Vec<Vector3<f64>>,
-    pub r: Vec<Vector3<f64>>,
-    pub v: Vec<Vector3<f64>>,
-    pub a: Vec<Vector3<f64>>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
     pub common: JointCommon,
@@ -102,7 +94,7 @@ impl JointTrait for Floating {
             return Err(JointErrors::InnerBodyExists);
         }
         body.connect_outer_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.inner_body = Some(connection);
         Ok(())
     }
@@ -114,14 +106,9 @@ impl JointTrait for Floating {
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
-        }
-        //let body_mass_properties = body.get_mass_properties();
-        //let spatial_transform = SpatialTransform::from(transform);
-        //let spatial_inertia = SpatialInertia::from(*body_mass_properties);
-        //let joint_mass_properties = spatial_transform * spatial_inertia;
-        //self.parameters.mass_properties = Some(joint_mass_properties); lets calculate only when we sim now, leave as None
+        }        
         body.connect_inner_joint(self).unwrap();
-        let connection = Connection::new(*body.get_id(), transform);
+        let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
         Ok(())
     }
@@ -203,8 +190,7 @@ pub struct FloatingSim {
     cache: FloatingCache,
     id: Uuid,
     parameters: [JointParameters; 6],
-    mass_properties: Option<SpatialInertia>,
-    pub result: FloatingResult,
+    mass_properties: Option<SpatialInertia>,    
     state: FloatingState,
     transforms: JointTransforms,
 }
@@ -221,22 +207,21 @@ impl From<Floating> for FloatingSim {
             transforms.jif_from_ib = inner_body.transform.into();
             transforms.ib_from_jif = inner_body.transform.inv().into();
         } else {
-            panic!("should always be an inner body connected")
+            unreachable!("no inner body, should have been caught in system validation")
         }
 
         if let Some(outer_body) = &floating.common.connection.outer_body {
             transforms.jof_from_ob = outer_body.transform.into();
             transforms.ob_from_jof = outer_body.transform.inv().into();
         } else {
-            panic!("should always be an inner body connected")
+            unreachable!("no outer body, should have been caught in system validation")
         }
 
         FloatingSim {
             cache: FloatingCache::default(),
             id: *floating.get_id(),
             mass_properties: floating.common.mass_properties,
-            parameters: floating.parameters,
-            result: FloatingResult::default(),
+            parameters: floating.parameters,            
             state: floating.state,
             transforms,
         }
@@ -445,25 +430,41 @@ impl JointSimTrait for FloatingSim {
         &self.cache.common.v
     }
 
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
-        self.mass_properties = inertia;
+    fn initialize_result(&self) -> JointResult {
+        JointResult::Floating(FloatingResult::default())
+    }
+
+    fn set_inertia(&mut self, inertia: &MassProperties) {
+        let jof_from_ob = self.transforms.jof_from_ob;
+        // IMPORTANT: floating joint must assume that jof is at cm
+        // otherwise you will have a moment arm and body will torque with linear force at cm
+        // jof_from_ob has already made this correction, but so do mass props
+        let original_cm = inertia.center_of_mass.vector();
+        let mut inertia = inertia.clone();
+        inertia.center_of_mass = CenterOfMass::new(0.0,0.0,0.0);
+        let spatial_inertia = SpatialInertia::from(inertia);
+
+        // only rotate the inertia to the jof, dont translate since cm is @ jof
+        let mut jof_from_ob_rotation_only = jof_from_ob.clone();
+        jof_from_ob_rotation_only.0.translation = CoordinateSystem::ZERO;
+        let joint_mass_properties = jof_from_ob_rotation_only * spatial_inertia;
+        self.mass_properties = Some(joint_mass_properties);
+
+        // if there is translation in jof_from_ob or the body frame cm is non zero
+        // then we need to add them to the joint state position so that the jof frame is at the cm
+        // r is in the jif frame, so need to transform jof and cm to jif frame
+        let jif_from_jof = self.transforms.jif_from_jof;
+        let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
+        let ob_from_jof_translation = Cartesian::from(self.transforms.ob_from_jof.0.translation).vec();
+        let total_in_jof = cm_in_jof + ob_from_jof_translation;
+        let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
+        let r = &mut self.state.r;
+        *r += total_in_jif;
+        
     }
 
     fn set_force(&mut self, force: Force) {
         self.cache.common.f = force;
-    }
-
-    fn set_result(&mut self) {
-        self.result.q.push(self.state.q);
-        self.result.w.push(self.state.w);
-        self.result.r.push(self.state.r);
-        self.result.v.push(self.state.v);
-        self.result
-            .aa
-            .push(self.cache.q_ddot.fixed_rows::<3>(0).clone_owned());
-        self.result
-            .a
-            .push(self.cache.q_ddot.fixed_rows::<3>(3).clone_owned());
     }
 
     fn set_state(&mut self, state: JointState) {
@@ -545,3 +546,156 @@ impl CompositeRigidBody for FloatingSim {
         view[0] = ic.matrix()[0];
     }
 }
+
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FloatingResult {
+    pub q: Vec<Quaternion>,
+    pub w: Vec<Vector3<f64>>,
+    pub aa: Vec<Vector3<f64>>,
+    pub r: Vec<Vector3<f64>>,
+    pub v: Vec<Vector3<f64>>,
+    pub a: Vec<Vector3<f64>>,
+}
+
+impl FloatingResult {
+    pub fn update(&mut self, joint: &FloatingSim) {
+        self.q.push(joint.state.q);
+        self.w.push(joint.state.w);
+        self.aa.push(joint.cache.q_ddot.fixed_rows::<3>(0).into());
+        self.r.push(joint.state.r);
+        self.v.push(joint.state.v);
+        self.v.push(joint.cache.q_ddot.fixed_rows::<3>(3).into());
+    }
+}
+
+impl MultibodyResultTrait for FloatingResult {
+    fn get_state_names(&self) -> Vec<&'static str> {
+        vec![
+            "quaternion_x",
+            "quaternion_y",
+            "quaternion_z",
+            "quaternion_w",
+            "angular_rate_x",
+            "angular_rate_y",
+            "angular_rate_z",
+            "angular_accel_x",
+            "angular_accel_y",
+            "angular_accel_z",
+            "position_x",
+            "position_y",
+            "position_z",
+            "velocity_x",
+            "velocity_y",
+            "velocity_z",
+            "acceleration_x",
+            "acceleration_y",
+            "acceleration_z",
+        ]
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        ResultEntry::Joint(JointResult::Floating(self.clone()))
+    }
+
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        let accel_x = Series::new(
+            "accel_x",
+            self.a.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+        );
+        let accel_y = Series::new(
+            "accel_y",
+            self.a.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+        );
+        let accel_z = Series::new(
+            "accel_z",
+            self.a.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+        );
+        let angular_rate_x = Series::new(
+            "angular_rate_x",
+            self.w.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+        );
+        let angular_rate_y = Series::new(
+            "angular_rate_y",
+            self.w.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+        );
+        let angular_rate_z = Series::new(
+            "angular_rate_z",
+            self.w.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+        );
+        let angular_accel_x = Series::new(
+            "angular_accel_x",
+            self.aa.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+        );
+        let angular_accel_y = Series::new(
+            "angular_accel_y",
+            self.aa.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+        );
+        let angular_accel_z = Series::new(
+            "angular_accel_z",
+            self.aa.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+        );
+        let attitude_x = Series::new(
+            "attitude_x",
+            self.q.iter().map(|q| q.x).collect::<Vec<f64>>(),
+        );
+        let attitude_y = Series::new(
+            "attitude_y",
+            self.q.iter().map(|q| q.y).collect::<Vec<f64>>(),
+        );
+        let attitude_z = Series::new(
+            "attitude_z",
+            self.q.iter().map(|q| q.z).collect::<Vec<f64>>(),
+        );
+        let attitude_s = Series::new(
+            "attitude_s",
+            self.q.iter().map(|q| q.s).collect::<Vec<f64>>(),
+        );
+        let position_x = Series::new(
+            "position_x",
+            self.r.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+        );
+        let position_y = Series::new(
+            "position_y",
+            self.r.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+        );
+        let position_z = Series::new(
+            "position_z",
+            self.r.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+        );
+        let velocity_x = Series::new(
+            "velocity_x",
+            self.v.iter().map(|f| f[0]).collect::<Vec<f64>>(),
+        );
+        let velocity_y = Series::new(
+            "velocity_y",
+            self.v.iter().map(|f| f[1]).collect::<Vec<f64>>(),
+        );
+        let velocity_z = Series::new(
+            "velocity_z",
+            self.v.iter().map(|f| f[2]).collect::<Vec<f64>>(),
+        );
+        
+        df.with_column(accel_x).unwrap();
+        df.with_column(accel_y).unwrap();
+        df.with_column(accel_z).unwrap();
+        df.with_column(angular_rate_x).unwrap();
+        df.with_column(angular_rate_y).unwrap();
+        df.with_column(angular_rate_z).unwrap();
+        df.with_column(angular_accel_x).unwrap();
+        df.with_column(angular_accel_y).unwrap();
+        df.with_column(angular_accel_z).unwrap();
+        df.with_column(attitude_x).unwrap();
+        df.with_column(attitude_y).unwrap();
+        df.with_column(attitude_z).unwrap();
+        df.with_column(attitude_s).unwrap();
+        df.with_column(position_x).unwrap();
+        df.with_column(position_y).unwrap();
+        df.with_column(position_z).unwrap();
+        df.with_column(velocity_x).unwrap();
+        df.with_column(velocity_y).unwrap();
+        df.with_column(velocity_z).unwrap();
+        
+    }
+}
+

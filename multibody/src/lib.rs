@@ -5,10 +5,12 @@ pub mod body;
 pub mod component;
 pub mod joint;
 pub mod result;
+pub mod sensor;
 pub mod solver;
 pub mod system;
 pub mod system_sim;
 
+use sensor::SensorErrors;
 use uuid::Uuid;
 use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
@@ -32,12 +34,19 @@ pub enum MultibodyErrors {
     NoBaseFound,
     NoTransformFound,
     Revolute(RevoluteErrors),
+    SensorErrors(SensorErrors),
     TooManyBasesFound,
 }
 
 impl From<JointErrors> for MultibodyErrors {
     fn from(e: JointErrors) -> Self {
         MultibodyErrors::JointErrors(e)
+    }
+}
+
+impl From<SensorErrors> for MultibodyErrors {
+    fn from(e: SensorErrors) -> Self {
+        MultibodyErrors::SensorErrors(e)
     }
 }
 pub trait MultibodyTrait {

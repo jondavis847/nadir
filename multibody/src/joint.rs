@@ -6,12 +6,18 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
+use crate::{
+    body::BodyConnection,
+    result::{MultibodyResultTrait, ResultEntry},
+};
+
 use super::{
     body::{Body, BodyTrait},
     MultibodyTrait,
 };
 use errors::JointErrors;
 use floating::{Floating, FloatingResult};
+use joint_sim::JointSim;
 use prismatic::{Prismatic, PrismaticResult};
 use revolute::{Revolute, RevoluteResult};
 use serde::{Deserialize, Serialize};
@@ -76,7 +82,7 @@ pub trait JointTrait: MultibodyTrait {
     fn get_connections(&self) -> &JointConnection;
     fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;
+    fn get_outer_body_id(&self) -> Option<&Uuid>;    
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -206,21 +212,10 @@ impl JointTrait for Joint {
 // We also choose to make the transform be from the body frame to the joint frame.
 // This is because the location of things like actuators or other components are typically expressed in the body frame.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Connection {
-    pub body_id: Uuid,
-    pub transform: Transform,
-}
-impl Connection {
-    pub fn new(body_id: Uuid, transform: Transform) -> Self {
-        Self { body_id, transform }
-    }
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointConnection {
-    pub inner_body: Option<Connection>,
-    pub outer_body: Option<Connection>,
+    pub inner_body: Option<BodyConnection>,
+    pub outer_body: Option<BodyConnection>,
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
@@ -245,4 +240,40 @@ pub enum JointResult {
     Floating(FloatingResult),
     Prismatic(PrismaticResult),
     Revolute(RevoluteResult),
+}
+
+impl JointResult {
+    pub fn update(&mut self, joint: &JointSim) {
+        match (self, &joint) {
+            (JointResult::Floating(result), JointSim::Floating(joint)) => result.update(joint),
+            (JointResult::Prismatic(result), JointSim::Prismatic(joint)) => result.update(joint),
+            (JointResult::Revolute(result), JointSim::Revolute(joint)) => result.update(joint),
+            _ => unreachable!("invalid combo"),
+        }
+    }
+}
+
+impl MultibodyResultTrait for JointResult {
+    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+        match self {
+            JointResult::Floating(floating) => floating.add_to_dataframe(df),
+            JointResult::Revolute(revolute) => revolute.add_to_dataframe(df),
+            JointResult::Prismatic(prismatic) => prismatic.add_to_dataframe(df),
+        }
+    }
+    fn get_state_names(&self) -> Vec<&'static str> {
+        match self {
+            JointResult::Floating(result) => result.get_state_names(),
+            JointResult::Prismatic(result) => result.get_state_names(),
+            JointResult::Revolute(result) => result.get_state_names(),
+        }
+    }
+
+    fn get_result_entry(&self) -> ResultEntry {
+        match self {
+            JointResult::Floating(result) => result.get_result_entry(),
+            JointResult::Prismatic(result) => result.get_result_entry(),
+            JointResult::Revolute(result) => result.get_result_entry(),
+        }
+    }
 }

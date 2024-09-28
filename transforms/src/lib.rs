@@ -121,10 +121,12 @@ impl Mul<MassProperties> for Transform {
         let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vector());
 
         let inertia = rhs.inertia.matrix();
+
+        // transpose since rotation matrix is "active" unless calling the .transform() method, make it passive to transform
         let rotation_matrix = RotationMatrix::from(self.rotation).get_value();
 
-        // first transform the inertia (note passive rotation matrix from passive rotation)
-        let rotated_inertia =
+        // transform the inertia , note that this is usually R*I*R', but since R is active, it's now R'*I*R
+        let transformed_inertia =
             Inertia::from(rotation_matrix.transpose() * inertia * rotation_matrix);
 
         // rotate the translation
@@ -141,12 +143,12 @@ impl Mul<MassProperties> for Transform {
         let dz2 = dz * dz;
 
         let new_inertia = Inertia::new(
-            rotated_inertia.get_ixx() + mass * (dy2 + dz2),
-            rotated_inertia.get_ixy() - mass * dx * dy,
-            rotated_inertia.get_ixz() - mass * dx * dz,
-            rotated_inertia.get_iyy() + mass * (dx2 + dz2),
-            rotated_inertia.get_iyz() - mass * dy * dz,
-            rotated_inertia.get_izz() + mass * (dx2 + dy2),
+            transformed_inertia.get_ixx() + mass * (dy2 + dz2),
+            transformed_inertia.get_ixy() - mass * dx * dy,
+            transformed_inertia.get_ixz() - mass * dx * dz,
+            transformed_inertia.get_iyy() + mass * (dx2 + dz2),
+            transformed_inertia.get_iyz() - mass * dy * dz,
+            transformed_inertia.get_izz() + mass * (dx2 + dy2),
         )
         .unwrap();
 

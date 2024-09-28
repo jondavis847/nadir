@@ -63,7 +63,7 @@ impl Default for Rotation {
     ///
     /// The default `Rotation`, which is a quaternion representing no rotation.
     fn default() -> Self {
-        Rotation::Quaternion(Quaternion::identity())
+        Rotation::Quaternion(Quaternion::identity().normalize())
     }
 }
 
@@ -82,7 +82,7 @@ impl From<Quaternion> for Rotation {
     ///
     /// A new `Rotation` instance representing the quaternion.
     fn from(quaternion: Quaternion) -> Self {
-        Rotation::Quaternion(quaternion)
+        Rotation::Quaternion(quaternion.normalize()) // normalize since a rotation should be a unit quaternion
     }
 }
 
@@ -129,8 +129,9 @@ impl From<AlignedAxes> for Rotation {
     ///
     /// A new `Rotation` instance representing the converted quaternion.
     fn from(aligned_axes: AlignedAxes) -> Self {
-        let rotation_matrix = RotationMatrix::from(aligned_axes);
-        Rotation::RotationMatrix(rotation_matrix)
+        //let rotation_matrix = RotationMatrix::from(aligned_axes);
+        //Rotation::RotationMatrix(rotation_matrix)
+        Rotation::Quaternion(Quaternion::from(RotationMatrix::from(aligned_axes)))
     }
 }
 

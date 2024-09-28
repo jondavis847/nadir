@@ -217,7 +217,12 @@ impl From<AlignedAxes> for RotationMatrix {
         };
         set_column(&mut m, third_col, third_vec);
 
-        RotationMatrix::from(m)
+        //IMPORTANT: rotation matrix aligned axes was written as if transforming a vector value
+        // to another frame, rather than actively rotating the vector in the same frame
+        // However, we specify with rotation trait, rotate vs transform, and the default is rotate, inv is transform
+        // thus, transpose m here to be a rotation and not a transform
+
+        RotationMatrix::from(m.transpose())
     }
 }
 

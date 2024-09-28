@@ -8,7 +8,7 @@ use serde::{Serialize, Deserialize};
 //use crate::gravity::EARTH_RE;
 //pub const MU: f64 = 3.986004418e14;
 // temp assignment for const coefficients: 
-pub const DRAG_COEFF: f64 = 1.0;
+pub const DRAG_COEFF: f64 = 1.15; // shape of a short cylinder
 pub const SMA: f64 = 1.0; // semi major axis
 pub const ECCENTRICITY: f64 = 0.5; // eccentricity
 pub const AREA: f64 = 15.0; // area
@@ -87,8 +87,8 @@ mod tests {
         let air_drag = trq.calculate(velocity, height);
         let expected_air_drag = Vector3::new(
             0.0,
-            0.234632266256895e-4,
-            0.234632266256895e-4); // get this from Matlab
+            0.269827106195429e-4,
+            0.269827106195429e-4); // get this from Matlab
 
         assert_approx_eq!(air_drag.x,expected_air_drag.x, TOL);
         assert_approx_eq!(air_drag.y,expected_air_drag.y, TOL);

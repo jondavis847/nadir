@@ -1,11 +1,12 @@
 use super::{
     floating::FloatingSim, joint_state::JointState, joint_transforms::JointTransforms,
-    prismatic::PrismaticSim, revolute::RevoluteSim, Joint,
+    prismatic::PrismaticSim, revolute::RevoluteSim, Joint, JointResult,
 };
 use crate::algorithms::{
     articulated_body_algorithm::ArticulatedBodyAlgorithm, composite_rigid_body::CompositeRigidBody,
     recursive_newton_euler::RecursiveNewtonEuler, MultibodyAlgorithm,
 };
+use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -38,12 +39,12 @@ pub trait JointSimTrait {
     fn get_ndof(&self) -> usize;
     fn get_state(&self) -> JointState;
     fn get_v(&self) -> &Velocity;
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>);
+    fn set_inertia(&mut self, inertia: &MassProperties);
     fn set_force(&mut self, force: Force);
-    fn set_result(&mut self);
     fn set_state(&mut self, state: JointState);
     fn get_transforms(&self) -> &JointTransforms;
     fn get_transforms_mut(&mut self) -> &mut JointTransforms;
+    fn initialize_result(&self) -> JointResult;
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>);
     fn with_algorithm(self, algorithm: MultibodyAlgorithm) -> Self;
 }
@@ -127,8 +128,16 @@ impl JointSimTrait for JointSim {
         }
     }
 
+    fn initialize_result(&self) -> JointResult {
+        match self {
+            JointSim::Floating(joint) => joint.initialize_result(),
+            JointSim::Prismatic(joint) => joint.initialize_result(),
+            JointSim::Revolute(joint) => joint.initialize_result(),
+        }
+    }
+
     #[inline]
-    fn set_inertia(&mut self, inertia: Option<SpatialInertia>) {
+    fn set_inertia(&mut self, inertia: &MassProperties) {
         match self {
             JointSim::Floating(joint) => joint.set_inertia(inertia),
             JointSim::Prismatic(joint) => joint.set_inertia(inertia),
@@ -142,14 +151,6 @@ impl JointSimTrait for JointSim {
             JointSim::Floating(joint) => joint.set_force(force),
             JointSim::Prismatic(joint) => joint.set_force(force),
             JointSim::Revolute(joint) => joint.set_force(force),
-        }
-    }
-
-    fn set_result(&mut self) {
-        match self {
-            JointSim::Floating(joint) => joint.set_result(),
-            JointSim::Prismatic(joint) => joint.set_result(),
-            JointSim::Revolute(joint) => joint.set_result(),
         }
     }
 

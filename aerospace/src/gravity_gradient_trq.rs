@@ -1,6 +1,6 @@
 
 use nalgebra::{Matrix3, Vector3};
-use rotations::{quaternion::Quaternion, rotation_matrix::{self, RotationMatrix}, Rotation, RotationTrait};
+use rotations::{rotation_matrix::RotationMatrix, RotationTrait};
 
 pub const EARTH_MU: f64 = 3.986004418e14; // mu (m^3/s^2)
 pub struct GravGradientTrq {
@@ -10,10 +10,8 @@ impl GravGradientTrq {
     pub fn calculate(
         &self,
         position: Vector3<f64>, // ECEF position
-        q: &RotationMatrix,           // attitude i2b
-        //a_f2i: &Rotation,       // rotation ECEFToECI
-        a_f2i: &RotationMatrix,       // rotation ECEFToECI
-        // a_f2i: &Matrix3<f64>,
+        q: &RotationMatrix,           // attitude i2b        
+        a_f2i: &RotationMatrix,       // rotation ECEFToECI        
         moi: Matrix3<f64>,      // moment of inertia
         _mu: f64,                //Earth gravitational parameter, [m^3/s^2]
     ) -> Vector3<f64> {
@@ -32,10 +30,8 @@ impl GravGradientTrq {
 mod tests {
     use super::*;
     use approx_eq::assert_approx_eq;
-    //use approx_derive::AbsDiffEq;
     const TOL: f64 = 10e-12;
-    
-    //#[derive(AbsDiffEq, PartialEq, Debug)]
+    use rotations::quaternion::Quaternion;
 
     #[test]
     fn test_gravity_gradient() {

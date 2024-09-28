@@ -2,15 +2,16 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use aerospace::gravity::{Gravity, ConstantGravity, TwoBodyGravity};
+use aerospace::gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity};
 use clap::{Parser, Subcommand, ValueEnum};
+use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use dirs_next::config_dir;
-use geometry::{cuboid::Cuboid, ellipsoid::Ellipsoid, Geometry};
+use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid32, Ellipsoid16, Ellipsoid64}, Geometry, GeometryState}, material::Material, mesh::Mesh};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
-    }, result::MultibodyResult, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
+    }, result::MultibodyResult, sensor::{noise::{gaussian::GaussianNoise, uniform::UniformNoise, Noise, NoiseModels}, simple::{rate3::Rate3Sensor, SimpleSensor}, Sensor, SensorModel}, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
 use nalgebra::Vector3;
 use ratatui::{
@@ -26,7 +27,7 @@ use ratatui::{
 use reedline::{FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, Reedline, Signal};
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
-use rotations::{Rotation, quaternion::Quaternion};
+use rotations::{axes::{AlignedAxes, AxisPair}, prelude::{EulerAngles, EulerSequence}, quaternion::Quaternion, Rotation};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File,OpenOptions};
@@ -93,6 +94,7 @@ enum Components {
     Gravity,    
     Prismatic,
     Revolute,
+    Sensor,
 }
 
 fn main() {
@@ -289,7 +291,22 @@ fn main() {
                                                     Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
                                                     Err(e) => eprintln!("{:?}",e)
                                                 }                                           
-                                        }                                        
+                                            }  
+                                            Components::Sensor => {
+                                                let sensor = match prompt_sensor() {
+                                                    Ok(sensor) => sensor,
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                };
+                                                let name = sensor.get_name().to_string();
+                                                let r = system.add_sensor(sensor);
+                                                match r {
+                                                    Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }  
+                                            }                                      
                                         }
                                     } else {
                                         println!("Error: system '{}' not found.", system_name);
@@ -313,6 +330,7 @@ fn main() {
                                     let mut child  = Command::new("gadgt_animation")
                                             .stdin(Stdio::piped())
                                             .stdout(Stdio::piped())
+                                            .stderr(Stdio::inherit())
                                             .spawn()
                                             .expect("Failed to execute animation");      
 
@@ -383,6 +401,19 @@ fn main() {
                                                 MultibodyComponent::Gravity,
                                                 MultibodyComponent::Base | MultibodyComponent::Body,
                                             ) => None,
+                                            (
+                                                MultibodyComponent::Sensor,
+                                                MultibodyComponent::Body
+                                            ) => {
+                                                let transform = prompt_transform();
+                                                match transform {
+                                                    Ok(transform) => Some(transform),
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {eprintln!("{:?}",e); continue}
+                                                    }
+                                                }
+                                            },
                                             _ => {
                                                 eprintln!(
                                                     "Error: invalid connection ({:?} to {:?})",
@@ -577,12 +608,22 @@ fn main() {
                                                     error("Joint not found...")
                                                 }
                                             }
-                                            
-
+                                            MultibodyComponent::Sensor => {                                                
+                                                match to_type {                                                    
+                                                    MultibodyComponent::Body => {
+                                                        if let Some(body) = sys.bodies.get_mut(&to_id) {
+                                                            if body.sensors.contains(&to_id) {
+                                                                body.sensors.retain(|id| *id != to_id);
+                                                                success("Components disconnected!");
+                                                            } else {
+                                                                error("Components not connected...");
+                                                            }                                                            
+                                                        }                                                                                                                
+                                                    }
+                                                    _ => error("Invalid component combo...")
+                                                }
+                                            }
                                         }
-
-
-
                                     } else {
                                         error("Could not find system in systems"); // this should not be possible i believe
                                         continue
@@ -658,7 +699,7 @@ fn main() {
                                                     // maintaining id's and connections, then dropping new object
                                                     old_body.set_name(new_body.get_name().to_string());
                                                     old_body.mass_properties = new_body.mass_properties;
-                                                    old_body.geometry = new_body.geometry;
+                                                    old_body.mesh = new_body.mesh;
 
                                                 } else {
                                                     // i think this is impossible, since to find a base it has to exist
@@ -758,6 +799,33 @@ fn main() {
                                                     continue;
                                                 }
                                             },
+                                            MultibodyComponent::Sensor => {
+                                                if let Some(old_sensor) = sys.sensors.get_mut(&id) {
+                                                    // create a new object via prompt to get values for old object
+                                                    let new_sensor = match prompt_sensor() {
+                                                        Ok(s) => {
+                                                            s
+                                                        }
+                                                        Err(e) => match e {
+                                                            InputErrors::CtrlC => continue,
+                                                            _ => {
+                                                                eprintln!("{:?}",e);
+                                                                continue;
+                                                            }
+                                                        }
+                                                    };
+
+                                                    // Set values for the old object from the new one, 
+                                                    // maintaining id's and connections, then dropping new object
+                                                    old_sensor.set_name(new_sensor.get_name().to_string());
+                                                    old_sensor.set_model(new_sensor.get_model().clone());
+                                                } else {
+                                                    // i think this is impossible, since to find a base it has to exist
+                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
+                                                    error(&s);                                                
+                                                    continue;
+                                                }
+                                            },
                                         }
                                         success("Edit complete!");
                                     }
@@ -802,6 +870,13 @@ fn main() {
                                         let mut datasets = Vec::new();
 
                                         let df = result.get_component_state(&component, vec![&state]);
+                                        let df = match df {
+                                            Some(df) => df,
+                                            None => {
+                                                error("Error: component or state not found");
+                                                continue
+                                            }
+                                        };
                                         let t = df.column("t").unwrap().f64().unwrap();
                                                                                                                         
                                         let data = match df.column(&state) {
@@ -994,6 +1069,13 @@ fn main() {
                                             if let Some(res) = results.get(&name) {
                                                 if let Some(component) = component {
                                                     let res = res.get_component(&component);
+                                                    let res = match res {
+                                                        Some(res) => res,
+                                                        None => {
+                                                            error("Error: component or state not found");
+                                                            continue
+                                                        }
+                                                    };
                                                     if let Some(state) = state {
                                                         match res.column(&state) {
                                                             Ok(res) => println!("{}", res),
@@ -1059,8 +1141,11 @@ fn main() {
                             println!("Unrecognized command");
                         }
                     }
-                    Signal::CtrlC | Signal::CtrlD => {
+                    Signal::CtrlD => {
                         break
+                    }
+                    Signal::CtrlC => {
+                        continue
                     }
                 }
                 
@@ -1077,6 +1162,10 @@ enum Prompts {
     AngularRateX,
     AngularRateY,
     AngularRateZ,
+    AxisNewPrimary,
+    AxisNewSecondary,
+    AxisOldPrimary,
+    AxisOldSecondary,
     CartesianX,
     CartesianY,
     CartesianZ,
@@ -1095,19 +1184,23 @@ enum Prompts {
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
+    Delay,
+    Earth,
     EllipsoidRadiusX,
     EllipsoidRadiusY,
     EllipsoidRadiusZ,
-    EllipsoidLatitudeBands,
-    EllipsoidLongitudeBands,
+    EllipsoidLatitudeBands, 
+    EulerPhi,
+    EulerPsi,   
+    EulerSequence,
+    EulerTheta,
     Ixx,
     Iyy,
     Izz,
     Ixy,
     Ixz,
     Iyz,
-    Geometry,
-    GeometryType,
+    Geometry,    
     GravityType,
     GravityConstantX,
     GravityConstantY,
@@ -1137,7 +1230,13 @@ enum Prompts {
     JointSpringTranslationZ,
     Main,
     Mass,
+    Material,
+    Max,
+    Mean,
+    Mesh,
+    Min,
     Name,
+    NoiseModel,        
     Position,
     PositionX,
     PositionY,
@@ -1146,12 +1245,15 @@ enum Prompts {
     QuaternionX,
     QuaternionY,
     QuaternionZ,
+    Sensor,
     SimulationDt,
     SimulationStart,
     SimulationStop,
     //SphericalR,
     //SphericalA,
     //SphericalI,
+    SpecularPower,
+    Std,
     Transform,
     TransformRotation,
     TransformTranslation,
@@ -1170,6 +1272,10 @@ impl Prompts {
             Prompts::AngularRateX => "Initial angular rate X (units: rad/sec, default: 0.0)",
             Prompts::AngularRateY => "Initial angular rate Y (units: rad/sec, default: 0.0)",
             Prompts::AngularRateZ => "Initial angular rate Z (units: rad/sec, default: 0.0)",
+            Prompts::AxisNewPrimary => "new primary axis (default: x)",
+            Prompts::AxisOldPrimary => "old primary axis (default: x)",
+            Prompts::AxisNewSecondary => "new secondary axis (default: y)",
+            Prompts::AxisOldSecondary => "old secondary axis (default: y)",
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
             Prompts::CartesianY => "Cartesian [Y] (units: m, default: 0.0)",
             Prompts::CartesianZ => "Cartesian [Z] (units: m, default: 0.0)",            
@@ -1188,14 +1294,18 @@ impl Prompts {
             //Prompts::CylindricalR => "Cylindrical radius (units: m, default: 0.0)",
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
+            Prompts::Delay => "delay (sec):\n     {default: 0.0}",
             Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
-            Prompts::EllipsoidLongitudeBands => "Number of longitude bands (default: 16)",
+            Prompts::Earth => "Animate base as earth? (default: 'n')",            
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
-            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",
-            Prompts::Geometry => "Add geometry to body for animation? ['y'/'n'] (default: 'n')",
-            Prompts::GeometryType => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
-            Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body)]",
+            Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",    
+            Prompts::EulerPhi => "phi (1st) angle (rad, default: 0.0)",
+            Prompts::EulerPsi => "psi (3rd) angle (rad, default: 0.0)",
+            Prompts::EulerSequence => "EulerSequence (default: 'zyx')",
+            Prompts::EulerTheta => "theta (2nd) angle (rad, default: 0.0)",
+            Prompts::Geometry => "Geometry type ['c' cuboid,'e' ellipsoid] (default: 'c')",
+            Prompts::GravityType => "Gravity type ['c' (constant), '2' (two body), '96' (egm96)]",
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
             Prompts::GravityConstantZ => "Constant gravity Z (m/sec^2), default: 0.0)",
@@ -1229,22 +1339,31 @@ impl Prompts {
             Prompts::JointSpringTranslationY => "Translational spring constant Y (units: N/m, default: 0.0)",
             Prompts::JointSpringTranslationZ => "Translational spring constant Z (units: N/m, default: 0.0)",
             Prompts::Main => "GADGT",
-            Prompts::Mass => "Mass (units: kg, default: 1.0)",
-            Prompts::Name => "Name",
-            Prompts::Position => "Initial position (units: m, default: 0.0)",
-            Prompts::PositionX => "Initial position X (units: m, default: 0.0)",
-            Prompts::PositionY => "Initial position Y (units: m, default: 0.0)",
-            Prompts::PositionZ => "Initial position Z (units: m, default: 0.0)",
-            Prompts::QuaternionW => "Quaternion W (units: None, default: 1.0)",
-            Prompts::QuaternionX => "Quaternion X (units: None, default: 0.0)",
-            Prompts::QuaternionY => "Quaternion Y (units: None, default: 0.0)",
-            Prompts::QuaternionZ => "Quaternion Z (units: None, default: 0.0)",
+            Prompts::Mass => "mass (units: kg, default: 1.0)",
+            Prompts::Material => "material type? ['b' (basic) 'p' (phong)] (default: 'b')",                        
+            Prompts::Max => "maximum value:\n     {default: 1.0}",
+            Prompts::Mean => "mean:\n     {default: 0.0}",
+            Prompts::Mesh => "add mesh for animation? ['y','n'] (default: n)",
+            Prompts::Min => "minimum value:\n     {default: 0.0}",
+            Prompts::Name => "name",
+            Prompts::NoiseModel => "noise model:\n     {default: none}\n     0. none\n     1. uniform\n     2. gaussian",                        
+            Prompts::Position => "initial position (units: m, default: 0.0)",
+            Prompts::PositionX => "initial position x (units: m, default: 0.0)",
+            Prompts::PositionY => "initial position y (units: m, default: 0.0)",
+            Prompts::PositionZ => "initial position z (units: m, default: 0.0)",
+            Prompts::QuaternionW => "quaternion w (units: None, default: 1.0)",
+            Prompts::QuaternionX => "quaternion x (units: None, default: 0.0)",
+            Prompts::QuaternionY => "quaternion y (units: None, default: 0.0)",
+            Prompts::QuaternionZ => "quaternion z (units: None, default: 0.0)",
+            Prompts::Sensor => "sensor model:\n     1. body rate 3-axis (default)\n     2. body rate 1-axis",
             Prompts::SimulationDt => "dt (units: sec, default: 0.1)",
             Prompts::SimulationStart => "start_time (units: sec, default: 0.0)",
-            Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)",            
+            Prompts::SimulationStop => "stop_time (units: sec, default: 10.0)", 
+            Prompts::SpecularPower => "specular power (default: 32.0)",
             //Prompts::SphericalR => "Spherical radius (units: m, default: 0.0)",
             //Prompts::SphericalA => "Spherical azimuth (units: rad, default: 0.0)",
             //Prompts::SphericalI => "Spherical inclination (units: rad, default: 0.0)",            
+            Prompts::Std => "standard deviation:\n     {default: 1.0}",
             Prompts::Transform => "Transform ('i/identity','c/custom',  default: i)",
             Prompts::TransformRotation => "Rotation ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]",
             Prompts::TransformTranslation => "Translation ['z' (zero), 'cart' (cartesian), 'cyl' (cylindrical), 'sph' (spherical)]",
@@ -1307,6 +1426,9 @@ impl Prompts {
             | Prompts::Cmx
             | Prompts::Cmy
             | Prompts::Cmz
+            | Prompts::EulerPhi
+            | Prompts::EulerPsi
+            | Prompts::EulerTheta
             | Prompts::GravityConstantX
             | Prompts::GravityConstantY
             | Prompts::GravityConstantZ
@@ -1342,6 +1464,7 @@ impl Prompts {
             | Prompts::QuaternionX
             | Prompts::QuaternionY
             | Prompts::QuaternionZ
+            | Prompts::SpecularPower
             | Prompts::Velocity
             | Prompts::VelocityX
             | Prompts::VelocityY
@@ -1366,7 +1489,7 @@ impl Prompts {
                 }
                 Ok(())
             }
-            // Non-numeric and > 0
+            // numeric and > 0
             Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
                 if str.is_empty() {
                     //leave empty to use default
@@ -1392,7 +1515,7 @@ impl Prompts {
             //    Ok(())
             //}
             //GeometryType 
-            Prompts::GeometryType => {
+            Prompts::Geometry => {
                 if str.is_empty() {
                     //leave empty to use default
                     return Ok(())
@@ -1403,13 +1526,24 @@ impl Prompts {
                 }
                 Ok(())
             }
+            Prompts::Material => {
+                if str.is_empty() {
+                    //leave empty to use default
+                    return Ok(())
+                }
+                let possible_values = ["b", "p"];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::InvalidMaterial);
+                }
+                Ok(())
+            }
             //Gravity
             Prompts::GravityType => {
                 if str.is_empty() {
                     //leave empty to use default
                     return Ok(())
                 }
-                let possible_values = ["c", "2"];
+                let possible_values = ["c", "2", "96"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidGravity);
                 }
@@ -1446,7 +1580,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics | Prompts::Geometry => {
+            Prompts::JointMechanics | Prompts::Earth | Prompts::Mesh => {
                 if str.is_empty() {
                     //user must provide a default, but this is ok
                     return Ok(())
@@ -1460,6 +1594,64 @@ impl Prompts {
                 }
                 Ok(())
             }
+            Prompts::EllipsoidLatitudeBands => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "16",                    
+                    "32",
+                    "64"                                        
+                ];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::EllipsoidLatitudeBands);
+                }
+                Ok(())
+            },
+            Prompts::AxisNewPrimary | Prompts::AxisNewSecondary | Prompts::AxisOldPrimary | Prompts::AxisOldSecondary => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "x",                    
+                    "y",
+                    "z",
+                    "-x",
+                    "-y",
+                    "-z",
+                ];
+                if !possible_values.contains(&(str.to_lowercase().as_str())) {
+                    return Err(InputErrors::Axis);
+                }
+                Ok(())
+            },
+            Prompts::EulerSequence => {
+                if str.is_empty() {
+                    //user must provide a default, but this is ok
+                    return Ok(())
+                }
+                let possible_values = [
+                    "XYZ",
+                    "XZY",
+                    "YXZ",
+                    "YZX",
+                    "ZXY",
+                    "ZYX",
+                    "XYX",
+                    "XZX",
+                    "YXY",
+                    "YZY",
+                    "ZXZ",
+                    "ZYZ",
+                ];
+
+                if !possible_values.contains(&(str.to_uppercase().as_str())) {
+                    return Err(InputErrors::EulerSequence);
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -1467,11 +1659,15 @@ impl Prompts {
 
 #[derive(Debug)]
 pub enum InputErrors {
+    Axis,
     Body(BodyErrors),
     CtrlC,
+    EulerSequence,
+    EllipsoidLatitudeBands,
     InvalidColor,
     InvalidGeometry,
     InvalidGravity,
+    InvalidMaterial,
     InvalidRotation,
     InvalidTransform,
     NonNumeric,
@@ -1488,11 +1684,15 @@ impl From<BodyErrors> for InputErrors {
 impl std::fmt::Display for InputErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            InputErrors::Axis =>  write!(f,"Error: invalid axis, must be ['x','y','z','-x','-y','-z']"),
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
+            InputErrors::EllipsoidLatitudeBands => write!(f,"Error: input must be ['16', '32', '64']"),
+            InputErrors::EulerSequence => write!(f,"Error: input must be a valid euler sequence like 'zyx'"),
             InputErrors::InvalidColor => write!(f,"Error: input must be ['c' (constant), 'r' (rgba)]"),
             InputErrors::InvalidGeometry => write!(f,"Error: input must be ['c' (cuboid), 'e' (ellipsoid)]"),
             InputErrors::InvalidGravity => write!(f,"Error: input must be ['c' (constant), '2' (two body)]"),
+            InputErrors::InvalidMaterial => write!(f,"Error: input must be ['b' (basic), 'p' (phong)]"),
             InputErrors::InvalidRotation => write!(f,"Error: input must be ['i' (identity), 'q' (quaternion), 'r' (rotation matrix), 'e' (euler angles), 'a' (aligned axes)]"),
             InputErrors::InvalidTransform => write!(f,"Error: input must be ['i' (identity), 'c' (custom)]"),
             InputErrors::NonNumeric => write!(f,"Error: input must be numeric"),
@@ -1503,8 +1703,14 @@ impl std::fmt::Display for InputErrors {
 }
 
 fn prompt_base() -> Result<Base,InputErrors> {
-    let name = Prompts::Name.prompt()?;
-    Ok(Base::new(&name))    
+    let name = Prompts::Name.validate_loop("base")?;
+    let earth = match Prompts::Earth.validate_loop("n")?.as_str() {
+        "y" => true,
+        "n" => false,
+        _ => panic!("not possible")
+    };
+    
+    Ok(Base::new(&name, earth))    
 }
 
 fn prompt_body() -> Result<Body, InputErrors> {
@@ -1520,9 +1726,9 @@ fn prompt_body() -> Result<Body, InputErrors> {
     let ixz = Prompts::Ixz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
     let iyz = Prompts::Iyz.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
 
-    let geometry = Prompts::Geometry.validate_loop("n")?;
-    let geometry = match geometry.as_str() {
-        "y" => Some(prompt_geometry()?),
+    let mesh = Prompts::Mesh.validate_loop("n")?;
+    let mesh = match mesh.as_str() {
+        "y" => Some(prompt_mesh(name.clone())?),
         "n" => None,
         _ => panic!("shouldnt be possible, caught in prompt_geometry")
     };
@@ -1533,24 +1739,24 @@ fn prompt_body() -> Result<Body, InputErrors> {
     let mass_properties =
         MassProperties::new(mass, com, inertia).unwrap();
 
-    let body = match geometry {
-        Some(geometry) => Body::new(&name, mass_properties)?.with_geometry(geometry),
+    let body = match mesh {
+        Some(mesh) => Body::new(&name, mass_properties)?.with_mesh(mesh),
         None => Body::new(&name, mass_properties)?
     };    
     Ok(body)    
 }
 
-fn prompt_color() -> Result<[f32;4], InputErrors> {
+fn prompt_color() -> Result<Color, InputErrors> {
     let color_type = Prompts::Color.validate_loop("c")?;
     let rgba = match color_type.as_str() {
         "c" => {
             
                 let color = Prompts::ColorConstant.validate_loop("white")?;
                 match color.as_str() {
-                    "white" => [1.0,1.0,1.0,1.0],
-                    "red" => [1.0,0.0,0.0,1.0],
-                    "green" => [0.0,1.0,0.0,1.0],
-                    "blue" => [0.0,0.0,1.0,1.0],
+                    "white" => Color::new(1.0,1.0,1.0,1.0),
+                    "red" => Color::new(1.0,0.0,0.0,1.0),
+                    "green" => Color::new(0.0,1.0,0.0,1.0),
+                    "blue" => Color::new(0.0,0.0,1.0,1.0),
                     _ => panic!("invalid color, should have been caught by validate loop")
                 }            
         },
@@ -1559,7 +1765,7 @@ fn prompt_color() -> Result<[f32;4], InputErrors> {
             let g = Prompts::ColorG.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
             let b = Prompts::ColorB.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
             let a = Prompts::ColorA.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-            [r,g,b,a]
+            Color::new(r,g,b,a)
         }
         _ => panic!("invalid option, should have been caught by validate loop")
     };
@@ -1583,6 +1789,9 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
             let earth_string = earth.to_string();            
             let mu = Prompts::GravityTwoBodyMu.validate_loop(&earth_string)?.parse::<f64>().unwrap_or(earth);                
             Gravity::TwoBody(TwoBodyGravity::new(mu))
+        }
+        "96" => {                
+            Gravity::EGM96(EGM96Gravity{})
         }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")
     };
@@ -1699,6 +1908,52 @@ fn prompt_revolute() -> Result<Revolute, InputErrors> {
     Ok(Revolute::new(&name, parameters, state))
 }
 
+fn prompt_sensor() -> Result<Sensor, InputErrors> {
+    let name = Prompts::Name.prompt()?;
+    let model = Prompts::Sensor.validate_loop("1")?;
+    let model = match model.as_str() {
+        //Rate 3-axis
+        "1" => {
+            let rate3 = prompt_sensor_rate3()?;
+            SensorModel::Simple(SimpleSensor::Rate3(rate3))
+        },
+        //Rate 1-axis
+        "2" => {
+            todo!()
+        },
+        _ => {
+            panic!("not possible to get here, should have been caught in validate loop")
+        },
+    };
+    Ok(Sensor::new(name,model))
+}
+
+fn prompt_noise() -> Result<NoiseModels, InputErrors> {
+    match Prompts::NoiseModel.validate_loop("0")?.as_str() {
+        "0" => Ok(NoiseModels::None),
+        "1" => {
+            let min = Prompts::Min.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+            let max = Prompts::Max.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+            let uniform = UniformNoise::new(min,max);
+            Ok(NoiseModels::Uniform(uniform))
+        },
+        "2" => {
+            let mean = Prompts::Mean.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+            let sigma = Prompts::Std.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+            let gaussian = GaussianNoise::new(mean,sigma);
+            Ok(NoiseModels::Gaussian(gaussian))
+        },
+        _ => panic!("should not be possible, caught in validate loop"),
+    }
+}
+
+fn prompt_sensor_rate3() -> Result<Rate3Sensor, InputErrors> {    
+    let delay = Prompts::Delay.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let noise_model = prompt_noise()?;
+    let noise = Noise::new(noise_model);
+    Ok(Rate3Sensor::new(delay,noise))    
+}
+
 fn prompt_transform() -> Result<Transform,InputErrors> {
     let transform = Prompts::Transform.validate_loop("i")?;    
     match transform.trim() {
@@ -1721,20 +1976,76 @@ fn prompt_rotation() -> Result<Rotation,InputErrors> {
             let q = prompt_quaternion()?;
             Ok(Rotation::from(q))
         },    
+        "a" => {
+            let a = prompt_aligned_axes()?;
+            Ok(Rotation::from(a))
+        },
+        "e" => {
+            let e = prompt_euler_angles()?;
+            Ok(Rotation::from(e))
+        }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")       
     }
 }
 
-fn prompt_quaternion() -> Result<Quaternion, InputErrors> {
-
-    let w = Prompts::QuaternionW.validate_loop("1")?.parse::<f64>().unwrap_or(1.0);        
+fn prompt_quaternion() -> Result<Quaternion, InputErrors> {    
     let x = Prompts::QuaternionX.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);        
     let y = Prompts::QuaternionY.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);
     let z = Prompts::QuaternionZ.validate_loop("0")?.parse::<f64>().unwrap_or(0.0);        
-    
-    let q = Quaternion::new(x,y,z,w);
-    println!("{:?}", q);
+    let w = Prompts::QuaternionW.validate_loop("1")?.parse::<f64>().unwrap_or(1.0);        
+
+    let q = Quaternion::new(x,y,z,w);    
     Ok(q)
+}
+
+fn prompt_aligned_axes() -> Result<AlignedAxes, InputErrors> {    
+    
+    fn to_axis(val: String) -> rotations::axes::Axis {
+        match val.as_str() {
+            "x" | "+x" => rotations::axes::Axis::Xp,
+            "y" | "+y" => rotations::axes::Axis::Yp,
+            "z" | "+z" => rotations::axes::Axis::Zp,
+            "-x" => rotations::axes::Axis::Xn,
+            "-y" => rotations::axes::Axis::Yn,
+            "-z" => rotations::axes::Axis::Zn,
+            _ => unreachable!("should have been caught in validate loop")
+        }
+    }
+
+    let primary_old = to_axis(Prompts::AxisOldPrimary.validate_loop("x")?);
+    let primary_new = to_axis(Prompts::AxisNewPrimary.validate_loop("x")?);
+    let secondary_old = to_axis(Prompts::AxisOldSecondary.validate_loop("y")?);
+    let secondary_new = to_axis(Prompts::AxisNewSecondary.validate_loop("y")?);
+    
+    let primary = AxisPair::new(primary_old,primary_new);
+    let secondary = AxisPair::new(secondary_old,secondary_new);    
+    let a = AlignedAxes::new(primary,secondary);
+    Ok(a)
+}
+
+fn prompt_euler_angles() -> Result<EulerAngles, InputErrors> {
+    let sequence = Prompts::EulerSequence.validate_loop("zyx")?;
+    let sequence = match sequence.as_str() {
+        "xyz" => EulerSequence::XYZ,
+        "xzy" => EulerSequence::XZY,
+        "yxz" => EulerSequence::YXZ,
+        "yzx" => EulerSequence::YZX,
+        "zxy" => EulerSequence::ZXY,
+        "zyx" => EulerSequence::ZYX,
+        "xyx" => EulerSequence::XYX,
+        "xzx" => EulerSequence::XZX,
+        "yxy" => EulerSequence::YXY,
+        "yzy" => EulerSequence::YZY,
+        "zxz" => EulerSequence::ZXZ,
+        "zyz" => EulerSequence::ZYZ,
+        _ => unreachable!("should have been caught in validation"),
+    };
+    let phi = Prompts::EulerPhi.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let theta = Prompts::EulerTheta.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+    let psi = Prompts::EulerPsi.validate_loop("0.0")?.parse::<f64>().unwrap_or(0.0);
+
+    let euler_angles = EulerAngles::new(phi,theta,psi,sequence);
+    Ok(euler_angles)
 }
 
 fn prompt_translation() -> Result<CoordinateSystem,InputErrors> {
@@ -1767,26 +2078,41 @@ fn prompt_simulation() -> Result<(String,f64,f64,f64),InputErrors> {
 }
 
 fn prompt_cuboid() -> Result<Cuboid, InputErrors> {
-    let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let color = prompt_color()?;
-    Ok(Cuboid::new(x,y,z,color))
+    let x = Prompts::CuboidX.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let y = Prompts::CuboidY.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let z = Prompts::CuboidZ.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);    
+    Ok(Cuboid::new(x,y,z))
 }
 
-fn prompt_ellipsoid() -> Result<Ellipsoid, InputErrors> {
-    let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f32>().unwrap_or(1.0);
-    let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
-    let lon = Prompts::EllipsoidLongitudeBands.validate_loop("16")?.parse::<u32>().unwrap_or(16);
+fn prompt_ellipsoid() -> Result<Geometry, InputErrors> {
+    let x = Prompts::EllipsoidRadiusX.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let y = Prompts::EllipsoidRadiusY.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let z = Prompts::EllipsoidRadiusZ.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
+    let lat = Prompts::EllipsoidLatitudeBands.validate_loop("16")?;
     
-    let color = prompt_color()?;
-    Ok(Ellipsoid::new(x,y,z,lat, lon, color))
+    let geometry = match lat.as_str() {
+        "16" => Geometry::Ellipsoid16(Ellipsoid16::new(x,y,z)),
+        "32" => Geometry::Ellipsoid32(Ellipsoid32::new(x,y,z)),
+        "64" => Geometry::Ellipsoid64(Ellipsoid64::new(x,y,z)),
+        _ => panic!("should not be possible, caught in validate loop")
+    };
+    Ok(geometry)
+}
+
+fn prompt_mesh(name: String) -> Result<Mesh, InputErrors> {
+    let geometry = prompt_geometry()?;
+    let material = prompt_material()?;
+    Ok(Mesh {
+        name,
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    })
 }
 
 fn prompt_geometry() -> Result<Geometry, InputErrors> {
-    let geometry_type = Prompts::GeometryType.validate_loop("c")?;
+    let geometry_type = Prompts::Geometry.validate_loop("c")?;
     match geometry_type.as_str() {
         "c" => {
             let cuboid = prompt_cuboid()?;
@@ -1794,13 +2120,33 @@ fn prompt_geometry() -> Result<Geometry, InputErrors> {
         }
         "e" => {
             let ellipsoid = prompt_ellipsoid()?;
-            Ok(Geometry::Ellipsoid(ellipsoid))
+            Ok(ellipsoid)
         }
         _ => {
             Err(InputErrors::CtrlC)
         }
     }
 }
+fn prompt_material() -> Result<Material, InputErrors> {
+    let material_type = Prompts::Material.validate_loop("b")?;
+    match material_type.as_str() {
+        "b" => {
+            let color = prompt_color()?;
+            Ok(Material::Basic{color})
+        }
+        "p" => {
+            let color = prompt_color()?;
+            let specular_power = Prompts::SpecularPower.validate_loop("32.0")?.parse::<f32>().unwrap_or(32.0);
+            Ok(Material::Phong{color, specular_power})
+        }
+        _ => {
+            Err(InputErrors::CtrlC)
+        }
+    }
+}
+
+
+
 
 fn success(s: &str) {
     println!("{}",colored::Colorize::green(s))
