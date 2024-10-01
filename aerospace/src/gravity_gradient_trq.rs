@@ -30,7 +30,7 @@ impl GravGradientTrq {
 mod tests {
     use super::*;
     use approx_eq::assert_approx_eq;
-    const TOL: f64 = 10e-12;
+    //const TOL: f64 = 10e-12;
     use rotations::quaternion::Quaternion;
 
     #[test]
