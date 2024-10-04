@@ -10,6 +10,7 @@ use super::{
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
+use aerospace::celestial_system::CelestialSystem;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use transforms::Transform;
@@ -20,6 +21,7 @@ pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Option<Base>,
     pub bodies: HashMap<Uuid, Body>,
+    pub celestial: Option<CelestialSystem>,
     pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
     pub sensors: HashMap<Uuid, Sensor>,
@@ -31,6 +33,7 @@ impl MultibodySystem {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: None,
             bodies: HashMap::new(),
+            celestial: None,
             gravities: HashMap::new(),
             joints: HashMap::new(),
             sensors: HashMap::new(),
@@ -42,7 +45,8 @@ impl MultibodySystem {
         if self.base.is_some() {
             return Err(MultibodyErrors::BaseAlreadyExists);
         } else {
-            self.base = Some(base)
+            self.base = Some(base);
+            todo!("make this an actual earth base");
         }
         Ok(())
     }

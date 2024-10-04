@@ -1,18 +1,19 @@
 use clap::{Arg, Command};
+use rotations::prelude::{EulerAngles, Quaternion};
 use spice::{Bodies, Spice};
 
 fn main() {
-    /*
     // this creates the spice data file
-    let file = "resources/de440s.bsp";
-    let mut spice = Spice::new(file).unwrap();
-    spice.save_spice_data();
-    */
+    let mut spice = match Spice::from_naif() {
+        Ok(spice) => spice,
+        Err(e) => {
+            dbg!(e);
+            panic!()
+        }
+    };
 
-    // this uses the spice data file to get states
-    let spice_bytes: &[u8] = include_bytes!("../resources/spice.dat");
-    let mut spice: Spice = bincode::deserialize(spice_bytes).unwrap();
-    // Define the CLI structure using clap
+    spice.save_spice_data();
+
     // Define the CLI structure using clap
     let matches = Command::new("spice")
         .version("1.0")
@@ -45,7 +46,7 @@ fn main() {
     let et: f64 = et_str.parse().expect("Invalid ET");
 
     if let Some(body) = body {
-        let position = spice.get_position(et, body);
+        let position = spice.calculate_position(et, body);
         match position {
             Ok(position) => {
                 println!("J2000 Position:");
@@ -57,5 +58,30 @@ fn main() {
                 dbg!(e);
             }
         };
+        match body {
+            Bodies::Earth => {
+                let orientation = spice.calculate_orientation(et, body);
+                match orientation {
+                    Ok(orientation) => {
+                        let (rotation,ra,dec,gha) = orientation;
+                        let q = Quaternion::from(rotation);
+                        println!("J2000/ITRF Quaternion:");
+                        println!("  x: {}", q.x);
+                        println!("  y: {}", q.y);
+                        println!("  z: {}", q.z);
+                        println!("  w: {}", q.s);
+
+                        println!("Right Ascension: {}", ra);
+                        println!("Declination: {}", dec);
+                        println!("GHA: {}", gha);
+
+                    }
+                    Err(e) => {
+                        dbg!(e);
+                    }
+                }
+            }
+            _ => {}//nothing
+        }
     }
 }

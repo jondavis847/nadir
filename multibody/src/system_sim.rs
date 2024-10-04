@@ -14,6 +14,7 @@ use rotations::{RotationTrait, quaternion::Quaternion};
 
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
+use time::{EphemerisTime, JulianDate};
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
@@ -29,6 +30,7 @@ pub struct MultibodySystemSim {
     pub base: Base,
     pub bodies: Vec<BodySim>,
     pub body_names: Vec<String>,
+    pub epoch: EphemerisTime,
     pub joints: Vec<JointSim>,
     pub joint_names: Vec<String>,
     gravity: HashMap<Uuid, MultibodyGravity>,
@@ -107,12 +109,17 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
                 }
                 _ => None,
             };
+            let epoch = match sys.epoch {
+                Some(epoch) => EphemerisTime::from(&epoch),
+                None => EphemerisTime::now(),
+            };
 
             Ok(MultibodySystemSim {                
                 algorithm: sys.algorithm,
                 base: base.clone(),
                 bodies: bodysims,
                 body_names: bodynames,
+                epoch,
                 joints: jointsims,
                 joint_names: jointnames,
                 gravity: sys.gravities,
@@ -136,7 +143,8 @@ impl MultibodySystemSim {
         JointStates(new_joints)
     }
 
-    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, _t: f64) {
+    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, t: f64) {
+        let et = self.epoch + t;
         self.set_state(x.clone());
         self.update_joints();        
         self.update_forces();        

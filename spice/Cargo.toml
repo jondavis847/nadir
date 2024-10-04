@@ -7,5 +7,8 @@ edition = "2021"
 bincode = "1.3.3"
 byteorder = "1.5.0"
 clap = { version = "4.5.18", features = ["derive"] }
+directories = "5.0.1"
 phf = { version = "0.11.2", features = ["macros"] }
+rotations = {path = "../rotations"}
+reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }

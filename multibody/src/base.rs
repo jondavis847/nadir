@@ -4,10 +4,10 @@ use super::{
     joint::JointTrait,
     MultibodyTrait,
 };
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug,Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
     id: Uuid,
     name: String,
@@ -22,6 +22,7 @@ impl Base {
         if name.is_empty() {
             name = "base";
         }
+
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
