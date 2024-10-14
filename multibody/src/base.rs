@@ -4,20 +4,31 @@ use super::{
     joint::JointTrait,
     MultibodyTrait,
 };
+use aerospace::celestial_system::{CelestialErrors, CelestialSystem};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[derive(Debug)]
+pub enum BaseErrors {
+    CelestialError(CelestialErrors)
+}
+impl From<CelestialErrors> for BaseErrors {
+    fn from(value: CelestialErrors) -> Self {
+        BaseErrors::CelestialError(value)
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
     id: Uuid,
     name: String,
-    pub is_earth: bool,
+    pub celestial: Option<CelestialSystem>,    
     pub outer_joints: Vec<Uuid>,
     pub gravity: Vec<Uuid>,
 }
 
 impl Base {
-    pub fn new(name: &str, is_earth: bool) -> Self {
+    pub fn new(name: &str) -> Self {
         let mut name = name;
         if name.is_empty() {
             name = "base";
@@ -26,10 +37,25 @@ impl Base {
         Self {
             id: Uuid::new_v4(),
             name: name.to_string(),
-            is_earth,
+            celestial: None,
             outer_joints: Vec::new(),
             gravity: Vec::new(),
         }
+    }
+
+    pub fn connect_celestial_system(&mut self, celestial: CelestialSystem) {
+        self.celestial = Some(celestial);
+    }
+
+    pub fn delete_celestial_system(&mut self) {
+        self.celestial = None;
+    }
+
+    pub fn update(&mut self, t: f64) -> Result<(),BaseErrors> {
+        if let Some(celestial) = &mut self.celestial {            
+            celestial.update(t)?;
+        }
+        Ok(())
     }
 }
 

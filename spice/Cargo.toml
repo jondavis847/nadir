@@ -12,3 +12,4 @@ phf = { version = "0.11.2", features = ["macros"] }
 rotations = {path = "../rotations"}
 reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
+time = {path = "../time"}

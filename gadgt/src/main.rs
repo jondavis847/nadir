@@ -2,7 +2,7 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use aerospace::gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity};
+use aerospace::{celestial_system::{CelestialErrors, CelestialSystem}, earth::Earth, gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity}};
 use clap::{Parser, Subcommand, ValueEnum};
 use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -34,6 +34,7 @@ use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
 use std::path::{Path,PathBuf};
 use std::process::{Command,Stdio};
+use time::{Time, TimeSystem};
 use transforms::Transform;
 use utilities::format_number;
 
@@ -90,6 +91,7 @@ enum Commands {
 enum Components {
     Base,
     Body,
+    Celestial,
     Floating,
     Gravity,    
     Prismatic,
@@ -224,6 +226,23 @@ fn main() {
                                                         _ => eprintln!("{:?}",e)
                                                     }
                                                 }
+                                            }
+                                            Components::Celestial => {
+                                                if let Some(base) = &mut system.base {
+                                                    let celestial = prompt_celestial();
+                                                    match celestial {
+                                                        Ok(celestial) => {
+                                                            if let Some(celestial) = celestial {
+                                                                base.connect_celestial_system(celestial);       
+                                                            }                                                            
+                                                        }
+                                                        Err(e) => eprintln!("{:?}",e)
+                                                    }
+                                                } else {
+                                                    error("add a base first...");
+                                                    continue;
+                                                }
+                                                
                                             }
                                             Components::Gravity => {
                                                 match prompt_gravity() {
@@ -1169,6 +1188,12 @@ enum Prompts {
     CartesianX,
     CartesianY,
     CartesianZ,
+    Celestial,
+    CelestialEarth,
+    CelestialMars,
+    CelestialMoon,
+    CelestialSun,
+    CelestialDefault,    
     Cmx,
     Cmy,
     Cmz,
@@ -1184,12 +1209,12 @@ enum Prompts {
     //CylindricalA,
     //CylindricalH,
     //CylindricalR,
-    Delay,
-    Earth,
+    Delay,    
     EllipsoidRadiusX,
     EllipsoidRadiusY,
     EllipsoidRadiusZ,
-    EllipsoidLatitudeBands, 
+    EllipsoidLatitudeBands,     
+    Epoch,    
     EulerPhi,
     EulerPsi,   
     EulerSequence,
@@ -1279,6 +1304,12 @@ impl Prompts {
             Prompts::CartesianX => "Cartesian [X] (units: m, default: 0.0)",
             Prompts::CartesianY => "Cartesian [Y] (units: m, default: 0.0)",
             Prompts::CartesianZ => "Cartesian [Z] (units: m, default: 0.0)",            
+            Prompts::Celestial => "celestial? ['y','n']",            
+            Prompts::CelestialEarth => "earth? ['y','n']",
+            Prompts::CelestialMoon => "moon? ['y','n']",
+            Prompts::CelestialMars => "Mars? ['y','n']",
+            Prompts::CelestialSun => "sun? ['y','n']",
+            Prompts::CelestialDefault => "celestial defaults (earth,moon,sun)? ['y','n']",            
             Prompts::Cmx => "Center of mass [X] (units: m, default: 0.0)",
             Prompts::Cmy => "Center of mass [Y] (units: m, default: 0.0)",
             Prompts::Cmz => "Center of mass [Z] (units: m, default: 0.0)",
@@ -1295,11 +1326,11 @@ impl Prompts {
             //Prompts::CylindricalA => "Cylindrical azimuth (units: rad, default: 0.0)",
             //Prompts::CylindricalH => "Cylindrical height (units: m, default: 0.0)",
             Prompts::Delay => "delay (sec):\n     {default: 0.0}",
-            Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",
-            Prompts::Earth => "Animate base as earth? (default: 'n')",            
+            Prompts::EllipsoidLatitudeBands => "Number of latitude bands (default: 16)",            
             Prompts::EllipsoidRadiusX => "Ellipsoid radius X (default: 1.0)",
             Prompts::EllipsoidRadiusY => "Ellipsoid radius Y (default: 1.0)",
             Prompts::EllipsoidRadiusZ => "Ellipsoid radius Z (default: 1.0)",    
+            Prompts::Epoch => "epoch (et - seconds since j2k, default: now)",
             Prompts::EulerPhi => "phi (1st) angle (rad, default: 0.0)",
             Prompts::EulerPsi => "psi (3rd) angle (rad, default: 0.0)",
             Prompts::EulerSequence => "EulerSequence (default: 'zyx')",
@@ -1419,6 +1450,10 @@ impl Prompts {
     }
 
     fn validate(&self, str: &str) -> Result<(), InputErrors> {
+        if str.is_empty() {
+            //default must be provided, so this is ok
+            return Ok(())
+        }
         match self {
             // Non-numeric only
             Prompts::Angle
@@ -1468,21 +1503,13 @@ impl Prompts {
             | Prompts::Velocity
             | Prompts::VelocityX
             | Prompts::VelocityY
-            | Prompts::VelocityZ => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            | Prompts::VelocityZ => {                
                 if str.parse::<f64>().is_err() {
                     return Err(InputErrors::NonNumeric);
                 }
                 Ok(())
             }
-            Prompts::Color => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            Prompts::Color => {                
                 let possible_values = ["c", "r"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidColor);
@@ -1490,11 +1517,7 @@ impl Prompts {
                 Ok(())
             }
             // numeric and > 0
-            Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {                
                 if str.parse::<f64>().is_err() {
                     return Err(InputErrors::NonNumeric);
                 }
@@ -1515,22 +1538,14 @@ impl Prompts {
             //    Ok(())
             //}
             //GeometryType 
-            Prompts::Geometry => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            Prompts::Geometry => {                
                 let possible_values = ["c", "e"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidGeometry);
                 }
                 Ok(())
             }
-            Prompts::Material => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            Prompts::Material => {                
                 let possible_values = ["b", "p"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidMaterial);
@@ -1538,11 +1553,7 @@ impl Prompts {
                 Ok(())
             }
             //Gravity
-            Prompts::GravityType => {
-                if str.is_empty() {
-                    //leave empty to use default
-                    return Ok(())
-                }
+            Prompts::GravityType => {                
                 let possible_values = ["c", "2", "96"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidGravity);
@@ -1550,11 +1561,7 @@ impl Prompts {
                 Ok(())
             }
             // Transform
-            Prompts::Transform => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::Transform => {                
                 let possible_values = ["i", "c"];
                 if !possible_values.contains(&(str.to_lowercase().as_str())) {
                     return Err(InputErrors::InvalidTransform);
@@ -1562,11 +1569,7 @@ impl Prompts {
                 Ok(())
             }
             // Rotation
-            Prompts::TransformRotation => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::TransformRotation => {                
                 let possible_values = [
                     "i",                    
                     "q",                    
@@ -1580,11 +1583,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics | Prompts::Earth | Prompts::Mesh => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::JointMechanics | Prompts::Mesh | Prompts::Celestial | Prompts::CelestialDefault | Prompts::CelestialEarth | Prompts::CelestialMars | Prompts::CelestialMoon | Prompts::CelestialSun => {                
                 let possible_values = [
                     "y",                    
                     "n",                                        
@@ -1594,11 +1593,7 @@ impl Prompts {
                 }
                 Ok(())
             }
-            Prompts::EllipsoidLatitudeBands => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::EllipsoidLatitudeBands => {                
                 let possible_values = [
                     "16",                    
                     "32",
@@ -1609,11 +1604,7 @@ impl Prompts {
                 }
                 Ok(())
             },
-            Prompts::AxisNewPrimary | Prompts::AxisNewSecondary | Prompts::AxisOldPrimary | Prompts::AxisOldSecondary => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::AxisNewPrimary | Prompts::AxisNewSecondary | Prompts::AxisOldPrimary | Prompts::AxisOldSecondary => {                
                 let possible_values = [
                     "x",                    
                     "y",
@@ -1627,11 +1618,7 @@ impl Prompts {
                 }
                 Ok(())
             },
-            Prompts::EulerSequence => {
-                if str.is_empty() {
-                    //user must provide a default, but this is ok
-                    return Ok(())
-                }
+            Prompts::EulerSequence => {                
                 let possible_values = [
                     "XYZ",
                     "XZY",
@@ -1652,7 +1639,16 @@ impl Prompts {
                 }
                 Ok(())
             }
-            _ => Ok(()),
+            Prompts::Epoch => {
+                if str.to_lowercase().as_str() == "now" {
+                    return Ok(())
+                } else if str.parse::<f64>().is_err() {
+                    return Err(InputErrors::NonNumeric);
+                } else {
+                    Ok(())
+                }
+            } 
+            _ => Ok(())         
         }
     }
 }
@@ -1661,6 +1657,7 @@ impl Prompts {
 pub enum InputErrors {
     Axis,
     Body(BodyErrors),
+    Celestial(CelestialErrors),
     CtrlC,
     EulerSequence,
     EllipsoidLatitudeBands,
@@ -1681,11 +1678,18 @@ impl From<BodyErrors> for InputErrors {
     }
 }
 
+impl From<CelestialErrors> for InputErrors{
+    fn from(e: CelestialErrors) -> InputErrors {
+        InputErrors::Celestial(e)
+    }
+}
+
 impl std::fmt::Display for InputErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InputErrors::Axis =>  write!(f,"Error: invalid axis, must be ['x','y','z','-x','-y','-z']"),
             InputErrors::Body(b) => write!(f,"{:?}", b), //TODO: implement Display for BodyErrors
+            InputErrors::Celestial(c) => write!(f,"{:?}", c), //TODO: implement Display for CelestialErrors
             InputErrors::CtrlC => write!(f,"Error: ctrl+C pressed"),
             InputErrors::EllipsoidLatitudeBands => write!(f,"Error: input must be ['16', '32', '64']"),
             InputErrors::EulerSequence => write!(f,"Error: input must be a valid euler sequence like 'zyx'"),
@@ -1704,13 +1708,14 @@ impl std::fmt::Display for InputErrors {
 
 fn prompt_base() -> Result<Base,InputErrors> {
     let name = Prompts::Name.validate_loop("base")?;
-    let earth = match Prompts::Earth.validate_loop("n")?.as_str() {
-        "y" => true,
-        "n" => false,
-        _ => panic!("not possible")
-    };
-    
-    Ok(Base::new(&name, earth))    
+    let mut base = Base::new(&name);
+
+    let celestial = prompt_celestial()?;
+    if let Some(celestial) = celestial {
+        base.connect_celestial_system(celestial);
+    }
+
+    Ok(base)    
 }
 
 fn prompt_body() -> Result<Body, InputErrors> {
@@ -1745,6 +1750,46 @@ fn prompt_body() -> Result<Body, InputErrors> {
     };    
     Ok(body)    
 }
+
+fn prompt_celestial() -> Result<Option<CelestialSystem>, InputErrors> {
+    let celestial = Prompts::Celestial.validate_loop("n")?;
+    match celestial.as_str() {
+        "y" => {            
+            let epoch = Prompts::Epoch.validate_loop("now")?;
+            let epoch = match epoch.as_str() {
+                "now" => Time::now().unwrap(),
+                _ => {
+                    let t = epoch.as_str().parse::<f64>().unwrap();
+                    Time::from_sec_j2k(t, TimeSystem::TAI)
+                }
+            };
+
+            let default = Prompts::CelestialDefault.validate_loop("y")?;
+            match default.as_str() {
+                "y" => {
+                    let mut celestial = CelestialSystem::new(epoch)?;                    
+                    celestial.add_earth(Earth::default())?;
+                    celestial.add_sun()?;
+                    celestial.add_moon()?;
+                    return Ok(Some(celestial))
+                },
+                "n" => {
+                    println!("not yet implemented, just use default");
+                    let mut celestial = CelestialSystem::new(epoch)?;                    
+                    celestial.add_earth(Earth::default())?;
+                    celestial.add_sun()?;
+                    celestial.add_moon()?;
+                    return Ok(Some(celestial))
+                }
+                _ => unreachable!("caught in vaidate loop")
+            }
+        }   
+        
+        "n" => return Ok(None),
+        _ => unreachable!("should have been caught by validate loop")
+    }
+}
+
 
 fn prompt_color() -> Result<Color, InputErrors> {
     let color_type = Prompts::Color.validate_loop("c")?;

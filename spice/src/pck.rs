@@ -1,21 +1,23 @@
 use serde::{Deserialize, Serialize};
+use std::io::{self,Write};
 
 use crate::{
     daf::{DafData, Segment},
-    Bodies, SpiceErrors, SpiceFileTypes,
+    SpiceBodies, SpiceErrors, SpiceFileTypes,
 };
 // We just create this data manually from the pck file (pck00011.tpc)
 // since it's available in ascii format and there aren't that many parameters
 // We will update with EOP files automatically
 // These values have an error of up to 150 arcseconds based on the docs, use EOPs or expect errors
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EarthParameters(pub DafData);
 
 impl EarthParameters {
     pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
+        io::stdout().flush()?;
         let eop_url =
         "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/earth_1962_240827_2124_combined.bpc";
         //"https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/earth_latest_high_prec.bpc";
@@ -29,20 +31,21 @@ impl EarthParameters {
 
     pub fn get_segment(
         &mut self,
-        body: &Bodies,
+        body: &SpiceBodies,
         t: f64,
     ) -> Result<Option<&mut Segment>, SpiceErrors> {
         self.0.get_segment(body, t)
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MoonParameters(DafData);
 
 impl MoonParameters {
     pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
         print!("Getting latest moon file from naif website...");
+        io::stdout().flush()?;
         let moon_url =
             "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc";
         let response = reqwest::blocking::get(moon_url)?;
@@ -55,7 +58,7 @@ impl MoonParameters {
 
     pub fn get_segment(
         &mut self,
-        body: &Bodies,
+        body: &SpiceBodies,
         t: f64,
     ) -> Result<Option<&mut Segment>, SpiceErrors> {
         self.0.get_segment(body, t)

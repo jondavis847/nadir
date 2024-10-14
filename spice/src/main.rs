@@ -1,6 +1,7 @@
 use clap::{Arg, Command};
-use rotations::prelude::{EulerAngles, Quaternion};
-use spice::{Bodies, Spice};
+use rotations::prelude::Quaternion;
+use spice::{SpiceBodies, Spice};
+use time::{Time,TimeSystem};
 
 fn main() {
     // this creates the spice data file
@@ -12,7 +13,7 @@ fn main() {
         }
     };
 
-    spice.save_spice_data();
+    spice.save_spice_data().unwrap();
 
     // Define the CLI structure using clap
     let matches = Command::new("spice")
@@ -33,7 +34,7 @@ fn main() {
                 .short('e')
                 .long("et")
                 .value_name("ET")
-                .help("The epoch time in seconds past J2000")
+                .help("The TAI epoch in seconds past J2000")
                 .num_args(1)
                 .required(true),
         )
@@ -42,11 +43,12 @@ fn main() {
     let body_str = matches.get_one::<String>("body").unwrap();
     let et_str = matches.get_one::<String>("et").unwrap();
 
-    let body = Bodies::from_string(body_str);
+    let body = SpiceBodies::from_string(body_str);
     let et: f64 = et_str.parse().expect("Invalid ET");
+    let epoch = Time::from_sec_j2k(et,TimeSystem::TAI);
 
     if let Some(body) = body {
-        let position = spice.calculate_position(et, body);
+        let position = spice.calculate_position(epoch, body);
         match position {
             Ok(position) => {
                 println!("J2000 Position:");
@@ -59,8 +61,8 @@ fn main() {
             }
         };
         match body {
-            Bodies::Earth => {
-                let orientation = spice.calculate_orientation(et, body);
+            SpiceBodies::Earth => {
+                let orientation = spice.calculate_orientation(epoch, body);
                 match orientation {
                     Ok(orientation) => {
                         let (rotation,ra,dec,gha) = orientation;

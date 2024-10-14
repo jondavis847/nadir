@@ -9,6 +9,7 @@ use spk::SpiceSpk;
 
 use std::fs::File;
 use std::io::{Error as IoError, Write};
+use time::{Time,TimeSystem};
 
 pub mod daf;
 pub mod pck;
@@ -18,7 +19,7 @@ pub enum SpiceFileTypes {
     Pck,
     Spk,
 }
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Spice {
     pub earth: EarthParameters,
     moon: MoonParameters,
@@ -30,16 +31,18 @@ impl Spice {
         let earth = EarthParameters::from_naif()?;
         let moon = MoonParameters::from_naif()?;
         let spk = SpiceSpk::from_naif()?;
-        Ok(Self { earth, moon, spk })
+        
+        Ok(Self { earth, moon, spk})
     }
 
-    pub fn calculate_position(&mut self, t: f64, body: Bodies) -> Result<[f64; 3], SpiceErrors> {
+    pub fn calculate_position(&mut self, t: Time, body: SpiceBodies) -> Result<[f64; 3], SpiceErrors> {
+        let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         if let Some(segment) = self.spk.get_segment(&body, t)? {
             // earth and moon are in reference to the earth barycenter, adjust to solar system barycenter to match others
             match segment.target {
-                Bodies::Earth | Bodies::Moon => {
+                SpiceBodies::Earth | SpiceBodies::Moon => {
                     let body_pos = segment.evaluate(t)?;
-                    let barycenter = self.spk.get_segment(&Bodies::EarthBarycenter, t)?.unwrap();
+                    let barycenter = self.spk.get_segment(&SpiceBodies::EarthBarycenter, t)?.unwrap();
                     let barycenter_pos = barycenter.evaluate(t)?;
                     Ok([
                         body_pos.0 + barycenter_pos.0,
@@ -59,18 +62,19 @@ impl Spice {
 
     pub fn calculate_orientation(
         &mut self,
-        t: f64,
-        body: Bodies,
+        t: Time,
+        body: SpiceBodies,
     ) -> Result<(Rotation, f64, f64, f64), SpiceErrors> {
+        let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
-            Bodies::Earth => {
+            SpiceBodies::Earth => {
                 if let Some(segment) = self.earth.get_segment(&body, t)? {                    
                     segment
                 } else {
                     return Err(SpiceErrors::BodyNotFound);
                 }
             }
-            Bodies::Moon => {
+            SpiceBodies::Moon => {
                 if let Some(segment) = self.moon.get_segment(&body, t)? {
                     segment
                 } else {
@@ -118,7 +122,7 @@ impl From<reqwest::Error> for SpiceErrors {
 /// Note that for most of these, we use the Barycenter since it's all that's available in the de440s.bsp
 /// The only ones that are not barycenter are the earth, moon, and sun. Change this in the future if needed
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub enum Bodies {
+pub enum SpiceBodies {
     SolarSystemBarycenter,
     Mercury,
     MercuryBarycenter,
@@ -142,30 +146,30 @@ pub enum Bodies {
     Sun,
 }
 
-impl Bodies {
+impl SpiceBodies {
     fn from_spk_id(id: i32) -> Option<Self> {
         match id {
-            0 => Some(Bodies::SolarSystemBarycenter),
-            1 => Some(Bodies::MercuryBarycenter),
-            199 => Some(Bodies::Mercury),
-            2 => Some(Bodies::VenusBarycenter),
-            299 => Some(Bodies::Venus),
-            3 => Some(Bodies::EarthBarycenter),
-            399 => Some(Bodies::Earth),
-            301 => Some(Bodies::Moon),
-            4 => Some(Bodies::MarsBarycenter),
-            499 => Some(Bodies::Mars),
-            5 => Some(Bodies::JupiterBarycenter),
-            599 => Some(Bodies::Jupiter),
-            6 => Some(Bodies::SaturnBarycenter),
-            699 => Some(Bodies::Saturn),
-            7 => Some(Bodies::UranusBarycenter),
-            799 => Some(Bodies::Uranus),
-            8 => Some(Bodies::NeptuneBarycenter),
-            899 => Some(Bodies::Neptune),
-            9 => Some(Bodies::PlutoBarycenter),
-            999 => Some(Bodies::Pluto),
-            10 => Some(Bodies::Sun),
+            0 => Some(SpiceBodies::SolarSystemBarycenter),
+            1 => Some(SpiceBodies::MercuryBarycenter),
+            199 => Some(SpiceBodies::Mercury),
+            2 => Some(SpiceBodies::VenusBarycenter),
+            299 => Some(SpiceBodies::Venus),
+            3 => Some(SpiceBodies::EarthBarycenter),
+            399 => Some(SpiceBodies::Earth),
+            301 => Some(SpiceBodies::Moon),
+            4 => Some(SpiceBodies::MarsBarycenter),
+            499 => Some(SpiceBodies::Mars),
+            5 => Some(SpiceBodies::JupiterBarycenter),
+            599 => Some(SpiceBodies::Jupiter),
+            6 => Some(SpiceBodies::SaturnBarycenter),
+            699 => Some(SpiceBodies::Saturn),
+            7 => Some(SpiceBodies::UranusBarycenter),
+            799 => Some(SpiceBodies::Uranus),
+            8 => Some(SpiceBodies::NeptuneBarycenter),
+            899 => Some(SpiceBodies::Neptune),
+            9 => Some(SpiceBodies::PlutoBarycenter),
+            999 => Some(SpiceBodies::Pluto),
+            10 => Some(SpiceBodies::Sun),
             _ => {
                 dbg!(id);
                 None
@@ -175,8 +179,8 @@ impl Bodies {
 
     fn from_pck_id(id: i32) -> Option<Self> {
         match id {
-            3000 => Some(Bodies::Earth),
-            31008 => Some(Bodies::Moon),
+            3000 => Some(SpiceBodies::Earth),
+            31008 => Some(SpiceBodies::Moon),
             _ => {
                 dbg!(id);
                 None
@@ -186,27 +190,27 @@ impl Bodies {
 
     pub fn from_string(str: &String) -> Option<Self> {
         match str.to_lowercase().as_str() {
-            "solar system barycenter" => Some(Bodies::SolarSystemBarycenter),
-            "mercury barycenter" => Some(Bodies::MercuryBarycenter),
-            "mercury" => Some(Bodies::Mercury),
-            "venus barycenter" => Some(Bodies::VenusBarycenter),
-            "venus" => Some(Bodies::Venus),
-            "earth barycenter" => Some(Bodies::EarthBarycenter),
-            "earth" => Some(Bodies::Earth),
-            "moon" => Some(Bodies::Moon),
-            "mars barycenter" => Some(Bodies::MarsBarycenter),
-            "mars" => Some(Bodies::Mars),
-            "jupiter barycenter" => Some(Bodies::JupiterBarycenter),
-            "jupiter" => Some(Bodies::Jupiter),
-            "saturn barycenter" => Some(Bodies::SaturnBarycenter),
-            "saturn" => Some(Bodies::Saturn),
-            "uranus barycenter" => Some(Bodies::UranusBarycenter),
-            "uranus" => Some(Bodies::Uranus),
-            "neptune barycenter" => Some(Bodies::NeptuneBarycenter),
-            "neptune" => Some(Bodies::Neptune),
-            "pluto barycenter" => Some(Bodies::PlutoBarycenter),
-            "pluto" => Some(Bodies::Pluto),
-            "sun" => Some(Bodies::Sun),
+            "solar system barycenter" => Some(SpiceBodies::SolarSystemBarycenter),
+            "mercury barycenter" => Some(SpiceBodies::MercuryBarycenter),
+            "mercury" => Some(SpiceBodies::Mercury),
+            "venus barycenter" => Some(SpiceBodies::VenusBarycenter),
+            "venus" => Some(SpiceBodies::Venus),
+            "earth barycenter" => Some(SpiceBodies::EarthBarycenter),
+            "earth" => Some(SpiceBodies::Earth),
+            "moon" => Some(SpiceBodies::Moon),
+            "mars barycenter" => Some(SpiceBodies::MarsBarycenter),
+            "mars" => Some(SpiceBodies::Mars),
+            "jupiter barycenter" => Some(SpiceBodies::JupiterBarycenter),
+            "jupiter" => Some(SpiceBodies::Jupiter),
+            "saturn barycenter" => Some(SpiceBodies::SaturnBarycenter),
+            "saturn" => Some(SpiceBodies::Saturn),
+            "uranus barycenter" => Some(SpiceBodies::UranusBarycenter),
+            "uranus" => Some(SpiceBodies::Uranus),
+            "neptune barycenter" => Some(SpiceBodies::NeptuneBarycenter),
+            "neptune" => Some(SpiceBodies::Neptune),
+            "pluto barycenter" => Some(SpiceBodies::PlutoBarycenter),
+            "pluto" => Some(SpiceBodies::Pluto),
+            "sun" => Some(SpiceBodies::Sun),
             _ => {
                 println!("Error: body '{}' not found", str);
                 println!("Note: you may need to use quotes like 'earth barycenter'");
@@ -239,7 +243,7 @@ impl Bodies {
 }
 
 /// Lets just stick with J2000 for now
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 enum Frames {
     J2000Equatorial,
     J2000Ecliptic,
@@ -255,7 +259,7 @@ impl Frames {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 enum DataTypes {
     ModifiedDifferenceArrays,
     ChebyshevPolyPosition,

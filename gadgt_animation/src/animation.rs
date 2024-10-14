@@ -31,18 +31,13 @@ pub struct AnimationState {
 
 impl AnimationState {
     pub fn animate(&mut self, result: &MultibodyResult, instant: iced::time::Instant) {
-        self.animator.update(instant);        
+        self.animator.update(instant);
 
         for mesh in &mut self.scene.meshes {
             let (attitude, position) =
                 result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
-            let position = glam::dvec3(position[0], position[1], position[2]);                
-            let rotation = glam::dquat(
-                attitude.x,
-                attitude.y,
-                attitude.z,
-                attitude.s,
-            );
+            let position = glam::dvec3(position[0], position[1], position[2]);
+            let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
             mesh.update(position, rotation);
         }
 
@@ -51,7 +46,7 @@ impl AnimationState {
             let camera_target = self.scene.meshes[index].state.position;
             for mesh in &mut self.scene.meshes {
                 mesh.set_position_from_target(camera_target);
-            }            
+            }
             camera_target
         } else {
             DVec3::ZERO
@@ -125,11 +120,13 @@ impl AnimationState {
             }
         }
 
-        if sys.base.is_earth {
-            // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
-            // otherwise defaults to close to the origin
-            // must do this after shapres are set in scene or it wont know where to place the camera
-            self.scene.set_earth(sys.base.is_earth);
+        if let Some(celestial) = &sys.base.celestial {
+            if celestial.bodies.earth.is_some() {
+                // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
+                // otherwise defaults to close to the origin
+                // must do this after shapres are set in scene or it wont know where to place the camera
+                self.scene.set_earth(true);
+            }
         }
 
         let t = &result.sim_time;

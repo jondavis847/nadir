@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{aerospace::MultibodyGravity, MultibodyTrait};
-use aerospace::gravity::GravityTrait;
+use aerospace::celestial_system::CelestialSystem;
 use gadgt_3d::mesh::Mesh;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
@@ -180,14 +180,10 @@ impl BodySim {
     pub fn calculate_gravity(
         &mut self,
         body_from_base: &SpatialTransform,
-        gravities: &HashMap<Uuid, MultibodyGravity>,
+        celestial: &CelestialSystem         
     ) {
         // loop over all gravities attached to body to calculate and sum the accelerations
-        let mut g_vec = Vector3::zeros();
-        self.gravity.iter().for_each(|gravity_id| {
-            let gravity = gravities.get(gravity_id).unwrap();
-            g_vec += gravity.gravity.calculate(self.state.position_base);
-        });
+        let g_vec = celestial.calculate_gravity_gcrf(self.state.position_base);
 
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm

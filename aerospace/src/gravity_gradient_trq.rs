@@ -30,6 +30,7 @@ impl GravGradientTrq {
 mod tests {
     use super::*;
     use rotations::quaternion::Quaternion;
+    use approx::assert_relative_eq;
 
     #[test]
     fn test_gravity_gradient() {
@@ -63,9 +64,9 @@ mod tests {
             -0.116261767084494e-3); // get this from Matlab
 
         // assert_eq!(gg, expected_gg);
-        approx_eq::rel_diff(gg.x, expected_gg.x);
-        approx_eq::rel_diff(gg.y, expected_gg.y);
-        approx_eq::rel_diff(gg.z, expected_gg.z);
+        assert_relative_eq!(gg.x, expected_gg.x, max_relative = 1e-3);
+        assert_relative_eq!(gg.y, expected_gg.y, max_relative = 1e-3);
+        assert_relative_eq!(gg.z, expected_gg.z, max_relative = 1e-3);
 
     }
 

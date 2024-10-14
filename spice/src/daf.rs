@@ -1,15 +1,15 @@
-use super::{Bodies, DataTypes, Frames, SpiceErrors};
-use crate::{Spice, SpiceFileTypes};
+use super::{SpiceBodies, DataTypes, Frames, SpiceErrors};
+use crate::SpiceFileTypes;
 use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{self, Read};
 use std::cmp::Ordering;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DafData {
     pub file_record: FileRecord,
-    pub segments: HashMap<Bodies, Vec<Segment>>,
+    pub segments: HashMap<SpiceBodies, Vec<Segment>>,
     pub current_segment: usize,
 }
 
@@ -83,7 +83,7 @@ impl DafData {
         })
     }
 
-    pub fn get_segment(&mut self, body: &Bodies, t:f64) -> Result<Option<&mut Segment>,SpiceErrors> {
+    pub fn get_segment(&mut self, body: &SpiceBodies, t:f64) -> Result<Option<&mut Segment>,SpiceErrors> {
         if let Some(segments) = self.segments.get_mut(body) {
             Ok(segments.binary_search_by(|segment| {
                 if t < segment.start_time {
@@ -100,8 +100,8 @@ impl DafData {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct FileRecord {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FileRecord {
     locidw: String, // An identification word (DAF/xxxx)
     nd: u32,        // The number of double precision components in each array summary
     ni: u32,        // The number of integer components in each array summary
@@ -183,7 +183,7 @@ struct SummaryRecord {
     num_segments: u32, // Number of summaries in this record
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct SegmentMeta {
     init: f64,
     init_len: f64,
@@ -191,12 +191,12 @@ struct SegmentMeta {
     n_records: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Segment {
     pub start_time: f64,
     pub end_time: f64,
-    pub target: Bodies,
-    center: Option<Bodies>,
+    pub target: SpiceBodies,
+    center: Option<SpiceBodies>,
     frame: Frames,
     data_type: DataTypes,
     initial_address: i32,
@@ -266,7 +266,7 @@ impl Segment {
         let final_address = cursor.read_i32::<LittleEndian>()?;
 
         if let (Some(target), Some(frame), Some(data_type)) = (
-            Bodies::from_pck_id(target_id),
+            SpiceBodies::from_pck_id(target_id),
             Frames::from_id(frame_id),
             DataTypes::from_id(data_type_id),
         ) {
@@ -306,8 +306,8 @@ impl Segment {
         let final_address = cursor.read_i32::<LittleEndian>()?;
 
         if let (Some(target), Some(center), Some(frame), Some(data_type)) = (
-            Bodies::from_spk_id(target_id),
-            Bodies::from_spk_id(center_id),
+            SpiceBodies::from_spk_id(target_id),
+            SpiceBodies::from_spk_id(center_id),
             Frames::from_id(frame_id),
             DataTypes::from_id(data_type_id),
         ) {
@@ -413,7 +413,7 @@ impl Segment {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ChebyshevRecord {
     mid: f64,         // The midpoint of the time interval
     radius: f64,      // The radius of the time interval
