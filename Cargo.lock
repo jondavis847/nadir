@@ -51,6 +51,7 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "csv",
+ "interp",
  "matfile",
  "nalgebra",
  "ndarray 0.16.1",
@@ -208,6 +209,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "approx-derive"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85810b8305d6e4c99d90ba29b37b9d9e3c5915e3dc8baa735ec590d58c2c20e4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "approx_eq"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -271,6 +283,12 @@ checksum = "39e9c3835d686b0a6084ab4234fcd1b07dbf6e4767dce60874b12356a25ecd4a"
 dependencies = [
  "libloading 0.7.4",
 ]
+
+[[package]]
+name = "assert_approx_eq"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c07dab4369547dbe5114677b33fbbf724971019f3818172d59a97a61c774ffd"
 
 [[package]]
 name = "atoi"
@@ -2349,6 +2367,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "interp"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8c89580397435d01eb9485f1654f001000bfcb1e4d14afd3546f44a5179279b"
+dependencies = [
+ "itertools 0.13.0",
+ "num-traits",
 ]
 
 [[package]]
