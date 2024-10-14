@@ -72,7 +72,7 @@ impl AeroDynamicsDrag{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
+    use approx::assert_abs_diff_eq;
     const TOL: f64 = 1e-12;
 
     #[test]
@@ -90,9 +90,9 @@ mod tests {
             0.269827106195429e-4,
             0.269827106195429e-4); // get this from Matlab
 
-        assert_approx_eq!(air_drag.x,expected_air_drag.x, TOL);
-        assert_approx_eq!(air_drag.y,expected_air_drag.y, TOL);
-        assert_approx_eq!(air_drag.z,expected_air_drag.z, TOL);
+        assert_abs_diff_eq!(air_drag.x,expected_air_drag.x, epsilon = TOL);
+        assert_abs_diff_eq!(air_drag.y,expected_air_drag.y, epsilon = TOL);
+        assert_abs_diff_eq!(air_drag.z,expected_air_drag.z, epsilon = TOL);
 
     }
 

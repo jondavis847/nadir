@@ -60,7 +60,7 @@ impl SolarRadiationPressure{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
+    use approx::assert_abs_diff_eq;
     const TOL: f64 = 1e-12;
 
     #[test]
@@ -98,9 +98,9 @@ mod tests {
     */
 
                              
-        assert_approx_eq!(srp.x , expected_srp_tq.x, TOL);
-        assert_approx_eq!(srp.y , expected_srp_tq.y, TOL);
-        assert_approx_eq!(srp.z , expected_srp_tq.z, TOL);
+        assert_abs_diff_eq!(srp.x , expected_srp_tq.x, epsilon = TOL);
+        assert_abs_diff_eq!(srp.y , expected_srp_tq.y, epsilon = TOL);
+        assert_abs_diff_eq!(srp.z , expected_srp_tq.z, epsilon = TOL);
 
     }
 

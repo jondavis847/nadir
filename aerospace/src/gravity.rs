@@ -196,22 +196,20 @@ impl GravityTrait for EGM96Gravity {
             position_mag,
             scale_factor,
         );        
-        g_ecef
-    }
-}
+        
 
-fn legendre_func(phi: f64, maxdeg: usize) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
-    let mut p = vec![vec![0.0; maxdeg + 3]; maxdeg + 3];
-    let mut scale_factor = vec![vec![0.0; maxdeg + 3]; maxdeg + 3];
-    let mut cphi: f64 = (PI / 2.0 - phi).cos();
-    let mut sphi: f64 = (PI / 2.0 - phi).sin();
-    // Force numerically zero values to be exactly zero
-    if cphi.abs() <= f64::EPSILON {
-        cphi = 0.0;
-    }
-    if sphi.abs() <= f64::EPSILON {
-        sphi = 0.0;
-    }
+        fn legendre_func(phi: f64, maxdeg: usize) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+            let mut p = vec![vec![0.0; maxdeg + 3]; maxdeg + 3];
+            let mut scale_factor = vec![vec![0.0; maxdeg + 3]; maxdeg + 3];
+            let mut cphi: f64 = (PI / 2.0 - phi).cos();
+            let mut sphi: f64 = (PI / 2.0 - phi).sin();
+            // Force numerically zero values to be exactly zero
+            if cphi.abs() <= f64::EPSILON {
+                cphi = 0.0;
+            }
+            if sphi.abs() <= f64::EPSILON {
+                sphi = 0.0;
+            }
 
             // Seeds for recursion formula
             p[0][0] = 1.0; // n = 0, m = 0
