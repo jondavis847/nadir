@@ -57,82 +57,78 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
         let mut jointnames = Vec::new();
         let mut parent_indeces: Vec<Option<usize>> = Vec::new();
 
-        if let Some(base) = &sys.base {
-            let outer_joint_ids = base.get_outer_joints();
-            for id in outer_joint_ids {
-                if let Some(joint) = sys.joints.get(&id) {
-                    let joint_sim = JointSim::from(joint.clone()).with_algorithm(sys.algorithm);
-                    let joint_index = jointsims.len();
+        let outer_joint_ids = sys.base.get_outer_joints();
+        for id in outer_joint_ids {
+            if let Some(joint) = sys.joints.get(&id) {
+                let joint_sim = JointSim::from(joint.clone()).with_algorithm(sys.algorithm);
+                let joint_index = jointsims.len();
 
-                    jointsims.push(joint_sim);
-                    jointnames.push(joint.get_name().to_string());
-                    parent_indeces.push(None); // For the base
-                    if let Some(next_body_id) = joint.get_outer_body_id() {
-                        if let Some(next_body) = sys.bodies.get(next_body_id) {
-                            bodynames.push(next_body.get_name().to_string());
-                            bodysims.push(BodySim::from(next_body.clone()));
+                jointsims.push(joint_sim);
+                jointnames.push(joint.get_name().to_string());
+                parent_indeces.push(None); // For the base
+                if let Some(next_body_id) = joint.get_outer_body_id() {
+                    if let Some(next_body) = sys.bodies.get(next_body_id) {
+                        bodynames.push(next_body.get_name().to_string());
+                        bodysims.push(BodySim::from(next_body.clone()));
 
-                            // calculate the joint mass properties
-                            let joint_sim = &mut jointsims[0];
-                            let body_mass_properties = next_body.get_mass_properties();
-                            joint_sim.update_transforms(None);
-                            joint_sim.set_inertia(body_mass_properties);
+                        // calculate the joint mass properties
+                        let joint_sim = &mut jointsims[0];
+                        let body_mass_properties = next_body.get_mass_properties();
+                        joint_sim.update_transforms(None);
+                        joint_sim.set_inertia(body_mass_properties);
 
-                            recursive_sys_creation(
-                                &sys.algorithm,
-                                next_body,
-                                joint_index,
-                                &sys.bodies,
-                                &sys.joints,
-                                &mut bodysims,
-                                &mut bodynames,
-                                &mut jointsims,
-                                &mut jointnames,
-                                &mut parent_indeces,
-                            );
-                        } else {
-                            return Err(MultibodyErrors::BodyNotFound);
-                        }
+                        recursive_sys_creation(
+                            &sys.algorithm,
+                            next_body,
+                            joint_index,
+                            &sys.bodies,
+                            &sys.joints,
+                            &mut bodysims,
+                            &mut bodynames,
+                            &mut jointsims,
+                            &mut jointnames,
+                            &mut parent_indeces,
+                        );
                     } else {
-                        return Err(MultibodyErrors::JointMissingOuterBody(*id));
+                        return Err(MultibodyErrors::BodyNotFound);
                     }
                 } else {
-                    return Err(MultibodyErrors::JointNotFound);
+                    return Err(MultibodyErrors::JointMissingOuterBody(*id));
                 }
+            } else {
+                return Err(MultibodyErrors::JointNotFound);
             }
-
-            // push base gravity to all bodies if there is one
-            for body in &mut bodysims {
-                body.gravity.extend(base.gravity.clone())
-            }
-            let crb_cache = match sys.algorithm {
-                MultibodyAlgorithm::CompositeRigidBody => {
-                    let mut n = 0;
-                    for joint in &mut jointsims {
-                        n += joint.get_ndof();
-                        joint.set_crb_index(n);
-                    }
-
-                    Some(CrbCache::new(n))
-                }
-                _ => None,
-            };
-
-            Ok(MultibodySystemSim {
-                algorithm: sys.algorithm,
-                base: base.clone(),
-                bodies: bodysims,
-                body_names: bodynames,
-                joints: jointsims,
-                joint_names: jointnames,
-                gravity: sys.gravities,
-                parent_indeces: parent_indeces,
-                crb_cache,
-                sensors: sys.sensors,
-            })
-        } else {
-            Err(MultibodyErrors::BaseNotFound)
         }
+
+        // push base gravity to all bodies if there is one
+        for body in &mut bodysims {
+            body.gravity.extend(sys.base.gravity.clone())
+        }
+        let crb_cache = match sys.algorithm {
+            MultibodyAlgorithm::CompositeRigidBody => {
+                let mut n = 0;
+                for joint in &mut jointsims {
+                    n += joint.get_ndof();
+                    joint.set_crb_index(n);
+                }
+
+                Some(CrbCache::new(n))
+            }
+            _ => None,
+        };
+
+        Ok(MultibodySystemSim {
+            algorithm: sys.algorithm,
+            base: sys.base.clone(),
+            bodies: bodysims,
+            body_names: bodynames,
+            joints: jointsims,
+            joint_names: jointnames,
+            gravity: sys.gravities,
+            parent_indeces: parent_indeces,
+            crb_cache,
+            sensors: sys.sensors,
+        })
     }
 }
 
@@ -357,8 +353,7 @@ impl MultibodySystemSim {
         self.base.update(t).unwrap();
     }
 
-    fn update_forces(&mut self) {        
-    
+    fn update_forces(&mut self) {
         for i in 0..self.joints.len() {
             let body = &mut self.bodies[i];
             let joint = &mut self.joints[i];

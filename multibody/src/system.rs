@@ -19,8 +19,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
-    pub base: Option<Base>,
-    pub bodies: HashMap<Uuid, Body>,    
+    pub base: Base,
+    pub bodies: HashMap<Uuid, Body>,
     pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
     pub sensors: HashMap<Uuid, Sensor>,
@@ -30,22 +30,12 @@ impl MultibodySystem {
     pub fn new() -> Self {
         Self {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
-            base: None,
-            bodies: HashMap::new(),            
+            base: Base::default(),
+            bodies: HashMap::new(),
             gravities: HashMap::new(),
             joints: HashMap::new(),
             sensors: HashMap::new(),
         }
-    }
-
-    pub fn add_base(&mut self, base: Base) -> Result<(), MultibodyErrors> {
-        // return if this is a Base and we already have a Base
-        if self.base.is_some() {
-            return Err(MultibodyErrors::BaseAlreadyExists);
-        } else {
-            self.base = Some(base);            
-        }
-        Ok(())
     }
 
     pub fn add_body(&mut self, body: Body) -> Result<(), MultibodyErrors> {
@@ -91,18 +81,15 @@ impl MultibodySystem {
         gravity_id: &Uuid,
         body_id: &Uuid,
     ) -> Result<(), MultibodyErrors> {
-        let mut result = Err(MultibodyErrors::BodyNotFound);
-        if let Some(base) = &mut self.base {
-            if base.get_id() == body_id {
-                base.gravity.push(*gravity_id);
-                result = Ok(());
-            }
-        }
-        if let Some(body) = self.bodies.get_mut(body_id) {
+        if self.base.get_id() == body_id {
+            self.base.gravity.push(*gravity_id);
+            Ok(())
+        } else if let Some(body) = self.bodies.get_mut(body_id) {
             body.gravity.push(*gravity_id);
-            result = Ok(());
+            Ok(())
+        } else {
+            Err(MultibodyErrors::BodyNotFound)
         }
-        result
     }
 
     pub fn connect(
@@ -111,34 +98,30 @@ impl MultibodySystem {
         to_name: &str,
         transform: Option<Transform>,
     ) -> Result<(), MultibodyErrors> {
-        // logic for the base
-        if let Some(base) = &mut self.base {
-            // if the base is the 'from' component
-            if base.get_name() == from_name {
-                // look for valid 'to' components (only joints for now)
-                for (_, joint) in &mut self.joints {
-                    if joint.get_name() == to_name {
-                        if transform.is_none() {
-                            return Err(MultibodyErrors::NoTransformFound);
-                        }
-                        joint.connect_inner_body(base, transform.unwrap())?; // unwrap should be safe since we early returned
-                        return Ok(());
+        // if the base is the 'from' component
+        if self.base.get_name() == from_name {
+            // look for valid 'to' components (only joints for now)
+            for (_, joint) in &mut self.joints {
+                if joint.get_name() == to_name {
+                    if transform.is_none() {
+                        return Err(MultibodyErrors::NoTransformFound);
                     }
+                    joint.connect_inner_body(&mut self.base, transform.unwrap())?; // unwrap should be safe since we early returned
+                    return Ok(());
                 }
                 // if no joint found, return TODO: InvalidConnection or ComponentNotFound?
                 return Err(MultibodyErrors::InvalidConnection);
             }
 
             // if the base is the 'to' component
-            if base.get_name() == to_name {
+            if self.base.get_name() == to_name {
                 // look for valid 'to' components (only gravity for now)
                 for (_, gravity) in &mut self.gravities {
                     if gravity.get_name() == from_name {
-                        base.connect_gravity(gravity);
+                        self.base.connect_gravity(gravity);
                         return Ok(());
                     }
                 }
-
                 // if no gravity found, return TODO: InvalidConnection or ComponentNotFound?
                 return Err(MultibodyErrors::InvalidConnection);
             }
@@ -207,18 +190,7 @@ impl MultibodySystem {
     pub fn delete(&mut self, name: &str) -> Result<(), MultibodyErrors> {
         if let Some((component, id)) = self.get_from_name(name) {
             match component {
-                MultibodyComponent::Base => {
-                    // remove the base from any connected components
-                    self.joints.iter_mut().for_each(|(_, joint)| {
-                        if let Some(inner_connection) = &joint.get_connections().inner_body {
-                            if inner_connection.body_id == id {
-                                joint.delete_inner_body_id();
-                            }
-                        }
-                    });
-                    self.base = None;
-                    Ok(())
-                }
+                MultibodyComponent::Base => Err(MultibodyErrors::CantDeleteBase),
                 MultibodyComponent::Body => {
                     // remove the body from any connected components
                     self.joints.iter_mut().for_each(|(_, joint)| {
@@ -273,11 +245,10 @@ impl MultibodySystem {
     }
 
     pub fn get_from_name(&self, name: &str) -> Option<(MultibodyComponent, Uuid)> {
-        if let Some(base) = &self.base {
-            if base.get_name() == name {
-                return Some((MultibodyComponent::Base, *base.get_id()));
-            }
+        if self.base.get_name() == name {
+            return Some((MultibodyComponent::Base, *self.base.get_id()));
         }
+
         for (_, body) in &self.bodies {
             if body.get_name() == name {
                 return Some((MultibodyComponent::Body, *body.get_id()));
@@ -302,9 +273,8 @@ impl MultibodySystem {
     }
 
     pub fn delete_gravity(&mut self, gravity_id: &Uuid) {
-        if let Some(base) = &mut self.base {
-            base.gravity.retain(|&id| id != *gravity_id);
-        }
+        self.base.gravity.retain(|&id| id != *gravity_id);
+
         for (_, body) in &mut self.bodies {
             body.gravity.retain(|&id| id != *gravity_id);
         }
@@ -319,10 +289,8 @@ impl MultibodySystem {
     }
 
     fn check_name_taken(&self, name: &str) -> bool {
-        if let Some(base) = &self.base {
-            if base.get_name() == name {
-                return true;
-            }
+        if self.base.get_name() == name {
+            return true;
         }
 
         if self.bodies.iter().any(|(_, body)| body.get_name() == name) {
@@ -364,25 +332,16 @@ impl MultibodySystem {
     }
 
     pub fn validate(&self) -> Result<(), MultibodyErrors> {
-        // check that there's a base
-        let base = &self.base;
-
-        if base.is_none() {
-            return Err(MultibodyErrors::NoBaseFound);
-        };
-
         // check that the base has an outer joint
-        if let Some(base) = base {
-            let base_outer_joints = base.get_outer_joints();
-            if base_outer_joints.is_empty() {
-                return Err(MultibodyErrors::BaseMissingOuterJoint);
-            }
+        let base_outer_joints = self.base.get_outer_joints();
+        if base_outer_joints.is_empty() {
+            return Err(MultibodyErrors::BaseMissingOuterJoint);
+        }
 
-            // check that all base outer joints exist
-            for id in base_outer_joints {
-                if !self.joints.contains_key(id) {
-                    return Err(MultibodyErrors::JointNotFound);
-                }
+        // check that all base outer joints exist
+        for id in base_outer_joints {
+            if !self.joints.contains_key(id) {
+                return Err(MultibodyErrors::JointNotFound);
             }
         }
 
@@ -416,10 +375,8 @@ impl MultibodySystem {
         for (_, joint) in &self.joints {
             if let Some(body_id) = joint.get_inner_body_id() {
                 if !self.bodies.contains_key(body_id) {
-                    if let Some(base) = &self.base {
-                        if base.get_id() != body_id {
-                            return Err(MultibodyErrors::BodyNotFound);
-                        }
+                    if self.base.get_id() != body_id {
+                        return Err(MultibodyErrors::BodyNotFound);
                     }
                 }
             }

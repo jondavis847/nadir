@@ -16,13 +16,12 @@ use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
 
 #[derive(Debug,Clone)]
-pub enum MultibodyErrors {  
-    BaseNotFound,  
-    BaseAlreadyExists,
+pub enum MultibodyErrors {      
     BaseMissingOuterJoint,
     BodyNotFound,
     Body(BodyErrors),
     BodyMissingInnerJoint(Uuid),
+    CantDeleteBase,
     ComponentNotFound(String),
     DtCantBeZero,
     InvalidConnection,

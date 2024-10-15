@@ -27,22 +27,19 @@ pub struct Base {
     pub gravity: Vec<Uuid>,
 }
 
-impl Base {
-    pub fn new(name: &str) -> Self {
-        let mut name = name;
-        if name.is_empty() {
-            name = "base";
-        }
-
+impl Default for Base {
+    fn default() -> Self {
         Self {
             id: Uuid::new_v4(),
-            name: name.to_string(),
+            name: "base".to_string(),
             celestial: None,
             outer_joints: Vec::new(),
             gravity: Vec::new(),
         }
     }
+}
 
+impl Base {
     pub fn connect_celestial_system(&mut self, celestial: CelestialSystem) {
         self.celestial = Some(celestial);
     }

@@ -192,24 +192,7 @@ fn main() {
                                     };
                                     if let Some(system) = systems.get_mut(system_name) {
                                         match component {
-                                            Components::Base => {                                        
-                                                let base = prompt_base();    
-                                                match base {
-                                                    Ok(base) => {
-                                                        let name = base.get_name().to_string();
-                                                        let r = system.add_base(base);
-                                                        match r {                                                            
-                                                            Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
-                                                            Err(e) => eprintln!("{:?}",e)
-                                                        }
-                                                    }
-                                                    Err(e) => match e {
-                                                        InputErrors::CtrlC => continue,
-                                                        _ => eprintln!("{:?}",e)
-                                                    }
-                                                }                                       
-                                                
-                                            }
+                                            Components::Base => {error("base is now permanent in system. don't need to add");continue},
                                             Components::Body => {
                                                 let body = prompt_body();
                                                 match body {
@@ -227,22 +210,16 @@ fn main() {
                                                     }
                                                 }
                                             }
-                                            Components::Celestial => {
-                                                if let Some(base) = &mut system.base {
-                                                    let celestial = prompt_celestial();
-                                                    match celestial {
-                                                        Ok(celestial) => {
-                                                            if let Some(celestial) = celestial {
-                                                                base.connect_celestial_system(celestial);       
-                                                            }                                                            
-                                                        }
-                                                        Err(e) => eprintln!("{:?}",e)
+                                            Components::Celestial => {                                                
+                                                let celestial = prompt_celestial();
+                                                match celestial {
+                                                    Ok(celestial) => {
+                                                        if let Some(celestial) = celestial {
+                                                            system.base.connect_celestial_system(celestial);       
+                                                        }                                                            
                                                     }
-                                                } else {
-                                                    error("add a base first...");
-                                                    continue;
-                                                }
-                                                
+                                                    Err(e) => eprintln!("{:?}",e)
+                                                }                     
                                             }
                                             Components::Gravity => {
                                                 match prompt_gravity() {
@@ -504,25 +481,23 @@ fn main() {
                                         };
 
                                         match from_type {
-                                            MultibodyComponent::Base => {
-                                                if let Some(base) = &mut sys.base {
-                                                    match to_type {                                                        
-                                                        MultibodyComponent::Joint => {
-                                                            if base.get_outer_joints().contains(&to_id) {
-                                                                base.outer_joints.retain(|id| *id != to_id);
-                                                                if let Some(joint) = sys.joints.get_mut(&to_id) {
-                                                                    joint.delete_inner_body_id();
-                                                                    success("Components disconnected!");                                                                    
-                                                                } else {
-                                                                    error("Joint not found...");
-                                                                }
+                                            MultibodyComponent::Base => {                                                
+                                                match to_type {                                                        
+                                                    MultibodyComponent::Joint => {
+                                                        if sys.base.get_outer_joints().contains(&to_id) {
+                                                            sys.base.outer_joints.retain(|id| *id != to_id);
+                                                            if let Some(joint) = sys.joints.get_mut(&to_id) {
+                                                                joint.delete_inner_body_id();
+                                                                success("Components disconnected!");                                                                    
                                                             } else {
-                                                                error("Components not connected...");
-                                                            } 
-                                                        }
-                                                        _ => error("Invalid component combo...")
+                                                                error("Joint not found...");
+                                                            }
+                                                        } else {
+                                                            error("Components not connected...");
+                                                        } 
                                                     }
-                                                }
+                                                    _ => error("Invalid component combo...")
+                                                }                                                
                                             }
                                             MultibodyComponent::Body => {
                                                 if let Some(body) = sys.bodies.get_mut(&from_id) {
@@ -548,15 +523,13 @@ fn main() {
                                             }
                                             MultibodyComponent::Gravity => {                                                
                                                 match to_type {
-                                                    MultibodyComponent::Base => {
-                                                        if let Some(base) = &mut sys.base {
-                                                            if base.gravity.contains(&to_id) {
-                                                                base.gravity.retain(|id| *id != to_id);
-                                                                success("Components disconnected!");
-                                                            } else {
-                                                                error("Components not connected...");
-                                                            }                                                            
-                                                        }                                                                                                                
+                                                    MultibodyComponent::Base => {                                                        
+                                                        if sys.base.gravity.contains(&to_id) {
+                                                            sys.base.gravity.retain(|id| *id != to_id);
+                                                            success("Components disconnected!");
+                                                        } else {
+                                                            error("Components not connected...");
+                                                        }                                                             
                                                     }
                                                     MultibodyComponent::Body => {
                                                         if let Some(body) = sys.bodies.get_mut(&to_id) {
@@ -671,32 +644,21 @@ fn main() {
                                         };
 
                                         match component_type {
-                                            MultibodyComponent::Base => {
-                                                if let Some(old_base) = &mut sys.base {
-                                                    // create a new base via prompt to get values for old base
-                                                    let new_base = match prompt_base() {                                                    
-                                                        Ok(base) => {
-                                                            base
+                                            MultibodyComponent::Base => {                                                
+                                                // create a new base via prompt to get values for old base
+                                                let new_base = match prompt_base() {                                                    
+                                                    Ok(base) => {
+                                                        base
+                                                    }
+                                                    Err(e) => match e {
+                                                        InputErrors::CtrlC => continue,
+                                                        _ => {
+                                                            eprintln!("{:?}",e);
+                                                            continue;
                                                         }
-                                                        Err(e) => match e {
-                                                            InputErrors::CtrlC => continue,
-                                                            _ => {
-                                                                eprintln!("{:?}",e);
-                                                                continue;
-                                                            }
-                                                        }
-                                                    };
-
-                                                    // Set values for the old object from the new one, 
-                                                    // maintaining id's and connections, then dropping new object
-                                                    old_base.set_name(new_base.get_name().to_string());
-
-                                                } else {
-                                                    // i think this is impossible, since to find a base it has to exist
-                                                    let s = format!("Error: '{}' not found as a base in '{}'...", name,sys_name);
-                                                    error(&s);                                                
-                                                    continue;
-                                                }
+                                                    }
+                                                };
+                                                sys.base = new_base;
                                             }
                                             MultibodyComponent::Body => {
                                                 if let Some(old_body) = sys.bodies.get_mut(&id) {
@@ -1707,8 +1669,7 @@ impl std::fmt::Display for InputErrors {
 }
 
 fn prompt_base() -> Result<Base,InputErrors> {
-    let name = Prompts::Name.validate_loop("base")?;
-    let mut base = Base::new(&name);
+    let mut base = Base::default();
 
     let celestial = prompt_celestial()?;
     if let Some(celestial) = celestial {
