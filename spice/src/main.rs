@@ -4,16 +4,15 @@ use spice::{SpiceBodies, Spice};
 use time::{Time,TimeSystem};
 
 fn main() {
+
     // this creates the spice data file
-    let mut spice = match Spice::from_naif() {
+    let mut spice = match Spice::from_local() {
         Ok(spice) => spice,
         Err(e) => {
             dbg!(e);
             panic!()
         }
     };
-
-    spice.save_spice_data().unwrap();
 
     // Define the CLI structure using clap
     let matches = Command::new("spice")
