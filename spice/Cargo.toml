@@ -13,3 +13,5 @@ rotations = {path = "../rotations"}
 reqwest = { version = "0.12.7", features = ["blocking"] }
 serde = { version = "1.0.210", features = ["derive"] }
 time = {path = "../time"}
+dirs = "5.0.1"
+httpdate = "1.0.3"

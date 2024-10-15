@@ -1,5 +1,7 @@
 use bincode;
+use dirs::config_dir;
 use pck::{EarthParameters, MoonParameters};
+use reqwest::blocking::Client;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
@@ -8,12 +10,43 @@ use serde::{Deserialize, Serialize};
 use spk::SpiceSpk;
 
 use std::fs::File;
-use std::io::{Error as IoError, Write};
-use time::{Time,TimeSystem};
+use std::io::{Read, Write};
+use time::{Time, TimeSystem};
 
 pub mod daf;
 pub mod pck;
 pub mod spk;
+
+#[derive(Debug)]
+pub enum SpiceErrors {
+    BodyNotFound,
+    CantOpenConfigDir,
+    FileReadError(std::io::Error),
+    HeaderNotFound,
+    DeserializationError(bincode::Error),
+    NoOrientationDataForThisBody,
+    RecordMetaNotFound,
+    RecordNotFound,
+    ReqwestError(reqwest::Error),
+}
+
+impl From<std::io::Error> for SpiceErrors {
+    fn from(err: std::io::Error) -> Self {
+        SpiceErrors::FileReadError(err)
+    }
+}
+
+impl From<bincode::Error> for SpiceErrors {
+    fn from(err: bincode::Error) -> Self {
+        SpiceErrors::DeserializationError(err)
+    }
+}
+
+impl From<reqwest::Error> for SpiceErrors {
+    fn from(e: reqwest::Error) -> Self {
+        SpiceErrors::ReqwestError(e)
+    }
+}
 
 pub enum SpiceFileTypes {
     Pck,
@@ -27,22 +60,91 @@ pub struct Spice {
 }
 
 impl Spice {
+    /// Attempts to load the file from the serialize binary in the local temp directory
+    /// If for any reason it can't, it will attempt to redownload and save the latest files
+    /// It will also check the dates of the spice files and update if possible
+    pub fn from_local() -> Result<Self, SpiceErrors> {
+        // can we find the config dir where data is saved?
+        if let Some(mut path) = config_dir() {
+            path.push("gadgt/spice.data");
+            // does the file already exist?
+            if path.exists() {
+                let mut file = File::open(&path)?;
+                let mut buffer = Vec::new();
+                file.read_to_end(&mut buffer)?;
+                // atempt to deserialize, if error redownload new files
+                let mut spice: Spice = match bincode::deserialize(&buffer) {
+                    Ok(spice) => spice,
+                    Err(e) => {
+                        println!("{e}");
+                        Spice::from_naif()?
+                    }
+                };
+                // check if the files are the most recent, if not get new ones and resave
+                if !spice.earth.check_naif()? {
+                    let earth = EarthParameters::from_naif();
+                    match earth {
+                        Ok(earth) => spice.earth = earth,
+                        Err(e) => {
+                            println!("{:?}", e);
+                            println!("using previous earth values");
+                        }
+                    }
+                }
+                if !spice.moon.check_naif()? {
+                    let moon = MoonParameters::from_naif();
+                    match moon {
+                        Ok(moon) => spice.moon = moon,
+                        Err(e) => {
+                            println!("{:?}", e);
+                            println!("using previous moon values");
+                        }
+                    }
+                }
+                if !spice.spk.check_naif()? {
+                    let spk = SpiceSpk::from_naif();
+                    match spk {
+                        Ok(spk) => spice.spk = spk,
+                        Err(e) => {
+                            println!("{:?}", e);
+                            println!("using previous spk values");
+                        }
+                    }
+                }
+                Ok(spice)
+            } else {
+                println!("No spice data found locally, downloading...");
+                Spice::from_naif()
+            }
+        } else {
+            return Err(SpiceErrors::CantOpenConfigDir);
+        }
+    }
+
     pub fn from_naif() -> Result<Self, SpiceErrors> {
         let earth = EarthParameters::from_naif()?;
         let moon = MoonParameters::from_naif()?;
         let spk = SpiceSpk::from_naif()?;
-        
-        Ok(Self { earth, moon, spk})
+        let spice = Self { earth, moon, spk };
+        spice.save_spice_data()?;
+        Ok(spice)
     }
 
-    pub fn calculate_position(&mut self, t: Time, body: SpiceBodies) -> Result<[f64; 3], SpiceErrors> {
+    pub fn calculate_position(
+        &mut self,
+        t: Time,
+        body: SpiceBodies,
+    ) -> Result<[f64; 3], SpiceErrors> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         if let Some(segment) = self.spk.get_segment(&body, t)? {
             // earth and moon are in reference to the earth barycenter, adjust to solar system barycenter to match others
             match segment.target {
                 SpiceBodies::Earth | SpiceBodies::Moon => {
                     let body_pos = segment.evaluate(t)?;
-                    let barycenter = self.spk.get_segment(&SpiceBodies::EarthBarycenter, t)?.unwrap();
+                    let barycenter = self
+                        .spk
+                        .get_segment(&SpiceBodies::EarthBarycenter, t)?
+                        .unwrap();
                     let barycenter_pos = barycenter.evaluate(t)?;
                     Ok([
                         body_pos.0 + barycenter_pos.0,
@@ -68,7 +170,7 @@ impl Spice {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
             SpiceBodies::Earth => {
-                if let Some(segment) = self.earth.get_segment(&body, t)? {                    
+                if let Some(segment) = self.earth.get_segment(&body, t)? {
                     segment
                 } else {
                     return Err(SpiceErrors::BodyNotFound);
@@ -89,33 +191,17 @@ impl Spice {
         Ok((rotation, ra, dec, gha))
     }
 
-    pub fn save_spice_data(&self) -> std::io::Result<()> {
-        let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
-        let mut file = File::create("resources/spice.dat")?;
-        file.write_all(&encoded)?; // Write the serialized data to a file
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub enum SpiceErrors {
-    BodyNotFound,
-    IoError(IoError),
-    NoOrientationDataForThisBody,
-    RecordMetaNotFound,
-    RecordNotFound,
-    ReqwestError(reqwest::Error),
-}
-
-impl From<IoError> for SpiceErrors {
-    fn from(e: IoError) -> Self {
-        SpiceErrors::IoError(e)
-    }
-}
-
-impl From<reqwest::Error> for SpiceErrors {
-    fn from(e: reqwest::Error) -> Self {
-        SpiceErrors::ReqwestError(e)
+    pub fn save_spice_data(&self) -> Result<(), SpiceErrors> {
+        if let Some(mut path) = config_dir() {
+            path.push("gadgt");
+            path.push("spice.data");
+            let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
+            let mut file = File::create(path)?;
+            file.write_all(&encoded)?; // Write the serialized data to a file
+            Ok(())
+        } else {
+            Err(SpiceErrors::CantOpenConfigDir)
+        }
     }
 }
 
@@ -282,5 +368,20 @@ impl DataTypes {
             15 => Some(DataTypes::EquinocatalOrbitalElements),
             _ => None,
         }
+    }
+}
+
+fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
+    let client = Client::new();
+    let response = client.head(url).send()?;
+    if let Some(last_modified) = response.headers().get("last-modified") {
+        let remote_date = last_modified.to_str().unwrap().to_string();
+        if remote_date == local {
+            return Ok(true);
+        } else {
+            return Ok(false);
+        }
+    } else {
+        return Err(SpiceErrors::HeaderNotFound);
     }
 }
