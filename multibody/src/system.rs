@@ -209,9 +209,9 @@ impl MultibodySystem {
             match component {
                 MultibodyComponent::Base => {
                     // remove the base from any connected components
-                    self.joints.iter_mut().for_each(|(id, joint)| {
+                    self.joints.iter_mut().for_each(|(_, joint)| {
                         if let Some(inner_connection) = &joint.get_connections().inner_body {
-                            if inner_connection.body_id == *id {
+                            if inner_connection.body_id == id {
                                 joint.delete_inner_body_id();
                             }
                         }
@@ -221,14 +221,14 @@ impl MultibodySystem {
                 }
                 MultibodyComponent::Body => {
                     // remove the body from any connected components
-                    self.joints.iter_mut().for_each(|(id, joint)| {
+                    self.joints.iter_mut().for_each(|(_, joint)| {
                         if let Some(connection) = &joint.get_connections().inner_body {
-                            if connection.body_id == *id {
+                            if connection.body_id == id {
                                 joint.delete_inner_body_id();
                             }
                         }
                         if let Some(connection) = &joint.get_connections().outer_body {
-                            if connection.body_id == *id {
+                            if connection.body_id == id {
                                 joint.delete_outer_body_id();
                             }
                         }

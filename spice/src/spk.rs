@@ -5,7 +5,6 @@ use super::{
 use crate::{SpiceBodies, SpiceFileTypes, check_naif};
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
-use std::path::PathBuf;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SpiceSpk{
