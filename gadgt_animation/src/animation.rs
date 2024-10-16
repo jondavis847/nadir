@@ -10,7 +10,7 @@ use iced::{
     Command, Element, Length, Point, Theme, Vector,
 };
 
-use multibody::result::MultibodyResult;
+use multibody::{base::BaseSystems, result::MultibodyResult};
 use scene::Scene;
 
 #[derive(Debug)]
@@ -120,13 +120,16 @@ impl AnimationState {
             }
         }
 
-        if let Some(celestial) = &sys.base.celestial {
-            if celestial.bodies.earth.is_some() {
-                // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
-                // otherwise defaults to close to the origin
-                // must do this after shapres are set in scene or it wont know where to place the camera
-                self.scene.set_earth(true);
+        match &sys.base.system {
+            BaseSystems::Celestial(celestial) => {
+                if celestial.bodies.earth.is_some() {
+                    // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
+                    // otherwise defaults to close to the origin
+                    // must do this after shapres are set in scene or it wont know where to place the camera
+                    self.scene.set_earth(true);
+                }
             }
+            BaseSystems::Basic(_) => {}
         }
 
         let t = &result.sim_time;

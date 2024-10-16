@@ -1,7 +1,7 @@
 use gadgt_3d::{mesh::MeshGpu, vertex::Vertex};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
 
-pub mod buffer;
+//pub mod buffer;
 pub mod uniforms;
 
 pub struct CuboidPipeline(pub Pipeline);
@@ -120,7 +120,7 @@ impl Pipeline {
             bytemuck::cast_slice(meshes),
         );
     }
-
+    /*
     pub fn render<'a>(
         &'a self,
         pass: &'a mut wgpu::RenderPass<'a>,
@@ -131,4 +131,5 @@ impl Pipeline {
             pass.draw(0..self.n_vertices, 0..self.n_instances);
         }
     }
+    */
 }

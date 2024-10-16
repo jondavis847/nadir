@@ -1,12 +1,11 @@
 use crate::{
-    aerospace::MultibodyGravity,
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm,
         composite_rigid_body::{CompositeRigidBody, CrbCache},
         recursive_newton_euler::RecursiveNewtonEuler,
         MultibodyAlgorithm,
     },
-    base::Base,
+    base::{Base, BaseSystems},
     body::{Body, BodySim, BodyTrait},
     joint::{
         joint_sim::{JointSim, JointSimTrait},
@@ -41,7 +40,6 @@ pub struct MultibodySystemSim {
     pub body_names: Vec<String>,
     pub joints: Vec<JointSim>,
     pub joint_names: Vec<String>,
-    gravity: HashMap<Uuid, MultibodyGravity>,
     parent_indeces: Vec<Option<usize>>,
     crb_cache: Option<CrbCache>,
     pub sensors: HashMap<Uuid, Sensor>,
@@ -100,10 +98,6 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
             }
         }
 
-        // push base gravity to all bodies if there is one
-        for body in &mut bodysims {
-            body.gravity.extend(sys.base.gravity.clone())
-        }
         let crb_cache = match sys.algorithm {
             MultibodyAlgorithm::CompositeRigidBody => {
                 let mut n = 0;
@@ -124,7 +118,6 @@ impl TryFrom<MultibodySystem> for MultibodySystemSim {
             body_names: bodynames,
             joints: jointsims,
             joint_names: jointnames,
-            gravity: sys.gravities,
             parent_indeces: parent_indeces,
             crb_cache,
             sensors: sys.sensors,
@@ -362,8 +355,13 @@ impl MultibodySystemSim {
             let transforms = joint.get_transforms();
 
             // calculate gravity for the outer body
-            if let Some(celestial) = &self.base.celestial {
-                body.calculate_gravity(&transforms.ob_from_base, celestial);
+            match &self.base.system {
+                BaseSystems::Basic(gravity) => {
+                    if let Some(gravity) = gravity {
+                        body.calculate_gravity(&transforms.ob_from_base, gravity);
+                    }
+                }
+                BaseSystems::Celestial(celestial) => body.calculate_gravity_celestial(&transforms.ob_from_base, celestial)
             }
 
             // calculate total external forces for the outer body

@@ -10,7 +10,7 @@ use dirs_next::config_dir;
 use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid32, Ellipsoid16, Ellipsoid64}, Geometry, GeometryState}, material::Material, mesh::Mesh};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    aerospace::MultibodyGravity, base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
+    base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
     }, result::MultibodyResult, sensor::{noise::{gaussian::GaussianNoise, uniform::UniformNoise, Noise, NoiseModels}, simple::{rate3::Rate3Sensor, SimpleSensor}, Sensor, SensorModel}, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
 use nalgebra::Vector3;
@@ -215,7 +215,7 @@ fn main() {
                                                 match celestial {
                                                     Ok(celestial) => {
                                                         if let Some(celestial) = celestial {
-                                                            system.base.connect_celestial_system(celestial);       
+                                                            system.base.add_celestial_system(celestial);       
                                                         }                                                            
                                                     }
                                                     Err(e) => eprintln!("{:?}",e)
@@ -223,11 +223,10 @@ fn main() {
                                             }
                                             Components::Gravity => {
                                                 match prompt_gravity() {
-                                                    Ok(gravity) => {
-                                                        let name = gravity.get_name().to_string();
+                                                    Ok(gravity) => {                                                        
                                                         let r = system.add_gravity(gravity);
                                                         match r {
-                                                            Ok(_) => success(format!("{} added to {}!", &name, system_name).as_str()),
+                                                            Ok(_) => success(format!("gravity added to {}!", system_name).as_str()),
                                                             Err(e) => eprintln!("{:?}",e)
                                                         }                                         
                                                     } 
@@ -392,11 +391,7 @@ fn main() {
                                                         _ => {eprintln!("{:?}",e); continue}
                                                     }
                                                 }
-                                            },
-                                            (
-                                                MultibodyComponent::Gravity,
-                                                MultibodyComponent::Base | MultibodyComponent::Body,
-                                            ) => None,
+                                            },                                            
                                             (
                                                 MultibodyComponent::Sensor,
                                                 MultibodyComponent::Body
@@ -520,30 +515,7 @@ fn main() {
                                                 } else {
                                                     error("Body not found...")
                                                 }
-                                            }
-                                            MultibodyComponent::Gravity => {                                                
-                                                match to_type {
-                                                    MultibodyComponent::Base => {                                                        
-                                                        if sys.base.gravity.contains(&to_id) {
-                                                            sys.base.gravity.retain(|id| *id != to_id);
-                                                            success("Components disconnected!");
-                                                        } else {
-                                                            error("Components not connected...");
-                                                        }                                                             
-                                                    }
-                                                    MultibodyComponent::Body => {
-                                                        if let Some(body) = sys.bodies.get_mut(&to_id) {
-                                                            if body.gravity.contains(&to_id) {
-                                                                body.gravity.retain(|id| *id != to_id);
-                                                                success("Components disconnected!");
-                                                            } else {
-                                                                error("Components not connected...");
-                                                            }                                                            
-                                                        }                                                                                                                
-                                                    }
-                                                    _ => error("Invalid component combo...")
-                                                }
-                                            }
+                                            }                                            
                                             MultibodyComponent::Joint => {
                                                 if let Some(joint) = sys.joints.get_mut(&from_id) {
                                                     match to_type {
@@ -752,34 +724,6 @@ fn main() {
                                                     continue;
                                                 }
                                             }
-                                            MultibodyComponent::Gravity => {
-                                                if let Some(old_gravity) = sys.gravities.get_mut(&id) {
-                                                    // create a new object via prompt to get values for old object
-                                                    let new_gravity = match prompt_gravity() {                                                    
-                                                        Ok(g) => {
-                                                            g
-                                                        }
-                                                        Err(e) => match e {
-                                                            InputErrors::CtrlC => continue,
-                                                            _ => {
-                                                                eprintln!("{:?}",e);
-                                                                continue;
-                                                            }
-                                                        }
-                                                    };
-
-                                                    // Set values for the old object from the new one, 
-                                                    // maintaining id's and connections, then dropping new object
-                                                    old_gravity.set_name(new_gravity.get_name().to_string());
-                                                    old_gravity.gravity = new_gravity.gravity;
-
-                                                } else {
-                                                    // i think this is impossible, since to find a base it has to exist
-                                                    let s = format!("Error: '{}' not found as a body in '{}'...", name,sys_name);
-                                                    error(&s);                                                
-                                                    continue;
-                                                }
-                                            },
                                             MultibodyComponent::Sensor => {
                                                 if let Some(old_sensor) = sys.sensors.get_mut(&id) {
                                                     // create a new object via prompt to get values for old object
@@ -1151,10 +1095,10 @@ enum Prompts {
     CartesianY,
     CartesianZ,
     Celestial,
-    CelestialEarth,
-    CelestialMars,
-    CelestialMoon,
-    CelestialSun,
+    //CelestialEarth,
+    //CelestialMars,
+    //CelestialMoon,
+    //CelestialSun,
     CelestialDefault,    
     Cmx,
     Cmy,
@@ -1267,10 +1211,10 @@ impl Prompts {
             Prompts::CartesianY => "Cartesian [Y] (units: m, default: 0.0)",
             Prompts::CartesianZ => "Cartesian [Z] (units: m, default: 0.0)",            
             Prompts::Celestial => "celestial? ['y','n']",            
-            Prompts::CelestialEarth => "earth? ['y','n']",
-            Prompts::CelestialMoon => "moon? ['y','n']",
-            Prompts::CelestialMars => "Mars? ['y','n']",
-            Prompts::CelestialSun => "sun? ['y','n']",
+            //Prompts::CelestialEarth => "earth? ['y','n']",
+            //Prompts::CelestialMoon => "moon? ['y','n']",
+            //Prompts::CelestialMars => "Mars? ['y','n']",
+            //Prompts::CelestialSun => "sun? ['y','n']",
             Prompts::CelestialDefault => "celestial defaults (earth,moon,sun)? ['y','n']",            
             Prompts::Cmx => "Center of mass [X] (units: m, default: 0.0)",
             Prompts::Cmy => "Center of mass [Y] (units: m, default: 0.0)",
@@ -1545,7 +1489,7 @@ impl Prompts {
                 Ok(())
             }
             // Yes or No
-            Prompts::JointMechanics | Prompts::Mesh | Prompts::Celestial | Prompts::CelestialDefault | Prompts::CelestialEarth | Prompts::CelestialMars | Prompts::CelestialMoon | Prompts::CelestialSun => {                
+            Prompts::JointMechanics | Prompts::Mesh | Prompts::Celestial | Prompts::CelestialDefault  => {//| Prompts::CelestialEarth | Prompts::CelestialMars | Prompts::CelestialMoon | Prompts::CelestialSun => {                
                 let possible_values = [
                     "y",                    
                     "n",                                        
@@ -1673,7 +1617,7 @@ fn prompt_base() -> Result<Base,InputErrors> {
 
     let celestial = prompt_celestial()?;
     if let Some(celestial) = celestial {
-        base.connect_celestial_system(celestial);
+        base.add_celestial_system(celestial);
     }
 
     Ok(base)    
@@ -1778,9 +1722,8 @@ fn prompt_color() -> Result<Color, InputErrors> {
     Ok(rgba)
 }
 
-fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
+fn prompt_gravity() -> Result<Gravity, InputErrors> {    
     
-    let name = Prompts::Name.prompt()?;
     let gravity_type = Prompts::GravityType.validate_loop("c")?;
 
     let gravity = match gravity_type.trim() {
@@ -1801,7 +1744,7 @@ fn prompt_gravity() -> Result<MultibodyGravity, InputErrors> {
         }
         _ => panic!("shouldn't be possible. other characters caught in validation loop")
     };
-    Ok(MultibodyGravity::new(&name,gravity))
+    Ok(gravity)
 
 }
 

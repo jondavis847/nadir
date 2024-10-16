@@ -1,16 +1,16 @@
-use super::{
-    aerospace::MultibodyGravity,
+use super::{    
     body::{BodyErrors, BodyTrait},
     joint::JointTrait,
     MultibodyTrait,
 };
-use aerospace::celestial_system::{CelestialErrors, CelestialSystem};
+use aerospace::{celestial_system::{CelestialErrors, CelestialSystem}, gravity::Gravity};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum BaseErrors {
-    CelestialError(CelestialErrors)
+    BaseIsCelestial,
+    CelestialError(CelestialErrors),
 }
 impl From<CelestialErrors> for BaseErrors {
     fn from(value: CelestialErrors) -> Self {
@@ -19,12 +19,17 @@ impl From<CelestialErrors> for BaseErrors {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BaseSystems {
+    Basic(Option<Gravity>),
+    Celestial(CelestialSystem),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
     id: Uuid,
     name: String,
-    pub celestial: Option<CelestialSystem>,    
+    pub system: BaseSystems,
     pub outer_joints: Vec<Uuid>,
-    pub gravity: Vec<Uuid>,
 }
 
 impl Default for Base {
@@ -32,34 +37,39 @@ impl Default for Base {
         Self {
             id: Uuid::new_v4(),
             name: "base".to_string(),
-            celestial: None,
+            system: BaseSystems::Basic(None),
             outer_joints: Vec::new(),
-            gravity: Vec::new(),
         }
     }
 }
 
 impl Base {
-    pub fn connect_celestial_system(&mut self, celestial: CelestialSystem) {
-        self.celestial = Some(celestial);
+    pub fn add_celestial_system(&mut self, celestial: CelestialSystem) {
+        self.system = BaseSystems::Celestial(celestial);
     }
 
     pub fn delete_celestial_system(&mut self) {
-        self.celestial = None;
+        self.system = BaseSystems::Basic(None);
     }
 
-    pub fn update(&mut self, t: f64) -> Result<(),BaseErrors> {
-        if let Some(celestial) = &mut self.celestial {            
-            celestial.update(t)?;
+    pub fn add_basic_gravity(&mut self, gravity: Gravity) -> Result<(), BaseErrors> {
+        match self.system {
+            BaseSystems::Basic(_) => self.system = BaseSystems::Basic(Some(gravity)),
+            BaseSystems::Celestial(_) => return Err(BaseErrors::BaseIsCelestial),
+        }
+        Ok(())
+    }
+
+    pub fn update(&mut self, t: f64) -> Result<(), BaseErrors> {
+        match &mut self.system {
+            BaseSystems::Celestial(celestial) => celestial.update(t)?,
+            BaseSystems::Basic(_) => {}
         }
         Ok(())
     }
 }
 
-impl BodyTrait for Base {
-    fn connect_gravity(&mut self, gravity: &MultibodyGravity) {
-        self.gravity.push(*gravity.get_id())
-    }
+impl BodyTrait for Base {    
     fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         let joint_id = joint.get_id();
         // Check if the joint already exists in outer_joints

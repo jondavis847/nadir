@@ -1,6 +1,6 @@
 use super::{Body, BodyErrors, BodyTrait};
 use crate::joint::JointTrait;
-use crate::{aerospace::MultibodyGravity, base::Base, MultibodyTrait};
+use crate::{base::Base, MultibodyTrait};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -10,12 +10,6 @@ pub enum BaseOrBody {
 }
 
 impl BodyTrait for BaseOrBody {
-    fn connect_gravity(&mut self, gravity: &MultibodyGravity) {
-        match self {
-            BaseOrBody::Base(base) => base.connect_gravity(gravity),
-            BaseOrBody::Body(body) => body.connect_gravity(gravity),
-        }
-    }
 
     fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
         match self {

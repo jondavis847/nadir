@@ -1,8 +1,6 @@
-use nalgebra::{DMatrix, Matrix2, Matrix3, Matrix5, SimdBool, Vector3, SVector, SVD}; //DMatrix
+use nalgebra::{Matrix5, SimdBool, Vector3,}; //DMatrix
 use std::f64::consts::PI;
 use serde::{Serialize, Deserialize};
-use ndarray::{Array2, arr2};
-use csv::{Reader, ReaderBuilder};
 
 
 pub const EARTH: f64 = 3.986004418e14; // mu (m^3/s^2)

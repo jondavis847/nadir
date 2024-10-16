@@ -3,8 +3,8 @@ use crate::{
     sensor::Sensor,
 };
 
-use super::{aerospace::MultibodyGravity, MultibodyTrait};
-use aerospace::celestial_system::CelestialSystem;
+use super::MultibodyTrait;
+use aerospace::{celestial_system::CelestialSystem, gravity::{Gravity,GravityTrait}};
 use gadgt_3d::mesh::Mesh;
 use mass_properties::{MassProperties, MassPropertiesErrors};
 use nalgebra::{Vector3, Vector6};
@@ -29,7 +29,6 @@ pub enum BodyErrors {
 }
 
 pub trait BodyTrait: MultibodyTrait {
-    fn connect_gravity(&mut self, gravity: &MultibodyGravity);
     fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
     fn delete_outer_joint(&mut self, joint_id: &Uuid);
     fn get_outer_joints(&self) -> &Vec<Uuid>;
@@ -44,7 +43,6 @@ pub struct Body {
     pub name: String,
     pub outer_joints: Vec<Uuid>, // id of joint in system.joints, joint contains the transform information
     pub mesh: Option<Mesh>,
-    pub gravity: Vec<Uuid>, // a vec in case say you want moon and earth or something
     pub sensors: Vec<Uuid>, // id of sensor in system.sensors, sensor contains the transform information
 }
 
@@ -91,7 +89,6 @@ impl Body {
         Ok(Self {
             //actuators: Vec::new(),
             mesh: None,
-            gravity: Vec::new(),
             id: Uuid::new_v4(),
             inner_joint: None,
             mass_properties: mass_properties,
@@ -126,10 +123,6 @@ impl BodyTrait for Body {
     fn get_outer_joints(&self) -> &Vec<Uuid> {
         &self.outer_joints
     }
-
-    fn connect_gravity(&mut self, gravity: &MultibodyGravity) {
-        self.gravity.push(*gravity.get_id())
-    }
 }
 
 impl MultibodyTrait for Body {
@@ -154,7 +147,6 @@ impl MultibodyTrait for Body {
 pub struct BodySim {
     pub state: BodyState,
     pub mesh: Option<Mesh>,
-    pub gravity: Vec<Uuid>,
     pub mass_properties: MassProperties,
     pub sensors: Vec<Uuid>,
 }
@@ -165,7 +157,6 @@ impl From<Body> for BodySim {
         Self {
             state,
             mesh: body.mesh,
-            gravity: body.gravity,
             mass_properties: body.mass_properties,
             sensors: body.sensors,
         }
@@ -180,9 +171,27 @@ impl BodySim {
     pub fn calculate_gravity(
         &mut self,
         body_from_base: &SpatialTransform,
+        gravity: &Gravity
+    ) {
+        let g_vec = gravity.calculate(self.state.position_base);
+
+        // convert g_vec to a force by multiplying by mass
+        // note that we just calculate gravity as translation of the cm
+        // any torque applied via gravity and it's joints is handled by
+        // the conversion to a joint force through spatial algebra
+        let g_vec = g_vec * self.mass_properties.mass;
+
+        self.state.gravity_force_base = g_vec;
+        // transform to the body frame
+        self.state.gravity_force_body = body_from_base.0.rotation.transform(g_vec);
+    }
+
+    //TODO: combine this with calculate_gravity?
+    pub fn calculate_gravity_celestial(
+        &mut self,
+        body_from_base: &SpatialTransform,
         celestial: &CelestialSystem         
     ) {
-        // loop over all gravities attached to body to calculate and sum the accelerations
         let g_vec = celestial.calculate_gravity_gcrf(self.state.position_base);
 
         // convert g_vec to a force by multiplying by mass
@@ -195,6 +204,7 @@ impl BodySim {
         // transform to the body frame
         self.state.gravity_force_body = body_from_base.0.rotation.transform(g_vec);
     }
+
     pub fn calculate_external_force(&mut self) {
         // convert gravity to spatial force
         let gravity_force_body = Force::from(Vector6::new(

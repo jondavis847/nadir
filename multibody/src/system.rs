@@ -1,7 +1,4 @@
-use crate::{component::MultibodyComponent, sensor::Sensor};
-
 use super::{
-    aerospace::MultibodyGravity,
     algorithms::MultibodyAlgorithm,
     base::Base,
     body::{Body, BodyTrait},
@@ -10,6 +7,12 @@ use super::{
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
+use crate::{
+    base::{BaseErrors, BaseSystems},
+    component::MultibodyComponent,
+    sensor::Sensor,
+};
+use aerospace::gravity::Gravity;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,7 +24,6 @@ pub struct MultibodySystem {
     pub algorithm: MultibodyAlgorithm,
     pub base: Base,
     pub bodies: HashMap<Uuid, Body>,
-    pub gravities: HashMap<Uuid, MultibodyGravity>,
     pub joints: HashMap<Uuid, Joint>,
     pub sensors: HashMap<Uuid, Sensor>,
 }
@@ -32,7 +34,6 @@ impl MultibodySystem {
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: Base::default(),
             bodies: HashMap::new(),
-            gravities: HashMap::new(),
             joints: HashMap::new(),
             sensors: HashMap::new(),
         }
@@ -58,15 +59,6 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn add_gravity(&mut self, gravity: MultibodyGravity) -> Result<(), MultibodyErrors> {
-        // Return if a component with this name already exists
-        if self.check_name_taken(gravity.get_name()) {
-            return Err(MultibodyErrors::NameTaken);
-        }
-        self.gravities.insert(*gravity.get_id(), gravity);
-        Ok(())
-    }
-
     pub fn add_sensor(&mut self, sensor: Sensor) -> Result<(), MultibodyErrors> {
         // Return if a component with this name already exists
         if self.check_name_taken(sensor.get_name()) {
@@ -76,20 +68,8 @@ impl MultibodySystem {
         self.sensors.insert(*sensor.get_id(), sensor);
         Ok(())
     }
-    pub fn connect_gravity(
-        &mut self,
-        gravity_id: &Uuid,
-        body_id: &Uuid,
-    ) -> Result<(), MultibodyErrors> {
-        if self.base.get_id() == body_id {
-            self.base.gravity.push(*gravity_id);
-            Ok(())
-        } else if let Some(body) = self.bodies.get_mut(body_id) {
-            body.gravity.push(*gravity_id);
-            Ok(())
-        } else {
-            Err(MultibodyErrors::BodyNotFound)
-        }
+    pub fn add_gravity(&mut self, gravity: Gravity) -> Result<(), MultibodyErrors> {
+        Ok(self.base.add_basic_gravity(gravity)?)
     }
 
     pub fn connect(
@@ -115,6 +95,7 @@ impl MultibodySystem {
 
             // if the base is the 'to' component
             if self.base.get_name() == to_name {
+                /*
                 // look for valid 'to' components (only gravity for now)
                 for (_, gravity) in &mut self.gravities {
                     if gravity.get_name() == from_name {
@@ -122,6 +103,7 @@ impl MultibodySystem {
                         return Ok(());
                     }
                 }
+                */
                 // if no gravity found, return TODO: InvalidConnection or ComponentNotFound?
                 return Err(MultibodyErrors::InvalidConnection);
             }
@@ -158,14 +140,6 @@ impl MultibodySystem {
                             return Err(MultibodyErrors::NoTransformFound);
                         }
                         joint.connect_outer_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
-                        return Ok(());
-                    }
-                }
-
-                // body specific gravity
-                for (_, gravity) in &mut self.gravities {
-                    if gravity.get_name() == from_name {
-                        body.connect_gravity(gravity);
                         return Ok(());
                     }
                 }
@@ -230,10 +204,6 @@ impl MultibodySystem {
                     self.joints.remove(&id);
                     Ok(())
                 }
-                MultibodyComponent::Gravity => {
-                    self.delete_gravity(&id);
-                    Ok(())
-                }
                 MultibodyComponent::Sensor => {
                     self.delete_sensor(&id);
                     Ok(())
@@ -254,16 +224,13 @@ impl MultibodySystem {
                 return Some((MultibodyComponent::Body, *body.get_id()));
             }
         }
+
         for (_, joint) in &self.joints {
             if joint.get_name() == name {
                 return Some((MultibodyComponent::Joint, *joint.get_id()));
             }
         }
-        for (_, gravity) in &self.gravities {
-            if gravity.get_name() == name {
-                return Some((MultibodyComponent::Gravity, *gravity.get_id()));
-            }
-        }
+
         for (_, sensor) in &self.sensors {
             if sensor.get_name() == name {
                 return Some((MultibodyComponent::Sensor, *sensor.get_id()));
@@ -272,13 +239,14 @@ impl MultibodySystem {
         None
     }
 
-    pub fn delete_gravity(&mut self, gravity_id: &Uuid) {
-        self.base.gravity.retain(|&id| id != *gravity_id);
-
-        for (_, body) in &mut self.bodies {
-            body.gravity.retain(|&id| id != *gravity_id);
+    pub fn delete_gravity(&mut self) -> Result<(), MultibodyErrors> {
+        match self.base.system {
+            BaseSystems::Basic(_) => self.base.system = BaseSystems::Basic(None),
+            BaseSystems::Celestial(_) => {
+                return Err(MultibodyErrors::BaseErrors(BaseErrors::BaseIsCelestial))
+            }
         }
-        self.gravities.remove(gravity_id);
+        Ok(())
     }
 
     pub fn delete_sensor(&mut self, sensor_id: &Uuid) {
@@ -302,10 +270,6 @@ impl MultibodySystem {
             .iter()
             .any(|(_, joint)| joint.get_name() == name)
         {
-            return true;
-        }
-
-        if self.gravities.iter().any(|(_, g)| g.get_name() == name) {
             return true;
         }
 

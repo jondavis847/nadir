@@ -3,6 +3,5 @@ pub enum MultibodyComponent {
     Base,
     Body,
     Joint,
-    Gravity,
     Sensor,
 }

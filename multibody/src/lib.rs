@@ -1,4 +1,3 @@
-pub mod aerospace;
 pub mod algorithms;
 pub mod base;
 pub mod body;
@@ -10,13 +9,15 @@ pub mod solver;
 pub mod system;
 pub mod system_sim;
 
+use base::BaseErrors;
 use sensor::SensorErrors;
 use uuid::Uuid;
 use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
 
-#[derive(Debug,Clone)]
-pub enum MultibodyErrors {      
+#[derive(Debug)]
+pub enum MultibodyErrors {    
+    BaseErrors(BaseErrors),  
     BaseMissingOuterJoint,
     BodyNotFound,
     Body(BodyErrors),
@@ -36,6 +37,13 @@ pub enum MultibodyErrors {
     SensorErrors(SensorErrors),
     TooManyBasesFound,
 }
+
+impl From<BaseErrors> for MultibodyErrors {
+    fn from(e: BaseErrors) -> Self {
+        MultibodyErrors::BaseErrors(e)
+    }
+}
+
 
 impl From<JointErrors> for MultibodyErrors {
     fn from(e: JointErrors) -> Self {
