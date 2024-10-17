@@ -1,3 +1,5 @@
+use spice::Spice;
+
 use crate::{
     body::BodyResult,
     joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
@@ -13,6 +15,7 @@ pub fn solve_fixed_rk4(
     tstart: f64,
     tstop: f64,
     mut dt: f64,
+    spice: &mut Option<Spice>,
 ) -> Result<(Vec<f64>, HashMap<String, ResultEntry>), MultibodyErrors> {
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
@@ -67,7 +70,7 @@ pub fn solve_fixed_rk4(
         // calculate all secondary states with the current state
         // only joint states are required to integrate, but
         // we want to save things like body states, gravity , etc.
-        sys.run(&mut tmp, &x, t);
+        sys.run(&mut tmp, &x, t, spice);
 
         // update the result vectors with the current values
         time[i] = t;
@@ -100,25 +103,25 @@ pub fn solve_fixed_rk4(
 
         // calculate k1 = f(x,t)
         tmp.clone_from(&x);
-        sys.run(&mut k1, &tmp, t);
+        sys.run(&mut k1, &tmp, t, spice);
 
         // calculate k2 = f(x + 0.5*k1 , t + 0.5dt)
         tmp.clone_from(&k1);
         tmp *= half_dt;
         tmp += &x;
-        sys.run(&mut k2, &tmp, t + half_dt);
+        sys.run(&mut k2, &tmp, t + half_dt, spice);
 
         // calculate k3 = f(x + 0.5*k2 , t + 0.5dt)
         tmp.clone_from(&k2);
         tmp *= half_dt;
         tmp += &x;
-        sys.run(&mut k3, &tmp, t + half_dt);
+        sys.run(&mut k3, &tmp, t + half_dt, spice);
 
         // calculate k4 = f(x + k3 , t + dt)
         tmp.clone_from(&k3);
         tmp *= dt;
         tmp += &x;
-        sys.run(&mut k4, &tmp, t + dt);
+        sys.run(&mut k4, &tmp, t + dt, spice);
 
         // calculate x = x + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * dt / 6.0;
 

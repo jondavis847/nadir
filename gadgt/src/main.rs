@@ -10,7 +10,7 @@ use dirs_next::config_dir;
 use gadgt_3d::{geometry::{cuboid::Cuboid, ellipsoid::{Ellipsoid32, Ellipsoid16, Ellipsoid64}, Geometry, GeometryState}, material::Material, mesh::Mesh};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
+    base::{Base, BaseSystems}, body::{Body, BodyErrors, BodyTrait}, component::MultibodyComponent, joint::{floating::{Floating, FloatingState}, joint_sim::JointSimTrait, joint_state::JointStates, prismatic::{Prismatic, PrismaticState}, revolute::{Revolute, RevoluteState}, Joint, JointParameters, JointTrait
     }, result::MultibodyResult, sensor::{noise::{gaussian::GaussianNoise, uniform::UniformNoise, Noise, NoiseModels}, simple::{rate3::Rate3Sensor, SimpleSensor}, Sensor, SensorModel}, system::MultibodySystem, system_sim::MultibodySystemSim, MultibodyTrait
 };
 use nalgebra::Vector3;
@@ -28,6 +28,7 @@ use reedline::{FileBackedHistory, Prompt, PromptEditMode, PromptHistorySearch, R
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{axes::{AlignedAxes, AxisPair}, prelude::{EulerAngles, EulerSequence}, quaternion::Quaternion, Rotation};
+use spice::Spice;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::{self, File,OpenOptions};
@@ -138,6 +139,13 @@ fn main() {
 
     let mut systems = HashMap::<String, MultibodySystem>::new();
     let mut results = HashMap::<String, MultibodyResult>::new();
+
+    // load spice at the start
+    let spice = match Spice::from_local() {
+        Ok(spice) => spice,
+        Err(_) => panic!("could not load spice. TODO: handle this more gracefully")
+    };
+    let spice = &mut Some(spice);
     
     //rl.clear_screen().unwrap();    
     //let welcome = "Welcome to GADGT!".bright_blue();
@@ -926,7 +934,12 @@ fn main() {
                                         let initial_joint_states = JointStates(sys_sim.joints.iter().map(|joint| joint.get_state()).collect());
                                         let mut final_joint_states = initial_joint_states.clone();
 
-                                        sys_sim.run(&mut final_joint_states,&initial_joint_states,0.0);
+                                        let spice = match sys_sim.base.system {
+                                            BaseSystems::Basic(_) => &mut None,
+                                            BaseSystems::Celestial(_)=> spice
+                                        };
+
+                                        sys_sim.run(&mut final_joint_states,&initial_joint_states,0.0, spice);
 
                                         //dbg!(&sys_sim);
                                     }
@@ -1039,8 +1052,13 @@ fn main() {
                                             Ok(_)=> {
                                                 success("System validated!");                                                
                                                 match prompt_simulation() {
-                                                    Ok((name, start_time,stop_time, dt)) => {                                                        
-                                                        let result = system.simulate(name.clone(),start_time,stop_time,dt);
+                                                    Ok((name, start_time,stop_time, dt)) => {       
+
+                                                        let spice = match system.base.system {
+                                                            BaseSystems::Basic(_) => &mut None,
+                                                            BaseSystems::Celestial(_)=> spice
+                                                        };                                                 
+                                                        let result = system.simulate(name.clone(),start_time,stop_time,dt,spice);
                                                         match result {
                                                             Ok(result) => {
                                                                 let s = format!("Simulation '{}' completed in {:#?}!", name, result.total_duration);

@@ -15,6 +15,7 @@ use crate::{
 use aerospace::gravity::Gravity;
 
 use serde::{Deserialize, Serialize};
+use spice::Spice;
 use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
@@ -290,9 +291,10 @@ impl MultibodySystem {
         tstart: f64,
         tstop: f64,
         dt: f64,
+        spice: &mut Option<Spice>,
     ) -> Result<MultibodyResult, MultibodyErrors> {
         let mut sim = MultibodySystemSim::try_from(self.clone())?;
-        sim.simulate(name, tstart, tstop, dt)
+        sim.simulate(name, tstart, tstop, dt, spice)
     }
 
     pub fn validate(&self) -> Result<(), MultibodyErrors> {

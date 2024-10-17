@@ -26,6 +26,7 @@ chrono = "0.4.38"
 nalgebra = "0.33.0"
 clap = { version = "4.5.11", features = ["derive"] }
 colored = "2.1.0"
+spice = {path = "../spice"}
 smol_str = "0.2.2"
 reedline = "0.33.0"
 ratatui = "0.27.0"

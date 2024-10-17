@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 aerospace = {path = "../aerospace"}
+spice = {path = "../spice"}
 transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 gadgt_3d = {path = "../gadgt_3d"}

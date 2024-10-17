@@ -5,6 +5,7 @@ use super::{
 };
 use aerospace::{celestial_system::{CelestialErrors, CelestialSystem}, gravity::Gravity};
 use serde::{Deserialize, Serialize};
+use spice::Spice;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -60,9 +61,13 @@ impl Base {
         Ok(())
     }
 
-    pub fn update(&mut self, t: f64) -> Result<(), BaseErrors> {
+    pub fn update(&mut self, t: f64, spice: &mut Option<Spice>) -> Result<(), BaseErrors> {
         match &mut self.system {
-            BaseSystems::Celestial(celestial) => celestial.update(t)?,
+            BaseSystems::Celestial(celestial) => if let Some(spice) = spice {                
+                celestial.update(t, spice)?
+            } else {
+                return Err(BaseErrors::CelestialError(CelestialErrors::SpiceNotFound))
+            },
             BaseSystems::Basic(_) => {}
         }
         Ok(())

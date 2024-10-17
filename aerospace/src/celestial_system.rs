@@ -13,6 +13,7 @@ pub enum CelestialErrors {
     CelestialBodyAlreadyExists,
     InvalidEpoch,
     SpiceErrors(SpiceErrors),
+    SpiceNotFound,
     TimeErrors(TimeErrors),
 }
 
@@ -31,25 +32,22 @@ impl From<TimeErrors> for CelestialErrors {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
     pub epoch: Time,
-    pub bodies: CelestialBodiesCache,
-    #[serde(skip_serializing)]
-    pub spice: Spice,    
+    pub bodies: CelestialBodiesCache,    
 }
 
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
         Ok(Self {
             epoch,
-            bodies: CelestialBodiesCache::default(),
-            spice: Spice::from_naif()?,
+            bodies: CelestialBodiesCache::default(),            
         })
     }
 
-    pub fn update(&mut self, t: f64) -> Result<(), CelestialErrors> {
+    pub fn update(&mut self, t: f64, spice: &mut Spice) -> Result<(), CelestialErrors> {
         // t is sim time in seconds
         let current_epoch = self.epoch + t;
         let current_epoch = current_epoch.to_system(time::TimeSystem::TT);        
-        self.bodies.update(current_epoch, &mut self.spice)?;
+        self.bodies.update(current_epoch, spice)?;
         Ok(())
     }
 
@@ -229,11 +227,12 @@ mod tests {
 
     #[test]
     fn test_gravity_egm96() {
+        let mut spice = Spice::from_local().unwrap();
         let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
-        let mut sys = CelestialSystem::new(epoch).unwrap();
+        let mut sys = CelestialSystem::new(epoch).unwrap();        
         let earth = Earth::default();
         sys.add_earth(earth).unwrap();
-        sys.update(0.0).unwrap();
+        sys.update(0.0, &mut spice).unwrap();
         let earth = &sys.bodies.earth.clone().unwrap();
         let gcrf_from_itrf = earth.gcrf_from_itrf.clone();
         let itrf_from_gcrf = gcrf_from_itrf.inv();

@@ -23,6 +23,7 @@ use rotations::{quaternion::Quaternion, RotationTrait};
 
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, MotionVector, SpatialVector, Velocity};
+use spice::Spice;
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
@@ -135,9 +136,9 @@ impl MultibodySystemSim {
         JointStates(new_joints)
     }
 
-    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, t: f64) {
+    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, t: f64, spice: &mut Option<Spice>) {
         self.set_state(x);
-        self.update_base(t);
+        self.update_base(t,spice);
         self.update_joints();
         self.update_forces();
 
@@ -268,6 +269,7 @@ impl MultibodySystemSim {
         tstart: f64,
         tstop: f64,
         dt: f64,
+        spice: &mut Option<Spice>,
     ) -> Result<MultibodyResult, MultibodyErrors> {
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
@@ -275,7 +277,7 @@ impl MultibodySystemSim {
         let sim_start_time = Instant::now();
 
         // solve for the multibody system
-        let result = solve_fixed_rk4(self, tstart, tstop, dt);
+        let result = solve_fixed_rk4(self, tstart, tstop, dt, spice);
 
         let (times, hashmap) = match result {
             Ok(result) => result,
@@ -342,8 +344,8 @@ impl MultibodySystemSim {
         }
     }
 
-    fn update_base(&mut self, t: f64) {
-        self.base.update(t).unwrap();
+    fn update_base(&mut self, t: f64, spice: &mut Option<Spice>) {
+        self.base.update(t,spice).unwrap();
     }
 
     fn update_forces(&mut self) {

@@ -11,6 +11,7 @@ pub mod system_sim;
 
 use base::BaseErrors;
 use sensor::SensorErrors;
+use spice::SpiceErrors;
 use uuid::Uuid;
 use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
@@ -35,12 +36,19 @@ pub enum MultibodyErrors {
     NoTransformFound,
     Revolute(RevoluteErrors),
     SensorErrors(SensorErrors),
+    SpiceErrors(SpiceErrors),
     TooManyBasesFound,
 }
 
 impl From<BaseErrors> for MultibodyErrors {
     fn from(e: BaseErrors) -> Self {
         MultibodyErrors::BaseErrors(e)
+    }
+}
+
+impl From<SpiceErrors> for MultibodyErrors {
+    fn from(e: SpiceErrors) -> Self {
+        MultibodyErrors::SpiceErrors(e)
     }
 }
 
