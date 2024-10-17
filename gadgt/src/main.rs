@@ -951,8 +951,15 @@ fn main() {
                                         let mut systems: HashMap<String, MultibodySystem> = match file {
                                             Ok(mut file) => {
                                                 let mut content = String::new();
-                                                file.read_to_string(&mut content).unwrap();
-                                                from_reader(content.as_bytes()).unwrap()
+                                                
+                                                match file.read_to_string(&mut content) {
+                                                    Ok(_) => {},
+                                                    Err(e) => {eprintln!("{}", e); continue}        
+                                                }
+                                                match from_reader(content.as_bytes()) {
+                                                    Ok(system) => system,
+                                                    Err(e) => {eprintln!("{}", e); continue}        
+                                                }
                                             },
                                             Err(_) => HashMap::new(),
                                         };                                           

@@ -113,7 +113,6 @@ impl CelestialSystem {
                     Gravity::EGM96(_) => {
                         //comes out in itrf (ecef), convert to gcrf ecliptic (eci)
                         g = earth.gcrf_from_itrf.transform(g);
-                        dbg!(&g);
                     }
                     _ => {}
                 }
