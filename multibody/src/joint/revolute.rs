@@ -140,7 +140,7 @@ impl JointTrait for Revolute {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
         }        
-        body.connect_inner_joint(self).unwrap();
+        body.connect_inner_joint(self)?;
         let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
         Ok(())

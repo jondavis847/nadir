@@ -174,7 +174,7 @@ impl AtmospherePipeline {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Less,
+                depth_compare: wgpu::CompareFunction::Always,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
@@ -188,7 +188,8 @@ impl AtmospherePipeline {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState {
+                    blend: None,
+                    /*Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::SrcAlpha, // Source color is multiplied by source alpha
                             dst_factor: wgpu::BlendFactor::DstAlpha, // Destination color is multiplied by (1 - source alpha)
@@ -199,7 +200,7 @@ impl AtmospherePipeline {
                             dst_factor: wgpu::BlendFactor::DstAlpha, // No contribution from the destination alpha
                             operation: wgpu::BlendOperation::Add, // Blend by adding the two components
                         },
-                    }),
+                    }) ,*/
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),

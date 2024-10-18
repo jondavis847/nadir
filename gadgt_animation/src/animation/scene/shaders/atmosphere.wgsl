@@ -83,17 +83,17 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let view_angle = dot(view_dir, in.normal);    
 
     //5.0 is just added due to darkening from MSAA
-    let scatter_factor = 5.0 * 0.1; // controls flat scattering intensity    
-    let scatter_color = normalize(vec3<f32>(0.4, 0.4, 1.0)); 
+    let scatter_factor = 1.0; // controls flat scattering intensity    
+    let scatter_color = normalize(vec3<f32>(0.3, 0.3, 1.0)); 
     
     let light_angle_factor = 0.5; // controls how much the angle towards the sun affects lighting
     let view_angle_factor = 7.0; // controls how much the angle towards the camera affects the color
-    let night_angle_factor = 6.0; // controls how much to reduce atmosphere color on the night side
+    let night_angle_factor = 30.0; // controls how much to reduce atmosphere color on the night side
 
     // fade out values with very small normals so that the atmosphere "blurs" into space
     let fade_start = 0.0;
     let fade_end = 0.2;
-    let fade_strength = 5.0;
+    let fade_strength = 10.0;
 
     var fade_factor: f32;
     if view_angle < fade_start {
@@ -105,7 +105,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         fade_factor = pow(t, fade_strength);
     }
 
-    let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor* scatter_color * scatter_factor ;    
+    //let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor* scatter_color * scatter_factor ;    
+    let scattering = pow(1.0 - night_angle,night_angle_factor) * fade_factor * scatter_color * scatter_factor ;    
     
     let final_color = vec3<f32>(scattering);
     
@@ -115,7 +116,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, 1.0);    
+    out.color = vec4<f32>(final_color, 0.5);    
     out.depth = log_depth;
 
     return out;

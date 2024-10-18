@@ -261,134 +261,20 @@ impl Primitive for ScenePrimitive {
 
         const MAIN_SHADER: &str = include_str!("scene/shaders/main.wgsl");
 
-        //cuboids
-        let cuboids: Vec<MeshGpu> = self
-            .meshes
-            .iter()
-            .filter_map(|mesh| {
-                if let Geometry::Cuboid(_) = mesh.geometry {
-                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if !cuboids.is_empty() {
-            if !storage.has::<CuboidPipeline>() {
-                storage.store(CuboidPipeline(Pipeline::new(
+        if let Some(atmosphere) = &self.earth_atmosphere {
+            // atmosphere
+            if !storage.has::<AtmospherePipeline>() {
+                storage.store(AtmospherePipeline::new(
                     device,
                     format,
                     &layout,
-                    MAIN_SHADER,
-                    "cuboid",
-                    Cuboid::vertices(),
-                    &cuboids,
-                    self.sample_count,
-                )));
-            } else {
-                if let Some(cuboid_pipeline) = storage.get_mut::<CuboidPipeline>() {
-                    let pipeline = &mut cuboid_pipeline.0;
-                    pipeline.update(queue, &cuboids);
-                }
-            }
-        }
-
-        //ellipsoid16
-        let ellipsoid16s: Vec<MeshGpu> = self
-            .meshes
-            .iter()
-            .filter_map(|mesh| {
-                if let Geometry::Ellipsoid16(_) = mesh.geometry {
-                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if !ellipsoid16s.is_empty() {
-            if !storage.has::<Ellipsoid16Pipeline>() {
-                storage.store(Ellipsoid16Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid16",
-                    Ellipsoid16::vertices(),
-                    &ellipsoid16s,
-                    self.sample_count,
-                )));
-            } else {
-                if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
-                    let pipeline = &mut ellipsoid16_pipeline.0;
-                    pipeline.update(queue, &ellipsoid16s);
-                }
-            }
-        }
-
-        //ellipsoid32
-        let ellipsoid32s: Vec<MeshGpu> = self
-            .meshes
-            .iter()
-            .filter_map(|mesh| {
-                if let Geometry::Ellipsoid32(_) = mesh.geometry {
-                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if !ellipsoid32s.is_empty() {
-            if !storage.has::<Ellipsoid32Pipeline>() {
-                storage.store(Ellipsoid32Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid32",
-                    Ellipsoid32::vertices(),
-                    &ellipsoid32s,
-                    self.sample_count,
-                )));
-            } else {
-                if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
-                    let pipeline = &mut ellipsoid32_pipeline.0;
-                    pipeline.update(queue, &ellipsoid32s);
-                }
-            }
-        }
-
-        //ellipsoid64
-        let ellipsoid64s: Vec<MeshGpu> = self
-            .meshes
-            .iter()
-            .filter_map(|mesh| {
-                if let Geometry::Ellipsoid64(_) = mesh.geometry {
-                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if !ellipsoid64s.is_empty() {
-            if !storage.has::<Ellipsoid64Pipeline>() {
-                storage.store(Ellipsoid64Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid64",
+                    &[*atmosphere],
                     Ellipsoid64::vertices(),
-                    &ellipsoid64s,
                     self.sample_count,
-                )));
+                ));
             } else {
-                if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
-                    let pipeline = &mut ellipsoid64_pipeline.0;
-                    pipeline.update(queue, &ellipsoid64s);
+                if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
+                    atmosphere_pipeline.update(queue, &[*atmosphere]);
                 }
             }
         }
@@ -558,20 +444,136 @@ impl Primitive for ScenePrimitive {
             }
         }
 
-        if let Some(atmosphere) = &self.earth_atmosphere {
-            // atmosphere
-            if !storage.has::<AtmospherePipeline>() {
-                storage.store(AtmospherePipeline::new(
+        
+
+        //cuboids
+        let cuboids: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Cuboid(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !cuboids.is_empty() {
+            if !storage.has::<CuboidPipeline>() {
+                storage.store(CuboidPipeline(Pipeline::new(
                     device,
                     format,
                     &layout,
-                    &[*atmosphere],
-                    Ellipsoid64::vertices(),
+                    MAIN_SHADER,
+                    "cuboid",
+                    Cuboid::vertices(),
+                    &cuboids,
                     self.sample_count,
-                ));
+                )));
             } else {
-                if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
-                    atmosphere_pipeline.update(queue, &[*atmosphere]);
+                if let Some(cuboid_pipeline) = storage.get_mut::<CuboidPipeline>() {
+                    let pipeline = &mut cuboid_pipeline.0;
+                    pipeline.update(queue, &cuboids);
+                }
+            }
+        }
+
+        //ellipsoid16
+        let ellipsoid16s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid16(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid16s.is_empty() {
+            if !storage.has::<Ellipsoid16Pipeline>() {
+                storage.store(Ellipsoid16Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid16",
+                    Ellipsoid16::vertices(),
+                    &ellipsoid16s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
+                    let pipeline = &mut ellipsoid16_pipeline.0;
+                    pipeline.update(queue, &ellipsoid16s);
+                }
+            }
+        }
+
+        //ellipsoid32
+        let ellipsoid32s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid32(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid32s.is_empty() {
+            if !storage.has::<Ellipsoid32Pipeline>() {
+                storage.store(Ellipsoid32Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid32",
+                    Ellipsoid32::vertices(),
+                    &ellipsoid32s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
+                    let pipeline = &mut ellipsoid32_pipeline.0;
+                    pipeline.update(queue, &ellipsoid32s);
+                }
+            }
+        }
+
+        //ellipsoid64
+        let ellipsoid64s: Vec<MeshGpu> = self
+            .meshes
+            .iter()
+            .filter_map(|mesh| {
+                if let Geometry::Ellipsoid64(_) = mesh.geometry {
+                    Some(mesh.mesh_gpu) // Collect mesh_gpu if it's an Ellipsoid
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !ellipsoid64s.is_empty() {
+            if !storage.has::<Ellipsoid64Pipeline>() {
+                storage.store(Ellipsoid64Pipeline(Pipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    MAIN_SHADER,
+                    "ellipsoid64",
+                    Ellipsoid64::vertices(),
+                    &ellipsoid64s,
+                    self.sample_count,
+                )));
+            } else {
+                if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
+                    let pipeline = &mut ellipsoid64_pipeline.0;
+                    pipeline.update(queue, &ellipsoid64s);
                 }
             }
         }
@@ -622,6 +624,28 @@ impl Primitive for ScenePrimitive {
         pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
         pass.set_bind_group(0, uniform_bind_group, &[]);
 
+        // render atmosphere first so its always covered 
+        if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
+            let pipeline = &atmosphere_pipeline.pipeline;
+            pass.set_pipeline(pipeline);
+            pass.set_vertex_buffer(0, atmosphere_pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, atmosphere_pipeline.instance_buffer.slice(..));
+            pass.draw(
+                0..atmosphere_pipeline.n_vertices,
+                0..atmosphere_pipeline.n_instances,
+            );
+        }
+
+        if let Some(pipeline) = storage.get::<EarthPipeline>() {
+            if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
+                pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
+                pass.set_pipeline(&pipeline.pipeline);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            }
+        }
+
         //render cuboids
         if let Some(cuboid_pipeline) = storage.get::<CuboidPipeline>() {
             let pipeline = &cuboid_pipeline.0;
@@ -656,28 +680,6 @@ impl Primitive for ScenePrimitive {
             pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
             pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
             pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
-        }
-
-        if let Some(pipeline) = storage.get::<EarthPipeline>() {
-            if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
-                pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
-                pass.set_pipeline(&pipeline.pipeline);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
-            }
-        }
-
-        // need to render earth first so atmosphere pipeline knows how to blend
-        if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
-            let pipeline = &atmosphere_pipeline.pipeline;
-            pass.set_pipeline(pipeline);
-            pass.set_vertex_buffer(0, atmosphere_pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, atmosphere_pipeline.instance_buffer.slice(..));
-            pass.draw(
-                0..atmosphere_pipeline.n_vertices,
-                0..atmosphere_pipeline.n_instances,
-            );
         }
     }
 }
