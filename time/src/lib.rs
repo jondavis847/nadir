@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub const JD_J2000: f64 = 2451545.0;
 pub const SEC_PER_DAY: f64 = 86400.0;
+pub const DAYS_PER_CENTURY: f64 = 36525.0;
 
 pub mod prelude {
     pub use crate::{Time,TimeSystem,TimeFormat,TimeErrors};
@@ -158,6 +159,10 @@ impl Time {
 
     pub fn get_jd(&self) -> f64 {
         self.value.0 / SEC_PER_DAY + JD_J2000
+    }
+
+    pub fn get_jd_centuries(&self) -> f64 {
+        self.value.0 / SEC_PER_DAY / DAYS_PER_CENTURY
     }
 
     pub fn get_datetime(&self) -> NaiveDateTime {

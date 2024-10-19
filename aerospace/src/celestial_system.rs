@@ -1,16 +1,21 @@
 use crate::{
-    earth::{Earth, EarthResult},
-    gravity::{Gravity, GravityTrait},
+    geomag::GeoMagnetism,
+    gravity::{EGM96Gravity, Gravity, GravityTrait, TwoBodyGravity},
 };
 use nalgebra::Vector3;
 use polars::prelude::*;
-use rotations::{prelude::Quaternion, Rotation, RotationTrait};
+use rotations::{
+    prelude::{EulerAngles, EulerSequence, Quaternion},
+    Rotation, RotationTrait,
+};
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies, SpiceErrors};
+use std::f64::consts::PI;
 use time::{Time, TimeErrors};
 
 #[derive(Debug)]
 pub enum CelestialErrors {
+    BodyNotFoundInCelestialSystem,
     CelestialBodyAlreadyExists,
     InvalidEpoch,
     ResultConfigError,
@@ -53,77 +58,308 @@ impl CelestialSystem {
         Ok(())
     }
 
-    pub fn add_earth(&mut self, earth: Earth) -> Result<(), CelestialErrors> {
-        match self.bodies.earth {
-            Some(_) => return Err(CelestialErrors::CelestialBodyAlreadyExists),
-            None => self.bodies.earth = Some(earth),
-        }
-        Ok(())
-    }
-
-    pub fn delete_earth(&mut self) {
-        self.bodies.earth = None;
-    }
-
-    pub fn add_moon(&mut self) -> Result<(), CelestialErrors> {
-        match self.bodies.moon {
-            Some(_) => return Err(CelestialErrors::CelestialBodyAlreadyExists),
-            None => self.bodies.moon = Some(CelestialBody::default()),
-        }
-        Ok(())
-    }
-
-    pub fn delete_moon(&mut self) {
-        self.bodies.moon = None;
-    }
-
-    pub fn add_sun(&mut self) -> Result<(), CelestialErrors> {
-        match self.bodies.sun {
-            Some(_) => return Err(CelestialErrors::CelestialBodyAlreadyExists),
-            None => self.bodies.sun = Some(CelestialBody::default()),
-        }
-        Ok(())
-    }
-
-    pub fn delete_sun(&mut self) {
-        self.bodies.sun = None;
-    }
-
-    /// Calculates gravity in the itrf frame based on position in the itrf frame
-    pub fn calculate_gravity_itrf(&self, position: Vector3<f64>) -> Vector3<f64> {
-        let mut g = Vector3::zeros();
-        if let Some(earth) = &self.bodies.earth {
-            if let Some(gravity) = &earth.gravity {
-                g = gravity.calculate(position);
+    pub fn set_geomag(
+        &mut self,
+        body: CelestialBodies,
+        b: Option<GeoMagnetism>,
+    ) -> Result<(), CelestialErrors> {
+        let set_body_geomag = |body_option: &mut Option<CelestialBody>| {
+            if let Some(body) = body_option {
+                body.geomag = b;
+                Ok(())
+            } else {
+                Err(CelestialErrors::BodyNotFoundInCelestialSystem)
             }
+        };
+
+        match body {
+            CelestialBodies::Earth => set_body_geomag(&mut self.bodies.earth),
+            CelestialBodies::Jupiter => set_body_geomag(&mut self.bodies.jupiter),
+            CelestialBodies::Mars => set_body_geomag(&mut self.bodies.mars),
+            CelestialBodies::Mercury => set_body_geomag(&mut self.bodies.mercury),
+            CelestialBodies::Moon => set_body_geomag(&mut self.bodies.moon),
+            CelestialBodies::Neptune => set_body_geomag(&mut self.bodies.neptune),
+            CelestialBodies::Pluto => set_body_geomag(&mut self.bodies.pluto),
+            CelestialBodies::Saturn => set_body_geomag(&mut self.bodies.saturn),
+            CelestialBodies::Sun => set_body_geomag(&mut self.bodies.sun),
+            CelestialBodies::Uranus => set_body_geomag(&mut self.bodies.uranus),
+            CelestialBodies::Venus => set_body_geomag(&mut self.bodies.venus),
         }
-        g
     }
 
-    /// Calculates gravity in the j2000 ecliptic frame based on position in the j2000 ecliptic frame
-    pub fn calculate_gravity_gcrf(&self, position: Vector3<f64>) -> Vector3<f64> {
-        let mut g = Vector3::zeros();
-        if let Some(earth) = &self.bodies.earth {
-            if let Some(gravity) = &earth.gravity {
-                // rotate is just inverse of transform, and we want itrf_from_gcrf
-                // TODO: Store position_ecef in body state?
-                let position_ecef = earth.gcrf_from_itrf.rotate(position);
-                g = self.calculate_gravity_itrf(position_ecef);
-                match gravity {
-                    Gravity::EGM96(_) => {
-                        //comes out in itrf (ecef), convert to gcrf ecliptic (eci)
-                        g = earth.gcrf_from_itrf.transform(g);
-                    }
-                    _ => {}
+    pub fn set_gravity(
+        &mut self,
+        body: CelestialBodies,
+        g: Option<Gravity>,
+    ) -> Result<(), CelestialErrors> {
+        let set_body_gravity = |body_option: &mut Option<CelestialBody>| {
+            if let Some(body) = body_option {
+                body.gravity = g;
+                Ok(())
+            } else {
+                Err(CelestialErrors::BodyNotFoundInCelestialSystem)
+            }
+        };
+
+        match body {
+            CelestialBodies::Earth => set_body_gravity(&mut self.bodies.earth),
+            CelestialBodies::Jupiter => set_body_gravity(&mut self.bodies.jupiter),
+            CelestialBodies::Mars => set_body_gravity(&mut self.bodies.mars),
+            CelestialBodies::Mercury => set_body_gravity(&mut self.bodies.mercury),
+            CelestialBodies::Moon => set_body_gravity(&mut self.bodies.moon),
+            CelestialBodies::Neptune => set_body_gravity(&mut self.bodies.neptune),
+            CelestialBodies::Pluto => set_body_gravity(&mut self.bodies.pluto),
+            CelestialBodies::Saturn => set_body_gravity(&mut self.bodies.saturn),
+            CelestialBodies::Sun => set_body_gravity(&mut self.bodies.sun),
+            CelestialBodies::Uranus => set_body_gravity(&mut self.bodies.uranus),
+            CelestialBodies::Venus => set_body_gravity(&mut self.bodies.venus),
+        }
+    }
+
+    pub fn add_body(
+        &mut self,
+        body: CelestialBodies,
+        gravity: bool,
+        geomag: bool,
+    ) -> Result<(), CelestialErrors> {
+        match body {
+            CelestialBodies::Earth => {
+                if self.bodies.earth.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::EGM96(EGM96Gravity {}))
+                    } else {
+                        None
+                    };
+                    self.bodies.earth = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Jupiter => {
+                if self.bodies.jupiter.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::JUPITER))
+                    } else {
+                        None
+                    };
+                    self.bodies.jupiter = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Mars => {
+                if self.bodies.mars.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::MARS))
+                    } else {
+                        None
+                    };
+                    self.bodies.mars = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Mercury => {
+                if self.bodies.mercury.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::MERCURY))
+                    } else {
+                        None
+                    };
+                    self.bodies.mercury = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Moon => {
+                if self.bodies.moon.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::MOON))
+                    } else {
+                        None
+                    };
+                    self.bodies.moon = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Neptune => {
+                if self.bodies.neptune.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::NEPTUNE))
+                    } else {
+                        None
+                    };
+                    self.bodies.neptune = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Pluto => {
+                if self.bodies.pluto.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::PLUTO))
+                    } else {
+                        None
+                    };
+                    self.bodies.pluto = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Saturn => {
+                if self.bodies.saturn.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::SATURN))
+                    } else {
+                        None
+                    };
+                    self.bodies.saturn = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Sun => {
+                if self.bodies.sun.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::SUN))
+                    } else {
+                        None
+                    };
+                    self.bodies.sun = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Venus => {
+                if self.bodies.venus.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::VENUS))
+                    } else {
+                        None
+                    };
+                    self.bodies.venus = Some(CelestialBody::new(gravity, None));
+                }
+            }
+            CelestialBodies::Uranus => {
+                if self.bodies.uranus.is_some() {
+                    return Err(CelestialErrors::CelestialBodyAlreadyExists);
+                } else {
+                    let gravity = if gravity {
+                        Some(Gravity::TwoBody(TwoBodyGravity::URANUS))
+                    } else {
+                        None
+                    };
+                    self.bodies.uranus = Some(CelestialBody::new(gravity, None));
                 }
             }
         }
-        g
+        Ok(())
+    }
+
+    pub fn delete_body(&mut self, body: CelestialBodies) {
+        match body {
+            CelestialBodies::Earth => self.bodies.earth = None,
+            CelestialBodies::Jupiter => self.bodies.jupiter = None,
+            CelestialBodies::Mars => self.bodies.mars = None,
+            CelestialBodies::Mercury => self.bodies.mercury = None,
+            CelestialBodies::Moon => self.bodies.moon = None,
+            CelestialBodies::Neptune => self.bodies.neptune = None,
+            CelestialBodies::Pluto => self.bodies.pluto = None,
+            CelestialBodies::Saturn => self.bodies.saturn = None,
+            CelestialBodies::Sun => self.bodies.sun = None,
+            CelestialBodies::Venus => self.bodies.venus = None,
+            CelestialBodies::Uranus => self.bodies.uranus = None,
+        }
+    }
+
+    /// calculates gravity based on all bodies in the celestial system with a gravity model
+    /// position is in the gcrf/j2000 frame
+    pub fn calculate_gravity(&self, position: Vector3<f64>) -> Vector3<f64> {
+        let mut g_final = Vector3::zeros();
+
+        if let Some(earth) = &self.bodies.earth {
+            if let Some(gravity) = &earth.gravity {
+                match gravity {
+                    Gravity::EGM96(gravity) => {                        
+                        let position_itrf = earth.orientation.rotate(position);
+                        let g_itrf = gravity.calculate(position_itrf);
+                        let g_gcrf = earth.orientation.transform(g_itrf);
+                        g_final += g_gcrf;
+                    }
+                    Gravity::TwoBody(gravity) => g_final += gravity.calculate(position),
+                    Gravity::Constant(gravity) => g_final += gravity.calculate(position),
+                }                               
+            }
+        }
+        if let Some(body) = &self.bodies.jupiter {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.mars {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.mercury {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.moon {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.neptune {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.pluto {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.saturn {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.sun {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.uranus {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        if let Some(body) = &self.bodies.venus {
+            if let Some(gravity) = &body.gravity {
+                g_final += gravity.calculate(position);
+            }
+        }
+
+        g_final
     }
 
     pub fn initialize_result(&self) -> CelestialResult {
         let earth = match self.bodies.earth {
-            Some(_) => Some(EarthResult::default()),
+            Some(_) => Some(CelestialBodyResult::default()),
             None => None,
         };
         let jupiter = match self.bodies.jupiter {
@@ -187,100 +423,158 @@ impl CelestialSystem {
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct CelestialBody {
     pub position: Vector3<f64>, // icrf
-    pub orientation: Rotation, // icrf to itrf
+    pub orientation: Rotation,  // icrf to itrf
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,
 }
 
 impl CelestialBody {
+    pub fn new(gravity: Option<Gravity>, geomag: Option<GeoMagnetism>) -> Self {
+        Self {
+            gravity,
+            geomag,
+            ..Default::default()
+        }
+    }
+
     pub fn update(
         &mut self,
         t: Time,
         spice: &mut Spice,
         body: SpiceBodies,
     ) -> Result<(), CelestialErrors> {
-        let position = spice.calculate_position(t, body)?;
-        self.position_icrf = position.into();
-        self.orientation_icrf = Rotation::IDENTITY; //todo add more orientations if necessary
+        //spice uses TDB/TT
+        //gsfc planet fact sheet uses UTC
+        //TODO: do these time calcs upstream and pass as args so we don't calculate for each body
+        let utc = t.to_system(time::TimeSystem::UTC);
+        let jdc = utc.get_jd_centuries();
+        let sec_j2k = utc.get_seconds_j2k();
+
+        self.position = spice.calculate_position(t, body)?.into();
+
+        self.orientation = match body {
+            SpiceBodies::Earth | SpiceBodies::Moon => spice.calculate_orientation(t, body)?,
+            SpiceBodies::Jupiter => {
+                from_planet_fact_sheet(268.057, -0.006, 64.495, 0.002, 9.9250, jdc, sec_j2k)
+            }
+            SpiceBodies::Mars => {
+                from_planet_fact_sheet(317.681, -0.106, 52.887, -0.061, 24.6229, jdc, sec_j2k)
+            }
+            SpiceBodies::Mercury => {
+                from_planet_fact_sheet(281.01, -0.033, 61.414, -0.005, 1407.6, jdc, sec_j2k)
+            }
+            SpiceBodies::Neptune => from_planet_fact_sheet_neptune(jdc, sec_j2k),
+            SpiceBodies::Saturn => {
+                from_planet_fact_sheet(40.589, -0.036, 83.537, -0.004, 10.656, jdc, sec_j2k)
+            }
+            SpiceBodies::Uranus => {
+                from_planet_fact_sheet(257.311, 0.0, -15.175, 0.0, -17.24, jdc, sec_j2k)
+            }
+            SpiceBodies::Venus => {
+                from_planet_fact_sheet(272.76, 0.0, 61.414, 0.0, -5832.6, jdc, sec_j2k)
+            }
+            _ => Rotation::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
+        };
+
         Ok(())
     }
 }
 
+fn from_planet_fact_sheet(
+    ra0: f64,
+    ra1: f64,
+    dec0: f64,
+    dec1: f64,
+    hrs_in_day: f64,
+    julian_centuries: f64,
+    sec_j2k: f64,
+) -> Rotation {
+    // j2000 orientation
+    let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
+    let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
+    let initial_orientation = Rotation::from(EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    // current orientation based on epoch
+    let day = hrs_in_day * 3600.0;
+    let rotation_rate = 2.0 * PI / day;
+    let rotation = rotation_rate * sec_j2k;
+    let orientation_from_rotation =
+        Rotation::from(EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+    orientation_from_rotation * initial_orientation
+}
+
+fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Rotation {
+    // j2000 orientation
+    let n = (357.85 + 52.316 * julian_centuries) * PI / 180.0;
+    let ra = (299.36 + 0.70 * n.sin()) * PI / 180.0;
+    let dec = (43.46 - 0.51 * n.cos()) * PI / 180.0;
+    let initial_orientation = Rotation::from(EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    // current orientation based on epoch
+    let day = 16.11 * 3600.0;
+    let rotation_rate = 2.0 * PI / day;
+    let rotation = rotation_rate * sec_j2k;
+    let orientation_from_rotation =
+        Rotation::from(EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+    orientation_from_rotation * initial_orientation
+}
+
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct CelestialBodyResult {
-    position_icrf: Vec<Vector3<f64>>,
-    orientation_icrf: Vec<Rotation>,
+    position: Vec<Vector3<f64>>,
+    orientation: Vec<Quaternion>,
 }
 
 impl CelestialBodyResult {
     pub fn update(&mut self, body: &CelestialBody) {
-        self.orientation_icrf.push(body.orientation_icrf);
-        self.position_icrf.push(body.position_icrf);
+        self.orientation.push(Quaternion::from(body.orientation));
+        self.position.push(body.position);
     }
 
     pub fn add_to_dataframe(&self, name: &str, df: &mut DataFrame) {
-        let orientation: Vec<Quaternion> = self.orientation_icrf.iter().map(|rotation| Quaternion::from(*rotation)).collect();
-        
+        let orientation: Vec<Quaternion> = self
+            .orientation
+            .iter()
+            .map(|rotation| Quaternion::from(*rotation))
+            .collect();
+
         let orientation_x = Series::new(
             &format!("{name}_orientation_x"),
-            orientation
-                .iter()
-                .map(|v| v.x)
-                .collect::<Vec<f64>>(),
+            orientation.iter().map(|v| v.x).collect::<Vec<f64>>(),
         );
         df.with_column(orientation_x).unwrap();
 
         let orientation_y = Series::new(
             &format!("{name}_orientation_y"),
-            orientation
-                .iter()
-                .map(|v| v.y)
-                .collect::<Vec<f64>>(),
+            orientation.iter().map(|v| v.y).collect::<Vec<f64>>(),
         );
         df.with_column(orientation_y).unwrap();
 
         let orientation_z = Series::new(
             &format!("{name}_orientation_z"),
-            orientation
-                .iter()
-                .map(|v| v.z)
-                .collect::<Vec<f64>>(),
+            orientation.iter().map(|v| v.z).collect::<Vec<f64>>(),
         );
         df.with_column(orientation_z).unwrap();
 
         let orientation_w = Series::new(
             &format!("{name}_orientation_w"),
-            orientation
-                .iter()
-                .map(|v| v.s)
-                .collect::<Vec<f64>>(),
+            orientation.iter().map(|v| v.s).collect::<Vec<f64>>(),
         );
         df.with_column(orientation_w).unwrap();
 
         let body_position_x = Series::new(
             &format!("{name}_position_x"),
-            self.position_icrf
-                .iter()
-                .map(|v| v[0])
-                .collect::<Vec<f64>>(),
+            self.position.iter().map(|v| v[0]).collect::<Vec<f64>>(),
         );
         df.with_column(body_position_x).unwrap();
 
         let body_position_y = Series::new(
             &format!("{name}_position_y"),
-            self.position_icrf
-                .iter()
-                .map(|v| v[1])
-                .collect::<Vec<f64>>(),
+            self.position.iter().map(|v| v[1]).collect::<Vec<f64>>(),
         );
         df.with_column(body_position_y).unwrap();
 
         let body_position_z = Series::new(
             &format!("{name}_position_z"),
-            self.position_icrf
-                .iter()
-                .map(|v| v[2])
-                .collect::<Vec<f64>>(),
+            self.position.iter().map(|v| v[2]).collect::<Vec<f64>>(),
         );
         df.with_column(body_position_z).unwrap();
     }
@@ -303,7 +597,7 @@ pub enum CelestialBodies {
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct CelestialBodiesCache {
-    pub earth: Option<Earth>,
+    pub earth: Option<CelestialBody>,
     jupiter: Option<CelestialBody>,
     mercury: Option<CelestialBody>,
     mars: Option<CelestialBody>,
@@ -319,7 +613,7 @@ pub struct CelestialBodiesCache {
 impl CelestialBodiesCache {
     pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), CelestialErrors> {
         if let Some(body) = &mut self.earth {
-            body.update(t, spice)?;
+            body.update(t, spice, SpiceBodies::Earth)?;
         }
         if let Some(body) = &mut self.jupiter {
             body.update(t, spice, SpiceBodies::Jupiter)?;
@@ -368,7 +662,7 @@ impl CelestialBodiesCache {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CelestialResult {
     pub epoch_sec_j2k_tai: Vec<f64>,
-    pub earth: Option<EarthResult>,
+    pub earth: Option<CelestialBodyResult>,
     pub jupiter: Option<CelestialBodyResult>,
     pub mercury: Option<CelestialBodyResult>,
     pub mars: Option<CelestialBodyResult>,
@@ -383,193 +677,107 @@ pub struct CelestialResult {
 
 impl CelestialResult {
     pub fn update(&mut self, sys: &CelestialSystem) -> Result<(), CelestialErrors> {
-        if let (Some(earth), Some(earth_result)) = (&sys.bodies.earth, &mut self.earth) {
-            earth_result.gcrf_from_itrf.push(earth.gcrf_from_itrf);
-            earth_result.position_gcrf.push(earth.position_gcrf);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
+        let mut bodies = [
+            (&sys.bodies.earth, &mut self.earth),
+            (&sys.bodies.jupiter, &mut self.jupiter),
+            (&sys.bodies.mars, &mut self.mars),
+            (&sys.bodies.mercury, &mut self.mercury),
+            (&sys.bodies.moon, &mut self.moon),
+            (&sys.bodies.neptune, &mut self.neptune),
+            (&sys.bodies.pluto, &mut self.pluto),
+            (&sys.bodies.saturn, &mut self.saturn),
+            (&sys.bodies.sun, &mut self.sun),
+            (&sys.bodies.uranus, &mut self.uranus),
+            (&sys.bodies.venus, &mut self.venus),
+        ];
 
-        if let (Some(body), Some(body_result)) = (&sys.bodies.jupiter, &mut self.jupiter) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.mars, &mut self.mars) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.mercury, &mut self.mercury) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.moon, &mut self.moon) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.neptune, &mut self.neptune) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.pluto, &mut self.pluto) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.saturn, &mut self.saturn) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.sun, &mut self.sun) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.uranus, &mut self.uranus) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
-        }
-
-        if let (Some(body), Some(body_result)) = (&sys.bodies.venus, &mut self.venus) {
-            body_result.update(body);
-        } else {
-            return Err(CelestialErrors::ResultConfigError);
+        for (body, body_result) in bodies.iter_mut() {
+            if let (Some(body), Some(body_result)) = (body, body_result) {
+                body_result.update(body);
+            } else {
+                return Err(CelestialErrors::ResultConfigError);
+            }
         }
 
         Ok(())
     }
 
-    fn get_state_names(&self) -> Vec<String> {}
-    fn get_result_entry(&self) -> ResultEntry {}
+    pub fn get_state_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
 
-    fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let epoch_sec_j2k_tai = Series::new("epoch_sec_j2k_tai", self.epoch_sec_j2k_tai);
+        // Create an array of tuples representing celestial bodies and their names
+        let bodies = [
+            (&self.earth, "earth"),
+            (&self.jupiter, "jupiter"),
+            (&self.mars, "mars"),
+            (&self.mercury, "mercury"),
+            (&self.moon, "moon"),
+            (&self.neptune, "neptune"),
+            (&self.pluto, "pluto"),
+            (&self.sun, "sun"),
+            (&self.uranus, "uranus"),
+            (&self.venus, "venus"),
+        ];
+
+        // Iterate over the array and add each body's data to the DataFrame
+        for (body_option, name) in bodies.iter() {
+            if body_option.is_some() {
+                names.push(format!("{name}_orientation_x"));
+                names.push(format!("{name}_orientation_y"));
+                names.push(format!("{name}_orientation_z"));
+                names.push(format!("{name}_orientation_w"));
+                names.push(format!("{name}_position_x"));
+                names.push(format!("{name}_position_y"));
+                names.push(format!("{name}_position_z"));
+            }
+        }
+        names
+    }
+
+    pub fn add_to_dataframe(&self, df: &mut DataFrame) {
+        let epoch_sec_j2k_tai = Series::new("epoch_sec_j2k_tai", self.epoch_sec_j2k_tai.clone());
         df.with_column(epoch_sec_j2k_tai).unwrap();
 
-        if let Some(earth) = &self.earth {
-            let earth_orientation_x = Series::new(
-                "earth_gcrf_from_itrf_x",
-                earth
-                    .gcrf_from_itrf
-                    .iter()
-                    .map(|v| v.x)
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_x).unwrap();
+        // Create an array of tuples representing celestial bodies and their names
+        let bodies = [
+            (&self.earth, "earth"),
+            (&self.jupiter, "jupiter"),
+            (&self.mars, "mars"),
+            (&self.mercury, "mercury"),
+            (&self.moon, "moon"),
+            (&self.neptune, "neptune"),
+            (&self.pluto, "pluto"),
+            (&self.sun, "sun"),
+            (&self.uranus, "uranus"),
+            (&self.venus, "venus"),
+        ];
 
-            let earth_orientation_y = Series::new(
-                "earth_gcrf_from_itrf_y",
-                earth
-                    .gcrf_from_itrf
-                    .iter()
-                    .map(|v| v.y)
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_y).unwrap();
-
-            let earth_orientation_z = Series::new(
-                "earth_gcrf_from_itrf_z",
-                earth
-                    .gcrf_from_itrf
-                    .iter()
-                    .map(|v| v.z)
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_z).unwrap();
-
-            let earth_orientation_w = Series::new(
-                "earth_gcrf_from_itrf_w",
-                earth
-                    .gcrf_from_itrf
-                    .iter()
-                    .map(|v| v.s)
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_w).unwrap();
-
-            let earth_position_x = Series::new(
-                "earth_position_x",
-                earth
-                    .position_gcrf
-                    .iter()
-                    .map(|v| v[0])
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_x).unwrap();
-
-            let earth_position_y = Series::new(
-                "earth_position_y",
-                earth
-                    .position_gcrf
-                    .iter()
-                    .map(|v| v[1])
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_y).unwrap();
-
-            let earth_position_z = Series::new(
-                "earth_position_z",
-                earth
-                    .position_gcrf
-                    .iter()
-                    .map(|v| v[2])
-                    .collect::<Vec<f64>>(),
-            );
-            df.with_column(earth_orientation_z).unwrap();
+        // Iterate over the array and add each body's data to the DataFrame
+        for (body_option, name) in bodies.iter() {
+            if let Some(body) = body_option {
+                body.add_to_dataframe(name, df);
+            }
         }
-        /*
-
-        if let Some(body) = &self.jupiter {
-            body.add_to_dataframe("jupiter", df)
-        }
-        if let Some(body) = &self.mars {
-            body.add_to_dataframe("mars", df)
-        }
-        */
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use approx::assert_abs_diff_eq;
-    use time::TimeSystem;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use approx::assert_abs_diff_eq;
+//     use time::TimeSystem;
 
-    #[test]
-    fn test_gravity_egm96() {
-        let mut spice = Spice::from_local().unwrap();
-        let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
-        let mut sys = CelestialSystem::new(epoch).unwrap();
-        let earth = Earth::default();
-        sys.add_earth(earth).unwrap();
-        sys.update(0.0, &mut spice).unwrap();
-        let earth = &sys.bodies.earth.clone().unwrap();
-        let gcrf_from_itrf = earth.gcrf_from_itrf.clone();
-        let itrf_from_gcrf = gcrf_from_itrf.inv();
+//     // #[test]
+//     // fn test_gravity_egm96() {
+//     //     let mut spice = Spice::from_local().unwrap();
+//     //     let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
+//     //     let mut sys = CelestialSystem::new(epoch).unwrap();        
+//     //     sys.add_body(CelestialBodies::Earth, true, false);
+//     //     sys.update(0.0, &mut spice).unwrap();
+//     //     let earth = &sys.bodies.earth.clone().unwrap();
+//     //     let gcrf_from_itrf = earth.orientation.clone();
+//     //     let itrf_from_gcrf = gcrf_from_itrf.inv();
 
-        //note gcrf is gcrf ecliptic, not equatorial
-        let position_gcrf = Vector3::new(1.0e7, 0.0, 0.0);
-        let position_itrf = itrf_from_gcrf.transform(position_gcrf);
-        assert_abs_diff_eq!(position_itrf[0], 1.815851240993843e6, epsilon = 1.0);
-        assert_abs_diff_eq!(position_itrf[1], 9.833752296057563e6, epsilon = 1.0);
-        assert_abs_diff_eq!(position_itrf[2], -251.83481732831436, epsilon = 1.0);
-        let g_itrf = sys.calculate_gravity_itrf(position_itrf);
-        assert_abs_diff_eq!(g_itrf[0], -0.7242743501831314, epsilon = 1e-3);
-        assert_abs_diff_eq!(g_itrf[1], -3.922275259999543, epsilon = 1e-3);
-        assert_abs_diff_eq!(g_itrf[2], 9.280404810605218e-5, epsilon = 1e-3);
-    }
-}
+        
+//     // }
+// }

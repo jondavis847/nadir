@@ -261,7 +261,7 @@ impl MultibodyResultTrait for JointResult {
             JointResult::Prismatic(prismatic) => prismatic.add_to_dataframe(df),
         }
     }
-    fn get_state_names(&self) -> Vec<&'static str> {
+    fn get_state_names(&self) -> Vec<String> {
         match self {
             JointResult::Floating(result) => result.get_state_names(),
             JointResult::Prismatic(result) => result.get_state_names(),

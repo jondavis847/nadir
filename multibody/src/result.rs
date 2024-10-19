@@ -14,7 +14,7 @@ use crate::system_sim::MultibodySystemSim;
 use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 
 pub trait MultibodyResultTrait {
-    fn get_state_names(&self) -> Vec<&'static str>;
+    fn get_state_names(&self) -> Vec<String>;
     fn get_result_entry(&self) -> ResultEntry;
     fn add_to_dataframe(&self, df: &mut DataFrame);
 }
@@ -75,7 +75,7 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_component_states(&self, component_name: &str) -> Vec<&'static str> {
+    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
         let component = self.result.get(component_name).unwrap();
         match component {
             ResultEntry::Body(result) => result.get_state_names(),

@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use transforms::Transform;
 use uuid::Uuid;
 
-pub mod body_enum;
 use super::joint::JointTrait;
 
 #[derive(Clone, Copy, Debug)]
@@ -192,7 +191,7 @@ impl BodySim {
         body_from_base: &SpatialTransform,
         celestial: &CelestialSystem         
     ) {
-        let g_vec = celestial.calculate_gravity_gcrf(self.state.position_base);
+        let g_vec = celestial.calculate_gravity(self.state.position_base);
 
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm
@@ -508,36 +507,36 @@ impl MultibodyResultTrait for BodyResult {
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Body(self.clone())
     }
-    fn get_state_names(&self) -> Vec<&'static str> {
+    fn get_state_names(&self) -> Vec<String> {
         vec![
-                    "accel_base_x",
-                    "accel_base_y",
-                    "accel_base_z",
-                    "accel_body_x",
-                    "acceleration_body_y",
-                    "acceleration_body_z",
-                    "angular_accel_body_x",
-                    "angular_accel_body_y",
-                    "angular_accel_body_z",
-                    "angular_rate_body_x",
-                    "angular_rate_body_y",
-                    "angular_rate_body_z",
-                    "attitude_base_s",
-                    "attitude_base_x",
-                    "attitude_base_y",
-                    "attitude_base_z",
-                    "external_force_body_x",
-                    "external_force_body_y",
-                    "external_force_body_z",
-                    "external_torque_body_x",
-                    "external_torque_body_y",
-                    "external_torque_body_z",
-                    "position_base_x",
-                    "position_base_y",
-                    "position_base_z",
-                    "velocity_base_x",
-                    "velocity_base_y",
-                    "velocity_base_z",
+                    "accel_base_x".to_string(),
+                    "accel_base_y".to_string(),
+                    "accel_base_z".to_string(),
+                    "accel_body_x".to_string(),
+                    "acceleration_body_y".to_string(),
+                    "acceleration_body_z".to_string(),
+                    "angular_accel_body_x".to_string(),
+                    "angular_accel_body_y".to_string(),
+                    "angular_accel_body_z".to_string(),
+                    "angular_rate_body_x".to_string(),
+                    "angular_rate_body_y".to_string(),
+                    "angular_rate_body_z".to_string(),
+                    "attitude_base_s".to_string(),
+                    "attitude_base_x".to_string(),
+                    "attitude_base_y".to_string(),
+                    "attitude_base_z".to_string(),
+                    "external_force_body_x".to_string(),
+                    "external_force_body_y".to_string(),
+                    "external_force_body_z".to_string(),
+                    "external_torque_body_x".to_string(),
+                    "external_torque_body_y".to_string(),
+                    "external_torque_body_z".to_string(),
+                    "position_base_x".to_string(),
+                    "position_base_y".to_string(),
+                    "position_base_z".to_string(),
+                    "velocity_base_x".to_string(),
+                    "velocity_base_y".to_string(),
+                    "velocity_base_z".to_string(),
                 ]
     }
 }

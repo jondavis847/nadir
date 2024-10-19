@@ -2,7 +2,7 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use aerospace::{celestial_system::{CelestialErrors, CelestialSystem}, earth::Earth, gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity}};
+use aerospace::{celestial_system::{CelestialBodies, CelestialErrors, CelestialSystem}, gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity}};
 use clap::{Parser, Subcommand, ValueEnum};
 use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -1697,21 +1697,20 @@ fn prompt_celestial() -> Result<Option<CelestialSystem>, InputErrors> {
             let default = Prompts::CelestialDefault.validate_loop("y")?;
             match default.as_str() {
                 "y" => {
-                    let mut celestial = CelestialSystem::new(epoch)?;                    
-                    celestial.add_earth(Earth::default())?;
-                    celestial.add_sun()?;
-                    celestial.add_moon()?;
+                    let mut celestial = CelestialSystem::new(epoch)?;  
+                    celestial.add_body(CelestialBodies::Earth, true, true)?;
+                    celestial.add_body(CelestialBodies::Sun, false, false)?;
+                    celestial.add_body(CelestialBodies::Moon, false, false)?;                    
                     return Ok(Some(celestial))
                 },
                 "n" => {
                     println!("not yet implemented, just use default");
-                    let mut celestial = CelestialSystem::new(epoch)?;                    
-                    celestial.add_earth(Earth::default())?;
-                    celestial.add_sun()?;
-                    celestial.add_moon()?;
-                    return Ok(Some(celestial))
-                }
-                _ => unreachable!("caught in vaidate loop")
+                    let mut celestial = CelestialSystem::new(epoch)?;  
+                    celestial.add_body(CelestialBodies::Earth, true, true)?;
+                    celestial.add_body(CelestialBodies::Sun, false, false)?;
+                    celestial.add_body(CelestialBodies::Moon, false, false)?;                    
+                    return Ok(Some(celestial))                                }
+                _ => unreachable!("caught in validate loop")
             }
         }   
         

@@ -76,10 +76,14 @@ impl RevoluteResult {
     }
 }
 
-
 impl MultibodyResultTrait for RevoluteResult {
-    fn get_state_names(&self) -> Vec<&'static str> {
-        vec!["theta", "omega", "angular_accel", "internal_torque"]
+    fn get_state_names(&self) -> Vec<String> {
+        vec![
+            "theta".to_string(),
+            "omega".to_string(),
+            "angular_accel".to_string(),
+            "internal_torque".to_string(),
+        ]
     }
 
     fn get_result_entry(&self) -> ResultEntry {
@@ -139,7 +143,7 @@ impl JointTrait for Revolute {
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
-        }        
+        }
         body.connect_inner_joint(self)?;
         let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -223,7 +227,7 @@ pub struct RevoluteSim {
     cache: RevoluteCache,
     id: Uuid,
     mass_properties: Option<SpatialInertia>,
-    parameters: JointParameters,    
+    parameters: JointParameters,
     state: RevoluteState,
     transforms: JointTransforms,
 }
@@ -254,7 +258,7 @@ impl From<Revolute> for RevoluteSim {
             cache: RevoluteCache::default(),
             id: *revolute.get_id(),
             mass_properties: None,
-            parameters: revolute.parameters,            
+            parameters: revolute.parameters,
             state: revolute.state,
             transforms,
         }
@@ -274,7 +278,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         aba.common.c = v.cross_motion(*vj); // + cj
         aba.common.inertia_articulated = *joint_inertia;
 
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f;        
+        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - *f;
     }
 
     fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
@@ -284,8 +288,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix.column(0).into();
         aba.big_d_inv = 1.0 / aba.big_u[0];
-        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so 
-        
+        aba.lil_u = self.cache.tau - (aba.common.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so
 
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
@@ -308,7 +311,7 @@ impl ArticulatedBodyAlgorithm for RevoluteSim {
     fn aba_third_pass(&mut self, a_ij: Acceleration) {
         let aba = self.cache.aba.as_mut().unwrap();
         let a = &mut self.cache.common.a;
-        let q_ddot = &mut self.cache.q_ddot;        
+        let q_ddot = &mut self.cache.q_ddot;
 
         aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
 
@@ -438,7 +441,7 @@ impl JointSimTrait for RevoluteSim {
 
     fn set_force(&mut self, force: Force) {
         self.cache.common.f = force;
-    }    
+    }
 
     fn set_state(&mut self, state: JointState) {
         if let JointState::Revolute(revolute_state) = state {

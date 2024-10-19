@@ -570,27 +570,27 @@ impl FloatingResult {
 }
 
 impl MultibodyResultTrait for FloatingResult {
-    fn get_state_names(&self) -> Vec<&'static str> {
+    fn get_state_names(&self) -> Vec<String> {
         vec![
-            "quaternion_x",
-            "quaternion_y",
-            "quaternion_z",
-            "quaternion_w",
-            "angular_rate_x",
-            "angular_rate_y",
-            "angular_rate_z",
-            "angular_accel_x",
-            "angular_accel_y",
-            "angular_accel_z",
-            "position_x",
-            "position_y",
-            "position_z",
-            "velocity_x",
-            "velocity_y",
-            "velocity_z",
-            "acceleration_x",
-            "acceleration_y",
-            "acceleration_z",
+            "quaternion_x".to_string(),
+            "quaternion_y".to_string(),
+            "quaternion_z".to_string(),
+            "quaternion_w".to_string(),
+            "angular_rate_x".to_string(),
+            "angular_rate_y".to_string(),
+            "angular_rate_z".to_string(),
+            "angular_accel_x".to_string(),
+            "angular_accel_y".to_string(),
+            "angular_accel_z".to_string(),
+            "position_x".to_string(),
+            "position_y".to_string(),
+            "position_z".to_string(),
+            "velocity_x".to_string(),
+            "velocity_y".to_string(),
+            "velocity_z".to_string(),
+            "acceleration_x".to_string(),
+            "acceleration_y".to_string(),
+            "acceleration_z".to_string(),
         ]
     }
 

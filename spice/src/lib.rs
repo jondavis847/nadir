@@ -4,7 +4,8 @@ use pck::{EarthParameters, MoonParameters};
 use reqwest::blocking::Client;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
-    Rotation,
+    quaternion::Quaternion,
+    Rotation,RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spk::SpiceSpk;
@@ -166,7 +167,7 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<(Rotation, f64, f64, f64), SpiceErrors> {
+    ) -> Result<Rotation, SpiceErrors> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
             SpiceBodies::Earth => {
@@ -186,9 +187,22 @@ impl Spice {
             _ => return Err(SpiceErrors::NoOrientationDataForThisBody),
         };
 
+        //TODO: include century calculation for obliquity for completeness?
+        let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
+        let j2000_equatorial_from_ecliptic = Rotation::from(Quaternion::new(
+            (-obliquity / 2.0).sin(),
+            0.0,
+            0.0,
+            (-obliquity / 2.0).cos(),
+        ));
+
         let (ra, dec, gha) = segment.evaluate(t)?;
-        let rotation = Rotation::from(EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ));
-        Ok((rotation, ra, dec, gha))
+        //TODO: we take inv because of spice giving passive rotation, we use active
+        // fix when we go to passive rotations
+        let orientation_ecliptic =
+            Rotation::from(EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ)).inv();
+        let orientation_equatorial = j2000_equatorial_from_ecliptic * orientation_ecliptic;
+        Ok(orientation_equatorial)
     }
 
     pub fn save_spice_data(&self) -> Result<(), SpiceErrors> {

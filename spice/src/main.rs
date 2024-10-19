@@ -63,19 +63,13 @@ fn main() {
             SpiceBodies::Earth => {
                 let orientation = spice.calculate_orientation(epoch, body);
                 match orientation {
-                    Ok(orientation) => {
-                        let (rotation,ra,dec,gha) = orientation;
-                        let q = Quaternion::from(rotation);
+                    Ok(orientation) => {                        
+                        let q = Quaternion::from(orientation);
                         println!("J2000/ITRF Quaternion:");
                         println!("  x: {}", q.x);
                         println!("  y: {}", q.y);
                         println!("  z: {}", q.z);
                         println!("  w: {}", q.s);
-
-                        println!("Right Ascension: {}", ra);
-                        println!("Declination: {}", dec);
-                        println!("GHA: {}", gha);
-
                     }
                     Err(e) => {
                         dbg!(e);

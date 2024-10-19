@@ -1,7 +1,13 @@
 use spice::Spice;
 
 use crate::{
-    base::BaseSystems, body::BodyResult, joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult}, result::{MultibodyResultTrait, ResultEntry}, sensor::{SensorResult, SensorTrait}, system_sim::MultibodySystemSim, MultibodyErrors, MultibodyTrait
+    base::BaseSystems,
+    body::BodyResult,
+    joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
+    result::{MultibodyResultTrait, ResultEntry},
+    sensor::{SensorResult, SensorTrait},
+    system_sim::MultibodySystemSim,
+    MultibodyErrors, MultibodyTrait,
 };
 use std::collections::HashMap;
 
@@ -40,9 +46,7 @@ pub fn solve_fixed_rk4(
     // initialize celestial results
     let mut celestial_result = match &sys.base.system {
         BaseSystems::Basic(_) => None,
-        BaseSystems::Celestial(celestial) => {
-            Some(celestial.initialize_result())
-        }
+        BaseSystems::Celestial(celestial) => Some(celestial.initialize_result()),
     };
 
     // Create a vec of JointStates as the initial state
@@ -84,7 +88,6 @@ pub fn solve_fixed_rk4(
             .enumerate()
             .for_each(|(index, body)| body_results[index].update(body));
 
-
         // update joint results
         sys.joints
             .iter()
@@ -100,9 +103,11 @@ pub fn solve_fixed_rk4(
         // update celestial results
         if let Some(result) = &mut celestial_result {
             match &sys.base.system {
-                BaseSystems::Basic(_) => unreachable!("we checked this when we created celestial_result"),
+                BaseSystems::Basic(_) => {
+                    unreachable!("we checked this when we created celestial_result")
+                }
                 BaseSystems::Celestial(celestial) => result.update(celestial)?,
-            }            
+            }
         }
 
         // change dt near end of sim to capture end point
@@ -159,15 +164,9 @@ pub fn solve_fixed_rk4(
             result_hm.insert(sys.joint_names[index].clone(), result.get_result_entry());
         });
 
-        body_results
-        .iter()
-        .enumerate()
-        .for_each(|(index, result)| {
-            result_hm.insert(
-                sys.body_names[index].clone(),
-                result.get_result_entry(),
-            );
-        });
+    body_results.iter().enumerate().for_each(|(index, result)| {
+        result_hm.insert(sys.body_names[index].clone(), result.get_result_entry());
+    });
     sys.sensors
         .iter()
         .enumerate()
@@ -177,6 +176,9 @@ pub fn solve_fixed_rk4(
                 sensor_results[index].get_result_entry(),
             );
         });
-
+    if let Some(celestial) = celestial_result {
+        result_hm.insert("celestial".to_string(),ResultEntry::Celestial(celestial));
+    }
+    
     Ok((time, result_hm))
 }

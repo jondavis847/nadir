@@ -63,7 +63,7 @@ impl MultibodyResultTrait for SimpleSensorResult {
             SimpleSensorResult::Rate3(result) => result.add_to_dataframe(df),
         }
     }
-    fn get_state_names(&self) -> Vec<&'static str> {
+    fn get_state_names(&self) -> Vec<String> {
         match self {
             SimpleSensorResult::Rate(result) => result.get_state_names(),
             SimpleSensorResult::Rate3(result) => result.get_state_names(),

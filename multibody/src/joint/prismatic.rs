@@ -508,8 +508,13 @@ impl MultibodyResultTrait for PrismaticResult {
         df.with_column(tau).unwrap();
     }
 
-    fn get_state_names(&self) -> Vec<&'static str> {
-        vec!["position", "velocity", "acceleration", "internal_force"]
+    fn get_state_names(&self) -> Vec<String> {
+        vec![
+            "position".to_string(),
+            "velocity".to_string(),
+            "acceleration".to_string(),
+            "internal_force".to_string(),
+        ]
     }
 
     fn get_result_entry(&self) -> ResultEntry {

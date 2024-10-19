@@ -142,7 +142,7 @@ impl MultibodyResultTrait for SensorResult {
         }
     }
     #[inline]
-    fn get_state_names(&self) -> Vec<&'static str> {
+    fn get_state_names(&self) -> Vec<String> {
         match self {
             SensorResult::Simple(result) => result.get_state_names(),
         }

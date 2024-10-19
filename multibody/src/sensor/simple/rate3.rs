@@ -119,8 +119,8 @@ impl MultibodyResultTrait for Rate3SensorResult {
         df.with_column(noise_z).unwrap();
     }
 
-    fn get_state_names(&self) -> Vec<&'static str> {
-        vec!["value", "noise"]
+    fn get_state_names(&self) -> Vec<String> {
+        vec!["value".to_string(), "noise".to_string()]
     }
 
     fn get_result_entry(&self) -> ResultEntry {
