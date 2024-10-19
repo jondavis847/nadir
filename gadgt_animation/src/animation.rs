@@ -2,6 +2,7 @@ mod animator;
 mod scene;
 
 use crate::Message;
+use aerospace::celestial_system::CelestialBodies;
 use animator::Animator;
 use glam::DVec3;
 use iced::{
@@ -122,10 +123,14 @@ impl AnimationState {
 
         match &sys.base.system {
             BaseSystems::Celestial(celestial) => {
-                if celestial.bodies.earth.is_some() {
-                    // set the base to be earth if it is in sys. for now this just animates an earth and moves the camera and light
-                    // otherwise defaults to close to the origin
-                    // must do this after shapres are set in scene or it wont know where to place the camera
+                if celestial
+                    .bodies
+                    .iter()
+                    .any(|b| b.body == CelestialBodies::Earth)
+                {
+                    // Set the base to be Earth if it is in sys. For now, this just animates Earth and moves the camera and light
+                    // Otherwise, defaults to close to the origin
+                    // Must do this after shapes are set in the scene, or it won't know where to place the camera
                     self.scene.set_earth(true);
                 }
             }

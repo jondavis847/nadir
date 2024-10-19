@@ -1710,6 +1710,7 @@ dependencies = [
 name = "gadgt_animation"
 version = "0.1.0"
 dependencies = [
+ "aerospace",
  "bincode",
  "bytemuck",
  "color",
