@@ -9,6 +9,7 @@ pub mod solver;
 pub mod system;
 pub mod system_sim;
 
+use aerospace::celestial_system::CelestialErrors;
 use base::BaseErrors;
 use sensor::SensorErrors;
 use spice::SpiceErrors;
@@ -24,6 +25,7 @@ pub enum MultibodyErrors {
     Body(BodyErrors),
     BodyMissingInnerJoint(Uuid),
     CantDeleteBase,
+    CelestialErrors(CelestialErrors),
     ComponentNotFound(String),
     DtCantBeZero,
     InvalidConnection,
@@ -45,6 +47,13 @@ impl From<BaseErrors> for MultibodyErrors {
         MultibodyErrors::BaseErrors(e)
     }
 }
+
+impl From<CelestialErrors> for MultibodyErrors {
+    fn from(e: CelestialErrors) -> Self {
+        MultibodyErrors::CelestialErrors(e)
+    }
+}
+
 
 impl From<SpiceErrors> for MultibodyErrors {
     fn from(e: SpiceErrors) -> Self {

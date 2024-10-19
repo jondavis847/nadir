@@ -1,3 +1,4 @@
+use aerospace::celestial_system::CelestialResult;
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
 use rotations::quaternion::Quaternion;
@@ -39,6 +40,7 @@ impl MultibodyResult {
 
             match component {
                 ResultEntry::Joint(joint) => joint.add_to_dataframe(&mut df),
+                ResultEntry::Celestial(celestial) => celestial.add_to_dataframe(&mut df),
                 ResultEntry::Body(body) => body.add_to_dataframe(&mut df),
                 ResultEntry::Sensor(sensor) => sensor.add_to_dataframe(&mut df),       
                 ResultEntry::VecF64(_) => todo!("this is only for time vector, which was alreay added to df. this should probably just be a result type"),
@@ -80,6 +82,7 @@ impl MultibodyResult {
             ResultEntry::Joint(result) => result.get_state_names(),
             ResultEntry::Sensor(result) => result.get_state_names(),
             ResultEntry::VecF64(_) => Vec::new(), //should not be possible
+            ResultEntry::Celestial(result) => result.get_state_names(),
         }
     }
 
@@ -161,6 +164,7 @@ impl MultibodyResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResultEntry {
     Body(BodyResult),
+    Celestial(CelestialResult),
     Joint(JointResult),
     VecF64(Vec<f64>),
     Sensor(SensorResult),

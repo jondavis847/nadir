@@ -1,12 +1,7 @@
 use spice::Spice;
 
 use crate::{
-    body::BodyResult,
-    joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
-    result::{MultibodyResultTrait, ResultEntry},
-    sensor::{SensorResult, SensorTrait},
-    system_sim::MultibodySystemSim,
-    MultibodyErrors, MultibodyTrait,
+    base::BaseSystems, body::BodyResult, joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult}, result::{MultibodyResultTrait, ResultEntry}, sensor::{SensorResult, SensorTrait}, system_sim::MultibodySystemSim, MultibodyErrors, MultibodyTrait
 };
 use std::collections::HashMap;
 
@@ -41,6 +36,14 @@ pub fn solve_fixed_rk4(
         .iter()
         .map(|(_, sensor)| sensor.initialize_result())
         .collect();
+
+    // initialize celestial results
+    let mut celestial_result = match &sys.base.system {
+        BaseSystems::Basic(_) => None,
+        BaseSystems::Celestial(celestial) => {
+            Some(celestial.initialize_result())
+        }
+    };
 
     // Create a vec of JointStates as the initial state
     let x0 = JointStates(sys.joints.iter().map(|joint| joint.get_state()).collect());
@@ -93,6 +96,14 @@ pub fn solve_fixed_rk4(
             .iter()
             .enumerate()
             .for_each(|(index, (_, sensor))| sensor_results[index].update(sensor));
+
+        // update celestial results
+        if let Some(result) = &mut celestial_result {
+            match &sys.base.system {
+                BaseSystems::Basic(_) => unreachable!("we checked this when we created celestial_result"),
+                BaseSystems::Celestial(celestial) => result.update(celestial)?,
+            }            
+        }
 
         // change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {

@@ -12,10 +12,10 @@ use time::Time;
 #[derive(Debug,Clone,Deserialize,Serialize)]
 pub struct Earth {
     pub position_gcrf: Vector3<f64>,
-    pub gcrf_from_itrf: Rotation,
-    pub gcrf_ec_from_gcrf_eq: Rotation, //constant transformation between ecliptic and equatorial gcrf
+    pub gcrf_from_itrf: Rotation, 
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,    
+    gcrf_ecliptic_from_equatorial: Rotation,
 }
 
 impl Default for Earth {    
@@ -25,15 +25,15 @@ impl Default for Earth {
 
         //TODO: include century calculation for obliquity for completeness?
         let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
-        let gcrf_ec_from_gcrf_eq = Rotation::from(Quaternion::new(
+        let gcrf_ecliptic_from_equatorial = Rotation::from(Quaternion::new(
             (obliquity/2.0).sin(), 0.0,0.0,(obliquity/2.0).cos()
         ));
         Self {
             position_gcrf: Vector3::zeros(),
             gcrf_from_itrf: Rotation::IDENTITY,
-            gcrf_ec_from_gcrf_eq,
             gravity,
             geomag,            
+            gcrf_ecliptic_from_equatorial
         }
     }
 }
@@ -46,10 +46,17 @@ impl Earth {
         //orientation is the active rotation from ecliptic of j2000 to itrf
         //convert to an active rotation from equatorial j2000 to itrf        
         let itrf_from_ecliptic = orientation.0;
-        let itrf_from_equatorial = itrf_from_ecliptic * self.gcrf_ec_from_gcrf_eq;        
+        let itrf_from_equatorial = itrf_from_ecliptic * self.gcrf_ecliptic_from_equatorial;        
         self.gcrf_from_itrf = itrf_from_equatorial.inv();
         Ok(())
     }    
+}
+
+#[derive(Debug,Default,Clone,Deserialize,Serialize)]
+pub struct EarthResult {
+    pub position_gcrf: Vec<Vector3<f64>>,
+    pub gcrf_from_itrf: Vec<Rotation>,
+    pub gcrf_from_icrf: Vec<Rotation>,
 }
 
 #[cfg(test)]
