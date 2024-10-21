@@ -399,3 +399,56 @@ fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
         return Err(SpiceErrors::HeaderNotFound);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+    use time::TimeSystem;
+
+    #[test]
+    fn test_earth_position_2000() {         
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_sec_j2k(0.0, TimeSystem::TT);
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+
+        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+    }
+
+    #[test]
+    fn test_earth_position_2024() {         
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();        
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+
+        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+    }
+
+    #[test]
+    fn test_moon_position_2000() {         
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_sec_j2k(0.0, TimeSystem::TT);
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();      
+
+        // values obtained from SPICE toolkit (MICE)  
+
+        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+    }
+
+    #[test]
+    fn test_moon_position_2024() {         
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();        
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+
+        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+    }
+}
