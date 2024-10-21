@@ -48,7 +48,7 @@ pub trait GravityTrait {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Gravity {
     Constant(ConstantGravity),
-    TwoBody(TwoBodyGravity),
+    Newtownian(NewtownianGravity),
     EGM96(EGM96Gravity),
 }
 
@@ -65,11 +65,11 @@ impl ConstantGravity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TwoBodyGravity {
+pub struct NewtownianGravity {
     pub mu: f64,
 }
 
-impl TwoBodyGravity {
+impl NewtownianGravity {
     pub const EARTH: Self = Self { mu: EARTH };
 
     pub const MOON: Self = Self { mu: MOON };
@@ -97,7 +97,7 @@ impl TwoBodyGravity {
     }
 }
 
-impl GravityTrait for TwoBodyGravity {
+impl GravityTrait for NewtownianGravity {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64> {
         let position_mag = position.magnitude();
         if position_mag < 0.1 {
@@ -303,7 +303,7 @@ impl GravityTrait for Gravity {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64> {
         match self {
             Gravity::Constant(gravity) => gravity.calculate(position),
-            Gravity::TwoBody(gravity) => gravity.calculate(position),
+            Gravity::Newtownian(gravity) => gravity.calculate(position),
             Gravity::EGM96(gravity) => gravity.calculate(position),
         }
     }

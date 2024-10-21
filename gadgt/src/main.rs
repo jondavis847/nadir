@@ -2,7 +2,7 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use aerospace::{celestial_system::{CelestialBodies, CelestialErrors, CelestialSystem}, gravity::{ConstantGravity, EGM96Gravity, Gravity, TwoBodyGravity}};
+use aerospace::{celestial_system::{CelestialBodies, CelestialErrors, CelestialSystem}, gravity::{ConstantGravity, EGM96Gravity, Gravity, NewtownianGravity}};
 use clap::{Parser, Subcommand, ValueEnum};
 use color::Color;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
@@ -1161,7 +1161,7 @@ enum Prompts {
     GravityConstantX,
     GravityConstantY,
     GravityConstantZ,
-    GravityTwoBodyMu,
+    GravityNewtownianMu,
     JointDamping,
     JointDampingRotationX,
     JointDampingRotationY,
@@ -1271,7 +1271,7 @@ impl Prompts {
             Prompts::GravityConstantX => "Constant gravity X (m/sec^2, default: 0.0)",
             Prompts::GravityConstantY => "Constant gravity Y (m/sec^2), default: 0.0)",
             Prompts::GravityConstantZ => "Constant gravity Z (m/sec^2), default: 0.0)",
-            Prompts::GravityTwoBodyMu => "Two body gravity mu (m^3/sec^2), default: Earth)",
+            Prompts::GravityNewtownianMu => "Two body gravity mu (m^3/sec^2), default: Earth)",
             Prompts::Ixx => "Ixx (units: kg-m^2, default: 1.0)",
             Prompts::Iyy => "Iyy (units: kg-m^2, default: 1.0)",
             Prompts::Izz => "Izz (units: kg-m^2, default: 1.0)",
@@ -1448,7 +1448,7 @@ impl Prompts {
                 Ok(())
             }
             // numeric and > 0
-            Prompts::GravityTwoBodyMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {                
+            Prompts::GravityNewtownianMu | Prompts::Mass | Prompts::Ixx | Prompts::Iyy | Prompts::Izz => {                
                 if str.parse::<f64>().is_err() {
                     return Err(InputErrors::NonNumeric);
                 }
@@ -1760,8 +1760,8 @@ fn prompt_gravity() -> Result<Gravity, InputErrors> {
         "2" => {
             let earth = aerospace::gravity::EARTH;
             let earth_string = earth.to_string();            
-            let mu = Prompts::GravityTwoBodyMu.validate_loop(&earth_string)?.parse::<f64>().unwrap_or(earth);                
-            Gravity::TwoBody(TwoBodyGravity::new(mu))
+            let mu = Prompts::GravityNewtownianMu.validate_loop(&earth_string)?.parse::<f64>().unwrap_or(earth);                
+            Gravity::Newtownian(NewtownianGravity::new(mu))
         }
         "96" => {                
             Gravity::EGM96(EGM96Gravity{})

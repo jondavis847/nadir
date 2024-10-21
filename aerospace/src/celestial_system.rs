@@ -1,6 +1,6 @@
 use crate::{
     geomag::GeoMagnetism,
-    gravity::{EGM96Gravity, Gravity, GravityTrait, TwoBodyGravity},
+    gravity::{EGM96Gravity, Gravity, GravityTrait, NewtownianGravity},
 };
 use nalgebra::Vector3;
 use polars::prelude::*;
@@ -100,16 +100,16 @@ impl CelestialSystem {
         let gravity_option = if gravity {
             match body {
                 CelestialBodies::Earth => Some(Gravity::EGM96(EGM96Gravity {})),
-                CelestialBodies::Jupiter => Some(Gravity::TwoBody(TwoBodyGravity::JUPITER)),
-                CelestialBodies::Mars => Some(Gravity::TwoBody(TwoBodyGravity::MARS)),
-                CelestialBodies::Mercury => Some(Gravity::TwoBody(TwoBodyGravity::MERCURY)),
-                CelestialBodies::Moon => Some(Gravity::TwoBody(TwoBodyGravity::MOON)),
-                CelestialBodies::Neptune => Some(Gravity::TwoBody(TwoBodyGravity::NEPTUNE)),
-                CelestialBodies::Pluto => Some(Gravity::TwoBody(TwoBodyGravity::PLUTO)),
-                CelestialBodies::Saturn => Some(Gravity::TwoBody(TwoBodyGravity::SATURN)),
-                CelestialBodies::Sun => Some(Gravity::TwoBody(TwoBodyGravity::SUN)),
-                CelestialBodies::Venus => Some(Gravity::TwoBody(TwoBodyGravity::VENUS)),
-                CelestialBodies::Uranus => Some(Gravity::TwoBody(TwoBodyGravity::URANUS)),
+                CelestialBodies::Jupiter => Some(Gravity::Newtownian(NewtownianGravity::JUPITER)),
+                CelestialBodies::Mars => Some(Gravity::Newtownian(NewtownianGravity::MARS)),
+                CelestialBodies::Mercury => Some(Gravity::Newtownian(NewtownianGravity::MERCURY)),
+                CelestialBodies::Moon => Some(Gravity::Newtownian(NewtownianGravity::MOON)),
+                CelestialBodies::Neptune => Some(Gravity::Newtownian(NewtownianGravity::NEPTUNE)),
+                CelestialBodies::Pluto => Some(Gravity::Newtownian(NewtownianGravity::PLUTO)),
+                CelestialBodies::Saturn => Some(Gravity::Newtownian(NewtownianGravity::SATURN)),
+                CelestialBodies::Sun => Some(Gravity::Newtownian(NewtownianGravity::SUN)),
+                CelestialBodies::Venus => Some(Gravity::Newtownian(NewtownianGravity::VENUS)),
+                CelestialBodies::Uranus => Some(Gravity::Newtownian(NewtownianGravity::URANUS)),
             }
         } else {
             None
@@ -145,7 +145,7 @@ impl CelestialSystem {
                                 let g_gcrf = body.orientation.transform(g_itrf);
                                 g_final += g_gcrf;
                             }
-                            Gravity::TwoBody(gravity) => g_final += gravity.calculate(position),
+                            Gravity::Newtownian(gravity) => g_final += gravity.calculate(position),
                             Gravity::Constant(gravity) => g_final += gravity.calculate(position),
                         }
                     }
@@ -445,22 +445,23 @@ impl CelestialResult {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use approx::assert_abs_diff_eq;
-//     use time::TimeSystem;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+    use time::TimeSystem;
 
-//     // #[test]
-//     // fn test_gravity_egm96() {
-//     //     let mut spice = Spice::from_local().unwrap();
-//     //     let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
-//     //     let mut sys = CelestialSystem::new(epoch).unwrap();
-//     //     sys.add_body(CelestialBodies::Earth, true, false);
-//     //     sys.update(0.0, &mut spice).unwrap();
-//     //     let earth = &sys.bodies.earth.clone().unwrap();
-//     //     let gcrf_from_itrf = earth.orientation.clone();
-//     //     let itrf_from_gcrf = gcrf_from_itrf.inv();
+    #[test]
+    fn test_earth_position_0() {         
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
+        let mut sys = CelestialSystem::new(epoch).unwrap();
+        sys.add_body(CelestialBodies::Earth, true, false).unwrap();
+        sys.update(0.0, &mut spice).unwrap();
+        let result = &sys.bodies[0].position;
 
-//     // }
-// }
+        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+    }
+}
