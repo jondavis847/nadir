@@ -1,10 +1,11 @@
-use super::{SpiceBodies, DataTypes, Frames, SpiceErrors};
+use super::{DataTypes, Frames, SpiceBodies, SpiceErrors};
 use crate::SpiceFileTypes;
 use byteorder::{LittleEndian, ReadBytesExt};
+use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::{self, Read};
-use std::cmp::Ordering;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DafData {
@@ -64,7 +65,10 @@ impl DafData {
                         .or_insert_with(Vec::new) // If the key doesn't exist, insert a new empty Vec
                         .push(segment);
                     // ensure the Vec<Segment> is always sorted by segment.start_time
-                    segments.get_mut(&target).unwrap().sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+                    segments
+                        .get_mut(&target)
+                        .unwrap()
+                        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
                 }
             }
 
@@ -83,19 +87,26 @@ impl DafData {
         })
     }
 
-    pub fn get_segment(&mut self, body: &SpiceBodies, t:f64) -> Result<Option<&mut Segment>,SpiceErrors> {
+    pub fn get_segment(
+        &mut self,
+        body: &SpiceBodies,
+        t: f64,
+    ) -> Result<Option<&mut Segment>, SpiceErrors> {
         if let Some(segments) = self.segments.get_mut(body) {
-            Ok(segments.binary_search_by(|segment| {
-                if t < segment.start_time {
-                    Ordering::Greater
-                } else if t > segment.end_time {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
-                }
-            }).ok().map(move |index| &mut segments[index]))
+            Ok(segments
+                .binary_search_by(|segment| {
+                    if t < segment.start_time {
+                        Ordering::Greater
+                    } else if t > segment.end_time {
+                        Ordering::Less
+                    } else {
+                        Ordering::Equal
+                    }
+                })
+                .ok()
+                .map(move |index| &mut segments[index]))
         } else {
-            return Err(SpiceErrors::BodyNotFound)
+            return Err(SpiceErrors::BodyNotFound);
         }
     }
 }
@@ -239,7 +250,7 @@ impl Segment {
     }
 
     /// t is the ephemeris time (et)
-    pub fn evaluate(&mut self, t: f64) -> Result<(f64, f64, f64), SpiceErrors> {
+    pub fn evaluate(&mut self, t: f64) -> Result<Vector3<f64>, SpiceErrors> {
         // find the record with the right time
         let record = self.get_record_from_t(t)?;
         //let t_begin = record.mid - record.radius;
@@ -423,8 +434,8 @@ struct ChebyshevRecord {
 }
 
 impl ChebyshevRecord {
-    fn evaluate(&self, tau: f64) -> (f64, f64, f64) {        
-        (
+    fn evaluate(&self, tau: f64) -> Vector3<f64> {
+        Vector3::new(
             evaluate_chebyshev(&self.coefs1, tau),
             evaluate_chebyshev(&self.coefs2, tau),
             evaluate_chebyshev(&self.coefs3, tau),

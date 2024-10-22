@@ -445,23 +445,3 @@ impl CelestialResult {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use approx::assert_abs_diff_eq;
-    use time::TimeSystem;
-
-    #[test]
-    fn test_earth_position_0() {         
-        let mut spice = Spice::from_local().unwrap();
-        let epoch = Time::from_sec_j2k(0.0, TimeSystem::UTC);
-        let mut sys = CelestialSystem::new(epoch).unwrap();
-        sys.add_body(CelestialBodies::Earth, true, false).unwrap();
-        sys.update(0.0, &mut spice).unwrap();
-        let result = &sys.bodies[0].position;
-
-        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
-    }
-}

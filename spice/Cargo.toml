@@ -16,3 +16,4 @@ time = {path = "../time"}
 dirs = "5.0.1"
 httpdate = "1.0.3"
 approx = "0.5.1"
+nalgebra = "0.33.1"

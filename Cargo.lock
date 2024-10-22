@@ -5068,6 +5068,7 @@ dependencies = [
  "directories",
  "dirs",
  "httpdate",
+ "nalgebra",
  "phf",
  "reqwest",
  "rotations",

@@ -1,11 +1,12 @@
 use bincode;
 use dirs::config_dir;
+use nalgebra::Vector3;
 use pck::{EarthParameters, MoonParameters};
 use reqwest::blocking::Client;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     quaternion::Quaternion,
-    Rotation,RotationTrait,
+    Rotation, RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spk::SpiceSpk;
@@ -135,27 +136,44 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<[f64; 3], SpiceErrors> {
+    ) -> Result<Vector3<f64>, SpiceErrors> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
+        // earth is the center of our frame, so always zeros
+        if body == SpiceBodies::Earth {
+            return Ok(Vector3::zeros());
+        }
+        // we use gcrf as our frame, so everything gets referenced to earth's center
+        let earth_barycenter_segment = self
+            .spk
+            .get_segment(&SpiceBodies::EarthBarycenter, t)?
+            .unwrap();
+        // earth barycenter position referenced to solar system barycenter
+        let earth_barycenter_ssb = earth_barycenter_segment.evaluate(t)?;
+
+        let earth_segment = self.spk.get_segment(&SpiceBodies::Earth, t)?.unwrap();
+        // earth body position referenced to earth barycenter
+        let earth_position_eb = earth_segment.evaluate(t)?;
+
         if let Some(segment) = self.spk.get_segment(&body, t)? {
-            // earth and moon are in reference to the earth barycenter, adjust to solar system barycenter to match others
             match segment.target {
-                SpiceBodies::Earth | SpiceBodies::Moon => {
-                    let body_pos = segment.evaluate(t)?;
-                    let barycenter = self
-                        .spk
-                        .get_segment(&SpiceBodies::EarthBarycenter, t)?
-                        .unwrap();
-                    let barycenter_pos = barycenter.evaluate(t)?;
-                    Ok([
-                        body_pos.0 + barycenter_pos.0,
-                        body_pos.1 + barycenter_pos.1,
-                        body_pos.2 + barycenter_pos.2,
-                    ])
+                SpiceBodies::Moon => {
+                    // moon is the only other one that is referenced to earth's barycenter
+                    let moon_position_eb = segment.evaluate(t)?;
+
+                    // earth pos barycenter is vector from barycenter to earth, make negative for vector from earth to barycenter
+                    let moon_position_j2000 = -earth_position_eb + moon_position_eb;
+
+                    Ok(moon_position_j2000)
                 }
                 _ => {
-                    let result = segment.evaluate(t)?;
-                    Ok([result.0, result.1, result.2])
+                    //ssb is the solar system barycenter, which spice segments output by default
+                    // gather everything in ssb, then convert to GCRF by subtracting earth_position_ssb
+                    // orientation of all vectors in ICRF, which is same orientation as GCRF/J2000
+                    let earth_position_ssb = earth_barycenter_ssb + earth_position_eb;
+                    let body_position_ssb = segment.evaluate(t)?;
+                    let result = body_position_ssb - earth_position_ssb;
+
+                    Ok(result)
                 }
             }
         } else {
@@ -196,7 +214,11 @@ impl Spice {
             (-obliquity / 2.0).cos(),
         ));
 
-        let (ra, dec, gha) = segment.evaluate(t)?;
+        let result = segment.evaluate(t)?;
+        let ra = result[0];
+        let dec = result[1];
+        let gha = result[2];
+    
         //TODO: we take inv because of spice giving passive rotation, we use active
         // fix when we go to passive rotations
         let orientation_ecliptic =
@@ -407,48 +429,81 @@ mod tests {
     use time::TimeSystem;
 
     #[test]
-    fn test_earth_position_2000() {         
+    fn test_earth_position_2000() {
         let mut spice = Spice::from_local().unwrap();
         let epoch = Time::from_sec_j2k(0.0, TimeSystem::TT);
-        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();
 
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('EARTH', 0, 'J2000', 'NONE', 'EARTH')
         assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
         assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
         assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
     }
 
     #[test]
-    fn test_earth_position_2024() {         
+    fn test_earth_position_2024() {
         let mut spice = Spice::from_local().unwrap();
-        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();        
-        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();
+        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();
 
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('EARTH', 757339200, 'J2000', 'NONE', 'EARTH')
         assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
         assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
         assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
     }
 
     #[test]
-    fn test_moon_position_2000() {         
+    fn test_moon_position_2000() {
         let mut spice = Spice::from_local().unwrap();
         let epoch = Time::from_sec_j2k(0.0, TimeSystem::TT);
-        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();      
+        let result = spice.calculate_position(epoch, SpiceBodies::Moon).unwrap();
 
-        // values obtained from SPICE toolkit (MICE)  
-
-        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('MOON', 0.0, 'J2000', 'NONE', 'EARTH')
+        assert_abs_diff_eq!(result[0], -291608.384633435, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], -266716.833394233, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], -76102.487099902, epsilon = 1.0);
     }
 
     #[test]
-    fn test_moon_position_2024() {         
+    fn test_moon_position_2024() {
         let mut spice = Spice::from_local().unwrap();
-        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();        
-        let result = spice.calculate_position(epoch, SpiceBodies::Earth).unwrap();        
+        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();
+        let result = spice.calculate_position(epoch, SpiceBodies::Moon).unwrap();
 
-        assert_abs_diff_eq!(result[0], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[1], 0.0, epsilon = 1.0);
-        assert_abs_diff_eq!(result[2], 0.0, epsilon = 1.0);
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('MOON', 757339200, 'J2000', 'NONE', 'EARTH')
+        assert_abs_diff_eq!(result[0], -367952.530290496, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], 142774.974775621, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], 89342.2820186614, epsilon = 1.0);
+    }
+
+    #[test]
+    fn test_sun_position_2000() {
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_sec_j2k(0.0, TimeSystem::TT);
+        let result = spice.calculate_position(epoch, SpiceBodies::Sun).unwrap();
+
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('SUN', 0, 'J2000', 'NONE', 'EARTH')
+
+        assert_abs_diff_eq!(result[0], 26499033.6774251, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], -132757417.338339, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], -57556718.4705382, epsilon = 1.0);
+    }
+
+    #[test]
+    fn test_sun_position_2024() {
+        let mut spice = Spice::from_local().unwrap();
+        let epoch = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, TimeSystem::TT).unwrap();
+        let result = spice.calculate_position(epoch, SpiceBodies::Sun).unwrap();
+
+        // values obtained from SPICE toolkit (MICE, de440s.bsp)
+        //cspice_spkpos('SUN', 757339200, 'J2000', 'NONE', 'EARTH')
+        assert_abs_diff_eq!(result[0], 24810993.2596643, epsilon = 1.0);
+        assert_abs_diff_eq!(result[1], -133033452.131135, epsilon = 1.0);
+        assert_abs_diff_eq!(result[2], -57668106.2401691, epsilon = 1.0);
     }
 }
