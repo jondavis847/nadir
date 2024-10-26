@@ -1,4 +1,3 @@
-pub mod earth;
 pub mod geometry;
 pub mod material;
 pub mod mesh;

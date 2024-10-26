@@ -1,5 +1,4 @@
 use gadgt_3d::{
-    earth::{Atmosphere, Earth},
     geometry::{
         cuboid::Cuboid,
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
@@ -34,15 +33,18 @@ use pipeline::{
     Ellipsoid64Pipeline, Pipeline,
 };
 
-use crate::Message;
+use crate::{
+    celestial::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
+    Message,
+};
 
 #[derive(Debug)]
 pub struct Scene {
     pub camera: Camera,
-    pub earth: Option<Earth>,
     light_color: Color,
     light_pos: [f64; 3],
-    pub meshes: Vec<Mesh>,
+    pub body_meshes: Vec<Mesh>,
+    pub celestial: CelestialAnimation,
     pub world_target: Option<usize>, // Some(index into meshes), None is the origin
     pub sample_count: u32,
 }
@@ -50,56 +52,56 @@ pub struct Scene {
 impl Default for Scene {
     fn default() -> Self {
         Self {
-            earth: None,
             camera: Camera::default(),
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
-            meshes: Vec::new(),
+            body_meshes: Vec::new(),
+            celestial: CelestialAnimation::default(),
             world_target: None,
             sample_count: 4,
         }
     }
 }
 impl Scene {
-    pub fn set_earth(&mut self, is_earth: bool) {
-        self.earth = if is_earth {
-            //TODO: calculate based on epoch
-            self.light_pos = [0.0, 151.0e9, 0.0];
-            self.light_color = Color::new(1.0, 1.0, 0.9, 1.0);
+    pub fn set_celestial(&mut self) {        
 
-            self.world_target = if !self.meshes.is_empty() {
-                Some(0)
-            } else {
-                None
-            };
-            let world_target = if let Some(index) = self.world_target {
-                self.meshes[index].state.position
-            } else {
-                DVec3::ZERO
-            };
-
-            // convert all positions to target frame
-            self.meshes
-                .iter_mut()
-                .for_each(|mesh| mesh.set_position_from_target(world_target));
-
-            let unit = world_target.normalize();
-            let camera_position = Vec3::new(
-                10.0 * unit[0] as f32,
-                10.0 * unit[1] as f32,
-                10.0 * unit[2] as f32,
-            );
-            self.camera.set_position(camera_position);
-            self.camera.set_target(Vec3::ZERO);
-            self.camera.set_far(1.0e12);
-            self.camera.set_fov(45.0);
-
-            let mut earth = Earth::default();
-            earth.0.set_position_from_target(world_target);
-            Some(earth)
+        self.world_target = if !self.body_meshes.is_empty() {
+            Some(0)
         } else {
             None
         };
+        let world_target = if let Some(index) = self.world_target {
+            self.body_meshes[index].state.position
+        } else {
+            DVec3::ZERO
+        };
+
+        // convert all positions to target frame
+        self.body_meshes
+            .iter_mut()
+            .for_each(|mesh| mesh.set_position_from_target(world_target));
+
+        for (_, mesh) in &mut self.celestial.meshes {
+            mesh.set_position_from_target(world_target);
+        }
+
+        // sun must be here for celestial system, so unwrap makes sense. need panic if it's not there
+        let sun = self.celestial.meshes.get(&CelestialMeshes::Sun).unwrap();
+        let sun_position = sun.state.position;
+
+        self.light_pos = sun_position.into();
+        self.light_color = Color::new(1.0, 0.9, 0.7, 1.0);
+
+        let unit = world_target.normalize();
+        let camera_position = Vec3::new(
+            10.0 * unit[0] as f32,
+            10.0 * unit[1] as f32,
+            10.0 * unit[2] as f32,
+        );
+        self.camera.set_position(camera_position);
+        self.camera.set_target(Vec3::ZERO);
+        self.camera.set_far(1.1e13); //should cover to the heliopause,
+        self.camera.set_fov(45.0);
     }
 }
 
@@ -122,33 +124,33 @@ struct UniformBuffer(wgpu::Buffer);
 struct UniformBindGroup(wgpu::BindGroup);
 
 #[derive(Debug)]
+struct UniformBindGroupLayout(wgpu::BindGroupLayout);
+
+#[derive(Debug)]
+struct PipelineLayout(wgpu::PipelineLayout);
+
+#[derive(Debug)]
 pub struct ScenePrimitive {
-    earth: Option<MeshGpu>,
-    earth_atmosphere: Option<MeshGpu>,
     meshes: Vec<MeshPrimitive>,
+    celestial: CelestialPrimitives,
     uniforms: Uniforms,
     sample_count: u32,
 }
 
 impl ScenePrimitive {
     pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
-        let (earth, earth_atmosphere) = if let Some(earth) = &scene.earth {
-            let atmosphere = Atmosphere::from(earth);
-            (
-                Some(MeshGpu::from(&earth.0)),
-                Some(MeshGpu::from(&atmosphere.0)),
-            )
-        } else {
-            (None, None)
-        };
+        let mut meshes = Vec::new();
+        scene
+            .body_meshes
+            .iter()
+            .for_each(|mesh| meshes.push(MeshPrimitive::from(mesh)));
 
-        let meshes: Vec<MeshPrimitive> = scene.meshes.iter().map(MeshPrimitive::from).collect();
+        let celestial = CelestialPrimitives::from(&scene.celestial);        
         let uniforms = Uniforms::new(scene, bounds);
 
         Self {
-            earth,
-            earth_atmosphere,
             meshes,
+            celestial,
             uniforms,
             sample_count: scene.sample_count,
         }
@@ -166,20 +168,29 @@ impl Primitive for ScenePrimitive {
         _scale_factor: f32,
         storage: &mut Storage,
     ) {
-        let uniform_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("uniform bind group layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
+        // a new sceneprimitive is created each animation tick with updated values
+        // this creates and stores bindgroups in storage on the first call to prepare
+        // otherwise just updates the values in storage
+
+        // create and store the uniform bindgroup layout once
+        // doesnt need to be updated but is used by other bindgroups
+        if !storage.has::<UniformBindGroupLayout>() {
+            let uniform_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("uniform.bind.group.layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+            storage.store(UniformBindGroupLayout(uniform_bind_group_layout));
+        }
 
         //Create and store the uniform bindgroup
         if !storage.has::<UniformBindGroup>() {
@@ -188,7 +199,7 @@ impl Primitive for ScenePrimitive {
                 contents: bytemuck::bytes_of(&self.uniforms),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
-
+            let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
             let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("uniform and texture bind group"),
                 layout: &uniform_bind_group_layout,
@@ -252,53 +263,53 @@ impl Primitive for ScenePrimitive {
             storage.store(MultisampleView(multisampled_texture_view));
         }
 
-        // create all pipelines for each geometry present in meshes
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("pipeline layout"),
-            bind_group_layouts: &[&uniform_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
         const MAIN_SHADER: &str = include_str!("scene/shaders/main.wgsl");
 
-        if let Some(atmosphere) = &self.earth_atmosphere {
+        if !storage.has::<PipelineLayout>() {
+            let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
+            // create all pipelines for each geometry present in meshes
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("pipeline layout"),
+                bind_group_layouts: &[&uniform_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            storage.store(PipelineLayout(layout));
+        }
+
+        if let Some(atmosphere) = self.celestial.meshes.get(&CelestialMeshes::EarthAtmosphere) {
             // atmosphere
             if !storage.has::<AtmospherePipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(AtmospherePipeline::new(
                     device,
                     format,
                     &layout,
-                    &[*atmosphere],
+                    &[atmosphere.mesh_gpu],
                     Ellipsoid64::vertices(),
                     self.sample_count,
                 ));
             } else {
                 if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
-                    atmosphere_pipeline.update(queue, &[*atmosphere]);
+                    atmosphere_pipeline.update(queue, &[atmosphere.mesh_gpu]);
                 }
             }
         }
 
         //earth
-        if let Some(earth) = &self.earth {
+        if let Some(earth) = self.celestial.meshes.get(&CelestialMeshes::Earth) {
             if !storage.has::<EarthPipeline>() {
-                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_4k.jpg");
-                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_color_5k.png");
                 const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_8K.tif");
-                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_4k.jpg");
-                //const EARTH_COLOR: &[u8] = include_bytes!("../../resources/nasa_earth_day_21k.jpg");
-                //const EARTH_NIGHT: &[u8] = include_bytes!("../../resources/earth_night_4k.jpg");
                 const EARTH_NIGHT: &[u8] =
                     include_bytes!("../../resources/earth_nightlights_10K.tif");
                 const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
                 const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_8k.tif");
-                const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
+                // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
                 let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
                 let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
                 let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
                 let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
-                let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
+                // let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
 
                 let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
                     address_mode_u: wgpu::AddressMode::Repeat,
@@ -375,23 +386,23 @@ impl Primitive for ScenePrimitive {
                                 count: None,
                             },
                             //earth topography
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
-                            },
+                            // wgpu::BindGroupLayoutEntry {
+                            //     binding: 5,
+                            //     visibility: wgpu::ShaderStages::FRAGMENT,
+                            //     ty: wgpu::BindingType::Texture {
+                            //         sample_type: wgpu::TextureSampleType::Float {
+                            //             filterable: true,
+                            //         },
+                            //         view_dimension: wgpu::TextureViewDimension::D2,
+                            //         multisampled: false,
+                            //     },
+                            //     count: None,
+                            // },
                         ],
                     });
 
                 let earth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("earth and texture bind group"),
+                    label: Some("earth.bind.group"),
                     layout: &earth_bind_group_layout,
                     entries: &[
                         wgpu::BindGroupEntry {
@@ -414,17 +425,18 @@ impl Primitive for ScenePrimitive {
                             binding: 4,
                             resource: wgpu::BindingResource::TextureView(&earth_clouds),
                         },
-                        wgpu::BindGroupEntry {
-                            binding: 5,
-                            resource: wgpu::BindingResource::TextureView(&earth_topography),
-                        },
+                        // wgpu::BindGroupEntry {
+                        //     binding: 5,
+                        //     resource: wgpu::BindingResource::TextureView(&earth_topography),
+                        // },
                     ],
                 });
 
                 storage.store(EarthBindGroup(earth_bind_group));
 
+                let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
                 let earth_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("earth pipeline layout"),
+                    label: Some("earth.pipeline.layout"),
                     bind_group_layouts: &[&uniform_bind_group_layout, &earth_bind_group_layout],
                     push_constant_ranges: &[],
                 });
@@ -433,18 +445,16 @@ impl Primitive for ScenePrimitive {
                     device,
                     format,
                     &earth_layout,
-                    &[*earth],
+                    &[earth.mesh_gpu],
                     Ellipsoid64::vertices(),
                     self.sample_count,
                 ));
             } else {
                 if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
-                    earth_pipeline.update(queue, &[*earth]);
+                    earth_pipeline.update(queue, &[earth.mesh_gpu]);
                 }
             }
         }
-
-        
 
         //cuboids
         let cuboids: Vec<MeshGpu> = self
@@ -461,6 +471,7 @@ impl Primitive for ScenePrimitive {
 
         if !cuboids.is_empty() {
             if !storage.has::<CuboidPipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(CuboidPipeline(Pipeline::new(
                     device,
                     format,
@@ -494,6 +505,7 @@ impl Primitive for ScenePrimitive {
 
         if !ellipsoid16s.is_empty() {
             if !storage.has::<Ellipsoid16Pipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(Ellipsoid16Pipeline(Pipeline::new(
                     device,
                     format,
@@ -527,6 +539,7 @@ impl Primitive for ScenePrimitive {
 
         if !ellipsoid32s.is_empty() {
             if !storage.has::<Ellipsoid32Pipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(Ellipsoid32Pipeline(Pipeline::new(
                     device,
                     format,
@@ -546,7 +559,7 @@ impl Primitive for ScenePrimitive {
         }
 
         //ellipsoid64
-        let ellipsoid64s: Vec<MeshGpu> = self
+        let mut ellipsoid64s: Vec<MeshGpu> = self
             .meshes
             .iter()
             .filter_map(|mesh| {
@@ -558,8 +571,19 @@ impl Primitive for ScenePrimitive {
             })
             .collect();
 
-        if !ellipsoid64s.is_empty() {
+        // push celestial objects as well to ellipsoid64s
+        for (body, mesh) in &self.celestial.meshes {
+            match body {
+                CelestialMeshes::Earth | CelestialMeshes::EarthAtmosphere => {
+                    //they have their own pipelines, dont add to ellipsoid64 pipeline
+                }
+                _ => ellipsoid64s.push(mesh.mesh_gpu),
+            }
+        }
+
+        if !ellipsoid64s.is_empty() {            
             if !storage.has::<Ellipsoid64Pipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(Ellipsoid64Pipeline(Pipeline::new(
                     device,
                     format,
@@ -624,7 +648,7 @@ impl Primitive for ScenePrimitive {
         pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
         pass.set_bind_group(0, uniform_bind_group, &[]);
 
-        // render atmosphere first so its always covered 
+        // render atmosphere first so its always covered
         if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
             let pipeline = &atmosphere_pipeline.pipeline;
             pass.set_pipeline(pipeline);

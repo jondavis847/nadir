@@ -2,16 +2,14 @@ mod animator;
 mod scene;
 
 use crate::Message;
-use aerospace::celestial_system::CelestialBodies;
 use animator::Animator;
-use glam::DVec3;
 use iced::{
     mouse::ScrollDelta,
     widget::{shader, Row},
     Command, Element, Length, Point, Theme, Vector,
 };
 
-use multibody::{base::BaseSystems, result::MultibodyResult};
+use multibody::result::{MultibodyResult, ResultEntry};
 use scene::Scene;
 
 #[derive(Debug)]
@@ -34,7 +32,7 @@ impl AnimationState {
     pub fn animate(&mut self, result: &MultibodyResult, instant: iced::time::Instant) {
         self.animator.update(instant);
 
-        for mesh in &mut self.scene.meshes {
+        for mesh in &mut self.scene.body_meshes {
             let (attitude, position) =
                 result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
             let position = glam::dvec3(position[0], position[1], position[2]);
@@ -42,33 +40,26 @@ impl AnimationState {
             mesh.update(position, rotation);
         }
 
+        for (body, mesh) in &mut self.scene.celestial.meshes {
+            if let Some((attitude, position)) = result.get_celestial_state_at_time_interp(
+                body.to_body(),
+                self.animator.current_time as f64,
+            ) {
+                let position = glam::dvec3(position[0], position[1], position[2]) * 1e3; //celestial positions in km, convert to m
+                let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
+                mesh.update(position, rotation);
+            }
+        }
+
         // adjust mesh positions so target is at origin and all other meshes are relative to it
-        let camera_target = if let Some(index) = self.scene.world_target {
-            let camera_target = self.scene.meshes[index].state.position;
-            for mesh in &mut self.scene.meshes {
+        if let Some(index) = self.scene.world_target {
+            let camera_target = self.scene.body_meshes[index].state.position;
+            for mesh in &mut self.scene.body_meshes {
                 mesh.set_position_from_target(camera_target);
             }
-            camera_target
-        } else {
-            DVec3::ZERO
-        };
-
-        if let Some(earth) = &mut self.scene.earth {
-            const ROTATION_RATE: f64 = 2.0 * std::f64::consts::PI / 86400.0;
-            let rotation_axis = DVec3::Z;
-
-            // Calculate the angle of rotation for this time step
-            let angle = ROTATION_RATE * self.animator.dt;
-
-            // Create a quaternion representing this incremental rotation
-            let incremental_rotation = glam::DQuat::from_axis_angle(rotation_axis, angle);
-
-            // Update the existing quaternion by applying the incremental rotation
-            earth.0.state.rotation = incremental_rotation * (earth.0.state.rotation);
-
-            // Adjust earth position based on camera target
-            earth.0.state.position = DVec3::ZERO; // reset to 0.0 first or earth accumulates the error
-            earth.0.set_position_from_target(camera_target);
+            for (_, mesh) in &mut self.scene.celestial.meshes {
+                mesh.set_position_from_target(camera_target);
+            }
         }
     }
 
@@ -108,6 +99,7 @@ impl AnimationState {
     pub fn initialize(&mut self, result: &MultibodyResult) {
         let sys = &result.system;
 
+        // initialize the multibody bodies
         for i in 0..sys.bodies.len() {
             let body = &sys.bodies[i];
             let q = body.state.attitude_base;
@@ -117,24 +109,36 @@ impl AnimationState {
             if let Some(mesh) = &body.mesh {
                 let mut mesh = mesh.clone();
                 mesh.update(position, rotation);
-                self.scene.meshes.push(mesh);
+                self.scene.body_meshes.push(mesh);
             }
         }
 
-        match &sys.base.system {
-            BaseSystems::Celestial(celestial) => {
-                if celestial
-                    .bodies
-                    .iter()
-                    .any(|b| b.body == CelestialBodies::Earth)
-                {
-                    // Set the base to be Earth if it is in sys. For now, this just animates Earth and moves the camera and light
-                    // Otherwise, defaults to close to the origin
-                    // Must do this after shapes are set in the scene, or it won't know where to place the camera
-                    self.scene.set_earth(true);
+        // initialize the celestial bodies
+        if let Some(celestial_entry) = result.result.get("celestial") {
+            match celestial_entry {
+                ResultEntry::Celestial(celestial) => {
+                    for body in &celestial.bodies {
+                        self.scene.celestial.add_body(body.body);
+
+                        // get initial state
+                        let position = body.position[0];
+                        let orientation = body.orientation[0];
+
+                        // convert to graphics types
+                        //position of celestials is in km, convert to m for accurate graphics
+                        let position = glam::dvec3(position[0], position[1], position[2]) * 1e3;
+                        let orientation =
+                            glam::dquat(orientation.x, orientation.y, orientation.z, orientation.s);
+
+                        // update the mesh state and push to scene
+                        self.scene
+                            .celestial
+                            .update_body(body.body, position, orientation);
+                    }
                 }
+                _ => unreachable!("celestial should always be a CelestialResult"),
             }
-            BaseSystems::Basic(_) => {}
+            self.scene.set_celestial();
         }
 
         let t = &result.sim_time;

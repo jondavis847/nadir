@@ -221,10 +221,8 @@ fn main() {
                                             Components::Celestial => {                                                
                                                 let celestial = prompt_celestial();
                                                 match celestial {
-                                                    Ok(celestial) => {
-                                                        if let Some(celestial) = celestial {
-                                                            system.base.add_celestial_system(celestial);       
-                                                        }                                                            
+                                                    Ok(celestial) => {                                                        
+                                                        system.base.add_celestial_system(celestial);                                                                                                                           
                                                     }
                                                     Err(e) => eprintln!("{:?}",e)
                                                 }                     
@@ -625,20 +623,8 @@ fn main() {
 
                                         match component_type {
                                             MultibodyComponent::Base => {                                                
-                                                // create a new base via prompt to get values for old base
-                                                let new_base = match prompt_base() {                                                    
-                                                    Ok(base) => {
-                                                        base
-                                                    }
-                                                    Err(e) => match e {
-                                                        InputErrors::CtrlC => continue,
-                                                        _ => {
-                                                            eprintln!("{:?}",e);
-                                                            continue;
-                                                        }
-                                                    }
-                                                };
-                                                sys.base = new_base;
+                                                error("nothing to edit for base...");
+                                                continue
                                             }
                                             MultibodyComponent::Body => {
                                                 if let Some(old_body) = sys.bodies.get_mut(&id) {
@@ -1637,17 +1623,6 @@ impl std::fmt::Display for InputErrors {
     }
 }
 
-fn prompt_base() -> Result<Base,InputErrors> {
-    let mut base = Base::default();
-
-    let celestial = prompt_celestial()?;
-    if let Some(celestial) = celestial {
-        base.add_celestial_system(celestial);
-    }
-
-    Ok(base)    
-}
-
 fn prompt_body() -> Result<Body, InputErrors> {
     let name = Prompts::Name.prompt()?;
     let mass = Prompts::Mass.validate_loop("1.0")?.parse::<f64>().unwrap_or(1.0);
@@ -1681,43 +1656,36 @@ fn prompt_body() -> Result<Body, InputErrors> {
     Ok(body)    
 }
 
-fn prompt_celestial() -> Result<Option<CelestialSystem>, InputErrors> {
-    let celestial = Prompts::Celestial.validate_loop("n")?;
-    match celestial.as_str() {
-        "y" => {            
-            let epoch = Prompts::Epoch.validate_loop("now")?;
-            let epoch = match epoch.as_str() {
-                "now" => Time::now().unwrap(),
-                _ => {
-                    let t = epoch.as_str().parse::<f64>().unwrap();
-                    Time::from_sec_j2k(t, TimeSystem::TAI)
-                }
-            };
+fn prompt_celestial() -> Result<CelestialSystem, InputErrors> {
+    
+    let epoch = Prompts::Epoch.validate_loop("now")?;
+    let epoch = match epoch.as_str() {
+        "now" => Time::now().unwrap(),
+        _ => {
+            let t = epoch.as_str().parse::<f64>().unwrap();
+            Time::from_sec_j2k(t, TimeSystem::TAI)
+        }
+    };
 
-            let default = Prompts::CelestialDefault.validate_loop("y")?;
-            match default.as_str() {
-                "y" => {
-                    let mut celestial = CelestialSystem::new(epoch)?;  
-                    celestial.add_body(CelestialBodies::Earth, true, true)?;
-                    celestial.add_body(CelestialBodies::Sun, false, false)?;
-                    celestial.add_body(CelestialBodies::Moon, false, false)?;                    
-                    return Ok(Some(celestial))
-                },
-                "n" => {
-                    println!("not yet implemented, just use default");
-                    let mut celestial = CelestialSystem::new(epoch)?;  
-                    celestial.add_body(CelestialBodies::Earth, true, true)?;
-                    celestial.add_body(CelestialBodies::Sun, false, false)?;
-                    celestial.add_body(CelestialBodies::Moon, false, false)?;                    
-                    return Ok(Some(celestial))                                }
-                _ => unreachable!("caught in validate loop")
-            }
-        }   
-        
-        "n" => return Ok(None),
-        _ => unreachable!("should have been caught by validate loop")
-    }
+    let default = Prompts::CelestialDefault.validate_loop("y")?;
+    match default.as_str() {
+        "y" => {
+            let mut celestial = CelestialSystem::new(epoch)?;  
+            celestial.add_body(CelestialBodies::Earth, true, true)?;            
+            celestial.add_body(CelestialBodies::Moon, false, false)?;                    
+            return Ok(celestial)
+        },
+        "n" => {
+            println!("not yet implemented, just added default");
+            let mut celestial = CelestialSystem::new(epoch)?;  
+            celestial.add_body(CelestialBodies::Earth, true, true)?;            
+            celestial.add_body(CelestialBodies::Moon, false, false)?;           
+            return Ok(celestial)
+        }
+        _ => unreachable!("caught in validate loop")        
+    }    
 }
+
 
 
 fn prompt_color() -> Result<Color, InputErrors> {

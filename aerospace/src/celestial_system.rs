@@ -44,9 +44,14 @@ pub struct CelestialSystem {
 
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
+        // make sure there's at least a sun
+        let sun = CelestialBody::new(CelestialBodies::Sun, None,None);
+        let mut bodies = Vec::new();
+        bodies.push(sun);
+
         Ok(Self {
             epoch,
-            bodies: Vec::new(),
+            bodies,
         })
     }
 
@@ -277,9 +282,9 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Rotati
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CelestialBodyResult {
-    body: CelestialBodies,
-    position: Vec<Vector3<f64>>,
-    orientation: Vec<Quaternion>,
+    pub body: CelestialBodies,
+    pub position: Vec<Vector3<f64>>,
+    pub orientation: Vec<Quaternion>,
 }
 
 impl CelestialBodyResult {
@@ -347,7 +352,7 @@ impl CelestialBodyResult {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub enum CelestialBodies {
     Earth,
     Jupiter,
@@ -403,7 +408,9 @@ pub struct CelestialResult {
 }
 
 impl CelestialResult {
-    pub fn update(&mut self, sys: &CelestialSystem) -> Result<(), CelestialErrors> {
+    pub fn update(&mut self, epoch: Time, sys: &CelestialSystem) -> Result<(), CelestialErrors> {
+        // update the epoch based on sim time
+        self.epoch_sec_j2k_tai.push(epoch.get_seconds_j2k());
         // it should be safe to do this enumerated since we initialized the result struct from the sys struct
         for i in 0..self.bodies.len() {
             let body_result = &mut self.bodies[i];

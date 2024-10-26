@@ -1,4 +1,4 @@
-use aerospace::celestial_system::CelestialResult;
+use aerospace::celestial_system::{CelestialBodies, CelestialResult};
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
 use rotations::quaternion::Quaternion;
@@ -7,9 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::{Duration, SystemTime};
 use utilities::format_duration;
-
 use polars::prelude::*;
-
 use crate::system_sim::MultibodySystemSim;
 use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 
@@ -93,71 +91,92 @@ impl MultibodyResult {
     ) -> (Quaternion, Vector3<f64>) {
         let body = match self.result.get(body_name).unwrap() {
             ResultEntry::Body(body) => body,
-            _ => panic!("should not be possible"),
+            _ => unreachable!("should not be possible"),
+        };
+        let time = &self.sim_time;       
+        get_state_at_time_interp(t, time, &body.attitude_base, &body.position_base)
+    }
+
+    pub fn get_celestial_state_at_time_interp(
+        &self,
+        body: CelestialBodies,
+        t: f64,        
+    ) -> Option<(Quaternion, Vector3<f64>)> {
+
+        let time = &self.sim_time;       
+        let celestial = match self.result.get("celestial").unwrap() {
+            ResultEntry::Celestial(celestial) => celestial,
+            _ => unreachable!("should not be possible"),
         };
 
-        let position = &body.position_base;
-        let attitude = &body.attitude_base;
-
-        let time = &self.sim_time;
-        match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
-            Ok(i) => {
-                // The target is exactly at index i
-                (attitude[i], position[i])
-            }
-            Err(i) => {
-                if i == 0 {
-                    // The target is smaller than the first element
-                    (attitude[i], position[i])
-                } else if i == time.len() {
-                    // The target is greater than the last element
-                    (attitude[i], position[i])
-                } else {
-                    // The target is between elements at i - 1 and i
-                    let t_prev = time[i - 1];
-                    let t_next = time[i];
-                    let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
-
-                    let position_prev = position[i - 1];
-                    let position_next = position[i];
-                    let interp_position =
-                        Vector3::lerp(&position_prev, &position_next, interp_factor);
-
-                    let attitude_prev = attitude[i - 1];
-                    let mut attitude_next = attitude[i];
-
-                    // Ensure quaternion continuity
-                    if attitude_prev.dot(&attitude_next) < 0.0 {
-                        attitude_next = Quaternion {
-                            x: -attitude_next.x,
-                            y: -attitude_next.y,
-                            z: -attitude_next.z,
-                            s: -attitude_next.s,
-                        };
-                    }
-
-                    let interp_attitude;
-                    if false {
-                        // TODO: fix squad
-                        //if i >= 2 && i < attitude.len() - 1 {
-                        //squad
-                        let q0 = attitude[i - 2];
-                        let q3 = attitude[i + 1];
-                        interp_attitude =
-                            Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
-                    } else {
-                        //slerp
-                        interp_attitude =
-                            Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
-                    }
-
-                    (interp_attitude, interp_position)
-                }
-            }
+        if let Some(celestial_body) = celestial.bodies.iter().find(|celestial| celestial.body == body) {
+            let result = get_state_at_time_interp(t, time, &celestial_body.orientation, &celestial_body.position);
+            return Some(result)
+        } else {
+           unreachable!("should only be called from code that loops over present bodies");
         }
     }
+
     pub fn get_components(&self) -> Vec<String> {
         self.result.keys().cloned().collect()
+    }
+}
+
+fn get_state_at_time_interp(t: f64, time: &Vec<f64>, attitude: &Vec<Quaternion>, position: &Vec<Vector3<f64>>) -> (Quaternion,Vector3<f64>) {
+    match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
+        Ok(i) => {
+            // The target is exactly at index i
+            (attitude[i], position[i])
+        }
+        Err(i) => {
+            if i == 0 {
+                // The target is smaller than the first element
+                (attitude[i], position[i])
+            } else if i == time.len() {
+                // The target is greater than the last element
+                (attitude[i], position[i])
+            } else {
+                // The target is between elements at i - 1 and i
+                let t_prev = time[i - 1];
+                let t_next = time[i];
+                let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
+
+                let position_prev = position[i - 1];
+                let position_next = position[i];
+                let interp_position =
+                    Vector3::lerp(&position_prev, &position_next, interp_factor);
+
+                let attitude_prev = attitude[i - 1];
+                let mut attitude_next = attitude[i];
+
+                // Ensure quaternion continuity
+                if attitude_prev.dot(&attitude_next) < 0.0 {
+                    attitude_next = Quaternion {
+                        x: -attitude_next.x,
+                        y: -attitude_next.y,
+                        z: -attitude_next.z,
+                        s: -attitude_next.s,
+                    };
+                }
+
+                let interp_attitude;
+                if false {
+                    // TODO: fix squad
+                    //if i >= 2 && i < attitude.len() - 1 {
+                    //squad
+                    let q0 = attitude[i - 2];
+                    let q3 = attitude[i + 1];
+                    interp_attitude =
+                        Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
+                } else {
+                    //slerp
+                    interp_attitude =
+                        Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+                }
+
+                (interp_attitude, interp_position)
+            }
+        }
     }
 }
 

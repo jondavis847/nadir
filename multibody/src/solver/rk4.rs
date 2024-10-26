@@ -106,7 +106,10 @@ pub fn solve_fixed_rk4(
                 BaseSystems::Basic(_) => {
                     unreachable!("we checked this when we created celestial_result")
                 }
-                BaseSystems::Celestial(celestial) => result.update(celestial)?,
+                BaseSystems::Celestial(celestial) => {
+                    let current_epoch = celestial.epoch + t;
+                    result.update(current_epoch,celestial)?
+                },
             }
         }
 

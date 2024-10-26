@@ -1,6 +1,7 @@
 use std::io::Read;
 
 mod animation;
+mod celestial;
 //mod mouse;
 
 use animation::{AnimationGui, AnimationState};
@@ -14,6 +15,11 @@ use iced::{
 
 use multibody::result::MultibodyResult;
 use std::time::Instant;
+
+#[derive(Debug)]
+pub enum AnimationErrors {
+
+}
 
 // Define the possible user interactions
 #[derive(Debug, Clone)]

@@ -11,7 +11,6 @@ struct Uniforms {
 @group(1) @binding(2) var earth_night: texture_2d<f32>; 
 @group(1) @binding(3) var earth_spec: texture_2d<f32>; 
 @group(1) @binding(4) var earth_clouds: texture_2d<f32>; 
-@group(1) @binding(5) var earth_topo: texture_2d<f32>; 
 
 struct Vertex {
     @location(0) position: vec3<f32>,
@@ -77,7 +76,7 @@ struct FragOutput {
 
 @fragment
 fn fs_main(in: Output) -> FragOutput {
-    let light_dir = normalize(uniforms.light_pos);// - in.world_pos); not - world pos to be directional
+    let light_dir = normalize(uniforms.light_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
     // i cant figure out why turning on msaa darkens the image, this is a bandaid
@@ -90,40 +89,22 @@ fn fs_main(in: Output) -> FragOutput {
     let cloud_alpha = cloud_texture.a;
     let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
     let night_color = msaa_scale * vec3<f32>(1.0,0.8745,0.7843) * night_texture;
-    
-    // calculate bump map perturbation
-    var tangent_space_normal_perturbation = textureSample(earth_topo, earth_sampler, in.uv).xyz;
-    // convert from [0,1] to [-1,1]
-    tangent_space_normal_perturbation = tangent_space_normal_perturbation * 2.0 - 1.0;
-    // Adjust this factor for more/less perturbation
-    let perturbation_strength = 0.025; 
-    
-    // Construct the TBN matrix
-    let N = in.normal;
-    let T = in.tangent;
-    let B = normalize(cross(N, T));
-    let TBN = mat3x3<f32>(T, B, N);
-
-    // Transform the tangent space normal to world space
-    let world_space_normal_perturbation = normalize(TBN * tangent_space_normal_perturbation); 
-    // perturb the normal vector by the perturbation
-    let perturbed_normal = normalize(mix(N, world_space_normal_perturbation, perturbation_strength));
 
     let cloud_intensity = 0.8;
-    let day_color = mix(day_color_raw,cloud_color,cloud_intensity);
+    let day_color = mix(day_color_raw, cloud_color, cloud_intensity);
 
     // Ambient lighting
-    let ambient = day_color * 0.1;
+    let ambient = day_color * 0.1; //dont need ambient now that we're using a night map
 
     // Diffuse lighting (Lambertian reflectance)
-    let diff = dot(perturbed_normal, light_dir);
-    let night_diff = dot(perturbed_normal,-light_dir);    
+    let diff = dot(in.normal, light_dir);
+    let night_diff = dot(in.normal, -light_dir);    
 
     let color = diff * day_color + 0.5 * night_diff * night_color;        
     let diffuse = color * uniforms.light_color.rgb;    
 
     // Specular lighting (Phong reflection model)
-    let light_reflect = normalize(reflect(-light_dir, perturbed_normal));
+    let light_reflect = normalize(reflect(-light_dir, in.normal));
     var specular_factor = dot(view_dir, light_reflect);
     var specular = vec3<f32>(0.0);
 
@@ -136,27 +117,15 @@ fn fs_main(in: Output) -> FragOutput {
     // Adjust specular intensity based on the cloud alpha (less specular on clouds)
     let cloud_specular_multiplier = mix(1.0, 0.1, cloud_alpha); // Reduce specular on clouds
     let final_specular = specular * cloud_specular_multiplier;
-    /*
-    // Fresnel Effect 
-    let view_normal_angle = max(dot(view_dir, in.normal), 0.0);
-    
-    // Schlick's approximation for Fresnel effect
-    let fresnel_base = 0.02; // Base reflectivity for water
-    let fresnel_factor = fresnel_base + (1.0 - fresnel_base) * pow(1.0 - view_normal_angle, 5.0);
 
-    // Blend the diffuse and specular components with the Fresnel effect
-    let fresnel_color = mix(diffuse, specular, fresnel_factor);
-    */
     // Combine results
     let result = ambient + diffuse + final_specular;
-    //let result = ambient + fresnel_color;
     
     // Compute the logarithmic depth
-    let far_plane = 1e12; // Adjust this value according to your far plane distance
+    let far_plane = 1.1e13; // Adjust this value according to your far plane distance
     let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
-    
     var out: FragOutput;
     out.color = vec4<f32>(result, 1.0);    
     out.depth = log_depth;
