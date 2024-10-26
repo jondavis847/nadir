@@ -172,6 +172,18 @@ impl Primitive for ScenePrimitive {
         // this creates and stores bindgroups in storage on the first call to prepare
         // otherwise just updates the values in storage
 
+        let resize = match storage.get::<Size<u32>>() {
+            Some(size) if *size != target_size => {
+                storage.store(target_size);
+                true
+            },
+            None => {
+                storage.store(target_size);
+                false
+            },
+            _ => false,
+        };
+
         // create and store the uniform bindgroup layout once
         // doesnt need to be updated but is used by other bindgroups
         if !storage.has::<UniformBindGroupLayout>() {
@@ -221,7 +233,7 @@ impl Primitive for ScenePrimitive {
         }
 
         // Create and store the depth_view
-        if !storage.has::<DepthView>() {
+        if !storage.has::<DepthView>()  || resize {
             let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("depth.texture"),
                 size: wgpu::Extent3d {
@@ -242,7 +254,7 @@ impl Primitive for ScenePrimitive {
             storage.store(DepthView(depth_view));
         }
 
-        if !storage.has::<MultisampleView>() {
+        if !storage.has::<MultisampleView>()  ||  resize {
             // create the antialiasing textureview
             let multisampled_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("multisampled.color.texture"),

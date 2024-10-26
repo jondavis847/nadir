@@ -109,7 +109,7 @@ impl Application for AnimationGui {
             Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
             Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
             Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
-            Message::WindowResized(_size) => Command::none(), //state.window_resized(size),
+            Message::WindowResized(_size) => Command::none(),
         }
     }
 
