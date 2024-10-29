@@ -9,3 +9,4 @@ coordinate_systems = {path = "../coordinate_systems"}
 nalgebra = { version = "0.33.0", features = ["serde-serialize"] }
 rand = "0.8.5"
 serde = { version = "1.0.204", features = ["derive"] }
+thiserror = "1.0.65"

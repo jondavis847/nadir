@@ -15,7 +15,7 @@ pub struct DafData {
 }
 
 impl DafData {
-    pub fn new(data: &[u8], file_type: SpiceFileTypes) -> Result<DafData, SpiceErrors> {
+    pub fn new(data: &[u8], file_type: SpiceFileTypes) -> Result<DafData, Box<dyn std::error::Error>> {
         let mut header = [0u8; 1024];
         header.copy_from_slice(&data[0..1024]);
         let file_record = FileRecord::from_bytes(&header).unwrap();
@@ -91,7 +91,7 @@ impl DafData {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, SpiceErrors> {
+    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
         if let Some(segments) = self.segments.get_mut(body) {
             Ok(segments
                 .binary_search_by(|segment| {
@@ -106,7 +106,7 @@ impl DafData {
                 .ok()
                 .map(move |index| &mut segments[index]))
         } else {
-            return Err(SpiceErrors::BodyNotFound);
+            return Err(SpiceErrors::BodyNotFound.into());
         }
     }
 }

@@ -1,6 +1,7 @@
 use super::*;
 use axes::{AlignedAxes, Axis};
 use nalgebra::{Matrix3, Vector3};
+use thiserror::Error;
 use std::ops::Mul;
 use serde::{Serialize, Deserialize};
 
@@ -9,9 +10,9 @@ use serde::{Serialize, Deserialize};
 pub struct RotationMatrix(pub Matrix3<f64>);
 
 /// Errors that can occur when creating a `RotationMatrix`.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Error)]
 pub enum RotationMatrixError {
-    /// Occurs when a column vector has zero magnitude.
+    #[error("Column had zero magnitude")]
     ZeroMagnitudeColumn,
 }
 
@@ -301,7 +302,7 @@ mod tests {
                 old: Axis::Yp,
                 new: Axis::Yp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -318,7 +319,7 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Zp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -335,7 +336,7 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Xp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0);
 
@@ -353,7 +354,7 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Xp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);        
         let expected_matrix = Matrix3::new(0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -370,7 +371,7 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Yn,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -387,7 +388,7 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Xp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -404,7 +405,7 @@ mod tests {
                 old: Axis::Yn,
                 new: Axis::Xp,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(0.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
@@ -421,7 +422,7 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Yn,
             },
-        );
+        ).unwrap();
         let rotation = RotationMatrix::from(axis_rotation);
         let expected_matrix = Matrix3::new(0.0, -1.0, -0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);

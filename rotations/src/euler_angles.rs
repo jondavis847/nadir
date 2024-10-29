@@ -4,7 +4,7 @@ use nalgebra::Vector3;
 use serde::{Serialize, Deserialize};
 
 /// Enum representing different Euler angle sequences.
-#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum EulerSequence {
     XYZ,
     XZY,

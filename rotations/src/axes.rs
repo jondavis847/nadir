@@ -1,5 +1,20 @@
 use std::ops::Neg;
 
+#[derive(Debug)]
+pub enum AlignedAxesErrors {
+    InvalidCombo
+}
+
+impl std::fmt::Display for AlignedAxesErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AlignedAxesErrors::InvalidCombo => write!(f, "Invalid combination of aligned axes. Primary and Secondary axes cannot be the same."),
+        }
+    }
+}
+
+impl std::error::Error for AlignedAxesErrors {}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Axis {
     Xp,
@@ -52,7 +67,13 @@ pub struct AlignedAxes {
 }
 
 impl AlignedAxes {
-    pub fn new(mut primary: AxisPair, mut secondary: AxisPair) -> Self {
+    pub fn new(mut primary: AxisPair, mut secondary: AxisPair) -> Result<Self, AlignedAxesErrors> {
+
+        // check that primary and secondary axes are not the same
+        if primary.new == secondary.new || primary.old == secondary.new {
+            return Err(AlignedAxesErrors::InvalidCombo)
+        }
+
         // convert old negative axes to positive axes to make converting to rotations easier
         match primary.old {
             Axis::Xn | Axis::Yn | Axis::Zn => {
@@ -69,7 +90,7 @@ impl AlignedAxes {
             _ => {} // all good
         }
 
-        Self { primary, secondary }
+        Ok(Self { primary, secondary })
     }
 }
 

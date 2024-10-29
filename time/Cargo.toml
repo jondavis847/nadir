@@ -7,3 +7,4 @@ edition = "2021"
 approx = "0.5.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 serde = { version = "1.0.210", features = ["derive"] }
+thiserror = "1.0.65"

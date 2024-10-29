@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
-#[derive(Clone, Debug, Deserialize, Serialize)]
+
+#[derive(Debug,Clone,Copy,Eq,PartialEq)]
+pub enum ColorMode {
+    Preset,
+    Rgba,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Color {
     r: f32,
     g: f32,

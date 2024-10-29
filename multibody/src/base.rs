@@ -61,12 +61,12 @@ impl Base {
         Ok(())
     }
 
-    pub fn update(&mut self, t: f64, spice: &mut Option<Spice>) -> Result<(), BaseErrors> {
+    pub fn update(&mut self, t: f64, spice: &mut Option<Spice>) -> Result<(), Box<dyn std::error::Error>> {
         match &mut self.system {
             BaseSystems::Celestial(celestial) => if let Some(spice) = spice {                
                 celestial.update(t, spice)?
             } else {
-                return Err(BaseErrors::CelestialError(CelestialErrors::SpiceNotFound))
+                return Err(CelestialErrors::SpiceNotFound.into())
             },
             BaseSystems::Basic(_) => {}
         }

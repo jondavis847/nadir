@@ -1,5 +1,7 @@
-use nalgebra::{Vector3,Matrix3};
-use serde::{Serialize, Deserialize};
+use std::{error::Error, fmt::{self, Display}};
+
+use nalgebra::{Matrix3, Vector3};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct CenterOfMass {
@@ -68,12 +70,24 @@ pub struct Inertia {
     pub izz: f64,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum InertiaErrors {
     IxxLessThanOrEqualToZero,
     IyyLessThanOrEqualToZero,
     IzzLessThanOrEqualToZero,
 }
+
+impl std::fmt::Display for InertiaErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IxxLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
+            Self::IyyLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
+            Self::IzzLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
+        }
+    }
+}
+
+impl std::error::Error for InertiaErrors {}
 
 impl Inertia {
     pub fn new(
@@ -181,10 +195,37 @@ impl Inertia {
 
 impl From<Matrix3<f64>> for Inertia {
     fn from(m: Matrix3<f64>) -> Inertia {
-        //TODO add checks on the matrix        
-        Inertia::new(m[(0,0)], m[(1,1)], m[(2,2)], m[(0,1)], m[(0,2)], m[(2,1)]).unwrap()
+        //TODO add checks on the matrix
+        Inertia::new(
+            m[(0, 0)],
+            m[(1, 1)],
+            m[(2, 2)],
+            m[(0, 1)],
+            m[(0, 2)],
+            m[(2, 1)],
+        )
+        .unwrap()
     }
 }
+
+
+/// Enum representing possible errors when creating or modifying `MassProperties`.
+#[derive(Debug)]
+pub enum MassPropertiesErrors {    
+    InertiaErrors(InertiaErrors),
+    MassLessThanOrEqualToZero,
+}
+
+impl Display for MassPropertiesErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InertiaErrors(e) => writeln!(f, "Inertia Error: {e}"),
+            Self::MassLessThanOrEqualToZero => writeln!(f, "Mass cannot be less than or equal to zero."),            
+        }
+    }
+}
+
+impl Error for MassPropertiesErrors {}
 
 /// Represents the mass properties of an object
 /// Mass, Center of Mass, Inertia
@@ -195,12 +236,6 @@ pub struct MassProperties {
     pub inertia: Inertia,
 }
 
-/// Enum representing possible errors when creating or modifying `MassProperties`.
-#[derive(Debug, Clone, Copy)]
-pub enum MassPropertiesErrors {
-    Inertia(InertiaErrors),
-    MassLessThanOrEqualToZero,
-}
 
 impl Default for MassProperties {
     fn default() -> Self {
@@ -320,11 +355,8 @@ impl MassProperties {
     /// # Errors
     ///
     /// Returns a `MassPropertiesError::IxxLessThanOrEqualToZero` if `ixx` is less than or equal to zero.
-    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), MassPropertiesErrors> {
-        match self.inertia.set_ixx(ixx) {
-            Ok(_) => Ok(()),
-            Err(error) => Err(MassPropertiesErrors::Inertia(error)),
-        }
+    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), InertiaErrors> {
+        self.inertia.set_ixx(ixx)
     }
 
     /// Sets the product of inertia for the xy-plane.
@@ -344,7 +376,7 @@ impl MassProperties {
     pub fn set_iyy(&mut self, iyy: f64) -> Result<(), MassPropertiesErrors> {
         match self.inertia.set_iyy(iyy) {
             Ok(_) => Ok(()),
-            Err(error) => Err(MassPropertiesErrors::Inertia(error)),
+            Err(error) => Err(MassPropertiesErrors::InertiaErrors(error)),
         }
     }
 
@@ -362,7 +394,7 @@ impl MassProperties {
     pub fn set_izz(&mut self, izz: f64) -> Result<(), MassPropertiesErrors> {
         match self.inertia.set_izz(izz) {
             Ok(_) => Ok(()),
-            Err(error) => Err(MassPropertiesErrors::Inertia(error)),
+            Err(error) => Err(MassPropertiesErrors::InertiaErrors(error)),
         }
     }
 

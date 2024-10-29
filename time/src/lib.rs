@@ -4,6 +4,7 @@ use std::{
 };
 use chrono::{NaiveDate, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub const JD_J2000: f64 = 2451545.0;
 pub const SEC_PER_DAY: f64 = 86400.0;
@@ -45,15 +46,17 @@ pub const LEAPSECONDS: [(f64, f64); 28] = [
     (37.0, 536500800.0),  // @2017-JAN-1
 ];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Error)]
 pub enum TimeErrors {
+    #[error("Invalid epoch")]
     InvalidEpoch,
+    #[error("Invalid UTC time")]
     InvalidUtcTime,
-    NaiveDateTimeError,
-    UseNewUtc,
+    #[error("Invalid date time")]
+    NaiveDateTimeError,    
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, Eq)]
 pub enum TimeSystem {
     GPS,
     TAI,
@@ -62,12 +65,11 @@ pub enum TimeSystem {
     TT,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, Eq)]
 pub enum TimeFormat {
     DateTime,
     JulianDate,
     SecondsSinceJ2000,
-    SecondsSinceTAI,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]

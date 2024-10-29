@@ -10,31 +10,33 @@ use rotations::{
 };
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies, SpiceErrors};
-use std::f64::consts::PI;
+use std::{f64::consts::PI, fmt::write};
 use time::{Time, TimeErrors};
 
 #[derive(Debug)]
 pub enum CelestialErrors {
     BodyNotFoundInCelestialSystem,
     CelestialBodyAlreadyExists,
-    InvalidEpoch,
-    ResultConfigError,
-    SpiceErrors(SpiceErrors),
     SpiceNotFound,
-    TimeErrors(TimeErrors),
 }
 
-impl From<SpiceErrors> for CelestialErrors {
-    fn from(value: SpiceErrors) -> Self {
-        CelestialErrors::SpiceErrors(value)
+impl std::fmt::Display for CelestialErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CelestialErrors::BodyNotFoundInCelestialSystem => {
+                writeln!(f, "Celestial body not found in celestial system.")
+            }
+            CelestialErrors::CelestialBodyAlreadyExists => {
+                writeln!(f, "Celestial body already exists in the celestial system.")
+            }
+            CelestialErrors::SpiceNotFound => {
+                writeln!(f, "Spice data not found in celestial system.")
+            }
+        }
     }
 }
 
-impl From<TimeErrors> for CelestialErrors {
-    fn from(value: TimeErrors) -> Self {
-        CelestialErrors::TimeErrors(value)
-    }
-}
+impl std::error::Error for CelestialErrors {}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
@@ -45,17 +47,14 @@ pub struct CelestialSystem {
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
         // make sure there's at least a sun
-        let sun = CelestialBody::new(CelestialBodies::Sun, None,None);
+        let sun = CelestialBody::new(CelestialBodies::Sun, None, None);
         let mut bodies = Vec::new();
         bodies.push(sun);
 
-        Ok(Self {
-            epoch,
-            bodies,
-        })
+        Ok(Self { epoch, bodies })
     }
 
-    pub fn update(&mut self, t: f64, spice: &mut Spice) -> Result<(), CelestialErrors> {
+    pub fn update(&mut self, t: f64, spice: &mut Spice) -> Result<(), Box<dyn std::error::Error>> {
         // t is sim time in seconds
         let current_epoch = self.epoch + t;
         let current_epoch = current_epoch.to_system(time::TimeSystem::TT);
@@ -203,7 +202,7 @@ impl CelestialBody {
         }
     }
 
-    pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), CelestialErrors> {
+    pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), Box<dyn std::error::Error>> {
         //spice uses TDB/TT
         //gsfc planet fact sheet uses UTC
         //TODO: do these time calcs upstream and pass as args so we don't calculate for each body
@@ -451,4 +450,3 @@ impl CelestialResult {
         }
     }
 }
-

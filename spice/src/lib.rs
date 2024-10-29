@@ -22,33 +22,26 @@ pub mod spk;
 #[derive(Debug)]
 pub enum SpiceErrors {
     BodyNotFound,
-    CantOpenConfigDir,
-    FileReadError(std::io::Error),
-    HeaderNotFound,
-    DeserializationError(bincode::Error),
+    CantOpenConfigDir,    
+    HeaderNotFound,    
     NoOrientationDataForThisBody,
     RecordMetaNotFound,
-    RecordNotFound,
-    ReqwestError(reqwest::Error),
+    RecordNotFound,    
 }
 
-impl From<std::io::Error> for SpiceErrors {
-    fn from(err: std::io::Error) -> Self {
-        SpiceErrors::FileReadError(err)
+impl std::fmt::Display for SpiceErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpiceErrors::BodyNotFound => writeln!(f,"Body not found in Spice data."),
+            SpiceErrors::CantOpenConfigDir => writeln!(f,"Could not open the computer's config directory."),
+            SpiceErrors::HeaderNotFound => writeln!(f,"Header not found."),
+            SpiceErrors::NoOrientationDataForThisBody => writeln!(f,"Could not find orientation data for this body."),
+            SpiceErrors::RecordMetaNotFound => writeln!(f,"Record meta not found."),
+            SpiceErrors::RecordNotFound => writeln!(f,"Record not found."),
+        }
     }
 }
-
-impl From<bincode::Error> for SpiceErrors {
-    fn from(err: bincode::Error) -> Self {
-        SpiceErrors::DeserializationError(err)
-    }
-}
-
-impl From<reqwest::Error> for SpiceErrors {
-    fn from(e: reqwest::Error) -> Self {
-        SpiceErrors::ReqwestError(e)
-    }
-}
+impl std::error::Error for SpiceErrors {}
 
 pub enum SpiceFileTypes {
     Pck,
@@ -65,7 +58,7 @@ impl Spice {
     /// Attempts to load the file from the serialize binary in the local temp directory
     /// If for any reason it can't, it will attempt to redownload and save the latest files
     /// It will also check the dates of the spice files and update if possible
-    pub fn from_local() -> Result<Self, SpiceErrors> {
+    pub fn from_local() -> Result<Self, Box<dyn std::error::Error>> {
         // can we find the config dir where data is saved?
         if let Some(mut path) = config_dir() {
             path.push("gadgt/spice.data");
@@ -119,11 +112,11 @@ impl Spice {
                 Spice::from_naif()
             }
         } else {
-            return Err(SpiceErrors::CantOpenConfigDir);
+            return Err(SpiceErrors::CantOpenConfigDir.into());
         }
     }
 
-    pub fn from_naif() -> Result<Self, SpiceErrors> {
+    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
         let earth = EarthParameters::from_naif()?;
         let moon = MoonParameters::from_naif()?;
         let spk = SpiceSpk::from_naif()?;
@@ -136,7 +129,7 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<Vector3<f64>, SpiceErrors> {
+    ) -> Result<Vector3<f64>, Box<dyn std::error::Error>> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         // earth is the center of our frame, so always zeros
         if body == SpiceBodies::Earth {
@@ -177,7 +170,7 @@ impl Spice {
                 }
             }
         } else {
-            return Err(SpiceErrors::BodyNotFound);
+            return Err(SpiceErrors::BodyNotFound.into());
         }
     }
 
@@ -185,24 +178,24 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<Rotation, SpiceErrors> {
+    ) -> Result<Rotation, Box<dyn std::error::Error>> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
             SpiceBodies::Earth => {
                 if let Some(segment) = self.earth.get_segment(&body, t)? {
                     segment
                 } else {
-                    return Err(SpiceErrors::BodyNotFound);
+                    return Err(SpiceErrors::BodyNotFound.into());
                 }
             }
             SpiceBodies::Moon => {
                 if let Some(segment) = self.moon.get_segment(&body, t)? {
                     segment
                 } else {
-                    return Err(SpiceErrors::BodyNotFound);
+                    return Err(SpiceErrors::BodyNotFound.into());
                 }
             }
-            _ => return Err(SpiceErrors::NoOrientationDataForThisBody),
+            _ => return Err(SpiceErrors::NoOrientationDataForThisBody.into()),
         };
 
         //TODO: include century calculation for obliquity for completeness?
@@ -227,7 +220,7 @@ impl Spice {
         Ok(orientation_equatorial)
     }
 
-    pub fn save_spice_data(&self) -> Result<(), SpiceErrors> {
+    pub fn save_spice_data(&self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(mut path) = config_dir() {
             path.push("gadgt");
             path.push("spice.data");
@@ -236,7 +229,7 @@ impl Spice {
             file.write_all(&encoded)?; // Write the serialized data to a file
             Ok(())
         } else {
-            Err(SpiceErrors::CantOpenConfigDir)
+            Err(SpiceErrors::CantOpenConfigDir.into())
         }
     }
 }
@@ -407,7 +400,7 @@ impl DataTypes {
     }
 }
 
-fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
+fn check_naif(url: &str, local: String) -> Result<bool, Box<dyn std::error::Error>> {
     let client = Client::new();
     let response = client.head(url).send()?;
     if let Some(last_modified) = response.headers().get("last-modified") {
@@ -418,7 +411,7 @@ fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
             return Ok(false);
         }
     } else {
-        return Err(SpiceErrors::HeaderNotFound);
+        return Err(SpiceErrors::HeaderNotFound.into());
     }
 }
 

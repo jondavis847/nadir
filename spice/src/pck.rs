@@ -20,11 +20,11 @@ pub struct EarthParameters {
 impl EarthParameters {
     const EARTH_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/earth_1962_240827_2124_combined.bpc";
 
-    pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
+    pub fn check_naif(&self) -> Result<bool, Box<dyn std::error::Error>> {
         check_naif(EarthParameters::EARTH_BPC, self.last_modified.clone())
     }
 
-    pub fn from_naif() -> Result<Self, SpiceErrors> {
+    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
         io::stdout().flush()?;
@@ -52,7 +52,7 @@ impl EarthParameters {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, SpiceErrors> {
+    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
         self.daf.get_segment(body, t)
     }
 }
@@ -67,11 +67,11 @@ impl MoonParameters {
 
     const MOON_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc";
 
-    pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
+    pub fn check_naif(&self) -> Result<bool, Box<dyn std::error::Error>> {
         check_naif(MoonParameters::MOON_BPC, self.last_modified.clone())
     }
 
-    pub fn from_naif() -> Result<Self, SpiceErrors> {
+    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
         io::stdout().flush()?;
@@ -99,7 +99,7 @@ impl MoonParameters {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, SpiceErrors> {
+    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
         self.daf.get_segment(body, t)
     }
 }

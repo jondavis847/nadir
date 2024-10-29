@@ -21,11 +21,23 @@ use super::joint::JointTrait;
 #[derive(Clone, Copy, Debug)]
 pub enum BodyErrors {
     EmptyName,
-    InnerJointExists,
-    MassPropertiesErrors(MassPropertiesErrors),
+    InnerJointExists,    
     NoBaseInnerConnection,
     OuterJointExists,
 }
+
+impl std::fmt::Display for BodyErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BodyErrors::EmptyName => write!(f, "Name cannot be empty."),
+            BodyErrors::InnerJointExists => write!(f, "The body already has an inner joint. Can only have one inner joint. Must disconnect first."),
+            BodyErrors::NoBaseInnerConnection => write!(f, "The base cannot have an inner connection."),
+            BodyErrors::OuterJointExists => write!(f, "The joint is already connected as an outer joint."),
+        }
+    }
+}
+
+impl std::error::Error for BodyErrors {}
 
 pub trait BodyTrait: MultibodyTrait {
     fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
