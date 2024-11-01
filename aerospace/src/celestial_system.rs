@@ -9,9 +9,10 @@ use rotations::{
     Rotation, RotationTrait,
 };
 use serde::{Deserialize, Serialize};
-use spice::{Spice, SpiceBodies, SpiceErrors};
-use std::{f64::consts::PI, fmt::write};
-use time::{Time, TimeErrors};
+use spice::{Spice, SpiceBodies};
+
+use std::f64::consts::PI;
+use time::Time;
 
 #[derive(Debug)]
 pub enum CelestialErrors {
@@ -94,7 +95,7 @@ impl CelestialSystem {
         &mut self,
         body: CelestialBodies,
         gravity: bool,
-        geomag: bool,
+        _geomag: bool,
     ) -> Result<(), CelestialErrors> {
         // Check if the body already exists in the vector
         if self.bodies.iter().any(|b| b.body == body) {
