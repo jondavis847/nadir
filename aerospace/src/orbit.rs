@@ -11,6 +11,10 @@ use std::f64::{consts::PI, INFINITY};
 /// around a central body, based on the Keplerian model. It includes elements such as the
 /// semi-major axis, eccentricity, inclination, RAAN, argument of periapsis, and anomalies.
 pub struct KeplerianOrbit {
+    /// Altitude at the apoapsis based on radius(in km).
+    pub apoapsis_altitude: f64,
+    /// Altitude at the periapsis based on radius(in km).
+    pub periapsis_altitude: f64,
     /// Gravitational parameter of the central body (in km^3/s^2).
     pub mu: f64,
     /// Radius of the central body (in km).
@@ -38,52 +42,6 @@ pub struct KeplerianOrbit {
 impl KeplerianOrbit {
     /// Tolernance for determining if orbit is elliptical/circular/parabolic/hyperbolic
     const ORBIT_EPSILON: f64 = 1e-8;
-
-    /// Creates a new `KeplerianOrbit` instance for an elliptic orbit.
-    ///
-    /// # Arguments
-    /// * `mu` - Gravitational parameter of the central body (in km^3/s^2).
-    /// * `radius` - Radius of the central body (in km).
-    /// * `semimajor_axis` - Semi-major axis of the orbit (in km).
-    /// * `eccentricity` - Eccentricity of the orbit (dimensionless).
-    /// * `inclination` - Inclination of the orbit (in radians).
-    /// * `raan` - Right Ascension of the Ascending Node (in radians).
-    /// * `argument_of_periapsis` - Argument of periapsis (in radians).
-    /// * `true_anomaly` - True anomaly (in radians).
-    ///
-    /// # Returns
-    /// A new `KeplerianOrbit` instance representing the specified elliptic orbit.
-    pub fn new(
-        mu: f64,
-        radius: f64,
-        semimajor_axis: f64,
-        eccentricity: f64,
-        inclination: f64,
-        raan: f64,
-        argument_of_periapsis: f64,
-        true_anomaly: f64,
-    ) -> Self {
-        // Calculate the mean anomaly (M) from the true anomaly (v) and eccentricity (e)
-        let eccentric_anomaly = 2.0
-            * ((true_anomaly / 2.0).tan())
-                .atan2((1.0 + eccentricity).sqrt() * (1.0 - eccentricity).sqrt());
-        let mean_anomaly = eccentric_anomaly - eccentricity * eccentric_anomaly.sin();
-        let semiparameter = semimajor_axis * (1.0 - eccentricity.powi(2));
-
-        KeplerianOrbit {
-            mu,
-            radius,
-            semimajor_axis,
-            semiparameter,
-            argument_of_periapsis,
-            eccentric_anomaly,
-            eccentricity,
-            inclination,
-            mean_anomaly,
-            raan,
-            true_anomaly,
-        }
-    }
 
     /// Creates a `KeplerianOrbit` instance from position and velocity vectors.
     ///
@@ -144,8 +102,40 @@ impl KeplerianOrbit {
         } else {
             (e.dot(&r) / (em * rm)).acos()
         };
-        
-        KeplerianOrbit::new(mu,radius,a * du, em,i,raan,argp,true_anomaly)
+
+        // Calculate the mean anomaly (M) from the true anomaly (v) and eccentricity (e)
+        let eccentric_anomaly = 2.0
+            * ((true_anomaly / 2.0).tan())
+                .atan2((1.0 + em).sqrt() * (1.0 - em).sqrt());
+        let mean_anomaly = eccentric_anomaly - em * eccentric_anomaly.sin();        
+
+        let semimajor_axis = a * du;
+
+        // Calculate the periapsis and apoapsis altitudes        
+        let apoapsis_altitude = a * (1.0 + em)  - radius;
+        let periapsis_altitude = if em > 1.0 - Self::ORBIT_EPSILON {
+            //parabolic/hyperbolic, a is inifinite but p is the periapsis_distance
+            p - radius
+        } else {
+            // elliptical/circular
+            a * (1.0 - em) - radius
+        };        
+
+        KeplerianOrbit {            
+            mu,            
+            radius,            
+            semimajor_axis,            
+            semiparameter: p,            
+            argument_of_periapsis: argp,            
+            eccentric_anomaly,            
+            eccentricity: em,            
+            inclination: i,            
+            mean_anomaly,            
+            raan,
+            true_anomaly,
+            apoapsis_altitude,
+            periapsis_altitude,
+        }        
         
     }
 
