@@ -211,6 +211,16 @@ impl Add<f64> for Time {
     }
 }
 
+impl Sub<Time> for Time {
+    type Output = f64;
+    fn sub(self, rhs: Time) -> f64 {
+        //convert to the left side system first
+        rhs.to_system(self.system);
+        self.value.0 + rhs.value.0
+    }
+}
+
+
 // will be accuruate for 285 million years at f64 precision
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 pub struct SecondsSinceJ2000(f64);

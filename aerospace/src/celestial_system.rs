@@ -9,35 +9,21 @@ use rotations::{
     Rotation, RotationTrait,
 };
 use serde::{Deserialize, Serialize};
-use spice::{Spice, SpiceBodies, SpiceErrors};
-use std::{f64::consts::PI, fmt::write};
-use time::{Time, TimeErrors};
+use spice::{Spice, SpiceBodies};
 
-#[derive(Debug)]
+use std::f64::consts::PI;
+use thiserror::Error;
+use time::Time;
+
+#[derive(Debug, Error)]
 pub enum CelestialErrors {
+    #[error("celestial body not found in celestial system")]
     BodyNotFoundInCelestialSystem,
+    #[error("celestial body already exists in the celestial system.")]
     CelestialBodyAlreadyExists,
+    #[error("spice data not found in celestial system")]
     SpiceNotFound,
 }
-
-impl std::fmt::Display for CelestialErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CelestialErrors::BodyNotFoundInCelestialSystem => {
-                writeln!(f, "Celestial body not found in celestial system.")
-            }
-            CelestialErrors::CelestialBodyAlreadyExists => {
-                writeln!(f, "Celestial body already exists in the celestial system.")
-            }
-            CelestialErrors::SpiceNotFound => {
-                writeln!(f, "Spice data not found in celestial system.")
-            }
-        }
-    }
-}
-
-impl std::error::Error for CelestialErrors {}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
     pub epoch: Time,
@@ -94,7 +80,7 @@ impl CelestialSystem {
         &mut self,
         body: CelestialBodies,
         gravity: bool,
-        geomag: bool,
+        _geomag: bool,
     ) -> Result<(), CelestialErrors> {
         // Check if the body already exists in the vector
         if self.bodies.iter().any(|b| b.body == body) {
@@ -104,16 +90,7 @@ impl CelestialSystem {
         let gravity_option = if gravity {
             match body {
                 CelestialBodies::Earth => Some(Gravity::EGM96(EGM96Gravity {})),
-                CelestialBodies::Jupiter => Some(Gravity::Newtownian(NewtownianGravity::JUPITER)),
-                CelestialBodies::Mars => Some(Gravity::Newtownian(NewtownianGravity::MARS)),
-                CelestialBodies::Mercury => Some(Gravity::Newtownian(NewtownianGravity::MERCURY)),
-                CelestialBodies::Moon => Some(Gravity::Newtownian(NewtownianGravity::MOON)),
-                CelestialBodies::Neptune => Some(Gravity::Newtownian(NewtownianGravity::NEPTUNE)),
-                CelestialBodies::Pluto => Some(Gravity::Newtownian(NewtownianGravity::PLUTO)),
-                CelestialBodies::Saturn => Some(Gravity::Newtownian(NewtownianGravity::SATURN)),
-                CelestialBodies::Sun => Some(Gravity::Newtownian(NewtownianGravity::SUN)),
-                CelestialBodies::Venus => Some(Gravity::Newtownian(NewtownianGravity::VENUS)),
-                CelestialBodies::Uranus => Some(Gravity::Newtownian(NewtownianGravity::URANUS)),
+                _ => Some(Gravity::Newtownian(NewtownianGravity::from_body(body))),
             }
         } else {
             None
@@ -396,6 +373,40 @@ impl CelestialBodies {
             CelestialBodies::Sun => "sun".to_string(),
             CelestialBodies::Uranus => "uranus".to_string(),
             CelestialBodies::Venus => "venus".to_string(),
+        }
+    }
+
+    /// Return the gravitional parameter for the body in m^3/sec^2
+    pub fn get_mu(&self) -> f64 {
+        match self {
+            CelestialBodies::Earth => 3.986004418e14,
+            CelestialBodies::Jupiter => 1.26686534e17,
+            CelestialBodies::Mars => 4.282837e13,
+            CelestialBodies::Mercury => 2.2032e13,
+            CelestialBodies::Moon => 4.9048695e12,
+            CelestialBodies::Neptune => 6.836529e15,
+            CelestialBodies::Pluto => 8.71e11,
+            CelestialBodies::Saturn => 3.7931187e16,
+            CelestialBodies::Sun => 1.32712440018e20,
+            CelestialBodies::Uranus => 5.793939e15,
+            CelestialBodies::Venus => 3.24859e14,
+        }
+    }
+
+    /// Returns the volumetric radius (average of polar and equatorial) of the body in m
+    pub fn get_radius(&self) -> f64 {
+        match self {
+            CelestialBodies::Earth => 6378137.0,
+            CelestialBodies::Jupiter => 69911000.0,
+            CelestialBodies::Mars => 3389500.0,
+            CelestialBodies::Mercury => 2439700.0,
+            CelestialBodies::Moon => 1737400.0,
+            CelestialBodies::Neptune => 24622000.0,
+            CelestialBodies::Pluto => 1188000.0,
+            CelestialBodies::Saturn => 58232000.0,
+            CelestialBodies::Sun => 695700000.0,
+            CelestialBodies::Uranus => 25362000.0,
+            CelestialBodies::Venus => 6051800.0,
         }
     }
 }
