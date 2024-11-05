@@ -1,45 +1,66 @@
-use nalgebra::{Matrix5, SimdBool, Vector3,}; //DMatrix
+use nalgebra::{Matrix5, SimdBool, Vector3}; //DMatrix
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
-use serde::{Serialize, Deserialize};
 
-
-pub const EARTH: f64 = 3.986004418e14; // mu (m^3/s^2)
-pub const EARTH_RE: f64 = 6378137.0; // (m)  TODO: implement WGS84
-
-pub const MOON: f64 = 4.9048695e12;
-
-pub const SUN: f64 = 1.32712440018e20;
-
-pub const MERCURY: f64 = 2.2032e13;
-
-pub const VENUS: f64 = 3.24859e14;
-
-pub const MARS: f64 = 4.282837e13;
-
-pub const JUPITER: f64 = 1.26686534e17;
-
-pub const SATURN: f64 = 3.7931187e16;
-
-pub const URANUS: f64 = 5.793939e15;
-
-pub const NEPTUNE: f64 = 6.836529e15;
-
-pub const PLUTO: f64 = 8.71e11;
+use crate::celestial_system::CelestialBodies;
 
 pub const MAX_DEG: u8 = 4; //16; // degrees of spherical harmonics
 
-pub const EGM96_C:Matrix5<f64> = Matrix5::new(0.0, 0.0, 0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0, 0.0, 0.0,
-    -0.000484165371736000, -0.000000000186987636, 0.000002439143523980, 0.0, 0.0,
-    0.000000957254173792, 0.000002029988821840, 0.000000904627768605, 0.000000721072657057, 0.0,
-    0.000000539873863789, -0.000000536321616971, 0.000000350694105785, 0.000000990771803829, -0.000000188560802735);
+pub const EGM96_C: Matrix5<f64> = Matrix5::new(
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.000484165371736000,
+    -0.000000000186987636,
+    0.000002439143523980,
+    0.0,
+    0.0,
+    0.000000957254173792,
+    0.000002029988821840,
+    0.000000904627768605,
+    0.000000721072657057,
+    0.0,
+    0.000000539873863789,
+    -0.000000536321616971,
+    0.000000350694105785,
+    0.000000990771803829,
+    -0.000000188560802735,
+);
 
-pub const EGM96_S:Matrix5<f64> = Matrix5::new(0.0, 0.0, 0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0, 0.0, 0.0,
-    0.0, 0.000119528012031e-5, -0.140016683654000e-5, 0.0, 0.0,
-    0.0, 0.024851315871600e-5, -0.061902594420500e-5, 0.141435626958000e-5, 0.0,
-    0.0, -0.047344026585300e-5, 0.066267157254000e-5, -0.020092836917700e-5, 0.030885316933300e-5);
-
+pub const EGM96_S: Matrix5<f64> = Matrix5::new(
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.000119528012031e-5,
+    -0.140016683654000e-5,
+    0.0,
+    0.0,
+    0.0,
+    0.024851315871600e-5,
+    -0.061902594420500e-5,
+    0.141435626958000e-5,
+    0.0,
+    0.0,
+    -0.047344026585300e-5,
+    0.066267157254000e-5,
+    -0.020092836917700e-5,
+    0.030885316933300e-5,
+);
 
 pub trait GravityTrait {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64>;
@@ -70,30 +91,12 @@ pub struct NewtownianGravity {
 }
 
 impl NewtownianGravity {
-    pub const EARTH: Self = Self { mu: EARTH };
-
-    pub const MOON: Self = Self { mu: MOON };
-
-    pub const SUN: Self = Self { mu: SUN };
-
-    pub const MERCURY: Self = Self { mu: MERCURY };
-
-    pub const VENUS: Self = Self { mu: VENUS };
-
-    pub const MARS: Self = Self { mu: MARS };
-
-    pub const JUPITER: Self = Self { mu: JUPITER };
-
-    pub const SATURN: Self = Self { mu: SATURN };
-
-    pub const URANUS: Self = Self { mu: URANUS };
-
-    pub const NEPTUNE: Self = Self { mu: NEPTUNE };
-
-    pub const PLUTO: Self = Self { mu: PLUTO };
-
     pub fn new(mu: f64) -> Self {
         Self { mu }
+    }
+
+    pub fn from_body(body: CelestialBodies) -> Self {
+        Self { mu: body.get_mu() }
     }
 }
 
@@ -107,16 +110,13 @@ impl GravityTrait for NewtownianGravity {
     }
 }
 
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct EGM96Gravity {
-}
+pub struct EGM96Gravity {}
 impl GravityTrait for ConstantGravity {
     fn calculate(&self, _position: Vector3<f64>) -> Vector3<f64> {
         self.value
     }
 }
-
 
 impl GravityTrait for EGM96Gravity {
     fn calculate(&self, position: Vector3<f64>) -> Vector3<f64> {
@@ -141,8 +141,7 @@ impl GravityTrait for EGM96Gravity {
             cm_lambda,
             position_mag,
             scale_factor,
-        );        
-        
+        );
 
         fn legendre_func(phi: f64, maxdeg: usize) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
             let mut p = vec![vec![0.0; maxdeg + 3]; maxdeg + 3];
@@ -166,8 +165,8 @@ impl GravityTrait for EGM96Gravity {
             scale_factor[1][1] = 0.0;
 
             for n in 2..=maxdeg + 2 {
-//            for n in 2..=maxdeg + 1 {
-//              let k = n + 1;
+                //            for n in 2..=maxdeg + 1 {
+                //              let k = n + 1;
                 let k = n;
                 for m in 0..=n {
                     //let p_index = m + 1;
@@ -180,8 +179,8 @@ impl GravityTrait for EGM96Gravity {
                             * p[k - 1][k - 1];
                         scale_factor[k][k] = 0.0;
                     } else if m == 0 {
-                        p[k][p_index] = ((2.0 * n as f64 + 1.0).sqrt() / n as f64) *
-                            ((2.0 * n as f64 - 1.0).sqrt() * cphi * p[k - 1][p_index]
+                        p[k][p_index] = ((2.0 * n as f64 + 1.0).sqrt() / n as f64)
+                            * ((2.0 * n as f64 - 1.0).sqrt() * cphi * p[k - 1][p_index]
                                 - (n as f64 - 1.0) / ((2.0 * n as f64 - 3.0).sqrt())
                                     * p[k - 2][p_index]);
                         scale_factor[k][p_index] = ((n as f64 + 1.0) * n as f64 / 2.0).sqrt();
@@ -204,16 +203,18 @@ impl GravityTrait for EGM96Gravity {
             pos: Vector3<f64>, // position
             maxdeg: usize,
             p: Vec<Vec<f64>>,
-            c: Matrix5<f64>, 
+            c: Matrix5<f64>,
             s: Matrix5<f64>,
             smlambda: Vec<f64>,
             cmlambda: Vec<f64>,
-            r: f64,  // position_mag
+            r: f64, // position_mag
             scale_factor: Vec<Vec<f64>>,
         ) -> Vector3<f64> {
-            let re = EARTH_RE;
-            let mu = EARTH;
-            let r_ratio: f64 = re / r;
+            let earth = CelestialBodies::Earth;
+            let re = earth.get_radius();
+            let mu = earth.get_mu();
+
+            let r_ratio = re / r;
             let mut r_ratio_n = r_ratio;
 
             // Initialize summation of gravity in radial coordinates
@@ -223,7 +224,6 @@ impl GravityTrait for EGM96Gravity {
 
             // Summation of gravity in radial coordinates
             for n in 2..=maxdeg {
-
                 //let k = n + 1;
                 let k = n;
                 r_ratio_n *= r_ratio;
@@ -236,13 +236,11 @@ impl GravityTrait for EGM96Gravity {
                     let j = m;
                     du_dr_sum_m += p[k][j] * (c[(k, j)] * cmlambda[j] + s[(k, j)] * smlambda[j]);
                     du_dphi_sum_m += (p[k][j + 1] * scale_factor[k][j]
-                        - pos[2] / (pos[0].powi(2) + pos[1].powi(2)).sqrt()
-                            * m as f64
-                            * p[k][j])
-                            * (c[(k, j)] * cmlambda[j] + s[(k, j)] * smlambda[j]);
+                        - pos[2] / (pos[0].powi(2) + pos[1].powi(2)).sqrt() * m as f64 * p[k][j])
+                        * (c[(k, j)] * cmlambda[j] + s[(k, j)] * smlambda[j]);
                     du_dlambda_sum_m +=
-                        m as f64 * p[k][j] * (s[(k, j)] * cmlambda[j] - c[(k, j)] * smlambda[j]);                    
-                    }
+                        m as f64 * p[k][j] * (s[(k, j)] * cmlambda[j] - c[(k, j)] * smlambda[j]);
+                }
                 du_dr_sum_n += du_dr_sum_m * r_ratio_n * (k as f64 + 1.0);
                 du_dphi_sum_n += du_dphi_sum_m * r_ratio_n;
                 du_dlambda_sum_n += du_dlambda_sum_m * r_ratio_n;
@@ -268,7 +266,7 @@ impl GravityTrait for EGM96Gravity {
             // Special case for poles
             let at_pole = (pos[2].atan2((pos[0].powi(2) + pos[1].powi(2)).sqrt())).abs()
                 == std::f64::consts::PI / 2.0;
-             if at_pole.any() {
+            if at_pole.any() {
                 gx = 0.0;
                 gy = 0.0;
                 gz = 1.0 / r * du_dr * pos[2];
@@ -309,7 +307,6 @@ impl GravityTrait for Gravity {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,20 +315,14 @@ mod tests {
     /// Unittest for EGM96
     #[test]
     fn grav_egm96() {
-        let grav = EGM96Gravity{};
-        let pos_ecef = Vector3::new(
-            -821562.9892,
-            -906648.2064,
-            -6954665.433);
-        
+        let grav = EGM96Gravity {};
+        let pos_ecef = Vector3::new(-821562.9892, -906648.2064, -6954665.433);
+
         let g_rust = grav.calculate(pos_ecef);
-        let g_pace_model = Vector3::new(
-            0.925349412278864,
-            1.021116998885220,
-            7.853405068561626);
+        let g_pace_model = Vector3::new(0.925349412278864, 1.021116998885220, 7.853405068561626);
 
         assert_relative_eq!(g_rust.x, g_pace_model.x, max_relative = 1e-3);
         assert_relative_eq!(g_rust.y, g_pace_model.y, max_relative = 1e-3);
         assert_relative_eq!(g_rust.z, g_pace_model.z, max_relative = 1e-3);
-        }
-} 
+    }
+}

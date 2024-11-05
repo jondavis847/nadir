@@ -3,12 +3,14 @@ use rotations::{
     prelude::{EulerAngles, EulerSequence},
     Rotation, RotationTrait,
 };
-use std::f64::{consts::PI, INFINITY, NAN};
+use std::f64::{consts::PI, INFINITY};
 use thiserror::Error;
 use time::Time;
 
+use crate::celestial_system::CelestialBodies;
+
 /// Tolerance for determining if orbit is elliptical/circular/parabolic/hyperbolic
-const ORBIT_EPSILON: f64 = 1e-6;
+const ORBIT_EPSILON: f64 = 1e-8;
 
 #[derive(Error, Debug)]
 pub enum OrbitErrors {
@@ -39,13 +41,13 @@ pub enum Orbit {
 #[derive(Clone, Copy, Debug)]
 pub struct KeplerianElements {
     pub epoch: Time,    
-    /// Gravitational parameter of the central body (in km^3/s^2).
+    /// Gravitational parameter of the central body (in m^3/s^2).
     pub mu: f64,
-    /// Radius of the central body (in km).
+    /// Radius of the central body (in m).
     pub radius: f64,
-    /// Semi-major axis of the orbit (in km).
+    /// Semi-major axis of the orbit (in m).
     pub semimajor_axis: f64,
-    /// Semi-parameter (semi-latus rectum) of the orbit (in km).
+    /// Semi-parameter (semi-latus rectum) of the orbit (in m).
     pub semiparameter: f64,
     /// Argument of periapsis (in radians).
     pub argument_of_periapsis: f64,    
@@ -61,47 +63,22 @@ pub struct KeplerianElements {
     pub orbit_type: OrbitType,
 }
 
-impl KeplerianElements {
-    /// Calculates the altitude of the apoapsis (the farthest point from the central body) of the orbit.
-    ///
-    /// # Returns
-    /// - Returns `f64::INFINITY` for parabolic and hyperbolic orbits, as these orbit types have no bounded apoapsis.
-    /// - For other orbit types (e.g., elliptical), returns the altitude of the apoapsis in km, calculated as:
-    ///   `semimajor_axis * (1.0 + eccentricity) - radius`.
-    ///    
-    pub fn get_apoapsis_altitude(&self) -> f64 {
-        match self.orbit_type {
-            OrbitType::Parabolic | OrbitType::Hyperbolic => INFINITY,
-            _ => self.semimajor_axis * (1.0 + self.eccentricity) - self.radius,
-        }
-    }
-
-    /// Calculates the altitude of the periapsis (the closest point to the central body) of the orbit.
-    ///
-    /// # Returns
-    /// - For parabolic and hyperbolic orbits, returns the periapsis altitude as `semiparameter - radius`,
-    ///   because the semi-major axis is considered infinite in these cases, but the periapsis distance is finite.
-    /// - For other orbit types (e.g., elliptical), returns the altitude of the periapsis in km, calculated as:
-    ///   `semimajor_axis * (1.0 - eccentricity) - radius`.    
-    pub fn get_periapsis_altitude(&self) -> f64 {
-        match self.orbit_type {
-            OrbitType::Parabolic | OrbitType::Hyperbolic => self.semiparameter - self.radius, //a is inifinite but p is the periapsis_distance
-            _ => self.semimajor_axis * (1.0 - self.eccentricity) - self.radius,
-        }
-    }
+impl KeplerianElements {   
 
     /// Creates a `KeplerianOrbit` instance from position and velocity vectors.
     ///
-    /// # Arguments
-    /// * `mu` - Gravitational parameter of the central body (in km^3/s^2).
-    /// * `radius` - Radius of the central body (in km).
-    /// * `r` - Position vector in Cartesian coordinates (in km).
-    /// * `v` - Velocity vector in Cartesian coordinates (in km/s).
+    /// # Arguments    
+    /// * `r` - Position vector in Cartesian coordinates (in m).
+    /// * `v` - Velocity vector in Cartesian coordinates (in m/s).
+    /// * `epoch` - Epoch of the orbit (see the Time crate)
     ///
     /// # Returns
     /// A new `KeplerianOrbit` instance representing the orbit based on the provided position and velocity vectors.
-    pub fn from_rv(mu: f64, radius: f64, r: Vector3<f64>, v: Vector3<f64>, epoch: Time) -> Self {
+    pub fn from_rv(r: Vector3<f64>, v: Vector3<f64>, epoch: Time, central_body: CelestialBodies) -> Self {
         // calculate canonical units
+        let mu = central_body.get_mu();
+        let radius = central_body.get_radius();
+
         let du = radius;
         let tu = (du.powi(3) / mu).sqrt();
         // convert to canonical units
@@ -118,12 +95,9 @@ impl KeplerianElements {
         let n = k.cross(&h);        
         let nm = n.norm();
 
-        println!("{h}, {hm}");
-        println!("{n}, {nm}");
-
         let e_vector = (vm.powi(2) - 1.0 / rm) * r - rdotv * v;
         let e = e_vector.norm();
-        println!("{e}");
+
         let zeta = vm.powi(2) / 2.0 - 1.0 / rm;
 
         // semimajor axis and semilatus rectum (semiparameter)
@@ -137,7 +111,6 @@ impl KeplerianElements {
 
         // inclination
         let i = (h[2] / hm).acos();
-        println!("{i}");
 
         // handles special cases
         // raan is not defined for equatorial
@@ -145,10 +118,6 @@ impl KeplerianElements {
         let is_elliptical_equatorial = e > ORBIT_EPSILON && i < ORBIT_EPSILON;
         let is_circular_inclined = e < ORBIT_EPSILON && i > ORBIT_EPSILON;
         let is_circular_equatorial = e < ORBIT_EPSILON && i < ORBIT_EPSILON;
-
-        println!("{is_elliptical_equatorial}");
-        println!("{is_circular_inclined}");
-        println!("{is_circular_equatorial}");
 
         let i_hat = Vector3::new(1.0, 0.0, 0.0);
         let (raan, argp, f) = if is_circular_equatorial {
@@ -161,10 +130,6 @@ impl KeplerianElements {
             (0.0, 0.0, lambda_true)
         } else if is_circular_inclined {
             // u is the argument of latitude
-            println!("r: {r}");
-            println!("n: {n}");
-            println!("rm: {rm}");
-            println!("nm: {nm}");
             let u = if r[2] < 0.0 {
                 2.0 * PI - (n.dot(&r) / (nm * rm)).acos()
             } else {
@@ -238,10 +203,38 @@ impl KeplerianElements {
         }
     }
 
+    /// Calculates the altitude of the apoapsis (the farthest point from the central body) of the orbit.
+    ///
+    /// # Returns
+    /// - Returns `f64::INFINITY` for parabolic and hyperbolic orbits, as these orbit types have no bounded apoapsis.
+    /// - For other orbit types (e.g., elliptical), returns the altitude of the apoapsis in m, calculated as:
+    ///   `semimajor_axis * (1.0 + eccentricity) - radius`.
+    ///    
+    pub fn get_apoapsis_altitude(&self) -> f64 {
+        match self.orbit_type {
+            OrbitType::Parabolic | OrbitType::Hyperbolic => INFINITY,
+            _ => self.semimajor_axis * (1.0 + self.eccentricity) - self.radius,
+        }
+    }
+
+    /// Calculates the altitude of the periapsis (the closest point to the central body) of the orbit.
+    ///
+    /// # Returns
+    /// - For parabolic and hyperbolic orbits, returns the periapsis altitude as `semiparameter - radius`,
+    ///   because the semi-major axis is considered infinite in these cases, but the periapsis distance is finite.
+    /// - For other orbit types (e.g., elliptical), returns the altitude of the periapsis in m, calculated as:
+    ///   `semimajor_axis * (1.0 - eccentricity) - radius`.    
+    pub fn get_periapsis_altitude(&self) -> f64 {
+        match self.orbit_type {
+            OrbitType::Parabolic | OrbitType::Hyperbolic => self.semiparameter - self.radius, //a is inifinite but p is the periapsis_distance
+            _ => self.semimajor_axis * (1.0 - self.eccentricity) - self.radius,
+        }
+    }
+
     /// Converts the Keplerian orbital elements into position and velocity vectors.
     ///
     /// # Returns
-    /// A tuple containing the position vector (in km) and velocity vector (in km/s) in Cartesian coordinates.
+    /// A tuple containing the position vector (in m) and velocity vector (in m/s) in Cartesian coordinates.
     pub fn get_rv(&self) -> (Vector3<f64>, Vector3<f64>) {
         let p = self.semiparameter;
         let f = self.true_anomaly;
@@ -433,6 +426,31 @@ impl KeplerianElements {
             OrbitType::Hyperbolic => ((e + cf) / (1.0 + e * cf)).acosh(),
         }
     }
+
+    pub fn new(a: f64, e:f64, i: f64, raan: f64, argp: f64, f: f64, epoch: Time, central_body: CelestialBodies) -> Self {
+        let mu = central_body.get_mu();
+        let radius = central_body.get_radius();
+        let (orbit_type,p) = if e < ORBIT_EPSILON {
+            (OrbitType::Circular, a)
+        } else if e <= 1.0 - ORBIT_EPSILON {
+            (OrbitType::Elliptical, a*(1.0 - e.powi(2)))
+        } else if e < 1.0 + ORBIT_EPSILON {
+            (OrbitType::Parabolic, a * (1.0 - e.powi(2)))
+        } else {
+            (OrbitType::Hyperbolic, a * (1.0 - e.powi(2)))
+        }; 
+        Self {
+            semimajor_axis: a,
+            semiparameter: p,
+            eccentricity: e,
+            inclination: i,
+            argument_of_periapsis: argp,
+            raan,
+            epoch,
+            true_anomaly: f,
+            mu, radius,  orbit_type
+        }
+    }
 }
 
 #[cfg(test)]
@@ -443,20 +461,17 @@ mod tests {
 
     #[test]
     fn test_from_pv() {
-        // values from Vallado
-        let earth_mu = 398600.4415;
-        let earth_radius = 6378.1363;
 
-        let position = Vector3::new(6524.834, 6862.875, 6448.296);
-        let velocity = Vector3::new(4.901327, 5.533756, -1.976341);
+        let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
+        let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 
         let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
 
-        let orbit = KeplerianElements::from_rv(earth_mu, earth_radius, position, velocity, epoch);
+        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
 
         // note that Vallado doesn't include enough decimal places for e-6 accuracy, so we did the float division he provides to get the f64 value
-        let expected_semi_major_axis = 36127.343;
-        let expected_semiparameter = 11067.790;
+        let expected_semi_major_axis = 36127343.0;
+        let expected_semiparameter = 11067790.0;
         let expected_eccentricity = 0.832853;
         let expected_inclination = 87.86912591666639 * PI / 180.0;
         let expected_raan = 227.8982527706177 * PI / 180.0;
@@ -466,9 +481,9 @@ mod tests {
         assert_abs_diff_eq!(
             orbit.semimajor_axis,
             expected_semi_major_axis,
-            epsilon = 1e-2
+            epsilon = 10.0 // 10m, since vallado used a slightly different value for mu and r
         );
-        assert_abs_diff_eq!(orbit.semiparameter, expected_semiparameter, epsilon = 1e-2);
+        assert_abs_diff_eq!(orbit.semiparameter, expected_semiparameter, epsilon = 10.0);
         assert_abs_diff_eq!(orbit.eccentricity, expected_eccentricity, epsilon = 1e-6);
         assert_abs_diff_eq!(orbit.inclination, expected_inclination, epsilon = 1e-6);
         assert_abs_diff_eq!(orbit.raan, expected_raan, epsilon = 1e-6);
@@ -481,42 +496,35 @@ mod tests {
     }
 
     #[test]
-    fn test_round_trip() {
-        // values from Vallado
-        let earth_mu = 398600.4415;
-        let earth_radius = 6378.1363;
+    fn test_round_trip() {       
 
-        let position = Vector3::new(6524.834, 6862.875, 6448.296);
-        let velocity = Vector3::new(4.901327, 5.533756, -1.976341);
+        let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
+        let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 
         let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
 
         // Create a Keplerian orbit using the from_pv method
-        let orbit = KeplerianElements::from_rv(earth_mu, earth_radius, position, velocity, epoch);
+        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
 
         // Convert back to position and velocity using get_pv
         let (computed_position, computed_velocity) = orbit.get_rv();
 
         // Check that the original and computed values match (within tolerance for floating-point calculations)
-        assert_abs_diff_eq!(position, computed_position, epsilon = 1e-2);
-        assert_abs_diff_eq!(velocity, computed_velocity, epsilon = 1e-2);
+        assert_abs_diff_eq!(position, computed_position, epsilon = 1.0);
+        assert_abs_diff_eq!(velocity, computed_velocity, epsilon = 1.0);
     }
 
     #[test]
     fn test_from_pv_circular() {
-        // values from Vallado
-        let earth_mu = 398600.4415;
-        let earth_radius = 6378.1363;
-
-        let position = Vector3::new(7000.0, 0.0, 0.0);
-        let velocity = Vector3::new(0.0, 0.0, 7.5460533);
+        let position = Vector3::new(7000000.0, 0.0, 0.0);
+        let velocity = Vector3::new(0.0, 0.0, 7546.0533);
 
         let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
 
-        let orbit = KeplerianElements::from_rv(earth_mu, earth_radius, position, velocity, epoch);
+        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
 
         // note that Vallado doesn't include enough decimal places for e-6 accuracy, so we did the float division he provides to get the f64 value
-        let expected_semi_major_axis = 7000.0;
+        let expected_semi_major_axis = 7000000.0;
         let expected_eccentricity = 0.0;
         let expected_inclination = PI / 2.0;
         let expected_raan = 0.0;
@@ -526,7 +534,7 @@ mod tests {
         assert_abs_diff_eq!(
             orbit.semimajor_axis,
             expected_semi_major_axis,
-            epsilon = 1e-2
+            epsilon = 1.0
         );
         assert_abs_diff_eq!(orbit.eccentricity, expected_eccentricity, epsilon = 1e-6);
         assert_abs_diff_eq!(orbit.inclination, expected_inclination, epsilon = 1e-6);
@@ -538,4 +546,8 @@ mod tests {
         );
         assert_abs_diff_eq!(orbit.true_anomaly, expected_true_anomaly, epsilon = 1e-6);
     }
+
+    // fn test_keplers_equation_elliptical() {
+    //     let orb = KeplerianElements::new()
+    // }
 }
