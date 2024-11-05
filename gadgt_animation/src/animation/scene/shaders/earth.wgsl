@@ -79,28 +79,25 @@ fn fs_main(in: Output) -> FragOutput {
     let light_dir = normalize(uniforms.light_pos);
     let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-    // i cant figure out why turning on msaa darkens the image, this is a bandaid
-    let msaa_scale = 5.0;
-    let cloud_scale = 5.0;
-
-    let day_color_raw = msaa_scale * textureSample(earth_texture, earth_sampler, in.uv).rgb;
+    let day_color_raw = textureSample(earth_texture, earth_sampler, in.uv).rgb;
     let cloud_texture  = textureSample(earth_clouds, earth_sampler, in.uv);
-    let cloud_color = cloud_scale * cloud_texture.rgb;
+    let cloud_color = cloud_texture.rgb;
     let cloud_alpha = cloud_texture.a;
     let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
-    let night_color = msaa_scale * vec3<f32>(1.0,0.8745,0.7843) * night_texture;
+    let night_lights = vec3<f32>(1.0,0.8745,0.7843);
+    let night_color = night_lights * night_texture;
 
-    let cloud_intensity = 0.8;
+    let cloud_intensity = 0.5;
     let day_color = mix(day_color_raw, cloud_color, cloud_intensity);
 
-    // Ambient lighting
-    let ambient = day_color * 0.1; //dont need ambient now that we're using a night map
+    // Mix a little day into the night    
+    let night_color_blend = mix(night_color,day_color,0.1);
 
     // Diffuse lighting (Lambertian reflectance)
     let diff = dot(in.normal, light_dir);
     let night_diff = dot(in.normal, -light_dir);    
 
-    let color = diff * day_color + 0.5 * night_diff * night_color;        
+    let color = diff * day_color + night_diff * night_color_blend;        
     let diffuse = color * uniforms.light_color.rgb;    
 
     // Specular lighting (Phong reflection model)
@@ -119,7 +116,7 @@ fn fs_main(in: Output) -> FragOutput {
     let final_specular = specular * cloud_specular_multiplier;
 
     // Combine results
-    let result = ambient + diffuse + final_specular;
+    let result = diffuse + final_specular;
     
     // Compute the logarithmic depth
     let far_plane = 1.1e13; // Adjust this value according to your far plane distance

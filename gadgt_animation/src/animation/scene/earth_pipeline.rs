@@ -82,18 +82,19 @@ impl EarthPipeline {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
+                    // blend: Some(wgpu::BlendState {
+                    //     color: wgpu::BlendComponent {
+                    //         src_factor: wgpu::BlendFactor::SrcAlpha,
+                    //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                    //         operation: wgpu::BlendOperation::Add,
+                    //     },
+                    //     alpha: wgpu::BlendComponent {
+                    //         src_factor: wgpu::BlendFactor::SrcAlpha,
+                    //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                    //         operation: wgpu::BlendOperation::Add,
+                    //     },
+                    // }),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),

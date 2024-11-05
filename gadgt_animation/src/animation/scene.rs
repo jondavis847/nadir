@@ -58,7 +58,7 @@ impl Default for Scene {
             body_meshes: Vec::new(),
             celestial: CelestialAnimation::default(),
             world_target: None,
-            sample_count: 4,
+            sample_count: 1,
         }
     }
 }
@@ -90,7 +90,7 @@ impl Scene {
         let sun_position = sun.state.position;
 
         self.light_pos = sun_position.into();
-        self.light_color = Color::new(1.0, 0.9, 0.7, 1.0);
+        self.light_color = Color::new(1.0, 1.0, 1.0, 1.0);
 
         let unit = world_target.normalize();
         let camera_position = Vec3::new(
