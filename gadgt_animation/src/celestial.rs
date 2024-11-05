@@ -20,7 +20,7 @@ pub enum CelestialMeshes {
     Neptune,
     Pluto,
     Saturn,
-    SaturnRings,
+    //SaturnRings,
     Sun,
     Uranus,
     Venus,
@@ -38,7 +38,7 @@ impl CelestialMeshes {
             CelestialMeshes::Neptune => CelestialBodies::Neptune,
             CelestialMeshes::Pluto => CelestialBodies::Pluto,
             CelestialMeshes::Saturn => CelestialBodies::Saturn,
-            CelestialMeshes::SaturnRings => CelestialBodies::Saturn,
+            //      CelestialMeshes::SaturnRings => CelestialBodies::Saturn,
             CelestialMeshes::Sun => CelestialBodies::Sun,
             CelestialMeshes::Uranus => CelestialBodies::Uranus,
             CelestialMeshes::Venus => CelestialBodies::Venus,
@@ -57,56 +57,145 @@ impl CelestialAnimation {
                 let earth_polar_radius = 6356752.3;
                 let earth_equatorial_radius = 6378137.0;
                 let atmosphere_height = 1e5; //100km
-                let earth_mesh =
-                    celestial_mesh("earth", earth_equatorial_radius, earth_polar_radius);
+                let earth_mesh = celestial_mesh(
+                    "earth",
+                    earth_equatorial_radius,
+                    earth_polar_radius,
+                    Material::Basic {
+                        color: Color::WHITE,
+                    },
+                );
                 self.meshes.insert(CelestialMeshes::Earth, earth_mesh);
                 let atmosphere_mesh = celestial_mesh(
                     "earth_atmosphere",
                     earth_equatorial_radius + atmosphere_height,
                     earth_polar_radius + atmosphere_height,
+                    Material::Basic {
+                        color: Color::WHITE,
+                    },
                 );
                 self.meshes
                     .insert(CelestialMeshes::EarthAtmosphere, atmosphere_mesh)
             }
             CelestialBodies::Jupiter => self.meshes.insert(
                 CelestialMeshes::Jupiter,
-                celestial_mesh("jupiter", 71492000.0, 66854000.0),
+                celestial_mesh(
+                    "jupiter",
+                    71492000.0,
+                    66854000.0,
+                    Material::Phong {
+                        color: Color::ORANGE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Mars => self.meshes.insert(
                 CelestialMeshes::Mars,
-                celestial_mesh("mars", 3396200.0, 3376200.0),
+                celestial_mesh(
+                    "mars",
+                    3396200.0,
+                    3376200.0,
+                    Material::Phong {
+                        color: Color::ORANGE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Mercury => self.meshes.insert(
                 CelestialMeshes::Mercury,
-                celestial_mesh("mercury", 2440500.0, 2438300.0),
+                celestial_mesh(
+                    "mercury",
+                    2440500.0,
+                    2438300.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Moon => self.meshes.insert(
                 CelestialMeshes::Moon,
-                celestial_mesh("moon", 1738100.0, 1736000.0),
+                celestial_mesh(
+                    "moon",
+                    1738100.0,
+                    1736000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Neptune => self.meshes.insert(
                 CelestialMeshes::Neptune,
-                celestial_mesh("neptune", 24764000.0, 24341000.0),
+                celestial_mesh(
+                    "neptune",
+                    24764000.0,
+                    24341000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Pluto => self.meshes.insert(
                 CelestialMeshes::Pluto,
-                celestial_mesh("pluto", 1188000.0, 1188000.0),
+                celestial_mesh(
+                    "pluto",
+                    1188000.0,
+                    1188000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Saturn => self.meshes.insert(
                 CelestialMeshes::Saturn,
-                celestial_mesh("saturn", 60268000.0, 54364000.0),
+                celestial_mesh(
+                    "saturn",
+                    60268000.0,
+                    54364000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Sun => self.meshes.insert(
                 CelestialMeshes::Sun,
-                celestial_mesh("sun", 696340000.0, 696340000.0),                
+                celestial_mesh(
+                    "sun",
+                    696340000.0,
+                    696340000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Uranus => self.meshes.insert(
                 CelestialMeshes::Uranus,
-                celestial_mesh("uranus", 25559000.0, 24973000.0),
+                celestial_mesh(
+                    "uranus",
+                    25559000.0,
+                    24973000.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
             CelestialBodies::Venus => self.meshes.insert(
                 CelestialMeshes::Venus,
-                celestial_mesh("venus", 6051800.0, 6051800.0),
+                celestial_mesh(
+                    "venus",
+                    6051800.0,
+                    6051800.0,
+                    Material::Phong {
+                        color: Color::WHITE,
+                        specular_power: 32.0,
+                    },
+                ),
             ),
         };
     }
@@ -176,7 +265,12 @@ impl CelestialAnimation {
     }
 }
 
-fn celestial_mesh(name: &str, equatorial_radius: f64, polar_radius: f64) -> Mesh {
+fn celestial_mesh(
+    name: &str,
+    equatorial_radius: f64,
+    polar_radius: f64,
+    material: Material,
+) -> Mesh {
     Mesh {
         name: name.to_string(),
         geometry: Geometry::Ellipsoid64(Ellipsoid64::new(
@@ -184,9 +278,7 @@ fn celestial_mesh(name: &str, equatorial_radius: f64, polar_radius: f64) -> Mesh
             equatorial_radius,
             polar_radius,
         )),
-        material: Material::Basic {
-            color: Color::WHITE,            
-        },
+        material,
         state: GeometryState {
             position: DVec3::ZERO,     //placeholder
             rotation: DQuat::IDENTITY, //placeholder

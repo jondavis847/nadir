@@ -1,9 +1,10 @@
 use aerospace::{
     celestial_system::{CelestialBodies, CelestialSystem},
     gravity::{ConstantGravity, Gravity, NewtownianGravity},
+    orbit::KeplerianElements,
 };
 
-use cliclack::{input, intro, log::info, multiselect, outro, select};
+use cliclack::{input, log::info, multiselect, select};
 use color::{Color, ColorMode};
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use gadgt_3d::{
@@ -28,17 +29,17 @@ use multibody::{
         noise::{gaussian::GaussianNoise, uniform::UniformNoise, Noise, NoiseModels},
         simple::{rate::RateSensor, rate3::Rate3Sensor, SimpleSensor},
         Sensor, SensorModel,
-    }, solver::SimulationConfig,
+    },
+    solver::SimulationConfig,
 };
 use nalgebra::Vector3;
-use ron::value::Float;
 use rotations::{
     axes::{AlignedAxes, Axis, AxisPair},
     prelude::{EulerAngles, EulerSequence, RotationMatrix},
     quaternion::Quaternion,
     Rotation,
 };
-use spatial_algebra::Velocity;
+
 use std::error::Error;
 use time::{Time, TimeFormat, TimeSystem};
 use transforms::{
@@ -102,13 +103,13 @@ pub struct PromptAlignedAxes;
 impl PromptAction for PromptAlignedAxes {
     type Output = Rotation;
     fn prompt(&self) -> Result<Self::Output, Box<dyn Error>> {
-        info("Old Primary Axis");
+        info("Old Primary Axis")?;
         let op = PromptAxis.prompt()?;
-        info("New Primary Axis");
+        info("New Primary Axis")?;
         let np = PromptAxis.prompt()?;
-        info("Old Secondary Axis");
+        info("Old Secondary Axis")?;
         let os = PromptAxis.prompt()?;
-        info("New Secondary Axis");
+        info("New Secondary Axis")?;
         let ns = PromptAxis.prompt()?;
 
         let pri = AxisPair::new(op, np);
@@ -189,6 +190,26 @@ impl PromptAction for PromptCartesian {
             .interact()?;
 
         Ok(Cartesian::new(x, y, z))
+    }
+}
+
+pub struct PromptCelestialBodies;
+impl PromptAction for PromptCelestialBodies {
+    type Output = CelestialBodies;
+    fn prompt(&self) -> Result<Self::Output, Box<dyn Error>> {
+        Ok(select("Select Celestial Body")
+            .item(CelestialBodies::Pluto, "Sun", "")
+            .item(CelestialBodies::Mercury, "Mercury", "")
+            .item(CelestialBodies::Venus, "Venus", "")
+            .item(CelestialBodies::Earth, "Earth", "")
+            .item(CelestialBodies::Moon, "Moon", "")
+            .item(CelestialBodies::Mars, "Mars", "")
+            .item(CelestialBodies::Jupiter, "Jupiter", "")
+            .item(CelestialBodies::Saturn, "Saturn", "")
+            .item(CelestialBodies::Uranus, "Uranus", "")
+            .item(CelestialBodies::Neptune, "Neptune", "")
+            .item(CelestialBodies::Pluto, "Pluto", "")
+            .interact()?)
     }
 }
 
@@ -551,6 +572,49 @@ impl PromptAction for PromptEulerAngles {
     }
 }
 
+pub struct PromptKeplerian;
+impl PromptAction for PromptKeplerian {
+    type Output = KeplerianElements;
+    fn prompt(&self) -> Result<Self::Output, Box<dyn Error>> {
+        let central_body = PromptCelestialBodies.prompt()?;
+        let epoch = PromptEpoch.prompt()?;
+
+        let a = input("Semimajor Axis <m>")
+            .validate(PromptValidator::Positive)
+            .interact()?;
+        let e = input("Eccentricity")
+            .validate(PromptValidator::Positive)
+            .interact()?;
+
+        let i = input("Inclination <rad>")
+            .validate(PromptValidator::Numeric)
+            .interact()?;
+
+        let raan = input("Right Ascension of the Ascending Node (RAAN) <rad>")
+            .validate(PromptValidator::Numeric)
+            .interact()?;
+
+        let argp = input("Argument of Periapsis <rad>")
+            .validate(PromptValidator::Numeric)
+            .interact()?;
+
+        let f = input("True Anomaly <rad>")
+            .validate(PromptValidator::Numeric)
+            .interact()?;
+
+        Ok(KeplerianElements::new(
+            a,
+            e,
+            i,
+            raan,
+            argp,
+            f,
+            epoch,
+            central_body,
+        ))
+    }
+}
+
 pub struct PromptJointFloating;
 impl PromptAction for PromptJointFloating {
     type Output = Floating;
@@ -559,8 +623,21 @@ impl PromptAction for PromptJointFloating {
         info("Initial Orientation")?;
         let rotation = PromptRotation.prompt()?;
         let rate = PromptAngularRate3.prompt()?;
-        let position = PromptPosition.prompt()?;
-        let velocity = PromptVelocity.prompt()?;
+
+        let translation_type = select("How would you like to specify translation?")
+            .item(0, "Position & Velocity", "")
+            .item(1, "Keplerian Elements", "")
+            .interact()?;
+
+        let (position, velocity) = match translation_type {
+            0 => (PromptPosition.prompt()?, PromptVelocity.prompt()?),
+            1 => {
+                let kep = PromptKeplerian.prompt()?;
+                kep.get_rv()
+            },
+            _ => unreachable!("picked in a select")
+        };
+
         let state = FloatingState::new(Quaternion::from(rotation), rate, position, velocity);
 
         let parameters = if PromptJointMechanicsOption.prompt()? {
@@ -1046,7 +1123,12 @@ impl PromptAction for PromptSimulation {
             .default_input("0.1")
             .validate(PromptValidator::Positive)
             .interact()?;
-        Ok(SimulationConfig { name, start, stop, dt})
+        Ok(SimulationConfig {
+            name,
+            start,
+            stop,
+            dt,
+        })
     }
 }
 

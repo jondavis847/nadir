@@ -88,10 +88,11 @@ impl CelestialSystem {
         }
 
         let gravity_option = if gravity {
-            match body {
-                CelestialBodies::Earth => Some(Gravity::EGM96(EGM96Gravity {})),
-                _ => Some(Gravity::Newtownian(NewtownianGravity::from_body(body))),
-            }
+            Some(Gravity::Newtownian(NewtownianGravity::from_body(body)))
+            // match body {
+            //     CelestialBodies::Earth => Some(Gravity::EGM96(EGM96Gravity {})),
+            //     _ => Some(Gravity::Newtownian(NewtownianGravity::from_body(body))),
+            // }
         } else {
             None
         };

@@ -15,7 +15,8 @@ use crate::{
     result::{MultibodyResultTrait, ResultEntry},
     MultibodyTrait,
 };
-use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
+use aerospace::orbit::Orbit;
+use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
 use polars::prelude::*;
@@ -44,6 +45,13 @@ pub struct FloatingState {
 impl FloatingState {
     pub fn new(q: Quaternion, w: Vector3<f64>, r: Vector3<f64>, v: Vector3<f64>) -> Self {
         // assume this is about Z until we add more axes
+        Self { q, w, r, v }
+    }
+
+    pub fn from_orbit(q: Quaternion, w: Vector3<f64>, orbit: Orbit) -> Self {
+        let (r, v) = match orbit {
+            Orbit::Keplerian(kep) => kep.get_rv(),
+        };
         Self { q, w, r, v }
     }
 }
@@ -106,7 +114,7 @@ impl JointTrait for Floating {
     ) -> Result<(), JointErrors> {
         if self.common.connection.outer_body.is_some() {
             return Err(JointErrors::OuterBodyExists);
-        }        
+        }
         body.connect_inner_joint(self).unwrap();
         let connection = BodyConnection::new(*body.get_id(), transform);
         self.common.connection.outer_body = Some(connection);
@@ -190,7 +198,7 @@ pub struct FloatingSim {
     cache: FloatingCache,
     id: Uuid,
     parameters: [JointParameters; 6],
-    mass_properties: Option<SpatialInertia>,    
+    mass_properties: Option<SpatialInertia>,
     state: FloatingState,
     transforms: JointTransforms,
 }
@@ -221,7 +229,7 @@ impl From<Floating> for FloatingSim {
             cache: FloatingCache::default(),
             id: *floating.get_id(),
             mass_properties: floating.common.mass_properties,
-            parameters: floating.parameters,            
+            parameters: floating.parameters,
             state: floating.state,
             transforms,
         }
@@ -441,7 +449,7 @@ impl JointSimTrait for FloatingSim {
         // jof_from_ob has already made this correction, but so do mass props
         let original_cm = inertia.center_of_mass.vector();
         let mut inertia = inertia.clone();
-        inertia.center_of_mass = CenterOfMass::new(0.0,0.0,0.0);
+        inertia.center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
         let spatial_inertia = SpatialInertia::from(inertia);
 
         // only rotate the inertia to the jof, dont translate since cm is @ jof
@@ -455,12 +463,12 @@ impl JointSimTrait for FloatingSim {
         // r is in the jif frame, so need to transform jof and cm to jif frame
         let jif_from_jof = self.transforms.jif_from_jof;
         let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
-        let ob_from_jof_translation = Cartesian::from(self.transforms.ob_from_jof.0.translation).vec();
+        let ob_from_jof_translation =
+            Cartesian::from(self.transforms.ob_from_jof.0.translation).vec();
         let total_in_jof = cm_in_jof + ob_from_jof_translation;
         let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
         let r = &mut self.state.r;
         *r += total_in_jif;
-        
     }
 
     fn set_force(&mut self, force: Force) {
@@ -547,7 +555,6 @@ impl CompositeRigidBody for FloatingSim {
     }
 }
 
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FloatingResult {
     pub q: Vec<Quaternion>,
@@ -599,18 +606,9 @@ impl MultibodyResultTrait for FloatingResult {
     }
 
     fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
-        let accel_x = Series::new(
-            "accel_x",
-            self.a.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-        );
-        let accel_y = Series::new(
-            "accel_y",
-            self.a.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-        );
-        let accel_z = Series::new(
-            "accel_z",
-            self.a.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-        );
+        let accel_x = Series::new("accel_x", self.a.iter().map(|f| f[0]).collect::<Vec<f64>>());
+        let accel_y = Series::new("accel_y", self.a.iter().map(|f| f[1]).collect::<Vec<f64>>());
+        let accel_z = Series::new("accel_z", self.a.iter().map(|f| f[2]).collect::<Vec<f64>>());
         let angular_rate_x = Series::new(
             "angular_rate_x",
             self.w.iter().map(|f| f[0]).collect::<Vec<f64>>(),
@@ -675,7 +673,7 @@ impl MultibodyResultTrait for FloatingResult {
             "velocity_z",
             self.v.iter().map(|f| f[2]).collect::<Vec<f64>>(),
         );
-        
+
         df.with_column(accel_x).unwrap();
         df.with_column(accel_y).unwrap();
         df.with_column(accel_z).unwrap();
@@ -695,7 +693,5 @@ impl MultibodyResultTrait for FloatingResult {
         df.with_column(velocity_x).unwrap();
         df.with_column(velocity_y).unwrap();
         df.with_column(velocity_z).unwrap();
-        
     }
 }
-
