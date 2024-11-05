@@ -48,15 +48,11 @@ pub struct KeplerianElements {
     /// Semi-parameter (semi-latus rectum) of the orbit (in km).
     pub semiparameter: f64,
     /// Argument of periapsis (in radians).
-    pub argument_of_periapsis: f64,
-    /// Eccentric anomaly (in radians).
-    pub eccentric_anomaly: f64,
+    pub argument_of_periapsis: f64,    
     /// Eccentricity of the orbit (dimensionless).
     pub eccentricity: f64,
     /// Inclination of the orbit (in radians).
-    pub inclination: f64,
-    /// Mean anomaly (in radians).
-    pub mean_anomaly: f64,
+    pub inclination: f64,    
     /// Right Ascension of the Ascending Node (RAAN) (in radians).
     pub raan: f64,
     /// True anomaly (in radians).
@@ -119,12 +115,15 @@ impl KeplerianElements {
         let hm = h.norm();
 
         let k = Vector3::new(0.0, 0.0, 1.0);
-        let n = k.cross(&h);
+        let n = k.cross(&h);        
         let nm = n.norm();
+
+        println!("{h}, {hm}");
+        println!("{n}, {nm}");
 
         let e_vector = (vm.powi(2) - 1.0 / rm) * r - rdotv * v;
         let e = e_vector.norm();
-
+        println!("{e}");
         let zeta = vm.powi(2) / 2.0 - 1.0 / rm;
 
         // semimajor axis and semilatus rectum (semiparameter)
@@ -138,6 +137,7 @@ impl KeplerianElements {
 
         // inclination
         let i = (h[2] / hm).acos();
+        println!("{i}");
 
         // handles special cases
         // raan is not defined for equatorial
@@ -146,8 +146,13 @@ impl KeplerianElements {
         let is_circular_inclined = e < ORBIT_EPSILON && i > ORBIT_EPSILON;
         let is_circular_equatorial = e < ORBIT_EPSILON && i < ORBIT_EPSILON;
 
+        println!("{is_elliptical_equatorial}");
+        println!("{is_circular_inclined}");
+        println!("{is_circular_equatorial}");
+
         let i_hat = Vector3::new(1.0, 0.0, 0.0);
         let (raan, argp, f) = if is_circular_equatorial {
+            // lambda true is the true longitude
             let lambda_true = if r[1] < 0.0 {
                 2.0 * PI - (i_hat.dot(&r) / rm).acos()
             } else {
@@ -155,18 +160,25 @@ impl KeplerianElements {
             };
             (0.0, 0.0, lambda_true)
         } else if is_circular_inclined {
+            // u is the argument of latitude
+            println!("r: {r}");
+            println!("n: {n}");
+            println!("rm: {rm}");
+            println!("nm: {nm}");
             let u = if r[2] < 0.0 {
                 2.0 * PI - (n.dot(&r) / (nm * rm)).acos()
             } else {
-                n.dot(&r) / (nm * rm).acos()
+                (n.dot(&r) / (nm * rm)).acos()
             };
             let raan = if n[1] < 0.0 {
                 2.0 * PI - (n[0] / nm).acos()
             } else {
                 (n[0] / nm).acos()
             };
+            
             (raan, 0.0, u)
         } else if is_elliptical_equatorial {
+            //w_true is the true longitude of periapsis
             let w_true = if e_vector[1] < 0.0 {
                 2.0 * PI - (i_hat.dot(&e_vector) / e).acos()
             } else {
@@ -201,10 +213,6 @@ impl KeplerianElements {
             (raan, argp, f)
         };
 
-        // eccentric and mean anomalies
-        let eccentric_anomaly = (e + (rm * f.cos()) / a).acos(); // Vallado eq 2-8
-        let mean_anomaly = eccentric_anomaly - e * eccentric_anomaly.sin();        
-
         let orbit_type = if e < ORBIT_EPSILON {
             OrbitType::Circular
         } else if e <= 1.0 - ORBIT_EPSILON {
@@ -221,11 +229,9 @@ impl KeplerianElements {
             epoch,
             semimajor_axis: a,
             semiparameter: p,
-            argument_of_periapsis: argp,
-            eccentric_anomaly,
+            argument_of_periapsis: argp,            
             eccentricity: e,
-            inclination: i,
-            mean_anomaly,
+            inclination: i,            
             raan,
             true_anomaly: f,            
             orbit_type,
@@ -389,9 +395,8 @@ impl KeplerianElements {
     fn anomaly_to_nu(&self, a: f64) -> f64 {
         let e = self.eccentricity;
 
-        match self.orbit_type {
-            OrbitType::Circular => NAN,
-            OrbitType::Elliptical => {
+        match self.orbit_type {             
+             OrbitType::Circular | OrbitType::Elliptical => {
                 let c = a.cos();
                 ((c - e) / (1.0 - e * c)).acos()
             }
@@ -422,9 +427,8 @@ impl KeplerianElements {
         let f = self.true_anomaly;
         let cf = f.cos();
 
-        match self.orbit_type {
-            OrbitType::Circular => NAN, // no perigee
-            OrbitType::Elliptical => ((e + cf) / (1.0 + e * cf)).acos(),
+        match self.orbit_type {            
+            OrbitType::Circular | OrbitType::Elliptical => ((e + cf) / (1.0 + e * cf)).acos(),
             OrbitType::Parabolic => (f / 2.0).tan(),
             OrbitType::Hyperbolic => ((e + cf) / (1.0 + e * cf)).acosh(),
         }
