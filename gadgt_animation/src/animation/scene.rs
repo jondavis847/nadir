@@ -24,6 +24,7 @@ use image::{load_from_memory, GenericImageView};
 
 pub mod camera;
 pub mod earth_pipeline;
+pub mod sun_pipeline;
 pub mod pipeline;
 
 use camera::Camera;
@@ -32,6 +33,7 @@ use pipeline::{
     uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
     Ellipsoid64Pipeline, Pipeline,
 };
+use sun_pipeline::{SunPipeline, CoronaPipeline};
 
 use crate::{
     celestial::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
@@ -468,6 +470,42 @@ impl Primitive for ScenePrimitive {
             }
         }
 
+        if let Some(sun) = self.celestial.meshes.get(&CelestialMeshes::Sun) {            
+            if !storage.has::<SunPipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                storage.store(SunPipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    &[sun.mesh_gpu],
+                    Ellipsoid64::vertices(),
+                    self.sample_count,
+                ));
+            } else {
+                if let Some(sun_pipeline) = storage.get_mut::<SunPipeline>() {
+                    sun_pipeline.update(queue, &[sun.mesh_gpu]);
+                }
+            }
+        }
+
+        if let Some(corona) = self.celestial.meshes.get(&CelestialMeshes::SunCorona) {            
+            if !storage.has::<CoronaPipeline>() {
+                let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                storage.store(CoronaPipeline::new(
+                    device,
+                    format,
+                    &layout,
+                    &[corona.mesh_gpu],
+                    Ellipsoid64::vertices(),
+                    self.sample_count,
+                ));
+            } else {
+                if let Some(corona_pipeline) = storage.get_mut::<CoronaPipeline>() {
+                    corona_pipeline.update(queue, &[corona.mesh_gpu]);
+                }
+            }
+        }
+
         //cuboids
         let cuboids: Vec<MeshGpu> = self
             .meshes
@@ -571,7 +609,7 @@ impl Primitive for ScenePrimitive {
         }
 
         //ellipsoid64
-        let mut ellipsoid64s: Vec<MeshGpu> = self
+        let ellipsoid64s: Vec<MeshGpu> = self
             .meshes
             .iter()
             .filter_map(|mesh| {
@@ -584,14 +622,14 @@ impl Primitive for ScenePrimitive {
             .collect();
 
         // push celestial objects as well to ellipsoid64s
-        for (body, mesh) in &self.celestial.meshes {
-            match body {
-                CelestialMeshes::Earth | CelestialMeshes::EarthAtmosphere => {
-                    //they have their own pipelines, dont add to ellipsoid64 pipeline
-                }
-                _ => ellipsoid64s.push(mesh.mesh_gpu),
-            }
-        }
+        // for (body, mesh) in &self.celestial.meshes {
+        //     match body {
+        //         CelestialMeshes::Earth | CelestialMeshes::EarthAtmosphere => {
+        //             //they have their own pipelines, dont add to ellipsoid64 pipeline
+        //         }
+        //         _ => ellipsoid64s.push(mesh.mesh_gpu),
+        //     }
+        // }
 
         if !ellipsoid64s.is_empty() {            
             if !storage.has::<Ellipsoid64Pipeline>() {
@@ -659,6 +697,28 @@ impl Primitive for ScenePrimitive {
 
         pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
         pass.set_bind_group(0, uniform_bind_group, &[]);
+
+        if let Some(corona_pipeline) = storage.get::<CoronaPipeline>() {
+            let pipeline = &corona_pipeline.pipeline;
+            pass.set_pipeline(pipeline);
+            pass.set_vertex_buffer(0, corona_pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, corona_pipeline.instance_buffer.slice(..));
+            pass.draw(
+                0..corona_pipeline.n_vertices,
+                0..corona_pipeline.n_instances,
+            );
+        }
+
+        if let Some(sun_pipeline) = storage.get::<SunPipeline>() {
+            let pipeline = &sun_pipeline.pipeline;
+            pass.set_pipeline(pipeline);
+            pass.set_vertex_buffer(0, sun_pipeline.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, sun_pipeline.instance_buffer.slice(..));
+            pass.draw(
+                0..sun_pipeline.n_vertices,
+                0..sun_pipeline.n_instances,
+            );
+        }
 
         // render atmosphere first so its always covered
         if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {

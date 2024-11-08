@@ -6,7 +6,7 @@ use crate::{
 use super::MultibodyTrait;
 use aerospace::{celestial_system::CelestialSystem, gravity::{Gravity,GravityTrait}};
 use gadgt_3d::mesh::Mesh;
-use mass_properties::{MassProperties, MassPropertiesErrors};
+use mass_properties::MassProperties;
 use nalgebra::{Vector3, Vector6};
 use polars::prelude::*;
 use rotations::{quaternion::Quaternion, RotationTrait};

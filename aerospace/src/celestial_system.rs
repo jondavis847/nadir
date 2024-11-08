@@ -1,6 +1,6 @@
 use crate::{
     geomag::GeoMagnetism,
-    gravity::{EGM96Gravity, Gravity, GravityTrait, NewtownianGravity},
+    gravity::{Gravity, GravityTrait, NewtownianGravity},
 };
 use nalgebra::Vector3;
 use polars::prelude::*;

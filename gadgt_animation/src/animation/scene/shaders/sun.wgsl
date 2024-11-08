@@ -73,40 +73,8 @@ struct FragmentOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> FragmentOutput {
-
-    var final_color: vec3<f32>;
-
-    if in.material_type > 0 {        
-        // phong shading
-
-        let ambient = in.color.rgb * 0.05;
-
-        let light_dir = normalize(uniforms.light_pos - in.world_pos);
-        let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
-
-        // Diffuse lighting (Lambertian reflectance)
-        let diff = max(dot(in.normal, light_dir), 0.0);
-        let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
-
-        // Specular lighting (Phong reflection model)
-        let light_reflect = normalize(reflect(-light_dir, in.normal));
-        var specular_factor = dot(view_dir, light_reflect);    
-        var specular = vec3<f32>(0.0);
-
-        if (specular_factor > 0.0) {
-            specular_factor = pow(specular_factor, in.specular_power);
-            specular = uniforms.light_color.rgb * specular_factor;
-        } 
-
-        // Combine results
-        final_color = ambient + diffuse + specular;
-
-    } else {
-        // just basic color
-        final_color = in.color.rgb;
-    };
-   
+fn fs_main(in: VertexOutput) -> FragmentOutput {    
+    let sun_color = vec4<f32>(1.0, 0.9804, 0.8627,1.0);
    
     // Compute the logarithmic depth
     let far_plane = 1e12; // Adjust this value according to your far plane distance
@@ -114,7 +82,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, in.color[3]);    
+    out.color = vec4<f32>(sun_color);
     out.depth = log_depth;
     return out;    
 }

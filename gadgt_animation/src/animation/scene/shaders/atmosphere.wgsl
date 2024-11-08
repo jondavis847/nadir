@@ -84,7 +84,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     //5.0 is just added due to darkening from MSAA
     let scatter_factor = 1.0; // controls flat scattering intensity    
-    let scatter_color = normalize(vec3<f32>(0.3, 0.3, 1.0)); 
+    let scatter_color = normalize(vec3<f32>(0.4, 0.4, 1.0)); 
     
     let light_angle_factor = 0.5; // controls how much the angle towards the sun affects lighting
     let view_angle_factor = 7.0; // controls how much the angle towards the camera affects the color

@@ -1,15 +1,10 @@
-use gadgt_3d::{
-    mesh::MeshGpu, vertex::Vertex,
-};
+use gadgt_3d::{mesh::MeshGpu, vertex::Vertex};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
 
 // earth and earth atmosphere require their own pipelines since they have their own custom shaders
 
 #[derive(Debug)]
-pub struct EarthBindGroup(pub wgpu::BindGroup);
-
-#[derive(Debug)]
-pub struct EarthPipeline {
+pub struct SunPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub vertex_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
@@ -17,7 +12,7 @@ pub struct EarthPipeline {
     pub n_instances: u32,
 }
 
-impl EarthPipeline {
+impl SunPipeline {
     pub fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
@@ -26,11 +21,11 @@ impl EarthPipeline {
         vertices: Vec<Vertex>,
         sample_count: u32,
     ) -> Self {
-        const VERTEX_LABEL: &str = "earth.vertex.buffer";
-        const INSTANCE_LABEL: &str = "earth.instance.buffer";
-        const SHADER_LABEL: &str = "earth.shader";
-        const PIPELINE_LABEL: &str = "earth.pipeline";
-        const SHADER_FILE: &str = include_str!("shaders/earth.wgsl");
+        const VERTEX_LABEL: &str = "sun.vertex.buffer";
+        const INSTANCE_LABEL: &str = "sun.instance.buffer";
+        const SHADER_LABEL: &str = "sun.shader";
+        const PIPELINE_LABEL: &str = "sun.pipeline";
+        const SHADER_FILE: &str = include_str!("shaders/sun.wgsl");
 
         // Create the constant vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -82,18 +77,6 @@ impl EarthPipeline {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    // blend: Some(wgpu::BlendState {
-                    //     color: wgpu::BlendComponent {
-                    //         src_factor: wgpu::BlendFactor::SrcAlpha,
-                    //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                    //         operation: wgpu::BlendOperation::Add,
-                    //     },
-                    //     alpha: wgpu::BlendComponent {
-                    //         src_factor: wgpu::BlendFactor::SrcAlpha,
-                    //         dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                    //         operation: wgpu::BlendOperation::Add,
-                    //     },
-                    // }),
                     blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -118,7 +101,7 @@ impl EarthPipeline {
 }
 
 #[derive(Debug)]
-pub struct AtmospherePipeline {
+pub struct CoronaPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub vertex_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
@@ -126,7 +109,7 @@ pub struct AtmospherePipeline {
     pub n_instances: u32,
 }
 
-impl AtmospherePipeline {
+impl CoronaPipeline {
     pub fn new(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
@@ -135,11 +118,11 @@ impl AtmospherePipeline {
         vertices: Vec<Vertex>,
         sample_count: u32,
     ) -> Self {
-        const VERTEX_LABEL: &str = "atmosphere.vertex.buffer";
-        const INSTANCE_LABEL: &str = "atmosphere.instance.buffer";
-        const PIPELINE_LABEL: &str = "atmosphere.pipeline";
-        const SHADER_LABEL: &str = "atmosphere.shader";
-        const SHADER_FILE: &str = include_str!("shaders/atmosphere.wgsl");
+        const VERTEX_LABEL: &str = "corona.vertex.buffer";
+        const INSTANCE_LABEL: &str = "corona.instance.buffer";
+        const PIPELINE_LABEL: &str = "corona.pipeline";
+        const SHADER_LABEL: &str = "corona.shader";
+        const SHADER_FILE: &str = include_str!("shaders/corona.wgsl");
 
         // Create the constant vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -191,19 +174,18 @@ impl AtmospherePipeline {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: None,
-                    /*Some(wgpu::BlendState {
+                    blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha, // Source color is multiplied by source alpha
-                            dst_factor: wgpu::BlendFactor::DstAlpha, // Destination color is multiplied by (1 - source alpha)
-                            operation: wgpu::BlendOperation::Add, // Blend by adding the two components
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
                         },
                         alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::SrcAlpha,  // Source alpha is taken as is
-                            dst_factor: wgpu::BlendFactor::DstAlpha, // No contribution from the destination alpha
-                            operation: wgpu::BlendOperation::Add, // Blend by adding the two components
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
                         },
-                    }) ,*/
+                    }),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),

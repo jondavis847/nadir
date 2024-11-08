@@ -87,11 +87,12 @@ fn fs_main(in: Output) -> FragOutput {
     let night_lights = vec3<f32>(1.0,0.8745,0.7843);
     let night_color = night_lights * night_texture;
 
-    let cloud_intensity = 0.5;
-    let day_color = mix(day_color_raw, cloud_color, cloud_intensity);
+    let cloud_intensity = 0.8;
+    let brightness = 5.0; // the texture we use is just too dark
+    let day_color = mix(brightness * day_color_raw, cloud_color, cloud_intensity);
 
     // Mix a little day into the night    
-    let night_color_blend = mix(night_color,day_color,0.1);
+    let night_color_blend = mix(night_color,day_color,0.3);
 
     // Diffuse lighting (Lambertian reflectance)
     let diff = dot(in.normal, light_dir);
@@ -116,7 +117,7 @@ fn fs_main(in: Output) -> FragOutput {
     let final_specular = specular * cloud_specular_multiplier;
 
     // Combine results
-    let result = diffuse + final_specular;
+    let result = brightness * diffuse + final_specular;
     
     // Compute the logarithmic depth
     let far_plane = 1.1e13; // Adjust this value according to your far plane distance

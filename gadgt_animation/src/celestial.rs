@@ -22,6 +22,7 @@ pub enum CelestialMeshes {
     Saturn,
     //SaturnRings,
     Sun,
+    SunCorona,
     Uranus,
     Venus,
 }
@@ -40,6 +41,7 @@ impl CelestialMeshes {
             CelestialMeshes::Saturn => CelestialBodies::Saturn,
             //      CelestialMeshes::SaturnRings => CelestialBodies::Saturn,
             CelestialMeshes::Sun => CelestialBodies::Sun,
+            CelestialMeshes::SunCorona => CelestialBodies::Sun,
             CelestialMeshes::Uranus => CelestialBodies::Uranus,
             CelestialMeshes::Venus => CelestialBodies::Venus,
         }
@@ -161,18 +163,32 @@ impl CelestialAnimation {
                     },
                 ),
             ),
-            CelestialBodies::Sun => self.meshes.insert(
-                CelestialMeshes::Sun,
-                celestial_mesh(
-                    "sun",
-                    696340000.0,
-                    696340000.0,
-                    Material::Phong {
+            CelestialBodies::Sun => {
+                let sun_radius = 696340000.0;
+                let corona_radius = 3e10;
+                self.meshes.insert(
+                    CelestialMeshes::Sun,
+                    celestial_mesh(
+                        "sun",
+                        sun_radius,
+                        sun_radius,
+                        Material::Phong {
+                            color: Color::WHITE,
+                            specular_power: 32.0,
+                        },
+                    ),
+                );
+                let corona_mesh = celestial_mesh(
+                    "sun_corona",
+                    sun_radius + corona_radius,
+                    sun_radius + corona_radius,
+                    Material::Basic {
                         color: Color::WHITE,
-                        specular_power: 32.0,
                     },
-                ),
-            ),
+                );
+                self.meshes
+                    .insert(CelestialMeshes::SunCorona, corona_mesh)
+            }
             CelestialBodies::Uranus => self.meshes.insert(
                 CelestialMeshes::Uranus,
                 celestial_mesh(

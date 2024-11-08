@@ -4,7 +4,9 @@ mod scene;
 use crate::Message;
 use animator::Animator;
 use iced::{
-    mouse::ScrollDelta, widget::{shader, Row}, Command, Element, Length, Point, Size, Theme, Vector
+    mouse::ScrollDelta,
+    widget::{shader, Row},
+    Command, Element, Length, Point, Theme, Vector,
 };
 
 use multibody::result::{MultibodyResult, ResultEntry};
@@ -24,16 +26,14 @@ pub struct AnimationState {
     pub loaded: bool,
     //mouse: MouseProcessor,
     scene: Scene,
-    size: Size,
 }
 
 impl Default for AnimationState {
     fn default() -> Self {
-        Self {        
+        Self {
             animator: Animator::default(),
             loaded: false,
             scene: Scene::default(),
-            size: Size::new(1080.0, 720.0),        
         }
     }
 }
