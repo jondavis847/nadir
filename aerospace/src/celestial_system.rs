@@ -98,7 +98,7 @@ impl CelestialSystem {
         };
 
         let geomag_option = None; // for now
-
+        
         // Create and add the celestial body
         self.bodies
             .push(CelestialBody::new(body, gravity_option, geomag_option));
@@ -115,7 +115,7 @@ impl CelestialSystem {
     pub fn calculate_gravity(&self, position: Vector3<f64>) -> Vector3<f64> {
         let mut g_final = Vector3::zeros();
 
-        for body in &self.bodies {
+        for body in &self.bodies {            
             match body.body {
                 CelestialBodies::Earth => {
                     // Special case for Earth
@@ -127,7 +127,9 @@ impl CelestialSystem {
                                 let g_gcrf = body.orientation.transform(g_itrf);
                                 g_final += g_gcrf;
                             }
-                            Gravity::Newtownian(gravity) => g_final += gravity.calculate(position),
+                            Gravity::Newtownian(gravity) => {                                
+                                g_final += gravity.calculate(position)
+                            },
                             Gravity::Constant(gravity) => g_final += gravity.calculate(position),
                         }
                     }
@@ -139,7 +141,7 @@ impl CelestialSystem {
                     }
                 }
             }
-        }
+        }        
         g_final
     }
 

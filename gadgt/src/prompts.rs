@@ -236,9 +236,9 @@ impl PromptAction for PromptCelestial {
             let (g, b) = match body {
                 CelestialBodies::Earth => {
                     info("Earth Options")?;
-                    (
-                        PromptCelestialMagneticOption.prompt()?,
+                    (                        
                         PromptCelestialGravityOption.prompt()?,
+                        PromptCelestialMagneticOption.prompt()?,
                     )
                 }
                 CelestialBodies::Jupiter => {

@@ -100,7 +100,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, 0.1);    
+    out.color = vec4<f32>(final_color, 0.05);    
     out.depth = log_depth;
 
     return out;
