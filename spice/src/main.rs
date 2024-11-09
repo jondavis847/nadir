@@ -1,10 +1,9 @@
 use clap::{Arg, Command};
 use rotations::prelude::Quaternion;
-use spice::{SpiceBodies, Spice};
-use time::{Time,TimeSystem};
+use spice::{Spice, SpiceBodies};
+use time::{Time, TimeSystem};
 
 fn main() {
-
     // this creates the spice data file
     let mut spice = match Spice::from_local() {
         Ok(spice) => spice,
@@ -44,7 +43,7 @@ fn main() {
 
     let body = SpiceBodies::from_string(body_str);
     let et: f64 = et_str.parse().expect("Invalid ET");
-    let epoch = Time::from_sec_j2k(et,TimeSystem::TAI);
+    let epoch = Time::from_sec_j2k(et, TimeSystem::TAI);
 
     if let Some(body) = body {
         let position = spice.calculate_position(epoch, body);
@@ -59,24 +58,21 @@ fn main() {
                 dbg!(e);
             }
         };
-        match body {
-            SpiceBodies::Earth => {
-                let orientation = spice.calculate_orientation(epoch, body);
-                match orientation {
-                    Ok(orientation) => {                        
-                        let q = Quaternion::from(orientation);
-                        println!("J2000/ITRF Quaternion:");
-                        println!("  x: {}", q.x);
-                        println!("  y: {}", q.y);
-                        println!("  z: {}", q.z);
-                        println!("  w: {}", q.s);
-                    }
-                    Err(e) => {
-                        dbg!(e);
-                    }
+        if body == SpiceBodies::Earth {
+            let orientation = spice.calculate_orientation(epoch, body);
+            match orientation {
+                Ok(orientation) => {
+                    let q = Quaternion::from(orientation);
+                    println!("J2000/ITRF Quaternion:");
+                    println!("  x: {}", q.x);
+                    println!("  y: {}", q.y);
+                    println!("  z: {}", q.z);
+                    println!("  w: {}", q.s);
+                }
+                Err(e) => {
+                    dbg!(e);
                 }
             }
-            _ => {}//nothing
         }
     }
 }

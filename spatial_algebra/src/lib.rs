@@ -176,12 +176,12 @@ impl Velocity {
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation()
+        self.0.rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation()
+        self.0.translation()
     }
 
     #[inline]
@@ -242,12 +242,12 @@ impl Acceleration {
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation()
+        self.0.rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation()
+        self.0.translation()
     }
 }
 
@@ -325,12 +325,12 @@ impl Momentum {
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation()
+        self.0.rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation()
+        self.0.translation()
     }
 }
 
@@ -380,12 +380,12 @@ impl Force {
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation()
+        self.0.rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation()
+        self.0.translation()
     }
 }
 

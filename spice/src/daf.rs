@@ -59,7 +59,7 @@ impl DafData {
                     // Get metadata and Chebyshev data for the segment
                     segment.get_record_metadata(data)?;
                     segment.get_chebyshev_data(data)?;
-                    let target = segment.target.clone();
+                    let target = segment.target;
                     segments
                         .entry(segment.target)
                         .or_insert_with(Vec::new) // If the key doesn't exist, insert a new empty Vec
@@ -106,7 +106,7 @@ impl DafData {
                 .ok()
                 .map(move |index| &mut segments[index]))
         } else {
-            return Err(SpiceErrors::BodyNotFound.into());
+            Err(SpiceErrors::BodyNotFound.into())
         }
     }
 }
@@ -229,7 +229,7 @@ impl Segment {
                 })
         {
             // Update current_record to the found index
-            self.current_record = self.current_record + i;
+            self.current_record += i;
             Ok(record)
         }
         // If not found, search from the beginning up to current_record

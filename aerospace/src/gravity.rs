@@ -271,8 +271,7 @@ impl GravityTrait for EGM96Gravity {
                 gy = 0.0;
                 gz = 1.0 / r * du_dr * pos[2];
             }
-            let g = Vector3::new(gx, gy, gz);
-            g
+            Vector3::new(gx, gy, gz)            
         }
 
         fn lambda_coeff(max_deg: usize, lambda: f64) -> (Vec<f64>, Vec<f64>) {

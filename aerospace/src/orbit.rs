@@ -3,7 +3,7 @@ use rotations::{
     prelude::{EulerAngles, EulerSequence},
     Rotation, RotationTrait,
 };
-use std::f64::{consts::PI, INFINITY};
+use std::f64::consts::PI;
 use thiserror::Error;
 use time::Time;
 
@@ -40,7 +40,7 @@ pub enum Orbit {
 /// semi-major axis, eccentricity, inclination, RAAN, argument of periapsis, and anomalies.
 #[derive(Clone, Copy, Debug)]
 pub struct KeplerianElements {
-    pub epoch: Time,    
+    pub epoch: Time,
     /// Gravitational parameter of the central body (in m^3/s^2).
     pub mu: f64,
     /// Radius of the central body (in m).
@@ -50,11 +50,11 @@ pub struct KeplerianElements {
     /// Semi-parameter (semi-latus rectum) of the orbit (in m).
     pub semiparameter: f64,
     /// Argument of periapsis (in radians).
-    pub argument_of_periapsis: f64,    
+    pub argument_of_periapsis: f64,
     /// Eccentricity of the orbit (dimensionless).
     pub eccentricity: f64,
     /// Inclination of the orbit (in radians).
-    pub inclination: f64,    
+    pub inclination: f64,
     /// Right Ascension of the Ascending Node (RAAN) (in radians).
     pub raan: f64,
     /// True anomaly (in radians).
@@ -63,8 +63,7 @@ pub struct KeplerianElements {
     pub orbit_type: OrbitType,
 }
 
-impl KeplerianElements {   
-
+impl KeplerianElements {
     /// Creates a `KeplerianOrbit` instance from position and velocity vectors.
     ///
     /// # Arguments    
@@ -74,7 +73,12 @@ impl KeplerianElements {
     ///
     /// # Returns
     /// A new `KeplerianOrbit` instance representing the orbit based on the provided position and velocity vectors.
-    pub fn from_rv(r: Vector3<f64>, v: Vector3<f64>, epoch: Time, central_body: CelestialBodies) -> Self {
+    pub fn from_rv(
+        r: Vector3<f64>,
+        v: Vector3<f64>,
+        epoch: Time,
+        central_body: CelestialBodies,
+    ) -> Self {
         // calculate canonical units
         let mu = central_body.get_mu();
         let radius = central_body.get_radius();
@@ -92,7 +96,7 @@ impl KeplerianElements {
         let hm = h.norm();
 
         let k = Vector3::new(0.0, 0.0, 1.0);
-        let n = k.cross(&h);        
+        let n = k.cross(&h);
         let nm = n.norm();
 
         let e_vector = (vm.powi(2) - 1.0 / rm) * r - rdotv * v;
@@ -106,7 +110,7 @@ impl KeplerianElements {
             let p = a * (1.0 - e.powi(2));
             (a, p)
         } else {
-            (INFINITY, du * hm.powi(2))
+            (f64::INFINITY, du * hm.powi(2))
         };
 
         // inclination
@@ -140,7 +144,7 @@ impl KeplerianElements {
             } else {
                 (n[0] / nm).acos()
             };
-            
+
             (raan, 0.0, u)
         } else if is_elliptical_equatorial {
             //w_true is the true longitude of periapsis
@@ -194,11 +198,11 @@ impl KeplerianElements {
             epoch,
             semimajor_axis: a,
             semiparameter: p,
-            argument_of_periapsis: argp,            
+            argument_of_periapsis: argp,
             eccentricity: e,
-            inclination: i,            
+            inclination: i,
             raan,
-            true_anomaly: f,            
+            true_anomaly: f,
             orbit_type,
         }
     }
@@ -212,7 +216,7 @@ impl KeplerianElements {
     ///    
     pub fn get_apoapsis_altitude(&self) -> f64 {
         match self.orbit_type {
-            OrbitType::Parabolic | OrbitType::Hyperbolic => INFINITY,
+            OrbitType::Parabolic | OrbitType::Hyperbolic => f64::INFINITY,
             _ => self.semimajor_axis * (1.0 + self.eccentricity) - self.radius,
         }
     }
@@ -307,7 +311,7 @@ impl KeplerianElements {
             _ => self.anomaly_to_nu(new_anomaly),
         };
 
-        let mut new_kep = self.clone();
+        let mut new_kep = *self;
         new_kep.true_anomaly = new_true_anomaly;
 
         Ok(new_kep)
@@ -319,7 +323,7 @@ impl KeplerianElements {
         const TOL: f64 = 1e-8;
         const MAX_ITER: usize = 20;
         let e = self.eccentricity;
-        let mut ea = if (ma < -PI && ma < 0.0) || ma > PI {
+        let mut ea = if (ma > -PI && ma < 0.0) || ma > PI {
             ma - e
         } else {
             ma + e
@@ -362,12 +366,10 @@ impl KeplerianElements {
             } else {
                 ma + e
             }
+        } else if e < 3.6 && ma.abs() > PI {
+            ma - ma.signum() * e
         } else {
-            if e < 3.6 && ma.abs() > PI {
-                ma - ma.signum() * e
-            } else {
-                ma / (e - 1.0)
-            }
+            ma / (e - 1.0)
         };
 
         let mut residual = 1.0;
@@ -388,8 +390,8 @@ impl KeplerianElements {
     fn anomaly_to_nu(&self, a: f64) -> f64 {
         let e = self.eccentricity;
 
-        match self.orbit_type {             
-             OrbitType::Circular | OrbitType::Elliptical => {
+        match self.orbit_type {
+            OrbitType::Circular | OrbitType::Elliptical => {
                 let c = a.cos();
                 ((c - e) / (1.0 - e * c)).acos()
             }
@@ -420,25 +422,34 @@ impl KeplerianElements {
         let f = self.true_anomaly;
         let cf = f.cos();
 
-        match self.orbit_type {            
+        match self.orbit_type {
             OrbitType::Circular | OrbitType::Elliptical => ((e + cf) / (1.0 + e * cf)).acos(),
             OrbitType::Parabolic => (f / 2.0).tan(),
             OrbitType::Hyperbolic => ((e + cf) / (1.0 + e * cf)).acosh(),
         }
     }
 
-    pub fn new(a: f64, e:f64, i: f64, raan: f64, argp: f64, f: f64, epoch: Time, central_body: CelestialBodies) -> Self {
+    pub fn new(
+        a: f64,
+        e: f64,
+        i: f64,
+        raan: f64,
+        argp: f64,
+        f: f64,
+        epoch: Time,
+        central_body: CelestialBodies,
+    ) -> Self {
         let mu = central_body.get_mu();
         let radius = central_body.get_radius();
-        let (orbit_type,p) = if e < ORBIT_EPSILON {
+        let (orbit_type, p) = if e < ORBIT_EPSILON {
             (OrbitType::Circular, a)
         } else if e <= 1.0 - ORBIT_EPSILON {
-            (OrbitType::Elliptical, a*(1.0 - e.powi(2)))
+            (OrbitType::Elliptical, a * (1.0 - e.powi(2)))
         } else if e < 1.0 + ORBIT_EPSILON {
             (OrbitType::Parabolic, a * (1.0 - e.powi(2)))
         } else {
             (OrbitType::Hyperbolic, a * (1.0 - e.powi(2)))
-        }; 
+        };
         Self {
             semimajor_axis: a,
             semiparameter: p,
@@ -448,7 +459,9 @@ impl KeplerianElements {
             raan,
             epoch,
             true_anomaly: f,
-            mu, radius,  orbit_type
+            mu,
+            radius,
+            orbit_type,
         }
     }
 }
@@ -461,7 +474,6 @@ mod tests {
 
     #[test]
     fn test_from_pv() {
-
         let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
         let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 
@@ -496,8 +508,7 @@ mod tests {
     }
 
     #[test]
-    fn test_round_trip() {       
-
+    fn test_round_trip() {
         let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
         let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 

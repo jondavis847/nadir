@@ -112,7 +112,7 @@ impl Spice {
                 Spice::from_naif()
             }
         } else {
-            return Err(SpiceErrors::CantOpenConfigDir.into());
+            Err(SpiceErrors::CantOpenConfigDir.into())
         }
     }
 
@@ -170,7 +170,7 @@ impl Spice {
                 }
             }
         } else {
-            return Err(SpiceErrors::BodyNotFound.into());
+            Err(SpiceErrors::BodyNotFound.into())
         }
     }
 
@@ -406,12 +406,12 @@ fn check_naif(url: &str, local: String) -> Result<bool, Box<dyn std::error::Erro
     if let Some(last_modified) = response.headers().get("last-modified") {
         let remote_date = last_modified.to_str().unwrap().to_string();
         if remote_date == local {
-            return Ok(true);
+            Ok(true)
         } else {
-            return Ok(false);
+            Ok(false)
         }
     } else {
-        return Err(SpiceErrors::HeaderNotFound.into());
+        Err(SpiceErrors::HeaderNotFound.into())
     }
 }
 

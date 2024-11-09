@@ -30,7 +30,7 @@ where
     let mut time = Vec::new();
     time.resize(result_length, 0.0);
 
-    result[0].clone_from(&x0);
+    result[0].clone_from(x0);
     time[0].clone_from(&t);
 
     // one time clone for initialization

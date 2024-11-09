@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn format_number(value: f64) -> String {
-    if value > 1e4 || value < 1e-2 {
+    if !(1e-2..=1e4).contains(&value) {
         // Format in scientific notation with 4 significant digits
         format!("{:.4e}", value)
     } else {

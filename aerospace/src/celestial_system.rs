@@ -34,8 +34,7 @@ impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
         // make sure there's at least a sun
         let sun = CelestialBody::new(CelestialBodies::Sun, None, None);
-        let mut bodies = Vec::new();
-        bodies.push(sun);
+        let bodies = vec![sun];
 
         Ok(Self { epoch, bodies })
     }
@@ -148,7 +147,7 @@ impl CelestialSystem {
     pub fn initialize_result(&self) -> CelestialResult {
         let mut body_results = Vec::new();
         for body in &self.bodies {
-            body_results.push(CelestialBodyResult::new(body.body.clone()));
+            body_results.push(CelestialBodyResult::new(body.body));
         }
 
         CelestialResult {
@@ -190,7 +189,7 @@ impl CelestialBody {
         let jdc = utc.get_jd_centuries();
         let sec_j2k = utc.get_seconds_j2k();
 
-        self.position = spice.calculate_position(t, self.body.to_spice())?.into();
+        self.position = spice.calculate_position(t, self.body.to_spice())?;
 
         self.orientation = match self.body {
             CelestialBodies::Earth | CelestialBodies::Moon => {

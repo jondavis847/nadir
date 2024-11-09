@@ -216,7 +216,7 @@ impl Sub<Time> for Time {
     fn sub(self, rhs: Time) -> f64 {
         //convert to the left side system first
         rhs.to_system(self.system);
-        self.value.0 + rhs.value.0
+        self.value.0 - rhs.value.0
     }
 }
 

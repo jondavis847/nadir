@@ -21,8 +21,7 @@ impl GravGradientTrq {
         let r_ecef_to_bcs = *q * *a_f2i;
         let a3_bcs: Vector3<f64> = r_ecef_to_bcs.inv().transform(a3);
 
-        let gg_trq = 3.0 * n2 * a3_bcs.cross(&(moi * a3_bcs));
-        gg_trq
+        3.0 * n2 * a3_bcs.cross(&(moi * a3_bcs))        
     }
 }
 
