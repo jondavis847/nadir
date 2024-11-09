@@ -14,7 +14,7 @@ use iced::{
         canvas::event::Status,
         shader::{
             wgpu::{self, util::DeviceExt},
-            Event, Primitive, Program, Storage,
+            Event, Primitive, Program, Storage, Viewport,
         },
     },
     Color, Point, Rectangle, Size,
@@ -161,26 +161,26 @@ impl ScenePrimitive {
 
 impl Primitive for ScenePrimitive {
     fn prepare(
-        &self,
-        format: wgpu::TextureFormat,
+        &self,        
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        _bounds: Rectangle,
-        target_size: Size<u32>,
-        _scale_factor: f32,
+        format: wgpu::TextureFormat,        
         storage: &mut Storage,
+        _bounds: &Rectangle,        
+        viewport: &Viewport
     ) {
         // a new sceneprimitive is created each animation tick with updated values
         // this creates and stores bindgroups in storage on the first call to prepare
         // otherwise just updates the values in storage
 
+        let current_viewport_size = viewport.physical_size();
         let resize = match storage.get::<Size<u32>>() {
-            Some(size) if *size != target_size => {
-                storage.store(target_size);
+            Some(size) if *size != current_viewport_size => {
+                storage.store(current_viewport_size);
                 true
             },
             None => {
-                storage.store(target_size);
+                storage.store(current_viewport_size);
                 false
             },
             _ => false,
@@ -239,8 +239,8 @@ impl Primitive for ScenePrimitive {
             let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("depth.texture"),
                 size: wgpu::Extent3d {
-                    width: target_size.width,
-                    height: target_size.height,
+                    width: current_viewport_size.width,
+                    height: current_viewport_size.height,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
@@ -261,8 +261,8 @@ impl Primitive for ScenePrimitive {
             let multisampled_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("multisampled.color.texture"),
                 size: wgpu::Extent3d {
-                    width: target_size.width,
-                    height: target_size.height,
+                    width: current_viewport_size.width,
+                    height: current_viewport_size.height,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
@@ -655,11 +655,11 @@ impl Primitive for ScenePrimitive {
 
     fn render(
         &self,
-        storage: &Storage,
-        target: &wgpu::TextureView,
-        _target_size: Size<u32>,
-        viewport: Rectangle<u32>,
         encoder: &mut wgpu::CommandEncoder,
+        storage: &Storage,
+        target: &wgpu::TextureView,        
+        viewport: &Rectangle<u32>,
+        
     ) {
         // unpack the depth_view and uniform_bind_group from storage
         let depth_view = &storage.get::<DepthView>().unwrap().0;

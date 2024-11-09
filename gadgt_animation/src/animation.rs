@@ -4,9 +4,10 @@ mod scene;
 use crate::Message;
 use animator::Animator;
 use iced::{
+    alignment, keyboard,
     mouse::ScrollDelta,
-    widget::{shader, Row},
-    Command, Element, Length, Point, Theme, Vector,
+    widget::{container, shader, text, Column, Row},
+    window, Element, Length, Point, Subscription, Task, Theme, Vector,
 };
 
 use multibody::result::{MultibodyResult, ResultEntry};
@@ -18,7 +19,88 @@ pub struct AnimationGui {
     pub result: Option<MultibodyResult>,
 }
 
-impl AnimationGui {}
+impl AnimationGui {
+    pub fn new(result: MultibodyResult) -> (Self, Task<Message>) {
+        let mut state = AnimationState::default();
+        state.initialize(&result);
+        (
+            Self {
+                state,
+                result: Some(result),
+            },
+            Task::done(Message::Loaded),
+        )
+    }
+
+    pub fn update(&mut self, message: Message) {
+        let state = &mut self.state;
+
+        match message {
+            Message::AnimationTick(instant) => {
+                if self.result.is_some() {
+                    state.animate(self.result.as_ref().unwrap(), instant);
+                }
+            }
+            Message::CameraRotation(delta) => state.camera_rotated(delta),
+            Message::ChannelDataReceived => {}
+            //Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
+            //Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
+            Message::Loaded => {
+                state.loaded = true;
+            }
+            Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
+            Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
+            Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
+            Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
+            Message::WindowResized(_size) => {}
+        }
+    }
+
+    pub fn view(&self) -> Element<Message, Theme> {
+        let surface = Column::new().width(Length::Fill).height(Length::Fill);
+
+        let surface = match self.state.loaded {
+            false => surface.push(
+                container(
+                    text("Loading...")
+                        .align_x(alignment::Horizontal::Center)
+                        .size(30),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center(Length::Fill),
+            ),
+            true => surface.push(self.state.content()),
+        };
+
+        surface.into()
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        Subscription::batch(vec![
+            window::frames().map(Message::AnimationTick),
+            iced::event::listen_with(|event, _, _| match event {
+                iced::Event::Window(window_event) => {
+                    match window_event {
+                        window::Event::Resized(size) => Some(Message::WindowResized(size)),
+                        _ => None,
+                    }
+                }
+                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
+                    keyboard::Key::Named(keyboard::key::Named::Enter) => None,
+                    keyboard::Key::Named(keyboard::key::Named::Delete) => None,
+                    //keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+                    _ => None,
+                },
+                _ => None,
+            }),
+        ])
+    }
+
+    pub fn theme(&self) -> Theme {
+        Theme::Dark
+    }
+}
 
 #[derive(Debug)]
 pub struct AnimationState {
@@ -73,11 +155,10 @@ impl AnimationState {
         }
     }
 
-    pub fn camera_rotated(&mut self, mouse_delta: Vector) -> Command<Message> {
+    pub fn camera_rotated(&mut self, mouse_delta: Vector) {
         self.scene
             .camera
             .update_position_from_mouse_delta(mouse_delta);
-        Command::none()
     }
 
     pub fn content(&self) -> Element<Message, Theme> {
@@ -94,17 +175,11 @@ impl AnimationState {
         }
     }
 
-    pub fn middle_button_pressed(&self, _cursor: Point) -> Command<Message> {
-        Command::none()
-    }
+    pub fn middle_button_pressed(&self, _cursor: Point) {}
 
-    pub fn right_button_pressed(&self, _cursor: Point) -> Command<Message> {
-        Command::none()
-    }
+    pub fn right_button_pressed(&self, _cursor: Point) {}
 
-    pub fn right_button_released(&self, _cursor: Point) -> Command<Message> {
-        Command::none()
-    }
+    pub fn right_button_released(&self, _cursor: Point) {}
 
     pub fn initialize(&mut self, result: &MultibodyResult) {
         let sys = &result.system;
@@ -162,8 +237,7 @@ impl AnimationState {
         self.animator.start();
     }
 
-    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) -> Command<Message> {
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
         self.scene.camera.update_position_from_scroll_delta(delta);
-        Command::none()
     }
 }
