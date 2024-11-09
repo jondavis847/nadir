@@ -3,7 +3,7 @@ pub struct Animator {
     pub current_time: f64,
     start_time: f64,
     end_time: f64,
-    speed: f64,
+    pub speed: f64,
     instant: iced::time::Instant,
     pub dt: f64,
 }

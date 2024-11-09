@@ -6,8 +6,8 @@ use animator::Animator;
 use iced::{
     alignment, keyboard,
     mouse::ScrollDelta,
-    widget::{container, shader, text, Column, Row},
-    window, Element, Length, Point, Subscription, Task, Theme, Vector,
+    widget::{container, horizontal_space, shader, slider, text, Column, Row, Stack},
+    window, Color, Element, Length, Point, Subscription, Task, Theme, Vector,
 };
 
 use multibody::result::{MultibodyResult, ResultEntry};
@@ -43,11 +43,13 @@ impl AnimationGui {
             }
             Message::CameraRotation(delta) => state.camera_rotated(delta),
             Message::ChannelDataReceived => {}
+            Message::EscapePressed => state.escape_pressed(),
             //Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
             //Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
             Message::Loaded => {
                 state.loaded = true;
             }
+            Message::PlaybackSpeedChanged(value) => state.playback_speed_changed(value),
             Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
             Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
             Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
@@ -80,14 +82,14 @@ impl AnimationGui {
         Subscription::batch(vec![
             window::frames().map(Message::AnimationTick),
             iced::event::listen_with(|event, _, _| match event {
-                iced::Event::Window(window_event) => {
-                    match window_event {
-                        window::Event::Resized(size) => Some(Message::WindowResized(size)),
-                        _ => None,
-                    }
-                }
+                iced::Event::Window(window_event) => match window_event {
+                    window::Event::Resized(size) => Some(Message::WindowResized(size)),
+                    _ => None,
+                },
                 iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
-                    keyboard::Key::Named(keyboard::key::Named::Enter) => None,
+                    keyboard::Key::Named(keyboard::key::Named::Escape) => {
+                        Some(Message::EscapePressed)
+                    }
                     keyboard::Key::Named(keyboard::key::Named::Delete) => None,
                     //keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
                     _ => None,
@@ -108,6 +110,7 @@ pub struct AnimationState {
     pub loaded: bool,
     //mouse: MouseProcessor,
     scene: Scene,
+    pub show_menu: bool,
 }
 
 impl Default for AnimationState {
@@ -116,6 +119,7 @@ impl Default for AnimationState {
             animator: Animator::default(),
             loaded: false,
             scene: Scene::default(),
+            show_menu: false,
         }
     }
 }
@@ -162,20 +166,49 @@ impl AnimationState {
     }
 
     pub fn content(&self) -> Element<Message, Theme> {
-        {
-            let shader_program = shader(&self.scene)
-                .width(Length::FillPortion(10))
-                .height(Length::Fill);
+        // we use a stack to put content on top of the animation
+        // create the stack and add the shader program
+        let mut stack =
+            Stack::new().push(shader(&self.scene).width(Length::Fill).height(Length::Fill));
 
-            Row::new()
-                .push(shader_program)
-                .height(Length::FillPortion(15))
-                .width(Length::Fill)
-                .into()
+        // add the menu content if we should be
+        if self.show_menu {
+            let playback_speed_text =
+                text(format!("Playback Speed: {}", self.animator.speed)).color(Color::WHITE);
+
+            let playback_speed_slider = slider(
+                0.0..=100.0,
+                self.animator.speed,
+                Message::PlaybackSpeedChanged,
+            );
+
+            let menu_column = Column::new()
+                .push(playback_speed_text)
+                .push(playback_speed_slider);
+
+            let menu = container(menu_column)
+                .center_x(Length::FillPortion(1))
+                .center_y(Length::Fill);
+            let menu_row = Row::new()
+                .push(horizontal_space().width(Length::FillPortion(1)))
+                .push(menu)
+                .push(horizontal_space().width(Length::FillPortion(1)));
+
+            stack = stack.push(menu_row);
         }
+
+        stack.into()
+    }
+
+    pub fn escape_pressed(&mut self) {
+        self.show_menu = !self.show_menu;
     }
 
     pub fn middle_button_pressed(&self, _cursor: Point) {}
+
+    pub fn playback_speed_changed(&mut self, value: f64) {
+        self.animator.speed = value;
+    }
 
     pub fn right_button_pressed(&self, _cursor: Point) {}
 
