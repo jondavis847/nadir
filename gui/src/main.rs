@@ -191,7 +191,7 @@ impl Application for GadgtGui {
     }
 
     fn title(&self) -> String {
-        String::from("GADGT")
+        String::from("NADIR")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {

@@ -68,7 +68,7 @@ enum Commands {
     Disconnect {from_name: String, to_name: String},
     /// Edit a component
     Edit {name: String},    
-    /// Exit the GADGT CLI
+    /// Exit the NADIR CLI
     Exit,    
     /// Load a saved MultibodySystem    
     Load { system: String },
@@ -100,7 +100,7 @@ fn main() {
 
     //set up the command history
     let mut history_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
-    history_path.push("gadgt");
+    history_path.push("nadir");
     history_path.push("command_history.txt");
 
     let history = Box::new(
@@ -112,7 +112,7 @@ fn main() {
     const SYSTEMS_RON: &str = include_str!("../../multibody/resources/systems.ron");
     
     let mut systems_path = config_dir().unwrap_or_else(|| PathBuf::from("."));
-    systems_path.push("gadgt"); 
+    systems_path.push("nadir"); 
     systems_path.push("systems.ron");
     if !Path::new(&systems_path).exists() {
         if let Some(parent) = systems_path.parent() {
@@ -302,7 +302,7 @@ fn main() {
                                     // serialize the result data to be sent to the animation crate process
                                     let result_bytes = bincode::serialize(result).expect("Failed to serialize struct");
 
-                                    let mut child  = Command::new("gadgt_animation")
+                                    let mut child  = Command::new("nadir_animation")
                                             .stdin(Stdio::piped())
                                             .stdout(Stdio::piped())
                                             .stderr(Stdio::inherit())

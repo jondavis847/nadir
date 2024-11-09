@@ -2008,68 +2008,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gadgt"
-version = "0.1.0"
-dependencies = [
- "aerospace",
- "bincode",
- "chrono",
- "clap",
- "cliclack",
- "color",
- "colored",
- "coordinate_systems",
- "dhat",
- "differential_equations",
- "dirs-next",
- "gadgt_3d",
- "inquire",
- "mass_properties",
- "multibody",
- "nalgebra",
- "polars",
- "ratatui",
- "reedline",
- "ron",
- "rotations",
- "serde",
- "smol_str",
- "spatial_algebra",
- "spice",
- "time",
- "tokio",
- "transforms",
- "utilities",
- "uuid",
-]
-
-[[package]]
-name = "gadgt_3d"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "color",
- "glam 0.29.2",
- "iced",
- "serde",
-]
-
-[[package]]
-name = "gadgt_animation"
-version = "0.1.0"
-dependencies = [
- "aerospace",
- "bincode",
- "bytemuck",
- "color",
- "gadgt_3d",
- "glam 0.29.2",
- "iced",
- "image",
- "multibody",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3428,8 +3366,8 @@ dependencies = [
  "coordinate_systems",
  "dhat",
  "dirs-next",
- "gadgt_3d",
  "mass_properties",
+ "nadir_3d",
  "nalgebra",
  "polars",
  "rand",
@@ -3468,6 +3406,68 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "target-features",
+]
+
+[[package]]
+name = "nadir"
+version = "0.1.0"
+dependencies = [
+ "aerospace",
+ "bincode",
+ "chrono",
+ "clap",
+ "cliclack",
+ "color",
+ "colored",
+ "coordinate_systems",
+ "dhat",
+ "differential_equations",
+ "dirs-next",
+ "inquire",
+ "mass_properties",
+ "multibody",
+ "nadir_3d",
+ "nalgebra",
+ "polars",
+ "ratatui",
+ "reedline",
+ "ron",
+ "rotations",
+ "serde",
+ "smol_str",
+ "spatial_algebra",
+ "spice",
+ "time",
+ "tokio",
+ "transforms",
+ "utilities",
+ "uuid",
+]
+
+[[package]]
+name = "nadir_3d"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "color",
+ "glam 0.29.2",
+ "iced",
+ "serde",
+]
+
+[[package]]
+name = "nadir_animation"
+version = "0.1.0"
+dependencies = [
+ "aerospace",
+ "bincode",
+ "bytemuck",
+ "color",
+ "glam 0.29.2",
+ "iced",
+ "image",
+ "multibody",
+ "nadir_3d",
 ]
 
 [[package]]

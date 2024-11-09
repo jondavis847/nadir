@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use aerospace::celestial_system::CelestialBodies;
 use color::Color;
-use gadgt_3d::mesh::{Mesh, MeshPrimitive};
-use gadgt_3d::{
+use nadir_3d::mesh::{Mesh, MeshPrimitive};
+use nadir_3d::{
     geometry::{ellipsoid::Ellipsoid64, Geometry, GeometryState},
     material::Material,
 };

@@ -7,7 +7,7 @@ use aerospace::{
 use cliclack::{input, log::info, multiselect, select};
 use color::{Color, ColorMode};
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use gadgt_3d::{
+use nadir_3d::{
     geometry::{
         cuboid::Cuboid,
         ellipsoid::{Ellipsoid, Ellipsoid16, Ellipsoid32, Ellipsoid64},

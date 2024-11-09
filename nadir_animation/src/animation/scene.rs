@@ -1,4 +1,4 @@
-use gadgt_3d::{
+use nadir_3d::{
     geometry::{
         cuboid::Cuboid,
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
@@ -674,7 +674,7 @@ impl Primitive for ScenePrimitive {
 
         // set up the render pass
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("gadgt.pipeline.pass"),
+            label: Some("nadir.pipeline.pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view,
                 resolve_target,

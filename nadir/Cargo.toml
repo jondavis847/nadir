@@ -1,10 +1,10 @@
 [package]
-name = "gadgt"
+name = "nadir"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "gadgt"
+name = "nadir"
 path = "src/main.rs"
 
 [dependencies]
@@ -13,7 +13,7 @@ transforms = {path = "../transforms"}
 coordinate_systems = {path = "../coordinate_systems"}
 color = {path = "../color"}
 differential_equations = {path = "../differential_equations"}
-gadgt_3d = {path = "../gadgt_3d"}
+nadir_3d = {path = "../nadir_3d"}
 rotations = {path = "../rotations"}
 spatial_algebra = {path = "../spatial_algebra"}
 mass_properties = {path = "../mass_properties"}

@@ -61,7 +61,7 @@ impl Spice {
     pub fn from_local() -> Result<Self, Box<dyn std::error::Error>> {
         // can we find the config dir where data is saved?
         if let Some(mut path) = config_dir() {
-            path.push("gadgt/spice.data");
+            path.push("nadir/spice.data");
             // does the file already exist?
             if path.exists() {
                 let mut file = File::open(&path)?;
@@ -222,7 +222,7 @@ impl Spice {
 
     pub fn save_spice_data(&self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(mut path) = config_dir() {
-            path.push("gadgt");
+            path.push("nadir");
             path.push("spice.data");
             let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
             let mut file = File::create(path)?;

@@ -1,9 +1,9 @@
 [workspace]
-members = [ "aerospace", "gadgt_animation", "benchmarks", "gadgt",    
+members = [ "aerospace", "nadir_animation", "benchmarks", "nadir",    
     "coordinate_systems", "differential_equations", "mass_properties",
     "multibody", 
     "rotations", "sim_value", "spatial_algebra",
-    "transforms", "utilities", "color", "gadgt_3d", "spice", "time",    
+    "transforms", "utilities", "color", "nadir_3d", "spice", "time",    
 ]
 resolver = "2"
 

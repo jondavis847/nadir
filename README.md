@@ -44,7 +44,7 @@ https://www.cnmoc.usff.navy.mil/Our-Commands/United-States-Naval-Observatory/Pre
     - Barycentric Dynamical Time (TDB): 
         - relativistic coordinate time scale, intended for astronomical use as a time standard to take account of time dilation
         - is TT + some periodic effects, but the periodic effects will remain less than 2 ms for several millenia
-        - for all intents and purposes in gadgt, TT and TDB are assumed to be equal, but we will technically use TT
+        - for all intents and purposes in nadir, TT and TDB are assumed to be equal, but we will technically use TT
 
 These are all the time systems, but each time system can be expressed in the following formats:
 

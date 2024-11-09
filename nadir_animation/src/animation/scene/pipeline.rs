@@ -1,4 +1,4 @@
-use gadgt_3d::{mesh::MeshGpu, vertex::Vertex};
+use nadir_3d::{mesh::MeshGpu, vertex::Vertex};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
 
 //pub mod buffer;
