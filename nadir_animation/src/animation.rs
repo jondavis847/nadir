@@ -41,6 +41,7 @@ impl AnimationGui {
                     state.animate(self.result.as_ref().unwrap(), instant);
                 }
             }
+            Message::CameraFovChanged(value) => state.camera_fov_changed(value),
             Message::CameraRotation(delta) => state.camera_rotated(delta),
             Message::ChannelDataReceived => {}
             Message::EscapePressed => state.escape_pressed(),
@@ -159,6 +160,10 @@ impl AnimationState {
         }
     }
 
+    pub fn camera_fov_changed(&mut self, value: f32) {
+        self.scene.camera.set_fov(value);
+    }
+
     pub fn camera_rotated(&mut self, mouse_delta: Vector) {
         self.scene
             .camera
@@ -182,9 +187,20 @@ impl AnimationState {
                 Message::PlaybackSpeedChanged,
             );
 
+            let camera_fov_text =
+                text(format!("Camera FOV: {}", self.scene.camera.fov_y)).color(Color::WHITE);
+
+            let camera_fov_slider = slider(
+                1.0..=179.0,
+                self.scene.camera.fov_y,
+                Message::CameraFovChanged,
+            );
+
             let menu_column = Column::new()
                 .push(playback_speed_text)
-                .push(playback_speed_slider);
+                .push(playback_speed_slider)
+                .push(camera_fov_text)
+                .push(camera_fov_slider);
 
             let menu = container(menu_column)
                 .center_x(Length::FillPortion(1))

@@ -7,7 +7,7 @@ pub struct Camera {
     target: Vec3,
     up: Vec3,
     rotation: Quat,
-    fov_y: f32,
+    pub fov_y: f32,
     near: f32,
     far: f32,
     sensitivity: f32,

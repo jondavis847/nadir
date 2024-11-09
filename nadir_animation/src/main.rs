@@ -22,6 +22,7 @@ pub enum AnimationErrors {}
 pub enum Message {
     AnimationTick(Instant),
     CameraRotation(Vector),
+    CameraFovChanged(f32),
     ChannelDataReceived,
     EscapePressed,
     //LeftButtonPressed(Point),
