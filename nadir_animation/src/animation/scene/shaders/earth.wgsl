@@ -88,7 +88,7 @@ fn fs_main(in: Output) -> FragOutput {
     let night_color = night_lights * night_texture;
 
     let cloud_intensity = 0.8;
-    let brightness = 3.0; // the texture we use is just too dark
+    let brightness = 5.0; // the texture we use is just too dark
     let day_color = mix(brightness * day_color_raw, cloud_color, cloud_intensity);
 
     // Diffuse lighting (Lambertian reflectance)

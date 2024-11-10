@@ -580,25 +580,31 @@ impl PromptAction for PromptKeplerian {
         let epoch = PromptEpoch.prompt()?;
 
         let a = input("Semimajor Axis <m>")
+            .default_input("7000000.0")
             .validate(PromptValidator::Positive)
             .interact()?;
         let e = input("Eccentricity")
+            .default_input("0.0")
             .validate(PromptValidator::Positive)
             .interact()?;
 
         let i = input("Inclination <rad>")
+            .default_input("0.0")  
             .validate(PromptValidator::Numeric)
             .interact()?;
 
         let raan = input("Right Ascension of the Ascending Node (RAAN) <rad>")
+            .default_input("0.0")
             .validate(PromptValidator::Numeric)
             .interact()?;
 
         let argp = input("Argument of Periapsis <rad>")
+            .default_input("0.0")
             .validate(PromptValidator::Numeric)
             .interact()?;
 
         let f = input("True Anomaly <rad>")
+            .default_input("0.0")
             .validate(PromptValidator::Numeric)
             .interact()?;
 
