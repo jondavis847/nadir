@@ -515,6 +515,21 @@ impl PromptAction for PromptEpoch {
 
                 Time::from_ymdhms(year, month, day, hour, minute, second, system)?
             }
+            TimeFormat::DayOfYear => {
+
+                let year = input("Year")
+                .default_input("2000")
+                .validate(PromptValidator::ValidYear)
+                .interact()?;
+
+                let doy = input("Day Of Year (1.0 - 365.99, time as decimal day)")
+                    .default_input("1.0")
+                    .validate(PromptValidator::Positive)
+                    .validate(PromptValidator::ValidDoy)
+                    .interact()?;
+
+                Time::from_doy(year, doy, system)?
+            }
             TimeFormat::JulianDate => {
                 let jd = input("Julian Date")
                     .validate(PromptValidator::Numeric)
@@ -1348,6 +1363,7 @@ enum PromptValidator {
     ValidYear,
     ValidMonth,
     ValidDay,
+    ValidDoy,
     ValidHour,
     ValidMinute,
     ValidSecond,
@@ -1398,6 +1414,16 @@ impl cliclack::Validate<String> for PromptValidator {
                     Ok(day) if (1..=31).contains(&day) => Ok(()), // Day is between 1 and 31
                     Ok(_) => Err(format!(
                         "'{}' is not a valid day (must be between 1 and 31)",
+                        input
+                    )),
+                    Err(_) => Err(format!("'{}' is not a valid number", input)), // Parsing error
+                }
+            }
+            PromptValidator::ValidDoy => {
+                match input.parse::<f64>() {
+                    Ok(doy) if doy >= 1.0 && doy < 366.0 => Ok(()), // DOY is between 1.0 and 366.0
+                    Ok(_) => Err(format!(
+                        "'{}' is not a valid day of year (must be between 1.0 and 366.0, with time as the decimal)",
                         input
                     )),
                     Err(_) => Err(format!("'{}' is not a valid number", input)), // Parsing error

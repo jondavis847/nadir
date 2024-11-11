@@ -2,7 +2,7 @@ use std::{
     ops::{Add, Sub},
     time::Duration,
 };
-use chrono::{NaiveDate, NaiveDateTime, Utc};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -68,8 +68,10 @@ pub enum TimeSystem {
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, Eq)]
 pub enum TimeFormat {
     DateTime,
+    DayOfYear,
     JulianDate,
     SecondsSinceJ2000,
+
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
@@ -91,6 +93,17 @@ impl Time {
     pub fn from_datetime(dt: NaiveDateTime, system: TimeSystem) -> Result<Self, TimeErrors> {
         let value = SecondsSinceJ2000::try_from(dt)?;
         Ok(Self { system, value })
+    }
+
+    pub fn from_doy(year: i32, doy: f64, system: TimeSystem) -> Result<Self, TimeErrors> {
+        let day = doy.floor();
+        let float_seconds = (doy - day) * 86400.0;
+        let seconds = float_seconds.floor();
+        let nanoseconds = ((float_seconds - seconds) * 1e9).round();
+        let time = NaiveTime::from_num_seconds_from_midnight_opt(seconds as u32, nanoseconds as u32).unwrap();
+        let datetime = NaiveDate::from_yo_opt(year, day as u32).unwrap().and_time(time);
+
+        Self::from_datetime(datetime, system)
     }
 
     pub fn from_sec_j2k(value: f64, system: TimeSystem) -> Self {
