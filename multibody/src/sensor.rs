@@ -63,7 +63,7 @@ impl Sensor {
         if let Some(connection) = &self.connection {
             self.model.update(body, connection);
         } else {
-            panic!("no sensor connection found. should not be possible, should be caught in system validation.")
+            unreachable!("no sensor connection found. should not be possible, should be caught in system validation.")
         }
     }
 }

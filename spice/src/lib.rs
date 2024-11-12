@@ -200,7 +200,7 @@ impl Spice {
 
         //TODO: include century calculation for obliquity for completeness?
         let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
-        let j2000_equatorial_from_ecliptic = Rotation::from(Quaternion::new(
+        let j2000_equatorial_from_ecliptic = Rotation::from(&Quaternion::new(
             (-obliquity / 2.0).sin(),
             0.0,
             0.0,
@@ -215,7 +215,7 @@ impl Spice {
         //TODO: we take inv because of spice giving passive rotation, we use active
         // fix when we go to passive rotations
         let orientation_ecliptic =
-            Rotation::from(EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ)).inv();
+            Rotation::from(&EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ)).inv();
         let orientation_equatorial = j2000_equatorial_from_ecliptic * orientation_ecliptic;
         Ok(orientation_equatorial)
     }

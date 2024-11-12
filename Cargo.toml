@@ -3,7 +3,7 @@ members = [ "aerospace", "nadir_animation", "benchmarks", "nadir",
     "coordinate_systems", "mass_properties",
     "multibody", 
     "rotations", "spatial_algebra",
-    "transforms", "utilities", "color", "nadir_3d", "spice", "time",    
+    "transforms", "utilities", "color", "nadir_3d", "spice", "time", "nadir_fsw",    
 ]
 resolver = "2"
 

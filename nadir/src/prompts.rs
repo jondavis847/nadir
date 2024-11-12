@@ -34,7 +34,7 @@ use multibody::{
 };
 use nalgebra::Vector3;
 use rotations::{
-    axes::{AlignedAxes, Axis, AxisPair},
+    aligned_axes::{AlignedAxes, Axis, AxisPair},
     prelude::{EulerAngles, EulerSequence, RotationMatrix},
     quaternion::Quaternion,
     Rotation,
@@ -114,7 +114,7 @@ impl PromptAction for PromptAlignedAxes {
 
         let pri = AxisPair::new(op, np);
         let sec = AxisPair::new(os, ns);
-        Ok(Rotation::from(AlignedAxes::new(pri, sec)?))
+        Ok(Rotation::from(&AlignedAxes::new(pri, sec)?))
     }
 }
 
@@ -659,7 +659,7 @@ impl PromptAction for PromptJointFloating {
             _ => unreachable!("picked in a select")
         };
 
-        let state = FloatingState::new(Quaternion::from(rotation), rate, position, velocity);
+        let state = FloatingState::new(Quaternion::from(&rotation), rate, position, velocity);
 
         let parameters = if PromptJointMechanicsOption.prompt()? {
             info("Rotational Mechanics [x]")?;
@@ -1237,15 +1237,15 @@ impl PromptAction for PromptRotation {
             0 => Rotation::IDENTITY,
             1 => {
                 let quaternion = PromptQuaternion.prompt()?;
-                Rotation::from(quaternion)
+                Rotation::from(&quaternion)
             }
             2 => {
                 let rotation_matrix = PromptRotationMatrix.prompt()?;
-                Rotation::from(rotation_matrix)
+                Rotation::from(&rotation_matrix)
             }
             3 => {
                 let euler_angles = PromptEulerAngles.prompt()?;
-                Rotation::from(euler_angles)
+                Rotation::from(&euler_angles)
             }
             4 => {
                 let aligned_axes = PromptAlignedAxes.prompt()?;

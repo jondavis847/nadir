@@ -1,9 +1,12 @@
-use std::ops::Mul;
-pub mod axes;
+pub mod aligned_axes;
+pub mod axis_angle;
 pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
-use axes::AlignedAxes;
+
+use std::ops::Mul;
+use aligned_axes::AlignedAxes;
+use axis_angle::AxisAngle;
 use euler_angles::{EulerAngles, EulerSequence};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,7 @@ use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;
 
 pub mod prelude {
-    pub use crate::axes::*;
+    pub use crate::aligned_axes::*;
     pub use crate::euler_angles::*;
     pub use crate::quaternion::*;
     pub use crate::rotation_matrix::*;
@@ -71,7 +74,7 @@ impl Rotation {
     pub const IDENTITY: Self = Rotation::Quaternion(Quaternion::IDENTITY);
 }
 
-impl From<Quaternion> for Rotation {
+impl From<&Quaternion> for Rotation {
     /// Converts Quaternion to a Rotation.
     ///
     /// # Arguments
@@ -81,12 +84,12 @@ impl From<Quaternion> for Rotation {
     /// # Returns
     ///
     /// A new `Rotation` instance representing the quaternion.
-    fn from(quaternion: Quaternion) -> Self {
+    fn from(quaternion: &Quaternion) -> Self {
         Rotation::Quaternion(quaternion.normalize()) // normalize since a rotation should be a unit quaternion
     }
 }
 
-impl From<RotationMatrix> for Rotation {
+impl From<&RotationMatrix> for Rotation {
     /// Converts RotationMatrix to a Rotation.
     ///
     /// # Arguments
@@ -96,12 +99,12 @@ impl From<RotationMatrix> for Rotation {
     /// # Returns
     ///
     /// A new `Rotation` instance representing the RotationMatrix.
-    fn from(rotation_matrix: RotationMatrix) -> Self {
-        Rotation::RotationMatrix(rotation_matrix)
+    fn from(rotation_matrix: &RotationMatrix) -> Self {
+        Rotation::RotationMatrix(*rotation_matrix)
     }
 }
 
-impl From<EulerAngles> for Rotation {
+impl From<&EulerAngles> for Rotation {
     /// Converts Euler angles to a rotation by converting to a quaternion.
     ///
     /// # Arguments
@@ -111,13 +114,13 @@ impl From<EulerAngles> for Rotation {
     /// # Returns
     ///
     /// A new `Rotation` instance representing the converted quaternion.
-    fn from(euler: EulerAngles) -> Self {
+    fn from(euler: &EulerAngles) -> Self {
         let quaternion = Quaternion::from(euler);
         Rotation::Quaternion(quaternion)
     }
 }
 
-impl From<AlignedAxes> for Rotation {
+impl From<&AlignedAxes> for Rotation {
     /// Converts Aligned Axes to a rotation by converting to rotation matrix.
     /// TODO: Should we just go all the way to quaternion?
     ///
@@ -128,10 +131,10 @@ impl From<AlignedAxes> for Rotation {
     /// # Returns
     ///
     /// A new `Rotation` instance representing the converted quaternion.
-    fn from(aligned_axes: AlignedAxes) -> Self {
+    fn from(aligned_axes: &AlignedAxes) -> Self {
         //let rotation_matrix = RotationMatrix::from(aligned_axes);
         //Rotation::RotationMatrix(rotation_matrix)
-        Rotation::Quaternion(Quaternion::from(RotationMatrix::from(aligned_axes)))
+        Rotation::Quaternion(Quaternion::from(&RotationMatrix::from(aligned_axes)))
     }
 }
 
@@ -153,8 +156,8 @@ impl Mul<Rotation> for Rotation {
                 Rotation::RotationMatrix(lhs * rhs)
             }
             (lhs, rhs) => {
-                let q_lhs = Quaternion::from(lhs);
-                let q_rhs = Quaternion::from(rhs);
+                let q_lhs = Quaternion::from(&lhs);
+                let q_rhs = Quaternion::from(&rhs);
                 Rotation::Quaternion(q_lhs * q_rhs)
             }
         }

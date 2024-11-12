@@ -62,7 +62,7 @@ fn main() {
             let orientation = spice.calculate_orientation(epoch, body);
             match orientation {
                 Ok(orientation) => {
-                    let q = Quaternion::from(orientation);
+                    let q = Quaternion::from(&orientation);
                     println!("J2000/ITRF Quaternion:");
                     println!("  x: {}", q.x);
                     println!("  y: {}", q.y);

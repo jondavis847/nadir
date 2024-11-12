@@ -1,5 +1,6 @@
 pub mod rate;
 pub mod rate3;
+pub mod star_tracker;
 
 use super::SensorTrait;
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
 use rate::{RateSensor, RateSensorResult};
 use rate3::{Rate3Sensor, Rate3SensorResult};
 use serde::{Deserialize, Serialize};
+use star_tracker::StarTrackerResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SimpleSensor {
@@ -42,6 +44,7 @@ impl SensorTrait for SimpleSensor {
 pub enum SimpleSensorResult {
     Rate(RateSensorResult),
     Rate3(Rate3SensorResult),
+    StarTracker(StarTrackerResult),
 }
 
 impl SimpleSensorResult {
@@ -61,12 +64,14 @@ impl MultibodyResultTrait for SimpleSensorResult {
         match self {
             SimpleSensorResult::Rate(result) => result.add_to_dataframe(df),
             SimpleSensorResult::Rate3(result) => result.add_to_dataframe(df),
+            SimpleSensorResult::StarTracker(result) => result.add_to_dataframe(df),
         }
     }
     fn get_state_names(&self) -> Vec<String> {
         match self {
             SimpleSensorResult::Rate(result) => result.get_state_names(),
             SimpleSensorResult::Rate3(result) => result.get_state_names(),
+            SimpleSensorResult::StarTracker(result) => result.get_state_names(),
         }
     }
 
@@ -74,6 +79,7 @@ impl MultibodyResultTrait for SimpleSensorResult {
         match self {
             SimpleSensorResult::Rate(result) => result.get_result_entry(),
             SimpleSensorResult::Rate3(result) => result.get_result_entry(),
+            SimpleSensorResult::StarTracker(result) => result.get_result_entry(),
         }
     }
 }

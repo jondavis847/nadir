@@ -97,7 +97,7 @@ impl CelestialSystem {
         };
 
         let geomag_option = None; // for now
-        
+
         // Create and add the celestial body
         self.bodies
             .push(CelestialBody::new(body, gravity_option, geomag_option));
@@ -114,7 +114,7 @@ impl CelestialSystem {
     pub fn calculate_gravity(&self, position: Vector3<f64>) -> Vector3<f64> {
         let mut g_final = Vector3::zeros();
 
-        for body in &self.bodies {            
+        for body in &self.bodies {
             match body.body {
                 CelestialBodies::Earth => {
                     // Special case for Earth
@@ -126,9 +126,7 @@ impl CelestialSystem {
                                 let g_gcrf = body.orientation.transform(g_itrf);
                                 g_final += g_gcrf;
                             }
-                            Gravity::Newtownian(gravity) => {                                
-                                g_final += gravity.calculate(position)
-                            },
+                            Gravity::Newtownian(gravity) => g_final += gravity.calculate(position),
                             Gravity::Constant(gravity) => g_final += gravity.calculate(position),
                         }
                     }
@@ -140,7 +138,7 @@ impl CelestialSystem {
                     }
                 }
             }
-        }        
+        }
         g_final
     }
 
@@ -233,13 +231,13 @@ fn from_planet_fact_sheet(
     // j2000 orientation
     let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
     let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
-    let initial_orientation = Rotation::from(EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = Rotation::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = hrs_in_day * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Rotation::from(EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        Rotation::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 
@@ -248,13 +246,13 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Rotati
     let n = (357.85 + 52.316 * julian_centuries) * PI / 180.0;
     let ra = (299.36 + 0.70 * n.sin()) * PI / 180.0;
     let dec = (43.46 - 0.51 * n.cos()) * PI / 180.0;
-    let initial_orientation = Rotation::from(EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = Rotation::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = 16.11 * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Rotation::from(EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        Rotation::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 
@@ -275,7 +273,7 @@ impl CelestialBodyResult {
     }
 
     pub fn update(&mut self, body: &CelestialBody) {
-        self.orientation.push(Quaternion::from(body.orientation));
+        self.orientation.push(Quaternion::from(&body.orientation));
         self.position.push(body.position);
     }
 

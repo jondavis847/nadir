@@ -1,0 +1,9 @@
+[package]
+name = "nadir_fsw"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+multibody = {path = "../multibody"}
+nalgebra = "0.33.2"
+transforms = {path = "../transforms"}

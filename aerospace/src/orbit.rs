@@ -262,7 +262,7 @@ impl KeplerianElements {
             -self.raan,
             EulerSequence::ZXZ,
         );
-        let rotation = Rotation::from(euler_angles);
+        let rotation = Rotation::from(&euler_angles);
 
         // Rotate position and velocity from orbital plane to inertial frame
         let position = rotation.transform(r_pqw);

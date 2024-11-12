@@ -1,12 +1,12 @@
 use super::*;
-use axes::{AlignedAxes, Axis};
+use aligned_axes::{AlignedAxes, Axis};
 use nalgebra::{Matrix3, Vector3};
-use thiserror::Error;
+use serde::{Deserialize, Serialize};
 use std::ops::Mul;
-use serde::{Serialize, Deserialize};
+use thiserror::Error;
 
 /// A struct representing a 3x3 rotation matrix.
-#[derive(Debug, Copy, Clone, PartialEq,Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RotationMatrix(pub Matrix3<f64>);
 
 /// Errors that can occur when creating a `RotationMatrix`.
@@ -78,17 +78,17 @@ impl From<Matrix3<f64>> for RotationMatrix {
     }
 }
 
-impl From<Rotation> for RotationMatrix {
-    fn from(rotation: Rotation) -> RotationMatrix {
+impl From<&Rotation> for RotationMatrix {
+    fn from(rotation: &Rotation) -> RotationMatrix {
         match rotation {
             Rotation::EulerAngles(rotation) => RotationMatrix::from(rotation),
             Rotation::Quaternion(rotation) => RotationMatrix::from(rotation),
-            Rotation::RotationMatrix(rotation) => rotation,
+            Rotation::RotationMatrix(rotation) => *rotation,
         }
     }
 }
 
-impl From<Quaternion> for RotationMatrix {
+impl From<&Quaternion> for RotationMatrix {
     /// Converts a `Quaternion` into a `RotationMatrix`.
     ///
     /// # Arguments
@@ -98,7 +98,7 @@ impl From<Quaternion> for RotationMatrix {
     /// # Returns
     ///
     /// A new `RotationMatrix` representing the rotation defined by the quaternion.
-    fn from(q: Quaternion) -> Self {
+    fn from(q: &Quaternion) -> Self {
         let s = q.s;
         let x = q.x;
         let y = q.y;
@@ -119,7 +119,7 @@ impl From<Quaternion> for RotationMatrix {
     }
 }
 
-impl From<EulerAngles> for RotationMatrix {
+impl From<&EulerAngles> for RotationMatrix {
     /// Converts `EulerAngles` into a `RotationMatrix`.
     ///
     /// # Arguments
@@ -129,7 +129,7 @@ impl From<EulerAngles> for RotationMatrix {
     /// # Returns
     ///
     /// A new `RotationMatrix` representing the rotation defined by the euler angles.
-    fn from(euler_angles: EulerAngles) -> RotationMatrix {
+    fn from(euler_angles: &EulerAngles) -> RotationMatrix {
         let rotx =
             |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), a.sin(), 0.0, -a.sin(), a.cos());
         let roty =
@@ -155,8 +155,8 @@ impl From<EulerAngles> for RotationMatrix {
     }
 }
 
-impl From<AlignedAxes> for RotationMatrix {
-    fn from(axes: AlignedAxes) -> Self {
+impl From<&AlignedAxes> for RotationMatrix {
+    fn from(axes: &AlignedAxes) -> Self {
         let mut m = Matrix3::zeros();
 
         let axis_to_vector = |axis: Axis| -> Vector3<f64> {
@@ -288,7 +288,7 @@ impl Mul<RotationMatrix> for RotationMatrix {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axes::AxisPair;
+    use aligned_axes::AxisPair;
     use nalgebra::Matrix3;
 
     #[test]
@@ -302,8 +302,9 @@ mod tests {
                 old: Axis::Yp,
                 new: Axis::Yp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -319,8 +320,9 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Zp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -336,8 +338,9 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Xp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0);
 
         assert_eq!(rotation.0, expected_matrix);
@@ -354,8 +357,9 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Xp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);        
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -371,8 +375,9 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Yn,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -388,8 +393,9 @@ mod tests {
                 old: Axis::Xp,
                 new: Axis::Xp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -405,8 +411,9 @@ mod tests {
                 old: Axis::Yn,
                 new: Axis::Xp,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(0.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -422,8 +429,9 @@ mod tests {
                 old: Axis::Zp,
                 new: Axis::Yn,
             },
-        ).unwrap();
-        let rotation = RotationMatrix::from(axis_rotation);
+        )
+        .unwrap();
+        let rotation = RotationMatrix::from(&axis_rotation);
         let expected_matrix = Matrix3::new(0.0, -1.0, -0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0);
         assert_eq!(rotation.0, expected_matrix);
     }

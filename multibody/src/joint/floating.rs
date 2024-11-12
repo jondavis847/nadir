@@ -20,7 +20,7 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
 use polars::prelude::*;
-use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, RotationTrait};
+use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
@@ -351,7 +351,7 @@ impl JointSimTrait for FloatingSim {
         let p = &self.parameters;
         // this assume tait-bryan euler angle sequence (ZYX)
 
-        let angles = EulerAngles::from(self.state.q);
+        let angles = EulerAngles::from(&self.state.q);
 
         self.cache.tau[0] = p[0].constant_force
             - p[0].spring_constant * angles.psi
@@ -488,9 +488,9 @@ impl JointSimTrait for FloatingSim {
         &mut self.transforms
     }
     fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-        let rotation = self.state.q;
+        let rotation = Rotation::from(&self.state.q);
         let translation = Cartesian::from(self.state.r); // r is already jif to jof
-        let transform = Transform::new(rotation.into(), translation.into());
+        let transform = Transform::new(rotation, translation.into());
 
         self.transforms.jof_from_jif = SpatialTransform(transform);
         self.transforms.jif_from_jof = self.transforms.jof_from_jif.inv();

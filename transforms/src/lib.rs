@@ -1,14 +1,11 @@
 use coordinate_systems::{
-    cartesian::Cartesian,
-    cylindrical::Cylindrical,
-    spherical::Spherical,
-    CoordinateSystem,
+    cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
 };
-use nalgebra::Vector3;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
+use nalgebra::Vector3;
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
+use serde::{Deserialize, Serialize};
 use std::ops::Mul;
-use serde::{Serialize, Deserialize};
 
 pub mod prelude {
     pub use crate::Transform;
@@ -123,7 +120,7 @@ impl Mul<MassProperties> for Transform {
         let inertia = rhs.inertia.matrix();
 
         // transpose since rotation matrix is "active" unless calling the .transform() method, make it passive to transform
-        let rotation_matrix = RotationMatrix::from(self.rotation).get_value();
+        let rotation_matrix = RotationMatrix::from(&self.rotation).get_value();
 
         // transform the inertia , note that this is usually R*I*R', but since R is active, it's now R'*I*R
         let transformed_inertia =
@@ -159,7 +156,7 @@ impl Mul<MassProperties> for Transform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;    
+    use approx_eq::assert_approx_eq;
     use rotations::{
         euler_angles::{EulerAngles, EulerSequence},
         quaternion::Quaternion,
@@ -168,11 +165,11 @@ mod tests {
     const TOL: f64 = 1e-12;
 
     fn assert_transform_mul(
-        angles1: EulerAngles,
+        angles1: &EulerAngles,
         translation1: Cartesian,
-        angles2: EulerAngles,
+        angles2: &EulerAngles,
         translation2: Cartesian,
-        expected_angles: EulerAngles,
+        expected_angles: &EulerAngles,
         expected_translation: Cartesian,
         expected_vector: Vector3<f64>,
     ) {
@@ -183,7 +180,7 @@ mod tests {
         let transform2 = Transform::new(rotation2, translation2.into());
 
         let result = transform2 * transform1;
-        let result_rotation = Quaternion::from(result.rotation);
+        let result_rotation = Quaternion::from(&result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
         let expected_rotation = Quaternion::from(expected_angles);
@@ -205,13 +202,13 @@ mod tests {
     }
 
     fn assert_transform_mul3(
-        angles1: EulerAngles,
+        angles1: &EulerAngles,
         translation1: Cartesian,
-        angles2: EulerAngles,
+        angles2: &EulerAngles,
         translation2: Cartesian,
-        angles3: EulerAngles,
+        angles3: &EulerAngles,
         translation3: Cartesian,
-        expected_angles: EulerAngles,
+        expected_angles: &EulerAngles,
         expected_translation: Cartesian,
         expected_vector: Vector3<f64>,
     ) {
@@ -225,7 +222,7 @@ mod tests {
         let transform3 = Transform::new(rotation3, translation3.into());
 
         let result = transform3 * (transform2 * transform1);
-        let result_rotation = Quaternion::from(result.rotation);
+        let result_rotation = Quaternion::from(&result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
         let expected_rotation = Quaternion::from(expected_angles);
@@ -257,11 +254,11 @@ mod tests {
         let expected_vector = Vector3::new(-1.0, -2.0, -3.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -278,11 +275,11 @@ mod tests {
         let expected_vector = Vector3::new(-1.0, 0.0, -3.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -299,11 +296,11 @@ mod tests {
         let expected_vector = Vector3::new(-1.0, -2.0, 1.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -320,11 +317,11 @@ mod tests {
         let expected_vector = Vector3::new(2.0, 2.0, 0.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -341,11 +338,11 @@ mod tests {
         let expected_vector = Vector3::new(3.0, 0.0, -3.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -362,11 +359,11 @@ mod tests {
         let expected_vector = Vector3::new(1.0, 3.0, 0.0);
 
         assert_transform_mul(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
@@ -386,16 +383,15 @@ mod tests {
         let expected_vector = Vector3::new(-3.0, 2.0, 2.0);
 
         assert_transform_mul3(
-            angles1,
+            &angles1,
             translation1,
-            angles2,
+            &angles2,
             translation2,
-            angles3,
+            &angles3,
             translation3,
-            expected_angles,
+            &expected_angles,
             expected_translation,
             expected_vector,
         );
     }
-
 }

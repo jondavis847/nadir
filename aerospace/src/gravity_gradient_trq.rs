@@ -45,7 +45,7 @@ mod tests {
             -0.067546444,
             -0.994337304,
             -0.061982758); // from XINA (for PACE)
-        let q_rot = RotationMatrix::from(q);
+        let q_rot = RotationMatrix::from(&q);
         
         let a_f2i = RotationMatrix::new(
             -0.80724874, -0.590206523, 0.002394065,

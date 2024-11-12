@@ -431,7 +431,7 @@ impl SpatialTransform {
 
     pub fn matrix_motion(&self) -> Matrix6<f64> {
         let transform = self.0;
-        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
         let r_skew = transform.translation.vec().cross_matrix();
 
         let m11 = rotation_matrix;
@@ -450,7 +450,7 @@ impl SpatialTransform {
 
     pub fn matrix_force(&self) -> Matrix6<f64> {
         let transform = self.0;
-        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
         let r_skew = transform.translation.vec().cross_matrix();
 
         let m11 = rotation_matrix;
@@ -479,7 +479,7 @@ impl Mul<MotionVector> for SpatialTransform {
     type Output = MotionVector;
     fn mul(self, motion: MotionVector) -> MotionVector {
         let transform = self.0;
-        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
         let r_skew = transform.translation.vec().cross_matrix();
 
         let rotation = rotation_matrix * motion.0.rotation;
@@ -509,7 +509,7 @@ impl Mul<ForceVector> for SpatialTransform {
     type Output = ForceVector;
     fn mul(self, force: ForceVector) -> ForceVector {
         let transform = self.0;
-        let rotation_matrix = RotationMatrix::from(transform.rotation).get_value();
+        let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
         let r_skew = transform.translation.vec().cross_matrix();
 
         let rotation =
@@ -785,13 +785,13 @@ mod tests {
     fn test_transform_inertia_translation_and_rotation() {
         let inertia = SpatialInertia::from(MassProperties::default());
         let translation = Cartesian::new(0.0, 0.0, 1.0);
-        let rotation = EulerAngles::new(
+        let rotation = Rotation::from(&EulerAngles::new(
             std::f64::consts::FRAC_PI_2,
             0.0,
             0.0,
             rotations::prelude::EulerSequence::XYZ,
-        );
-        let transform = Transform::new(rotation.into(), translation.into());
+        ));
+        let transform = Transform::new(rotation, translation.into());
         let spatial_transform = SpatialTransform::from(transform);
         let result = spatial_transform * inertia;
 

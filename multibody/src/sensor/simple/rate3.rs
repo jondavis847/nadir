@@ -29,7 +29,7 @@ struct Rate3SensorParameters {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Rate3SensorState {
     noise: Vector3<f64>,
-    value: Vector3<f64>,
+    pub measurement: Vector3<f64>,
 }
 
 impl Rate3Sensor {
@@ -67,7 +67,7 @@ impl SensorTrait for Rate3Sensor {
         let noise2 = self.parameters.noise[1].sample();
         let noise3 = self.parameters.noise[2].sample();
         self.state.noise = Vector3::new(noise1, noise2, noise3);
-        self.state.value = sensor_rate + self.state.noise;
+        self.state.measurement = sensor_rate + self.state.noise;
     }
 }
 
@@ -79,7 +79,7 @@ pub struct Rate3SensorResult {
 
 impl Rate3SensorResult {
     pub fn update(&mut self, sensor: &Rate3Sensor) {
-        self.value.push(sensor.state.value);
+        self.value.push(sensor.state.measurement);
         self.noise.push(sensor.state.noise);
     }
 }
