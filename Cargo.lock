@@ -1395,13 +1395,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "differential_equations"
-version = "0.1.0"
-dependencies = [
- "criterion",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3421,7 +3414,6 @@ dependencies = [
  "colored",
  "coordinate_systems",
  "dhat",
- "differential_equations",
  "dirs-next",
  "inquire",
  "mass_properties",
