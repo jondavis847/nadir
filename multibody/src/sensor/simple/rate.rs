@@ -16,20 +16,18 @@ use super::SimpleSensorResult;
 /// You can use Rotation::AlignedAxes to simplify the logic
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RateSensor {
-    name: String,
+pub struct RateSensor {    
     parameters: RateSensorParameters,
     state: RateSensorState,
     result: RateSensorResult,
 }
 
 impl RateSensor {
-    pub fn new(name: String, delay: f64, noise: Noise) -> Self {
+    pub fn new(delay: f64, noise: Noise) -> Self {
         let parameters = RateSensorParameters { delay, noise };
         let state = RateSensorState::default();
         let result = RateSensorResult::default();
-        Self {
-            name,
+        Self {            
             parameters,
             state,
             result,
@@ -43,10 +41,10 @@ pub struct RateSensorParameters {
     noise: Noise,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct RateSensorState {
     noise: f64,
-    value: f64,
+    measurement: f64,
 }
 impl SensorTrait for RateSensor {
     fn initialize_result(&self) -> SensorResult {
@@ -58,7 +56,7 @@ impl SensorTrait for RateSensor {
         let body_rate = &body.state.angular_rate_body;
         let sensor_rate = rotation.transform(*body_rate);
         self.state.noise = self.parameters.noise.sample();
-        self.state.value = sensor_rate[0] + self.state.noise; // Always the X axis for 1d Rate Sensor
+        self.state.measurement = sensor_rate[0] + self.state.noise; // Always the X axis for 1d Rate Sensor
     }
 }
 
@@ -70,7 +68,7 @@ pub struct RateSensorResult {
 
 impl RateSensorResult {
     pub fn update(&mut self, sensor: &RateSensor) {
-        self.value.push(sensor.state.value);
+        self.value.push(sensor.state.measurement);
         self.noise.push(sensor.state.noise);
     }
 }

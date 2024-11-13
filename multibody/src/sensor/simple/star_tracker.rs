@@ -54,7 +54,7 @@ struct StarTrackerParameters {
     noise: Option<QuaternionNoise>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct StarTrackerState {
     noise: Option<Quaternion>,
     pub measurement: Quaternion,
@@ -63,17 +63,15 @@ pub struct StarTrackerState {
 /// A star tracker attitude sensor with gaussian white noise & constant delay
 /// The sensor frame is defined with +Z out the boresight, +X to the right, +Y is up
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StarTracker {
-    name: String,
+pub struct StarTracker {    
     parameters: StarTrackerParameters,
     state: StarTrackerState,
     result: StarTrackerResult,
 }
 
 impl StarTracker {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
+    pub fn new() -> Self {
+        Self {            
             parameters: StarTrackerParameters::default(),
             state: StarTrackerState::default(),
             result: StarTrackerResult::default(),

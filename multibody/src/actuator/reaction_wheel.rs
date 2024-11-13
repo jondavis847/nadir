@@ -75,16 +75,14 @@ pub struct ReactionWheelState {
     torque_body: Vector3<f64>,   // Nm
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ReactionWheel {
-    name: String,
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+pub struct ReactionWheel {    
     parameters: ReactionWheelParameters,
     state: ReactionWheelState,
 }
 
 impl ReactionWheel {
-    pub fn new(
-        name: String,
+    pub fn new(        
         inertia: f64,
         torque_max: f64,
         transform: Transform,
@@ -99,8 +97,7 @@ impl ReactionWheel {
             misalignment: None,
             torque_speed_curve: None,
         };
-        Ok(Self {
-            name,
+        Ok(Self {            
             parameters,
             state: ReactionWheelState::default(),
         })

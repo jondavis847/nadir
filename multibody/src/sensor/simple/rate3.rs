@@ -14,7 +14,7 @@ struct Rate3SensorParameters {
     noise: [Noise; 3],
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Rate3SensorState {
     noise: Vector3<f64>,
     pub measurement: Vector3<f64>,
@@ -26,15 +26,14 @@ pub struct Rate3SensorState {
 /// about the desired rotation axis in the body frame
 /// You can use Rotation::AlignedAxes to simplify the logic
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate3Sensor {
-    name: String,
+pub struct Rate3Sensor {    
     parameters: Rate3SensorParameters,
     state: Rate3SensorState,
     result: Rate3SensorResult,
 }
 
 impl Rate3Sensor {
-    pub fn new(name: String, delay: f64, noise: Noise) -> Self {
+    pub fn new(delay: f64, noise: Noise) -> Self {
         let mut noise1 = noise.clone();
         let mut noise2 = noise.clone();
         let mut noise3 = noise.clone();
@@ -47,8 +46,7 @@ impl Rate3Sensor {
         let state = Rate3SensorState::default();
         let result = Rate3SensorResult::default();
 
-        Self {
-            name,
+        Self {            
             parameters,
             state,
             result,
