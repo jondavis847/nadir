@@ -1,3 +1,4 @@
+pub mod actuator;
 pub mod algorithms;
 pub mod base;
 pub mod body;

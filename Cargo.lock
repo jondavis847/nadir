@@ -3373,6 +3373,7 @@ dependencies = [
  "smol_str",
  "spatial_algebra",
  "spice",
+ "thiserror 2.0.3",
  "time",
  "transforms",
  "utilities",

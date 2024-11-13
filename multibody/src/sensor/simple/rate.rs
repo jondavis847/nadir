@@ -17,17 +17,19 @@ use super::SimpleSensorResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RateSensor {
+    name: String,
     parameters: RateSensorParameters,
     state: RateSensorState,
     result: RateSensorResult,
 }
 
 impl RateSensor {
-    pub fn new(delay: f64, noise: Noise) -> Self {
+    pub fn new(name: String, delay: f64, noise: Noise) -> Self {
         let parameters = RateSensorParameters { delay, noise };
         let state = RateSensorState::default();
         let result = RateSensorResult::default();
         Self {
+            name,
             parameters,
             state,
             result,

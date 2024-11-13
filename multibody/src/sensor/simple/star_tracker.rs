@@ -44,15 +44,6 @@ use serde::{Deserialize, Serialize};
 // Background Illumination Noise:
 // Light from sources other than stars, such as scattered sunlight, earthshine, or zodiacal light, can increase the sensor’s background noise, making it more challenging to detect and accurately measure the star signal.
 
-/// A star tracker attitude sensor with gaussian white noise & constant delay
-/// The sensor frame is defined with +Z out the boresight, +X to the right, +Y is up
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StarTracker {
-    parameters: StarTrackerParameters,
-    state: StarTrackerState,
-    result: StarTrackerResult,
-}
-
 /// Constant parameters for the simple star tracker sensor
 /// delay - a constant in seconds between truth dynamics and the sensor measurement
 /// noise_(x,y,z) - noise in arcseconds for each axis
@@ -69,7 +60,26 @@ pub struct StarTrackerState {
     pub measurement: Quaternion,
 }
 
+/// A star tracker attitude sensor with gaussian white noise & constant delay
+/// The sensor frame is defined with +Z out the boresight, +X to the right, +Y is up
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StarTracker {
+    name: String,
+    parameters: StarTrackerParameters,
+    state: StarTrackerState,
+    result: StarTrackerResult,
+}
+
 impl StarTracker {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            parameters: StarTrackerParameters::default(),
+            state: StarTrackerState::default(),
+            result: StarTrackerResult::default(),
+        }
+    }
+
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);
         self

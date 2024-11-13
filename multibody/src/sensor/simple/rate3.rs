@@ -8,18 +8,6 @@ use polars::prelude::*;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
-/// A simple rate sensor with gaussian white noise & constant delay
-/// The sensor frame is right hand rotation about X
-/// The transform should put the X axis of the sensor
-/// about the desired rotation axis in the body frame
-/// You can use Rotation::AlignedAxes to simplify the logic
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate3Sensor {
-    parameters: Rate3SensorParameters,
-    state: Rate3SensorState,
-    result: Rate3SensorResult,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Rate3SensorParameters {
     delay: f64,
@@ -32,8 +20,21 @@ pub struct Rate3SensorState {
     pub measurement: Vector3<f64>,
 }
 
+/// A simple rate sensor with gaussian white noise & constant delay
+/// The sensor frame is right hand rotation about X
+/// The transform should put the X axis of the sensor
+/// about the desired rotation axis in the body frame
+/// You can use Rotation::AlignedAxes to simplify the logic
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rate3Sensor {
+    name: String,
+    parameters: Rate3SensorParameters,
+    state: Rate3SensorState,
+    result: Rate3SensorResult,
+}
+
 impl Rate3Sensor {
-    pub fn new(delay: f64, noise: Noise) -> Self {
+    pub fn new(name: String, delay: f64, noise: Noise) -> Self {
         let mut noise1 = noise.clone();
         let mut noise2 = noise.clone();
         let mut noise3 = noise.clone();
@@ -47,6 +48,7 @@ impl Rate3Sensor {
         let result = Rate3SensorResult::default();
 
         Self {
+            name,
             parameters,
             state,
             result,
