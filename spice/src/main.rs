@@ -1,5 +1,4 @@
 use clap::{Arg, Command};
-use rotations::prelude::Quaternion;
 use spice::{Spice, SpiceBodies};
 use time::{Time, TimeSystem};
 
@@ -61,8 +60,7 @@ fn main() {
         if body == SpiceBodies::Earth {
             let orientation = spice.calculate_orientation(epoch, body);
             match orientation {
-                Ok(orientation) => {
-                    let q = Quaternion::from(&orientation);
+                Ok(q) => {
                     println!("J2000/ITRF Quaternion:");
                     println!("  x: {}", q.x);
                     println!("  y: {}", q.y);

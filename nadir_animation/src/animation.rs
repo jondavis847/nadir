@@ -10,7 +10,10 @@ use iced::{
     window, Color, Element, Length, Point, Subscription, Task, Theme, Vector,
 };
 
-use multibody::result::{MultibodyResult, ResultEntry};
+use multibody::{
+    result::{MultibodyResult, ResultEntry},
+    MultibodyErrors,
+};
 use scene::Scene;
 
 #[derive(Debug)]
@@ -22,7 +25,7 @@ pub struct AnimationGui {
 impl AnimationGui {
     pub fn new(result: MultibodyResult) -> (Self, Task<Message>) {
         let mut state = AnimationState::default();
-        state.initialize(&result);
+        state.initialize(&result).unwrap();
         (
             Self {
                 state,
@@ -38,7 +41,9 @@ impl AnimationGui {
         match message {
             Message::AnimationTick(instant) => {
                 if self.result.is_some() {
-                    state.animate(self.result.as_ref().unwrap(), instant);
+                    state
+                        .animate(self.result.as_ref().unwrap(), instant)
+                        .unwrap();
                 }
             }
             Message::CameraFovChanged(value) => state.camera_fov_changed(value),
@@ -126,26 +131,29 @@ impl Default for AnimationState {
 }
 
 impl AnimationState {
-    pub fn animate(&mut self, result: &MultibodyResult, instant: iced::time::Instant) {
+    pub fn animate(
+        &mut self,
+        result: &MultibodyResult,
+        instant: iced::time::Instant,
+    ) -> Result<(), MultibodyErrors> {
         self.animator.update(instant);
 
         for mesh in &mut self.scene.body_meshes {
-            let (attitude, position) =
-                result.get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64);
+            let (attitude, position) = result
+                .get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64)?;
             let position = glam::dvec3(position[0], position[1], position[2]);
             let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
             mesh.update(position, rotation);
         }
 
         for (body, mesh) in &mut self.scene.celestial.meshes {
-            if let Some((attitude, position)) = result.get_celestial_state_at_time_interp(
+            let (attitude, position) = result.get_celestial_state_at_time_interp(
                 body.to_body(),
                 self.animator.current_time as f64,
-            ) {
-                let position = glam::dvec3(position[0], position[1], position[2]) * 1e3; //celestial positions in km, convert to m
-                let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
-                mesh.update(position, rotation);
-            }
+            )?;
+            let position = glam::dvec3(position[0], position[1], position[2]) * 1e3; //celestial positions in km, convert to m
+            let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
+            mesh.update(position, rotation);
         }
 
         // adjust mesh positions so target is at origin and all other meshes are relative to it
@@ -158,6 +166,7 @@ impl AnimationState {
                 mesh.set_position_from_target(camera_target);
             }
         }
+        Ok(())
     }
 
     pub fn camera_fov_changed(&mut self, value: f32) {
@@ -230,7 +239,7 @@ impl AnimationState {
 
     pub fn right_button_released(&self, _cursor: Point) {}
 
-    pub fn initialize(&mut self, result: &MultibodyResult) {
+    pub fn initialize(&mut self, result: &MultibodyResult) -> Result<(), MultibodyErrors> {
         let sys = &result.system;
 
         // initialize the multibody bodies
@@ -251,23 +260,27 @@ impl AnimationState {
         if let Some(celestial_entry) = result.result.get("celestial") {
             match celestial_entry {
                 ResultEntry::Celestial(celestial) => {
-                    for body in &celestial.bodies {
-                        self.scene.celestial.add_body(body.body);
+                    for (body, result) in &celestial.bodies {
+                        self.scene.celestial.add_body(*body);
 
                         // get initial state
-                        let position = body.position[0];
-                        let orientation = body.orientation[0];
+                        let rx = result.get_state_value("position[x]")?[0];
+                        let ry = result.get_state_value("position[y]")?[0];
+                        let rz = result.get_state_value("position[z]")?[0];
+                        let qx = result.get_state_value("orientation[x]")?[0];
+                        let qy = result.get_state_value("orientation[y]")?[0];
+                        let qz = result.get_state_value("orientation[z]")?[0];
+                        let qw = result.get_state_value("orientation[w]")?[0];
 
                         // convert to graphics types
                         //position of celestials is in km, convert to m for accurate graphics
-                        let position = glam::dvec3(position[0], position[1], position[2]) * 1e3;
-                        let orientation =
-                            glam::dquat(orientation.x, orientation.y, orientation.z, orientation.s);
+                        let position = glam::dvec3(rx, ry, rz) * 1e3;
+                        let orientation = glam::dquat(qx, qy, qz, qw);
 
                         // update the mesh state and push to scene
                         self.scene
                             .celestial
-                            .update_body(body.body, position, orientation);
+                            .update_body(*body, position, orientation);
                     }
                 }
                 _ => unreachable!("celestial should always be a CelestialResult"),
@@ -284,6 +297,7 @@ impl AnimationState {
 
         self.animator = animator;
         self.animator.start();
+        Ok(())
     }
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {

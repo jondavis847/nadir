@@ -25,7 +25,7 @@ use reedline::{DefaultPrompt, DefaultPromptSegment, FileBackedHistory, Reedline,
 use ron::de::from_reader;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use spice::Spice;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 use std::fs::{self, File,OpenOptions};
 use std::io::{self,Read, Write};
 use std::path::{Path,PathBuf};
@@ -722,30 +722,24 @@ fn main() {
 
                                     if let Some(result) = results.get(&result) {
                                         let mut datasets = Vec::new();
-
-                                        let df = result.get_component_state(&component, vec![&state]);
-                                        let df = match df {
-                                            Some(df) => df,
-                                            None => {
-                                                error("Error: component or state not found");
-                                                continue
-                                            }
-                                        };
-                                        let t = df.column("t").unwrap().f64().unwrap();
-                                                                                                                        
-                                        let data = match df.column(&state) {
-                                            Ok(data) => data.f64().unwrap(),
-                                            Err(e) => {                                
-                                                error(&(e.to_string()));
-                                                continue
-                                            }
-                                        };
                                         
+                                        let data = match result.get_component_state(&component, &state) {
+                                            Ok(result) => {
+                                                result.clone()
+                                            }
+                                            Err(e) => {error(e); continue}
+                                        };
+                                        let t= result.sim_time.clone();
+
                                         assert_eq!(t.len(), data.len());
 
-                                        let x_bounds_0 = t.get(0).unwrap();
-                                        let x_bounds_2 = t.get(t.len()-1).unwrap();
+                                        let x_bounds_0 = *t.get(0).unwrap();
+                                        let x_bounds_2 = *t.get(t.len()-1).unwrap();
                                         let x_bounds_1 = (x_bounds_0 + x_bounds_2) /2.0;      
+
+                                        let y_bounds_0 = *data.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+                                        let y_bounds_2 = *data.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+                                        let y_bounds_1 = (y_bounds_0 + y_bounds_2) /2.0;          
 
                                         // add an indicator for 0 if if exists in the y range
                                         let points = [(x_bounds_0, 0.0), (x_bounds_2,0.0)];
@@ -757,10 +751,7 @@ fn main() {
                                         
                                         let points: Vec<(f64,f64)> = t
                                             .into_iter()
-                                            .zip(data.into_iter())
-                                            .map(|(x, y)| (x.unwrap_or_default(),y.unwrap_or_default())
-                                            )
-                                            .collect();
+                                            .zip(data.into_iter()).collect();
                 
                                         datasets.push(Dataset::default()
                                             .name(state.clone())
@@ -779,9 +770,7 @@ fn main() {
                                             .bounds([x_bounds_0, x_bounds_2])
                                             .labels(vec![format_number(x_bounds_0).into(), format_number(x_bounds_1).into(), format_number(x_bounds_2).into()]);
 
-                                        let y_bounds_0 = df.column(&state).unwrap().min().unwrap().unwrap();
-                                        let y_bounds_2 = df.column(&state).unwrap().max().unwrap().unwrap();
-                                        let y_bounds_1 = (y_bounds_0 + y_bounds_2) /2.0;                                        
+                                                                     
 
                                         // Create the Y axis and define its properties
                                         //let y_title = colored::Colorize::red("Y Axis").to_string();
@@ -933,26 +922,22 @@ fn main() {
                                         }                
                                         "result" => { 
                                             if let Some(res) = results.get(&name) {
-                                                if let Some(component) = component {
-                                                    let res = res.get_component(&component);
-                                                    let res = match res {
-                                                        Some(res) => res,
-                                                        None => {
-                                                            error("Error: component or state not found");
-                                                            continue
-                                                        }
-                                                    };
-                                                    if let Some(state) = state {
-                                                        match res.column(&state) {
-                                                            Ok(res) => println!("{}", res),
-                                                            Err(e) => eprintln!("{}", e),
-                                                        }
-                                                    } else {
-                                                        println!("{:#?}", res);
+                                                match (component,state) {
+                                                    (None,None) => println!("{:?}",res),
+                                                    (Some(component),None) => {
+                                                        match res.get_component(&component) {
+                                                            Some(result) => println!("{:?}",result),
+                                                            None => error("component not found in result"), //TODO make a Result
+                                                        }                                                        
+                                                    },
+                                                    (Some(component),Some(state)) => {
+                                                        match res.get_component_state(&component, &state) {
+                                                            Ok(result) => println!("{:?}",result),
+                                                            Err(e) => error(e),
+                                                        }                                                        
                                                     }
-                                                } else {
-                                                    println!("{:#?}", res);
-                                                }
+                                                    _ => unreachable!("3rd arg will always be component")
+                                                }                                                
                                             } else {
                                                 eprintln!("Error: result '{}' not found ", name);
                                             }
@@ -1025,6 +1010,6 @@ fn success(s: &str) {
     println!("{}", colored::Colorize::green(s))
 }
 
-fn error(s: &str) {
-    eprintln!("{}", colored::Colorize::red(s))
+fn error<T: Display>(s: T) {
+    eprintln!("{}", s.to_string().red());
 }

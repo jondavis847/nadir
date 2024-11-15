@@ -236,7 +236,7 @@ impl BodySim {
     }
 
     pub fn initialize_result(&self) -> BodyResult {
-        BodyResult::default()
+        BodyResult::new()
     }
 
     pub fn update_sensors(&self, sensors: &mut HashMap<Uuid, Sensor>) {
@@ -382,19 +382,19 @@ impl MultibodyResultTrait for BodyResult {
             .unwrap()
             .push(body.state.angular_rate_body[2]);
         self.0
-            .get_mut("attitude[x]{body}")
+            .get_mut("attitude[x]{base}")
             .unwrap()
             .push(body.state.attitude_base.x);
         self.0
-            .get_mut("attitude[y]{body}")
+            .get_mut("attitude[y]{base}")
             .unwrap()
             .push(body.state.attitude_base.y);
         self.0
-            .get_mut("attitude[z]{body}")
+            .get_mut("attitude[z]{base}")
             .unwrap()
             .push(body.state.attitude_base.z);
         self.0
-            .get_mut("attitude[w]{body}")
+            .get_mut("attitude[w]{base}")
             .unwrap()
             .push(body.state.attitude_base.s);
         self.0

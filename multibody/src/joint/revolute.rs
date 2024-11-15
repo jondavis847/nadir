@@ -429,7 +429,7 @@ impl JointSimTrait for RevoluteSim {
     }
 
     fn initialize_result(&self) -> JointResult {
-        JointResult::Revolute(RevoluteResult::default())
+        JointResult::Revolute(RevoluteResult::new())
     }
 
     fn set_inertia(&mut self, inertia: &MassProperties) {

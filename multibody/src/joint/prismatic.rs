@@ -421,7 +421,7 @@ impl JointSimTrait for PrismaticSim {
     }
 
     fn initialize_result(&self) -> JointResult {
-        JointResult::Prismatic(PrismaticResult::default())
+        JointResult::Prismatic(PrismaticResult::new())
     }
 
     fn set_state(&mut self, state: JointState) {

@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     quaternion::Quaternion,
-    Rotation, RotationTrait,
+    RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spk::SpiceSpk;
@@ -22,22 +22,26 @@ pub mod spk;
 #[derive(Debug)]
 pub enum SpiceErrors {
     BodyNotFound,
-    CantOpenConfigDir,    
-    HeaderNotFound,    
+    CantOpenConfigDir,
+    HeaderNotFound,
     NoOrientationDataForThisBody,
     RecordMetaNotFound,
-    RecordNotFound,    
+    RecordNotFound,
 }
 
 impl std::fmt::Display for SpiceErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SpiceErrors::BodyNotFound => writeln!(f,"Body not found in Spice data."),
-            SpiceErrors::CantOpenConfigDir => writeln!(f,"Could not open the computer's config directory."),
-            SpiceErrors::HeaderNotFound => writeln!(f,"Header not found."),
-            SpiceErrors::NoOrientationDataForThisBody => writeln!(f,"Could not find orientation data for this body."),
-            SpiceErrors::RecordMetaNotFound => writeln!(f,"Record meta not found."),
-            SpiceErrors::RecordNotFound => writeln!(f,"Record not found."),
+            SpiceErrors::BodyNotFound => writeln!(f, "Body not found in Spice data."),
+            SpiceErrors::CantOpenConfigDir => {
+                writeln!(f, "Could not open the computer's config directory.")
+            }
+            SpiceErrors::HeaderNotFound => writeln!(f, "Header not found."),
+            SpiceErrors::NoOrientationDataForThisBody => {
+                writeln!(f, "Could not find orientation data for this body.")
+            }
+            SpiceErrors::RecordMetaNotFound => writeln!(f, "Record meta not found."),
+            SpiceErrors::RecordNotFound => writeln!(f, "Record not found."),
         }
     }
 }
@@ -178,7 +182,7 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<Rotation, Box<dyn std::error::Error>> {
+    ) -> Result<Quaternion, Box<dyn std::error::Error>> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
             SpiceBodies::Earth => {
@@ -200,22 +204,18 @@ impl Spice {
 
         //TODO: include century calculation for obliquity for completeness?
         let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
-        let j2000_equatorial_from_ecliptic = Rotation::from(&Quaternion::new(
-            (-obliquity / 2.0).sin(),
-            0.0,
-            0.0,
-            (-obliquity / 2.0).cos(),
-        ));
+        let j2000_equatorial_from_ecliptic =
+            Quaternion::new((-obliquity / 2.0).sin(), 0.0, 0.0, (-obliquity / 2.0).cos());
 
         let result = segment.evaluate(t)?;
         let ra = result[0];
         let dec = result[1];
         let gha = result[2];
-    
+
         //TODO: we take inv because of spice giving passive rotation, we use active
         // fix when we go to passive rotations
         let orientation_ecliptic =
-            Rotation::from(&EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ)).inv();
+            Quaternion::from(&EulerAngles::new(ra, dec, gha, EulerSequence::ZXZ)).inv();
         let orientation_equatorial = j2000_equatorial_from_ecliptic * orientation_ecliptic;
         Ok(orientation_equatorial)
     }

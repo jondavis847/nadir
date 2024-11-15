@@ -18,7 +18,6 @@ transforms = {path = "../transforms"}
 utilities = {path = "../utilities"}
 image = "0.25.1"
 winit = "0.30.3"
-polars = "0.41.3"
 chrono = "0.4.38"
 glam = { version = "0.28.0", features = ["bytemuck"] }
 bytemuck = "1.16.1"

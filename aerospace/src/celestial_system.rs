@@ -5,12 +5,12 @@ use crate::{
 use nalgebra::Vector3;
 use rotations::{
     prelude::{EulerAngles, EulerSequence, Quaternion},
-    Rotation, RotationTrait,
+    RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies};
 
-use std::f64::consts::PI;
+use std::{collections::HashMap, f64::consts::PI};
 use thiserror::Error;
 use time::Time;
 
@@ -22,6 +22,10 @@ pub enum CelestialErrors {
     CelestialBodyAlreadyExists,
     #[error("spice data not found in celestial system")]
     SpiceNotFound,
+    #[error(
+        "state found in celestial result - should only be position[x/y/z] or orientation[x/y/z/w]"
+    )]
+    StateNotFound(String),
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
@@ -142,9 +146,9 @@ impl CelestialSystem {
     }
 
     pub fn initialize_result(&self) -> CelestialResult {
-        let mut body_results = Vec::new();
+        let mut body_results = HashMap::new();
         for body in &self.bodies {
-            body_results.push(CelestialBodyResult::new(body.body));
+            body_results.insert(body.body, CelestialBodyResult::new());
         }
 
         CelestialResult {
@@ -157,8 +161,8 @@ impl CelestialSystem {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CelestialBody {
     pub body: CelestialBodies,
-    pub position: Vector3<f64>, // icrf
-    pub orientation: Rotation,  // icrf to itrf
+    pub position: Vector3<f64>,  // icrf
+    pub orientation: Quaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,
 }
@@ -172,7 +176,7 @@ impl CelestialBody {
         Self {
             body,
             position: Vector3::zeros(),
-            orientation: Rotation::IDENTITY,
+            orientation: Quaternion::IDENTITY,
             gravity,
             geomag,
         }
@@ -211,7 +215,7 @@ impl CelestialBody {
             CelestialBodies::Venus => {
                 from_planet_fact_sheet(272.76, 0.0, 61.414, 0.0, -5832.6, jdc, sec_j2k)
             }
-            _ => Rotation::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
+            _ => Quaternion::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
         };
 
         Ok(())
@@ -226,54 +230,101 @@ fn from_planet_fact_sheet(
     hrs_in_day: f64,
     julian_centuries: f64,
     sec_j2k: f64,
-) -> Rotation {
+) -> Quaternion {
     // j2000 orientation
     let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
     let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
-    let initial_orientation = Rotation::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = Quaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = hrs_in_day * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Rotation::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        Quaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 
-fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Rotation {
+fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Quaternion {
     // j2000 orientation
     let n = (357.85 + 52.316 * julian_centuries) * PI / 180.0;
     let ra = (299.36 + 0.70 * n.sin()) * PI / 180.0;
     let dec = (43.46 - 0.51 * n.cos()) * PI / 180.0;
-    let initial_orientation = Rotation::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = Quaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = 16.11 * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Rotation::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        Quaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CelestialBodyResult {
-    pub body: CelestialBodies,
-    pub position: Vec<Vector3<f64>>,
-    pub orientation: Vec<Quaternion>,
-}
+pub struct CelestialBodyResult(HashMap<String, Vec<f64>>);
 
 impl CelestialBodyResult {
-    pub fn new(body: CelestialBodies) -> Self {
-        Self {
-            body,
-            position: Vec::new(),
-            orientation: Vec::new(),
-        }
+    const STATES: &'static [&'static str] = &[
+        "position[x]",
+        "position[y]",
+        "position[z]",
+        "orientation[x]",
+        "orientation[y]",
+        "orientation[z]",
+        "orientation[w]",
+    ];
+
+    pub fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, CelestialErrors> {
+        self.0
+            .get(state)
+            .ok_or(CelestialErrors::StateNotFound(state.to_string()))
+    }
+
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 
     pub fn update(&mut self, body: &CelestialBody) {
-        self.orientation.push(Quaternion::from(&body.orientation));
-        self.position.push(body.position);
+        self.0
+            .get_mut("position[x]")
+            .unwrap()
+            .push(body.position[0]);
+        self.0
+            .get_mut("position[y]")
+            .unwrap()
+            .push(body.position[1]);
+        self.0
+            .get_mut("position[z]")
+            .unwrap()
+            .push(body.position[2]);
+
+        self.0
+            .get_mut("orientation[x]")
+            .unwrap()
+            .push(body.orientation.x);
+        self.0
+            .get_mut("orientation[y]")
+            .unwrap()
+            .push(body.orientation.y);
+        self.0
+            .get_mut("orientation[x]")
+            .unwrap()
+            .push(body.orientation.x);
+        self.0
+            .get_mut("orientation[z]")
+            .unwrap()
+            .push(body.orientation.z);
+        self.0
+            .get_mut("orientation[x]")
+            .unwrap()
+            .push(body.orientation.x);
+        self.0
+            .get_mut("orientation[w]")
+            .unwrap()
+            .push(body.orientation.s);
     }
 }
 
@@ -363,7 +414,7 @@ impl CelestialBodies {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CelestialResult {
     pub epoch_sec_j2k_tai: Vec<f64>,
-    pub bodies: Vec<CelestialBodyResult>,
+    pub bodies: HashMap<CelestialBodies, CelestialBodyResult>,
 }
 
 impl CelestialResult {
@@ -371,13 +422,11 @@ impl CelestialResult {
         // update the epoch based on sim time
         self.epoch_sec_j2k_tai.push(epoch.get_seconds_j2k());
         // it should be safe to do this enumerated since we initialized the result struct from the sys struct
-        for i in 0..self.bodies.len() {
-            let body_result = &mut self.bodies[i];
-            let body = &sys.bodies[i];
-            if body_result.body == body.body {
+        for body in &sys.bodies {
+            if let Some(body_result) = self.bodies.get_mut(&body.body) {
                 body_result.update(body);
             } else {
-                unreachable!("they should always be equal based on initialization")
+                return Err(CelestialErrors::BodyNotFoundInCelestialSystem);
             }
         }
         Ok(())
@@ -387,16 +436,44 @@ impl CelestialResult {
         let mut names = Vec::new();
         names.push("epoch_sec_j2k_tai".to_string());
 
-        for body_result in &self.bodies {
-            let name = body_result.body.get_name();
-            names.push(format!("{name}_orientation[x]"));
-            names.push(format!("{name}_orientation[y]"));
-            names.push(format!("{name}_orientation[z]"));
-            names.push(format!("{name}_orientation[w]"));
-            names.push(format!("{name}_position[x]"));
-            names.push(format!("{name}_position[y]"));
-            names.push(format!("{name}_position[z]"));
+        let body_states = CelestialBodyResult::STATES;
+
+        for (body, _) in &self.bodies {
+            let body_name = body.get_name();
+            let these_names: Vec<String> = body_states
+                .iter()
+                .map(|state| body_name.clone() + "_" + state)
+                .collect();
+            names.extend_from_slice(&these_names);
         }
         names
+    }
+
+    pub fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, CelestialErrors> {
+        let body_prefixes = [
+            ("earth_", CelestialBodies::Earth),
+            ("jupiter_", CelestialBodies::Jupiter),
+            ("mars_", CelestialBodies::Mars),
+            ("mercury_", CelestialBodies::Mercury),
+            ("moon_", CelestialBodies::Moon),
+            ("neptune_", CelestialBodies::Neptune),
+            ("pluto_", CelestialBodies::Pluto),
+            ("saturn_", CelestialBodies::Saturn),
+            ("sun_", CelestialBodies::Sun),
+            ("uranus_", CelestialBodies::Uranus),
+            ("venus_", CelestialBodies::Venus),
+        ];
+
+        for (prefix, body) in body_prefixes {
+            if let Some(stripped_state) = state.strip_prefix(prefix) {
+                return self
+                    .bodies
+                    .get(&body)
+                    .ok_or(CelestialErrors::BodyNotFoundInCelestialSystem)?
+                    .get_state_value(stripped_state);
+            }
+        }
+
+        Err(CelestialErrors::BodyNotFoundInCelestialSystem)
     }
 }

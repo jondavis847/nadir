@@ -435,7 +435,7 @@ impl JointSimTrait for FloatingSim {
     }
 
     fn initialize_result(&self) -> JointResult {
-        JointResult::Floating(FloatingResult::default())
+        JointResult::Floating(FloatingResult::new())
     }
 
     fn set_inertia(&mut self, inertia: &MassProperties) {

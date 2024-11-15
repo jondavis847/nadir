@@ -1,18 +1,13 @@
-use crate::joint::floating::FloatingResult;
-use crate::joint::prismatic::PrismaticResult;
-use crate::joint::revolute::RevoluteResult;
 use crate::system_sim::MultibodySystemSim;
 use crate::MultibodyErrors;
 use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
-use aerospace::celestial_system::{CelestialBodies, CelestialResult};
+use aerospace::celestial_system::{CelestialBodies, CelestialErrors, CelestialResult};
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
-use polars::prelude::*;
 use rotations::quaternion::Quaternion;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
-use std::ops::Mul;
 use std::time::{Duration, SystemTime};
 use utilities::format_duration;
 
@@ -51,8 +46,8 @@ impl MultibodyResult {
                 ResultEntry::Body(result) => result.get_state_value(state_name),
                 ResultEntry::Joint(result) => result.get_state_value(state_name),
                 ResultEntry::Sensor(result) => result.get_state_value(state_name),
-                ResultEntry::Celestial(result) => result.get_state_value(state_name),            }
-            
+                ResultEntry::Celestial(result) => Ok(result.get_state_value(state_name)?),
+            }
         } else {
             Err(MultibodyErrors::ComponentNotFound(
                 component_name.to_string(),
@@ -60,12 +55,24 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_component_states(&self, component_name: &str) -> &'static [&'static str] {
+    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
         let component = self.result.get(component_name).unwrap();
         match component {
-            ResultEntry::Body(result) => result.get_state_names(),
-            ResultEntry::Joint(result) => result.get_state_names(),
-            ResultEntry::Sensor(result) => result.get_state_names(),
+            ResultEntry::Body(result) => result
+                .get_state_names()
+                .iter()
+                .map(|state| state.to_string())
+                .collect(),
+            ResultEntry::Joint(result) => result
+                .get_state_names()
+                .iter()
+                .map(|state| state.to_string())
+                .collect(),
+            ResultEntry::Sensor(result) => result
+                .get_state_names()
+                .iter()
+                .map(|state| state.to_string())
+                .collect(),
             ResultEntry::Celestial(result) => result.get_state_names(),
         }
     }
@@ -74,40 +81,54 @@ impl MultibodyResult {
         &self,
         body_name: &str,
         t: f64,
-    ) -> (Quaternion, Vector3<f64>) {
+    ) -> Result<(Quaternion, Vector3<f64>), MultibodyErrors> {
         let body = match self.result.get(body_name).unwrap() {
             ResultEntry::Body(body) => body,
             _ => unreachable!("should not be possible"),
         };
         let time = &self.sim_time;
-        get_state_at_time_interp(t, time, &body.attitude_base, &body.position_base)
+        let qx = body.get_state_value("attitude[x]{base}")?;
+        let qy = body.get_state_value("attitude[y]{base}")?;
+        let qz = body.get_state_value("attitude[z]{base}")?;
+        let qw = body.get_state_value("attitude[w]{base}")?;
+        let rx = body.get_state_value("position[x]{base}")?;
+        let ry = body.get_state_value("position[y]{base}")?;
+        let rz = body.get_state_value("position[z]{base}")?;
+
+        let attitude = (qx, qy, qz, qw);
+        let position = (rx, ry, rz);
+
+        Ok(get_state_at_time_interp(t, time, &attitude, &position))
     }
 
     pub fn get_celestial_state_at_time_interp(
         &self,
         body: CelestialBodies,
         t: f64,
-    ) -> Option<(Quaternion, Vector3<f64>)> {
+    ) -> Result<(Quaternion, Vector3<f64>), MultibodyErrors> {
         let time = &self.sim_time;
         let celestial = match self.result.get("celestial").unwrap() {
             ResultEntry::Celestial(celestial) => celestial,
             _ => unreachable!("should not be possible"),
         };
 
-        if let Some(celestial_body) = celestial
-            .bodies
-            .iter()
-            .find(|celestial| celestial.body == body)
-        {
-            let result = get_state_at_time_interp(
-                t,
-                time,
-                &celestial_body.orientation,
-                &celestial_body.position,
-            );
-            return Some(result);
+        if let Some(body_result) = celestial.bodies.get(&body) {
+            let qx = body_result.get_state_value("orientation[x]")?;
+            let qy = body_result.get_state_value("orientation[y]")?;
+            let qz = body_result.get_state_value("orientation[z]")?;
+            let qw = body_result.get_state_value("orientation[w]")?;
+            let rx = body_result.get_state_value("position[x]")?;
+            let ry = body_result.get_state_value("position[y]")?;
+            let rz = body_result.get_state_value("position[z]")?;
+
+            let attitude = (qx, qy, qz, qw);
+            let position = (rx, ry, rz);
+
+            Ok(get_state_at_time_interp(t, time, &attitude, &position))
         } else {
-            unreachable!("should only be called from code that loops over present bodies");
+            Err(MultibodyErrors::CelestialErrors(
+                CelestialErrors::BodyNotFoundInCelestialSystem,
+            ))
         }
     }
 
@@ -119,33 +140,42 @@ impl MultibodyResult {
 fn get_state_at_time_interp(
     t: f64,
     time: &Vec<f64>,
-    attitude: &Vec<Quaternion>,
-    position: &Vec<Vector3<f64>>,
+    q: &(&Vec<f64>, &Vec<f64>, &Vec<f64>, &Vec<f64>),
+    r: &(&Vec<f64>, &Vec<f64>, &Vec<f64>),
 ) -> (Quaternion, Vector3<f64>) {
     match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
         Ok(i) => {
             // The target is exactly at index i
-            (attitude[i], position[i])
+            (
+                Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                Vector3::new(r.0[i], r.1[i], r.2[i]),
+            )
         }
         Err(i) => {
             if i == 0 {
                 // The target is smaller than the first element
-                (attitude[i], position[i])
+                (
+                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                    Vector3::new(r.0[i], r.1[i], r.2[i]),
+                )
             } else if i == time.len() {
                 // The target is greater than the last element
-                (attitude[i], position[i])
+                (
+                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                    Vector3::new(r.0[i], r.1[i], r.2[i]),
+                )
             } else {
                 // The target is between elements at i - 1 and i
                 let t_prev = time[i - 1];
                 let t_next = time[i];
                 let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
 
-                let position_prev = position[i - 1];
-                let position_next = position[i];
+                let position_prev = Vector3::new(r.0[i - 1], r.1[i - 1], r.2[i - 1]);
+                let position_next = Vector3::new(r.0[i], r.1[i], r.2[i]);
                 let interp_position = Vector3::lerp(&position_prev, &position_next, interp_factor);
 
-                let attitude_prev = attitude[i - 1];
-                let mut attitude_next = attitude[i];
+                let attitude_prev = Quaternion::new(q.0[i - 1], q.1[i - 1], q.2[i - 1], q.3[i - 1]);
+                let mut attitude_next = Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]);
 
                 // Ensure quaternion continuity
                 if attitude_prev.dot(&attitude_next) < 0.0 {
@@ -162,8 +192,8 @@ fn get_state_at_time_interp(
                     // TODO: fix squad
                     //if i >= 2 && i < attitude.len() - 1 {
                     //squad
-                    let q0 = attitude[i - 2];
-                    let q3 = attitude[i + 1];
+                    let q0 = Quaternion::new(q.0[i - 2], q.1[i - 2], q.2[i - 2], q.3[i - 2]);
+                    let q3 = Quaternion::new(q.0[i + 1], q.1[i + 1], q.2[i + 1], q.3[i + 1]);
                     interp_attitude =
                         Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
                 } else {
