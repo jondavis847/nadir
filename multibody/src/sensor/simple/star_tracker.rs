@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     body::{BodyConnection, BodySim},
     result::{MultibodyResultTrait, ResultEntry},
@@ -5,44 +7,11 @@ use crate::{
         noise::{NoiseModels, QuaternionNoise},
         simple::SimpleSensorResult,
         SensorResult, SensorTrait,
-    },
+    }, MultibodyErrors,
 };
 
-use polars::prelude::*;
 use rotations::{prelude::Quaternion, Rotation};
 use serde::{Deserialize, Serialize};
-
-// Noise sources from ChatGPT
-
-// Photon Shot Noise:
-// Due to the discrete nature of light, there is a statistical variation in the number of photons detected from a star over a given period. This random variation introduces shot noise, which affects the accuracy of the star position measurement on the sensor.
-
-// Dark Current Noise:
-// Even in the absence of light, electronic sensors can generate a small amount of current, known as dark current, due to thermal excitation. This creates noise, which can vary with temperature and must be carefully managed, especially for longer exposures.
-
-// Readout Noise:
-// When the sensor’s pixel values are read, each reading can introduce electronic noise, typically from the analog-to-digital converter (ADC) and other sensor circuitry. This noise can be minimized with high-quality ADCs but is still a factor in low-light or faint star tracking scenarios.
-
-// Pixel Response Nonuniformity (PRNU):
-// This noise arises from inconsistencies in the sensitivity of individual pixels on the sensor array. PRNU can cause slight variations in detected intensity across different pixels, potentially affecting the centroiding accuracy of star positions.
-
-// Quantization Noise:
-// This is introduced when the continuous analog signal from the sensor is converted to a digital signal. The limited resolution of the ADC results in small rounding errors, which become more significant at low signal levels.
-
-// Thermal Noise:
-// The sensor and its electronics generate thermal noise, especially in warmer operating conditions. This noise increases with temperature and can affect the clarity of the star signal, making it harder to achieve precise centroiding.
-
-// Jitter and Motion Blur:
-// Spacecraft vibration or motion can cause the image of stars on the sensor to blur or shift, leading to an inaccurate determination of the star’s position. This effect is typically mitigated by stabilizing the sensor or using image processing techniques.
-
-// Cosmic Ray Hits:
-// In space, cosmic rays can occasionally strike the sensor, creating high-energy noise events. These can manifest as bright spots or streaks on the sensor, which could be misinterpreted as stars if not properly filtered.
-
-// Optical Aberrations:
-// Optical imperfections such as lens distortion, chromatic aberration, and vignetting can distort the star image. This leads to systematic errors in centroiding that may vary depending on the star’s position in the field of view.
-
-// Background Illumination Noise:
-// Light from sources other than stars, such as scattered sunlight, earthshine, or zodiacal light, can increase the sensor’s background noise, making it more challenging to detect and accurately measure the star signal.
 
 /// Constant parameters for the simple star tracker sensor
 /// delay - a constant in seconds between truth dynamics and the sensor measurement
@@ -56,14 +25,14 @@ struct StarTrackerParameters {
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct StarTrackerState {
-    noise: Option<Quaternion>,
+    noise: Quaternion,
     pub measurement: Quaternion,
 }
 
 /// A star tracker attitude sensor with gaussian white noise & constant delay
 /// The sensor frame is defined with +Z out the boresight, +X to the right, +Y is up
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StarTracker {    
+pub struct StarTracker {
     parameters: StarTrackerParameters,
     state: StarTrackerState,
     result: StarTrackerResult,
@@ -71,7 +40,7 @@ pub struct StarTracker {
 
 impl StarTracker {
     pub fn new() -> Self {
-        Self {            
+        Self {
             parameters: StarTrackerParameters::default(),
             state: StarTrackerState::default(),
             result: StarTrackerResult::default(),
@@ -115,79 +84,83 @@ impl SensorTrait for StarTracker {
         if let Some(noise) = &mut self.parameters.noise {
             let quaternion_noise = noise.sample();
             sensor_attitude = quaternion_noise * sensor_attitude;
-            self.state.noise = Some(quaternion_noise);
-        }
+            self.state.noise = quaternion_noise;
+        } // else keep as identity from initialization
         self.state.measurement = sensor_attitude;
     }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StarTrackerResult {
-    measurement: Vec<Quaternion>,
-    noise: Option<Vec<Quaternion>>,
-}
+pub struct StarTrackerResult(HashMap<String, Vec<f64>>);
 
 impl StarTrackerResult {
-    pub fn update(&mut self, sensor: &StarTracker) {
-        self.measurement.push(sensor.state.measurement);
-        if let Some(noise) = &sensor.state.noise {
-            if let Some(noise_result) = &mut self.noise {
-                noise_result.push(*noise);
-            } else {
-                // result was created with default as None, instantiate with Some. This will happen on first pass
-                self.noise = Some(vec![*noise]);
-            }
-        }
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for StarTrackerResult {
-    fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let measurement_x = Series::new(
-            "measurement_x",
-            self.measurement.iter().map(|q| q.x).collect::<Vec<_>>(),
-        );
-
-        let measurement_y = Series::new(
-            "measurement_y",
-            self.measurement.iter().map(|q| q.y).collect::<Vec<_>>(),
-        );
-
-        let measurement_z = Series::new(
-            "measurement_z",
-            self.measurement.iter().map(|q| q.z).collect::<Vec<_>>(),
-        );
-
-        let measurement_w = Series::new(
-            "measurement_w",
-            self.measurement.iter().map(|q| q.s).collect::<Vec<_>>(),
-        );
-
-        df.with_column(measurement_x).unwrap();
-        df.with_column(measurement_y).unwrap();
-        df.with_column(measurement_z).unwrap();
-        df.with_column(measurement_w).unwrap();
-
-        if let Some(noise) = &self.noise {
-            let noise_x = Series::new("noise_x", noise.iter().map(|q| q.x).collect::<Vec<_>>());
-            let noise_y = Series::new("noise_y", noise.iter().map(|q| q.y).collect::<Vec<_>>());
-            let noise_z = Series::new("noise_z", noise.iter().map(|q| q.z).collect::<Vec<_>>());
-            let noise_w = Series::new("noise_w", noise.iter().map(|q| q.s).collect::<Vec<_>>());
-
-            df.with_column(noise_x).unwrap();
-            df.with_column(noise_y).unwrap();
-            df.with_column(noise_z).unwrap();
-            df.with_column(noise_w).unwrap();
-        }
+    type Component = StarTracker;
+    const STATES: &'static [&'static str] = &[
+        "measurement[x]",
+        "measurement[y]",
+        "measurement[z]",
+        "measurement[w]",
+        "noise[x]",
+        "noise[y]",
+        "noise[z]",
+        "noise[w]",
+    ];
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
     }
 
-    fn get_state_names(&self) -> Vec<String> {
-        vec!["measurement".to_string(), "noise".to_string()]
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
     }
-
+    
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::StarTracker(
             self.clone(),
         )))
+    }
+
+    fn update(&mut self, sensor: &StarTracker) {
+        self.0
+            .get_mut("measurement[x]")
+            .unwrap()
+            .push(sensor.state.measurement.x);
+        self.0
+            .get_mut("measurement[y]")
+            .unwrap()
+            .push(sensor.state.measurement.y);
+        self.0
+            .get_mut("measurement[z]")
+            .unwrap()
+            .push(sensor.state.measurement.z);
+        self.0
+            .get_mut("measurement[w]")
+            .unwrap()
+            .push(sensor.state.measurement.s);
+        self.0
+            .get_mut("noise[x]")
+            .unwrap()
+            .push(sensor.state.noise.x);
+        self.0
+            .get_mut("noise[y]")
+            .unwrap()
+            .push(sensor.state.noise.y);
+        self.0
+            .get_mut("noise[z]")
+            .unwrap()
+            .push(sensor.state.noise.z);
+        self.0
+            .get_mut("noise[w]")
+            .unwrap()
+            .push(sensor.state.noise.s);
     }
 }

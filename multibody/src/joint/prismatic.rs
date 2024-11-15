@@ -4,22 +4,18 @@ use crate::{
         composite_rigid_body::CompositeRigidBody,
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
-    },
-    body::{Body, BodyConnection, BodyTrait},
-    joint::{
+    }, body::{Body, BodyConnection, BodyTrait}, joint::{
         joint_sim::JointSimTrait, joint_state::JointState, joint_transforms::JointTransforms,
         JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
-    },
-    result::{MultibodyResultTrait, ResultEntry},
-    MultibodyTrait,
+    }, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
-use polars::prelude::*;
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
+use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
@@ -480,44 +476,51 @@ impl JointSimTrait for PrismaticSim {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct PrismaticResult {
-    pub position: Vec<f64>,
-    pub velocity: Vec<f64>,
-    pub acceleration: Vec<f64>,
-    pub internal_force: Vec<f64>,
-}
+pub struct PrismaticResult(HashMap<String, Vec<f64>>);
 
 impl PrismaticResult {
-    pub fn update(&mut self, joint: &PrismaticSim) {
-        self.position.push(joint.state.position);
-        self.velocity.push(joint.state.velocity);
-        self.acceleration.push(joint.cache.q_ddot);
-        self.internal_force.push(joint.cache.tau)
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for PrismaticResult {
-    fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let position = Series::new("position", self.position.clone());
-        let velocity = Series::new("velocity", self.velocity.clone());
-        let accel = Series::new("accel", self.acceleration.clone());
-        let tau = Series::new("internal_force", self.internal_force.clone());
-        df.with_column(position).unwrap();
-        df.with_column(velocity).unwrap();
-        df.with_column(accel).unwrap();
-        df.with_column(tau).unwrap();
-    }
-
-    fn get_state_names(&self) -> Vec<String> {
-        vec![
-            "position".to_string(),
-            "velocity".to_string(),
-            "acceleration".to_string(),
-            "internal_force".to_string(),
-        ]
-    }
+    type Component = PrismaticSim;
+    const STATES: &'static [&'static str] =
+        &["acceleration", "internal_force", "position", "velocity"];
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Joint(JointResult::Prismatic(self.clone()))
+    }
+    
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
+    }
+
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
+
+    fn update(&mut self, joint: &PrismaticSim) {
+        self.0
+            .get_mut("acceleration")
+            .unwrap()
+            .push(joint.cache.q_ddot);
+        self.0
+            .get_mut("internal_force")
+            .unwrap()
+            .push(joint.cache.tau);
+        self.0
+            .get_mut("position")
+            .unwrap()
+            .push(joint.state.position);
+        self.0
+            .get_mut("velocity")
+            .unwrap()
+            .push(joint.state.velocity);
     }
 }

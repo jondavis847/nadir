@@ -2,9 +2,7 @@ pub mod noise;
 pub mod simple;
 
 use crate::{
-    body::{Body, BodyConnection, BodySim},
-    result::{MultibodyResultTrait, ResultEntry},
-    MultibodyTrait,
+    body::{Body, BodyConnection, BodySim}, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
 };
 use serde::{Deserialize, Serialize};
 use simple::{SimpleSensor, SimpleSensorResult};
@@ -125,32 +123,31 @@ pub enum SensorResult {
     //Custom(CustomSensorResult), TODO
 }
 
-impl SensorResult {
-    pub fn update(&mut self, sensor: &Sensor) {
-        match (self, &sensor.model) {
-            (SensorResult::Simple(result), SensorModel::Simple(sensor)) => result.update(sensor),
-            // _ => unreachable!("invalid combo"),
-        }
-    }
-}
-
 impl MultibodyResultTrait for SensorResult {
-    #[inline]
-    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+    type Component = Sensor;
+    const STATES: &'static [&'static str] = &[];
+
+    fn get_result_entry(&self) -> ResultEntry {
         match self {
-            SensorResult::Simple(result) => result.add_to_dataframe(df),
+            SensorResult::Simple(result) => result.get_result_entry(),
         }
     }
-    #[inline]
-    fn get_state_names(&self) -> Vec<String> {
+
+    fn get_state_names(&self) -> &'static [&'static str] {
         match self {
             SensorResult::Simple(result) => result.get_state_names(),
         }
     }
-    #[inline]
-    fn get_result_entry(&self) -> ResultEntry {
+
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
         match self {
-            SensorResult::Simple(result) => result.get_result_entry(),
+            SensorResult::Simple(result) => result.get_state_value(state),
+        }
+    }
+    fn update(&mut self, sensor: &Sensor) {
+        match (self, &sensor.model) {
+            (SensorResult::Simple(result), SensorModel::Simple(sensor)) => result.update(sensor),
+            // _ => unreachable!("invalid combo"),
         }
     }
 }

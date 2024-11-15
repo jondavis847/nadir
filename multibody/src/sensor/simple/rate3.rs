@@ -1,10 +1,11 @@
+use std::collections::HashMap;
+
 use crate::{
     body::{BodyConnection, BodySim},
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::{noise::Noise, simple::SimpleSensorResult, SensorResult, SensorTrait},
+    sensor::{noise::Noise, simple::SimpleSensorResult, SensorResult, SensorTrait}, MultibodyErrors,
 };
 use nalgebra::Vector3;
-use polars::prelude::*;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,7 @@ pub struct Rate3SensorState {
 /// about the desired rotation axis in the body frame
 /// You can use Rotation::AlignedAxes to simplify the logic
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Rate3Sensor {    
+pub struct Rate3Sensor {
     parameters: Rate3SensorParameters,
     state: Rate3SensorState,
     result: Rate3SensorResult,
@@ -46,7 +47,7 @@ impl Rate3Sensor {
         let state = Rate3SensorState::default();
         let result = Rate3SensorResult::default();
 
-        Self {            
+        Self {
             parameters,
             state,
             result,
@@ -72,60 +73,67 @@ impl SensorTrait for Rate3Sensor {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Rate3SensorResult {
-    value: Vec<Vector3<f64>>,
-    noise: Vec<Vector3<f64>>,
-}
+pub struct Rate3SensorResult(HashMap<String, Vec<f64>>);
 
 impl Rate3SensorResult {
-    pub fn update(&mut self, sensor: &Rate3Sensor) {
-        self.value.push(sensor.state.measurement);
-        self.noise.push(sensor.state.noise);
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for Rate3SensorResult {
-    fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let value_x = Series::new(
-            "value_x",
-            self.value.iter().map(|v| v[0]).collect::<Vec<_>>(),
-        );
-        let value_y = Series::new(
-            "value_y",
-            self.value.iter().map(|v| v[1]).collect::<Vec<_>>(),
-        );
-        let value_z = Series::new(
-            "value_z",
-            self.value.iter().map(|v| v[2]).collect::<Vec<_>>(),
-        );
-        let noise_x = Series::new(
-            "noise_x",
-            self.noise.iter().map(|v| v[0]).collect::<Vec<_>>(),
-        );
-        let noise_y = Series::new(
-            "noise_y",
-            self.noise.iter().map(|v| v[1]).collect::<Vec<_>>(),
-        );
-        let noise_z = Series::new(
-            "noise_z",
-            self.noise.iter().map(|v| v[2]).collect::<Vec<_>>(),
-        );
-
-        df.with_column(value_x).unwrap();
-        df.with_column(value_y).unwrap();
-        df.with_column(value_z).unwrap();
-        df.with_column(noise_x).unwrap();
-        df.with_column(noise_y).unwrap();
-        df.with_column(noise_z).unwrap();
-    }
-
-    fn get_state_names(&self) -> Vec<String> {
-        vec!["value".to_string(), "noise".to_string()]
-    }
+    type Component = Rate3Sensor;
+    const STATES: &'static [&'static str] = &[
+        "measurement[x]",
+        "measurement[y]",
+        "measurement[z]",
+        "noise[x]",
+        "noise[y]",
+        "noise[z]",
+    ];
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate3(
             self.clone(),
         )))
+    }
+    
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
+
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
+    }
+
+    fn update(&mut self, sensor: &Rate3Sensor) {
+        self.0
+            .get_mut("measurement[x]")
+            .unwrap()
+            .push(sensor.state.measurement[0]);
+        self.0
+            .get_mut("measurement[y]")
+            .unwrap()
+            .push(sensor.state.measurement[1]);
+        self.0
+            .get_mut("measurement[z]")
+            .unwrap()
+            .push(sensor.state.measurement[2]);
+        self.0
+            .get_mut("noise[x]")
+            .unwrap()
+            .push(sensor.state.noise[0]);
+        self.0
+            .get_mut("noise[y]")
+            .unwrap()
+            .push(sensor.state.noise[1]);
+        self.0
+            .get_mut("noise[z]")
+            .unwrap()
+            .push(sensor.state.noise[2]);
     }
 }

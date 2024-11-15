@@ -1,20 +1,28 @@
+use crate::joint::floating::FloatingResult;
+use crate::joint::prismatic::PrismaticResult;
+use crate::joint::revolute::RevoluteResult;
+use crate::system_sim::MultibodySystemSim;
+use crate::MultibodyErrors;
+use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 use aerospace::celestial_system::{CelestialBodies, CelestialResult};
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
+use polars::prelude::*;
 use rotations::quaternion::Quaternion;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::ops::Mul;
 use std::time::{Duration, SystemTime};
 use utilities::format_duration;
-use polars::prelude::*;
-use crate::system_sim::MultibodySystemSim;
-use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 
 pub trait MultibodyResultTrait {
-    fn get_state_names(&self) -> Vec<String>;
+    const STATES: &'static [&'static str];
+    type Component;
+    fn get_state_names(&self) -> &'static [&'static str];
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors>;
     fn get_result_entry(&self) -> ResultEntry;
-    fn add_to_dataframe(&self, df: &mut DataFrame);
+    fn update(&mut self, component: &Self::Component);
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -29,57 +37,35 @@ pub struct MultibodyResult {
 }
 
 impl MultibodyResult {
-    pub fn get_component(&self, component_name: &str) -> Option<DataFrame> {
-        if let Some(component) = self.result.get(component_name) {
-            let mut df = DataFrame::default();
+    pub fn get_component(&self, component_name: &str) -> Option<&ResultEntry> {
+        self.result.get(component_name)
+    }
 
-            let t = Series::new("t", self.sim_time.clone());
-            df.with_column(t).unwrap();
-
-            match component {
-                ResultEntry::Joint(joint) => joint.add_to_dataframe(&mut df),
-                ResultEntry::Celestial(celestial) => celestial.add_to_dataframe(&mut df),
-                ResultEntry::Body(body) => body.add_to_dataframe(&mut df),
-                ResultEntry::Sensor(sensor) => sensor.add_to_dataframe(&mut df),       
-                ResultEntry::VecF64(_) => todo!("this is only for time vector, which was alreay added to df. this should probably just be a result type"),
-            }
-            Some(df)
+    pub fn get_component_state(
+        &self,
+        component_name: &str,
+        state_name: &str,
+    ) -> Result<&Vec<f64>, MultibodyErrors> {
+        if let Some(entry) = self.get_component(component_name) {
+            match entry {
+                ResultEntry::Body(result) => result.get_state_value(state_name),
+                ResultEntry::Joint(result) => result.get_state_value(state_name),
+                ResultEntry::Sensor(result) => result.get_state_value(state_name),
+                ResultEntry::Celestial(result) => result.get_state_value(state_name),            }
+            
         } else {
-            None
+            Err(MultibodyErrors::ComponentNotFound(
+                component_name.to_string(),
+            ))
         }
     }
 
-    pub fn get_component_state(&self, component_name: &str, state_name: Vec<&str>) -> Option<DataFrame> {
-        if let Some(df) = self.get_component(component_name) {
-            let df_column_names = df.get_column_names();
-            // check to make sure that the states exist in the dataframe
-            // by getting intersection
-            let state_names: Vec<&str> = {
-                let df_set: HashSet<&str> = df_column_names.into_iter().collect();
-                state_name
-                    .into_iter()
-                    .filter(|state| df_set.contains(state))
-                    .collect()
-            };
-
-            let mut columns: Vec<&str> = Vec::with_capacity(state_names.len() + 1);
-            columns.push("t");
-            columns.extend(state_names);
-
-            df.select(columns).unwrap();
-            Some(df)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
+    pub fn get_component_states(&self, component_name: &str) -> &'static [&'static str] {
         let component = self.result.get(component_name).unwrap();
         match component {
             ResultEntry::Body(result) => result.get_state_names(),
             ResultEntry::Joint(result) => result.get_state_names(),
             ResultEntry::Sensor(result) => result.get_state_names(),
-            ResultEntry::VecF64(_) => Vec::new(), //should not be possible
             ResultEntry::Celestial(result) => result.get_state_names(),
         }
     }
@@ -93,27 +79,35 @@ impl MultibodyResult {
             ResultEntry::Body(body) => body,
             _ => unreachable!("should not be possible"),
         };
-        let time = &self.sim_time;       
+        let time = &self.sim_time;
         get_state_at_time_interp(t, time, &body.attitude_base, &body.position_base)
     }
 
     pub fn get_celestial_state_at_time_interp(
         &self,
         body: CelestialBodies,
-        t: f64,        
+        t: f64,
     ) -> Option<(Quaternion, Vector3<f64>)> {
-
-        let time = &self.sim_time;       
+        let time = &self.sim_time;
         let celestial = match self.result.get("celestial").unwrap() {
             ResultEntry::Celestial(celestial) => celestial,
             _ => unreachable!("should not be possible"),
         };
 
-        if let Some(celestial_body) = celestial.bodies.iter().find(|celestial| celestial.body == body) {
-            let result = get_state_at_time_interp(t, time, &celestial_body.orientation, &celestial_body.position);
-            return Some(result)
+        if let Some(celestial_body) = celestial
+            .bodies
+            .iter()
+            .find(|celestial| celestial.body == body)
+        {
+            let result = get_state_at_time_interp(
+                t,
+                time,
+                &celestial_body.orientation,
+                &celestial_body.position,
+            );
+            return Some(result);
         } else {
-           unreachable!("should only be called from code that loops over present bodies");
+            unreachable!("should only be called from code that loops over present bodies");
         }
     }
 
@@ -122,7 +116,12 @@ impl MultibodyResult {
     }
 }
 
-fn get_state_at_time_interp(t: f64, time: &Vec<f64>, attitude: &Vec<Quaternion>, position: &Vec<Vector3<f64>>) -> (Quaternion,Vector3<f64>) {
+fn get_state_at_time_interp(
+    t: f64,
+    time: &Vec<f64>,
+    attitude: &Vec<Quaternion>,
+    position: &Vec<Vector3<f64>>,
+) -> (Quaternion, Vector3<f64>) {
     match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
         Ok(i) => {
             // The target is exactly at index i
@@ -143,8 +142,7 @@ fn get_state_at_time_interp(t: f64, time: &Vec<f64>, attitude: &Vec<Quaternion>,
 
                 let position_prev = position[i - 1];
                 let position_next = position[i];
-                let interp_position =
-                    Vector3::lerp(&position_prev, &position_next, interp_factor);
+                let interp_position = Vector3::lerp(&position_prev, &position_next, interp_factor);
 
                 let attitude_prev = attitude[i - 1];
                 let mut attitude_next = attitude[i];
@@ -185,7 +183,6 @@ pub enum ResultEntry {
     Body(BodyResult),
     Celestial(CelestialResult),
     Joint(JointResult),
-    VecF64(Vec<f64>),
     Sensor(SensorResult),
 }
 

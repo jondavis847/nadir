@@ -8,7 +8,7 @@ pub mod revolute;
 
 use crate::{
     body::BodyConnection,
-    result::{MultibodyResultTrait, ResultEntry},
+    result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors,
 };
 
 use super::{
@@ -242,38 +242,38 @@ pub enum JointResult {
     Revolute(RevoluteResult),
 }
 
-impl JointResult {
-    pub fn update(&mut self, joint: &JointSim) {
-        match (self, &joint) {
-            (JointResult::Floating(result), JointSim::Floating(joint)) => result.update(joint),
-            (JointResult::Prismatic(result), JointSim::Prismatic(joint)) => result.update(joint),
-            (JointResult::Revolute(result), JointSim::Revolute(joint)) => result.update(joint),
-            _ => unreachable!("invalid combo"),
-        }
-    }
-}
-
 impl MultibodyResultTrait for JointResult {
-    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
+    type Component = JointSim;
+    const STATES: &'static [&'static str] = &[];
+    
+    fn get_result_entry(&self) -> ResultEntry {
         match self {
-            JointResult::Floating(floating) => floating.add_to_dataframe(df),
-            JointResult::Revolute(revolute) => revolute.add_to_dataframe(df),
-            JointResult::Prismatic(prismatic) => prismatic.add_to_dataframe(df),
+            JointResult::Floating(result) => result.get_result_entry(),
+            JointResult::Prismatic(result) => result.get_result_entry(),
+            JointResult::Revolute(result) => result.get_result_entry(),
         }
     }
-    fn get_state_names(&self) -> Vec<String> {
+    fn get_state_names(&self) -> &'static [&'static str] {
         match self {
             JointResult::Floating(result) => result.get_state_names(),
             JointResult::Prismatic(result) => result.get_state_names(),
             JointResult::Revolute(result) => result.get_state_names(),
         }
     }
-
-    fn get_result_entry(&self) -> ResultEntry {
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
         match self {
-            JointResult::Floating(result) => result.get_result_entry(),
-            JointResult::Prismatic(result) => result.get_result_entry(),
-            JointResult::Revolute(result) => result.get_result_entry(),
+            JointResult::Floating(result) => result.get_state_value(state),
+            JointResult::Prismatic(result) => result.get_state_value(state),
+            JointResult::Revolute(result) => result.get_state_value(state),
+        }
+    }
+
+    fn update(&mut self, joint: &JointSim) {
+        match (self, &joint) {
+            (JointResult::Floating(result), JointSim::Floating(joint)) => result.update(joint),
+            (JointResult::Prismatic(result), JointSim::Prismatic(joint)) => result.update(joint),
+            (JointResult::Revolute(result), JointSim::Revolute(joint)) => result.update(joint),
+            _ => unreachable!("invalid combo"),
         }
     }
 }

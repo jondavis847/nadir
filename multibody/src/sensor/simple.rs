@@ -5,7 +5,7 @@ pub mod star_tracker;
 use super::SensorTrait;
 use crate::{
     body::{BodyConnection, BodySim},
-    result::MultibodyResultTrait,
+    result::MultibodyResultTrait, MultibodyErrors,
 };
 use rate::{RateSensor, RateSensorResult};
 use rate3::{Rate3Sensor, Rate3SensorResult};
@@ -47,39 +47,40 @@ pub enum SimpleSensorResult {
     StarTracker(StarTrackerResult),
 }
 
-impl SimpleSensorResult {
-    pub fn update(&mut self, sensor: &SimpleSensor) {
-        match (self, sensor) {
-            (SimpleSensorResult::Rate(result), SimpleSensor::Rate(sensor)) => result.update(sensor),
-            (SimpleSensorResult::Rate3(result), SimpleSensor::Rate3(sensor)) => {
-                result.update(sensor)
-            }
-            _ => unreachable!("invalid combo"),
-        }
-    }
-}
+impl SimpleSensorResult {}
 
 impl MultibodyResultTrait for SimpleSensorResult {
-    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
-        match self {
-            SimpleSensorResult::Rate(result) => result.add_to_dataframe(df),
-            SimpleSensorResult::Rate3(result) => result.add_to_dataframe(df),
-            SimpleSensorResult::StarTracker(result) => result.add_to_dataframe(df),
-        }
-    }
-    fn get_state_names(&self) -> Vec<String> {
-        match self {
-            SimpleSensorResult::Rate(result) => result.get_state_names(),
-            SimpleSensorResult::Rate3(result) => result.get_state_names(),
-            SimpleSensorResult::StarTracker(result) => result.get_state_names(),
-        }
-    }
+    type Component = SimpleSensor;
+    const STATES: &'static [&'static str] = &[];
 
     fn get_result_entry(&self) -> crate::result::ResultEntry {
         match self {
             SimpleSensorResult::Rate(result) => result.get_result_entry(),
             SimpleSensorResult::Rate3(result) => result.get_result_entry(),
             SimpleSensorResult::StarTracker(result) => result.get_result_entry(),
+        }
+    }
+    fn get_state_names(&self) -> &'static [&'static str] {
+        match self {
+            SimpleSensorResult::Rate(result) => result.get_state_names(),
+            SimpleSensorResult::Rate3(result) => result.get_state_names(),
+            SimpleSensorResult::StarTracker(result) => result.get_state_names(),
+        }
+    }
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        match self {
+            SimpleSensorResult::Rate(result) => result.get_state_value(state),
+            SimpleSensorResult::Rate3(result) => result.get_state_value(state),
+            SimpleSensorResult::StarTracker(result) => result.get_state_value(state),
+        }
+    }
+    fn update(&mut self, sensor: &SimpleSensor) {
+        match (self, sensor) {
+            (SimpleSensorResult::Rate(result), SimpleSensor::Rate(sensor)) => result.update(sensor),
+            (SimpleSensorResult::Rate3(result), SimpleSensor::Rate3(sensor)) => {
+                result.update(sensor)
+            }
+            _ => unreachable!("invalid combo"),
         }
     }
 }

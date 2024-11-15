@@ -4,25 +4,21 @@ use crate::{
         composite_rigid_body::CompositeRigidBody,
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
-    },
-    body::{Body, BodyConnection, BodyTrait},
-    joint::{
+    }, body::{Body, BodyConnection, BodyTrait}, joint::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
         JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
-    },
-    result::{MultibodyResultTrait, ResultEntry},
-    MultibodyTrait,
+    }, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
-use polars::prelude::*;
 use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
+use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
@@ -556,142 +552,114 @@ impl CompositeRigidBody for FloatingSim {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct FloatingResult {
-    pub q: Vec<Quaternion>,
-    pub w: Vec<Vector3<f64>>,
-    pub aa: Vec<Vector3<f64>>,
-    pub r: Vec<Vector3<f64>>,
-    pub v: Vec<Vector3<f64>>,
-    pub a: Vec<Vector3<f64>>,
-}
+pub struct FloatingResult(HashMap<String, Vec<f64>>);
 
 impl FloatingResult {
-    pub fn update(&mut self, joint: &FloatingSim) {
-        self.q.push(joint.state.q);
-        self.w.push(joint.state.w);
-        self.aa.push(joint.cache.q_ddot.fixed_rows::<3>(0).into());
-        self.r.push(joint.state.r);
-        self.v.push(joint.state.v);
-        self.v.push(joint.cache.q_ddot.fixed_rows::<3>(3).into());
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for FloatingResult {
-    fn get_state_names(&self) -> Vec<String> {
-        vec![
-            "quaternion_x".to_string(),
-            "quaternion_y".to_string(),
-            "quaternion_z".to_string(),
-            "quaternion_w".to_string(),
-            "angular_rate_x".to_string(),
-            "angular_rate_y".to_string(),
-            "angular_rate_z".to_string(),
-            "angular_accel_x".to_string(),
-            "angular_accel_y".to_string(),
-            "angular_accel_z".to_string(),
-            "position_x".to_string(),
-            "position_y".to_string(),
-            "position_z".to_string(),
-            "velocity_x".to_string(),
-            "velocity_y".to_string(),
-            "velocity_z".to_string(),
-            "acceleration_x".to_string(),
-            "acceleration_y".to_string(),
-            "acceleration_z".to_string(),
-        ]
-    }
+    type Component = FloatingSim;
+    const STATES: &'static [&'static str] = &[
+        "acceleration[x]",
+        "acceleration[y]",
+        "acceleration[z]",
+        "angular_accel[x]",
+        "angular_accel[y]",
+        "angular_accel[z]",
+        "angular_rate[x]",
+        "angular_rate[y]",
+        "angular_rate[z]",
+        "position[x]",
+        "position[y]",
+        "position[z]",
+        "quaternion[x]",
+        "quaternion[y]",
+        "quaternion[z]",
+        "quaternion[w]",
+        "velocity[x]",
+        "velocity[y]",
+        "velocity[z]",
+    ];
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Joint(JointResult::Floating(self.clone()))
     }
+    
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
+    }
 
-    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
-        let accel_x = Series::new("accel_x", self.a.iter().map(|f| f[0]).collect::<Vec<f64>>());
-        let accel_y = Series::new("accel_y", self.a.iter().map(|f| f[1]).collect::<Vec<f64>>());
-        let accel_z = Series::new("accel_z", self.a.iter().map(|f| f[2]).collect::<Vec<f64>>());
-        let angular_rate_x = Series::new(
-            "angular_rate_x",
-            self.w.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-        );
-        let angular_rate_y = Series::new(
-            "angular_rate_y",
-            self.w.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-        );
-        let angular_rate_z = Series::new(
-            "angular_rate_z",
-            self.w.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-        );
-        let angular_accel_x = Series::new(
-            "angular_accel_x",
-            self.aa.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-        );
-        let angular_accel_y = Series::new(
-            "angular_accel_y",
-            self.aa.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-        );
-        let angular_accel_z = Series::new(
-            "angular_accel_z",
-            self.aa.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-        );
-        let attitude_x = Series::new(
-            "attitude_x",
-            self.q.iter().map(|q| q.x).collect::<Vec<f64>>(),
-        );
-        let attitude_y = Series::new(
-            "attitude_y",
-            self.q.iter().map(|q| q.y).collect::<Vec<f64>>(),
-        );
-        let attitude_z = Series::new(
-            "attitude_z",
-            self.q.iter().map(|q| q.z).collect::<Vec<f64>>(),
-        );
-        let attitude_s = Series::new(
-            "attitude_s",
-            self.q.iter().map(|q| q.s).collect::<Vec<f64>>(),
-        );
-        let position_x = Series::new(
-            "position_x",
-            self.r.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-        );
-        let position_y = Series::new(
-            "position_y",
-            self.r.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-        );
-        let position_z = Series::new(
-            "position_z",
-            self.r.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-        );
-        let velocity_x = Series::new(
-            "velocity_x",
-            self.v.iter().map(|f| f[0]).collect::<Vec<f64>>(),
-        );
-        let velocity_y = Series::new(
-            "velocity_y",
-            self.v.iter().map(|f| f[1]).collect::<Vec<f64>>(),
-        );
-        let velocity_z = Series::new(
-            "velocity_z",
-            self.v.iter().map(|f| f[2]).collect::<Vec<f64>>(),
-        );
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
 
-        df.with_column(accel_x).unwrap();
-        df.with_column(accel_y).unwrap();
-        df.with_column(accel_z).unwrap();
-        df.with_column(angular_rate_x).unwrap();
-        df.with_column(angular_rate_y).unwrap();
-        df.with_column(angular_rate_z).unwrap();
-        df.with_column(angular_accel_x).unwrap();
-        df.with_column(angular_accel_y).unwrap();
-        df.with_column(angular_accel_z).unwrap();
-        df.with_column(attitude_x).unwrap();
-        df.with_column(attitude_y).unwrap();
-        df.with_column(attitude_z).unwrap();
-        df.with_column(attitude_s).unwrap();
-        df.with_column(position_x).unwrap();
-        df.with_column(position_y).unwrap();
-        df.with_column(position_z).unwrap();
-        df.with_column(velocity_x).unwrap();
-        df.with_column(velocity_y).unwrap();
-        df.with_column(velocity_z).unwrap();
+    fn update(&mut self, joint: &FloatingSim) {
+        self.0
+            .get_mut("acceleration[x]")
+            .unwrap()
+            .push(joint.cache.q_ddot[3]);
+        self.0
+            .get_mut("acceleration[y]")
+            .unwrap()
+            .push(joint.cache.q_ddot[4]);
+        self.0
+            .get_mut("acceleration[z]")
+            .unwrap()
+            .push(joint.cache.q_ddot[5]);
+        self.0
+            .get_mut("angular_accel[x]")
+            .unwrap()
+            .push(joint.cache.q_ddot[0]);
+        self.0
+            .get_mut("angular_accel[y]")
+            .unwrap()
+            .push(joint.cache.q_ddot[1]);
+        self.0
+            .get_mut("angular_accel[z]")
+            .unwrap()
+            .push(joint.cache.q_ddot[2]);
+        self.0
+            .get_mut("angular_rate[x]")
+            .unwrap()
+            .push(joint.state.w[0]);
+        self.0
+            .get_mut("angular_rate[y]")
+            .unwrap()
+            .push(joint.state.w[1]);
+        self.0
+            .get_mut("angular_rate[z]")
+            .unwrap()
+            .push(joint.state.w[2]);
+        self.0
+            .get_mut("position[x]")
+            .unwrap()
+            .push(joint.state.r[0]);
+        self.0
+            .get_mut("position[y]")
+            .unwrap()
+            .push(joint.state.r[1]);
+        self.0
+            .get_mut("position[z]")
+            .unwrap()
+            .push(joint.state.r[2]);
+        self.0
+            .get_mut("velocity[x]")
+            .unwrap()
+            .push(joint.state.v[0]);
+        self.0
+            .get_mut("velocity[y]")
+            .unwrap()
+            .push(joint.state.v[1]);
+        self.0
+            .get_mut("velocity[z]")
+            .unwrap()
+            .push(joint.state.v[2]);
     }
 }

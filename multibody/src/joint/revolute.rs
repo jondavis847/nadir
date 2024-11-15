@@ -4,27 +4,23 @@ use crate::{
         composite_rigid_body::CompositeRigidBody,
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
-    },
-    body::{Body, BodyConnection, BodyTrait},
-    joint::{
+    }, body::{Body, BodyConnection, BodyTrait}, joint::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
         JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
-    },
-    result::{MultibodyResultTrait, ResultEntry},
-    MultibodyTrait,
+    }, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
 use nalgebra::{DMatrix, DVector, Matrix6x1, Vector1, Vector6};
-use polars::prelude::*;
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
+use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 use uuid::Uuid;
@@ -60,45 +56,49 @@ impl MulAssign<f64> for RevoluteState {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RevoluteResult {
-    pub theta: Vec<f64>,
-    pub omega: Vec<f64>,
-    pub angular_accel: Vec<f64>,
-    pub internal_torque: Vec<f64>,
-}
+pub struct RevoluteResult(HashMap<String, Vec<f64>>);
 
 impl RevoluteResult {
-    pub fn update(&mut self, joint: &RevoluteSim) {
-        self.theta.push(joint.state.theta);
-        self.omega.push(joint.state.omega);
-        self.angular_accel.push(joint.cache.q_ddot);
-        self.internal_torque.push(joint.cache.tau);
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for RevoluteResult {
-    fn get_state_names(&self) -> Vec<String> {
-        vec![
-            "theta".to_string(),
-            "omega".to_string(),
-            "angular_accel".to_string(),
-            "internal_torque".to_string(),
-        ]
+    type Component = RevoluteSim;
+    const STATES: &'static [&'static str] =
+        &["angle", "angular_accel", "angular_rate", "internal_torque"];
+
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
+
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
+    }
+    
+    fn update(&mut self, joint: &RevoluteSim) {
+        self.0
+            .get_mut("angular_accel")
+            .unwrap()
+            .push(joint.cache.q_ddot);
+        self.0
+            .get_mut("internal_torque")
+            .unwrap()
+            .push(joint.cache.tau);
+        self.0
+            .get_mut("angular_rate")
+            .unwrap()
+            .push(joint.state.omega);
+        self.0.get_mut("angle").unwrap().push(joint.state.theta);
     }
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Joint(JointResult::Revolute(self.clone()))
-    }
-
-    fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let theta = Series::new("theta", self.theta.clone());
-        let omega = Series::new("omega", self.omega.clone());
-        let accel = Series::new("accel", self.angular_accel.clone());
-        let tau = Series::new("internal_torque", self.internal_torque.clone());
-        df.with_column(theta).unwrap();
-        df.with_column(omega).unwrap();
-        df.with_column(accel).unwrap();
-        df.with_column(tau).unwrap();
     }
 }
 

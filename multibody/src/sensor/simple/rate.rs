@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use crate::{
     body::{BodyConnection, BodySim},
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::{noise::Noise, SensorResult, SensorTrait},
+    sensor::{noise::Noise, SensorResult, SensorTrait}, MultibodyErrors,
 };
-use polars::prelude::*;
+
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +18,7 @@ use super::SimpleSensorResult;
 /// You can use Rotation::AlignedAxes to simplify the logic
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RateSensor {    
+pub struct RateSensor {
     parameters: RateSensorParameters,
     state: RateSensorState,
     result: RateSensorResult,
@@ -27,7 +29,7 @@ impl RateSensor {
         let parameters = RateSensorParameters { delay, noise };
         let state = RateSensorState::default();
         let result = RateSensorResult::default();
-        Self {            
+        Self {
             parameters,
             state,
             result,
@@ -61,31 +63,39 @@ impl SensorTrait for RateSensor {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RateSensorResult {
-    value: Vec<f64>,
-    noise: Vec<f64>,
-}
+pub struct RateSensorResult(HashMap<String, Vec<f64>>);
 
 impl RateSensorResult {
-    pub fn update(&mut self, sensor: &RateSensor) {
-        self.value.push(sensor.state.measurement);
-        self.noise.push(sensor.state.noise);
+    pub fn new() -> Self {
+        let mut result = HashMap::new();
+        Self::STATES.iter().for_each(|state| {
+            result.insert(state.to_string(), Vec::new());
+        });
+        Self(result)
     }
 }
 
 impl MultibodyResultTrait for RateSensorResult {
-    fn add_to_dataframe(&self, df: &mut polars::prelude::DataFrame) {
-        let value = Series::new("value", self.value.clone());
-        let noise = Series::new("noise", self.noise.clone());
-
-        df.with_column(value).unwrap();
-        df.with_column(noise).unwrap();
-    }
-    fn get_state_names(&self) -> Vec<String> {
-        vec!["value".to_string(), "noise".to_string()]
-    }
+    type Component = RateSensor;
+    const STATES: &'static [&'static str] = &["measurement", "noise"];
 
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate(self.clone())))
+    }
+    
+    fn get_state_names(&self) -> &'static [&'static str] {
+        Self::STATES
+    }
+
+    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
+
+    fn update(&mut self, sensor: &RateSensor) {
+        self.0
+            .get_mut("measurement")
+            .unwrap()
+            .push(sensor.state.measurement);
+        self.0.get_mut("noise").unwrap().push(sensor.state.noise);
     }
 }

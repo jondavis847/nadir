@@ -3,7 +3,6 @@ use crate::{
     gravity::{Gravity, GravityTrait, NewtownianGravity},
 };
 use nalgebra::Vector3;
-use polars::prelude::*;
 use rotations::{
     prelude::{EulerAngles, EulerSequence, Quaternion},
     Rotation, RotationTrait,
@@ -276,56 +275,6 @@ impl CelestialBodyResult {
         self.orientation.push(Quaternion::from(&body.orientation));
         self.position.push(body.position);
     }
-
-    pub fn add_to_dataframe(&self, name: &str, df: &mut DataFrame) {
-        let orientation: Vec<Quaternion> = self
-            .orientation
-            .iter()
-            .map(|rotation| Quaternion::from(*rotation))
-            .collect();
-
-        let orientation_x = Series::new(
-            &format!("{name}_orientation_x"),
-            orientation.iter().map(|v| v.x).collect::<Vec<f64>>(),
-        );
-        df.with_column(orientation_x).unwrap();
-
-        let orientation_y = Series::new(
-            &format!("{name}_orientation_y"),
-            orientation.iter().map(|v| v.y).collect::<Vec<f64>>(),
-        );
-        df.with_column(orientation_y).unwrap();
-
-        let orientation_z = Series::new(
-            &format!("{name}_orientation_z"),
-            orientation.iter().map(|v| v.z).collect::<Vec<f64>>(),
-        );
-        df.with_column(orientation_z).unwrap();
-
-        let orientation_w = Series::new(
-            &format!("{name}_orientation_w"),
-            orientation.iter().map(|v| v.s).collect::<Vec<f64>>(),
-        );
-        df.with_column(orientation_w).unwrap();
-
-        let body_position_x = Series::new(
-            &format!("{name}_position_x"),
-            self.position.iter().map(|v| v[0]).collect::<Vec<f64>>(),
-        );
-        df.with_column(body_position_x).unwrap();
-
-        let body_position_y = Series::new(
-            &format!("{name}_position_y"),
-            self.position.iter().map(|v| v[1]).collect::<Vec<f64>>(),
-        );
-        df.with_column(body_position_y).unwrap();
-
-        let body_position_z = Series::new(
-            &format!("{name}_position_z"),
-            self.position.iter().map(|v| v[2]).collect::<Vec<f64>>(),
-        );
-        df.with_column(body_position_z).unwrap();
-    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
@@ -440,24 +389,14 @@ impl CelestialResult {
 
         for body_result in &self.bodies {
             let name = body_result.body.get_name();
-            names.push(format!("{name}_orientation_x"));
-            names.push(format!("{name}_orientation_y"));
-            names.push(format!("{name}_orientation_z"));
-            names.push(format!("{name}_orientation_w"));
-            names.push(format!("{name}_position_x"));
-            names.push(format!("{name}_position_y"));
-            names.push(format!("{name}_position_z"));
+            names.push(format!("{name}_orientation[x]"));
+            names.push(format!("{name}_orientation[y]"));
+            names.push(format!("{name}_orientation[z]"));
+            names.push(format!("{name}_orientation[w]"));
+            names.push(format!("{name}_position[x]"));
+            names.push(format!("{name}_position[y]"));
+            names.push(format!("{name}_position[z]"));
         }
         names
-    }
-
-    pub fn add_to_dataframe(&self, df: &mut DataFrame) {
-        let epoch_sec_j2k_tai = Series::new("epoch_sec_j2k_tai", self.epoch_sec_j2k_tai.clone());
-        df.with_column(epoch_sec_j2k_tai).unwrap();
-
-        for body_result in &self.bodies {
-            let name = body_result.body.get_name();
-            body_result.add_to_dataframe(&name, df);
-        }
     }
 }

@@ -17,30 +17,50 @@ use spice::SpiceErrors;
 use uuid::Uuid;
 use body::BodyErrors;
 use joint::{errors::JointErrors, revolute::RevoluteErrors};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MultibodyErrors {    
+    #[error("base error:")]
     BaseErrors(BaseErrors),  
+    #[error("base does not have any outer joints")]
     BaseMissingOuterJoint,
+    #[error("could not find body in the system")]
     BodyNotFound,
+    #[error("body error:")]
     Body(BodyErrors),
+    #[error("body does not have an inner joint")]
     BodyMissingInnerJoint(Uuid),
+    #[error("base cannot be deleted")]
     CantDeleteBase,
+    #[error("celestial error:")]
     CelestialErrors(CelestialErrors),
+    #[error("could not find component in the system")]
     ComponentNotFound(String),
+    #[error("could not find state for component")]
+    ComponentStateNotFound(String),
+    #[error("sim dt cannot be 0.0")]
     DtCantBeZero,
+    #[error("invalid connection")]
     InvalidConnection,
+    #[error("joint error")]
     JointErrors(JointErrors),
+    #[error("joint must have an inner body")]
     JointMissingInnerBody(Uuid),
+    #[error("joint must have an outer body")]
     JointMissingOuterBody(Uuid),
+    #[error("could not find joint in system")]
     JointNotFound,
-    NameTaken,
-    NoBaseFound,
+    #[error("that name is already taken")]
+    NameTaken,    
+    #[error("could not find transform")]
     NoTransformFound,
+    #[error("revolute error:")]
     Revolute(RevoluteErrors),
+    #[error("sensor error:")]
     SensorErrors(SensorErrors),
-    SpiceErrors(SpiceErrors),
-    TooManyBasesFound,
+    #[error("spice error:")]
+    SpiceErrors(SpiceErrors),    
 }
 
 impl From<BaseErrors> for MultibodyErrors {
