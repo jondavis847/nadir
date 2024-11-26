@@ -1,0 +1,21 @@
+[package]
+name = "spacecraft"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aerospace.workspace = true
+color.workspace = true
+mass_properties.workspace = true
+multibody.workspace = true
+nadir_3d.workspace = true
+nalgebra.workspace = true
+rotations.workspace = true 
+ron.workspace = true
+spice.workspace = true
+time.workspace = true
+transforms.workspace = true
+
+[[bin]]
+name = "spacecraft"
+path = "main.rs"

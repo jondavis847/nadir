@@ -1,0 +1,83 @@
+use aerospace::{
+    celestial_system::{CelestialBodies, CelestialSystem},
+    orbit::KeplerianElements,
+};
+use color::Color;
+use mass_properties::{CenterOfMass, Inertia, MassProperties};
+use multibody::{
+    body::Body,
+    joint::floating::{Floating, FloatingParameters, FloatingState},
+    system::MultibodySystem,
+};
+
+use nadir_3d::{
+    geometry::{cuboid::Cuboid, Geometry, GeometryState},
+    material::Material,
+    mesh::Mesh,
+};
+use spice::Spice;
+use time::Time;
+use transforms::Transform;
+
+fn main() {
+    // Create the MultibodySystem
+    // sys is will be created with nothing but a default base
+    let mut sys = MultibodySystem::new();
+
+    // Create the CelestialSystem which contains the planetary models
+    // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
+    let epoch = Time::now().unwrap();
+    let mut celestial = CelestialSystem::new(epoch).unwrap();
+    celestial
+        .add_body(CelestialBodies::Earth, true, false)
+        .unwrap();
+    celestial
+        .add_body(CelestialBodies::Moon, false, false)
+        .unwrap();
+    sys.add_celestial_system(celestial);
+
+    // Create the Floating joint that represents the kinematics between the base and the spacecraft
+    // A with_orbit() method is provided for Floating joints
+    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let state = FloatingState::new().with_orbit(orbit.into());
+    let parameters = FloatingParameters::new();
+    let f = Floating::new("f", parameters, state);
+    sys.add_joint(f.into()).unwrap();
+
+    // Create the main body of the spacecraft
+    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
+    let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
+    let mp = MassProperties::new(1000.0, cm, inertia).unwrap();
+    let geometry = Geometry::Cuboid(Cuboid::new(1.0, 1.0, 1.0));
+    let material = Material::Phong {
+        color: Color::GREEN,
+        specular_power: 32.0,
+    };
+    let mesh = Mesh {
+        name: "b".to_string(),
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    };
+
+    let b = Body::new("b", mp).unwrap().with_mesh(mesh);
+    sys.add_body(b).unwrap();
+
+    // Connect the components together.
+    // Connections are made by the components names.
+    // The direction of the connection matters - (from,to)
+    sys.connect("base", "f", Transform::IDENTITY).unwrap();
+    sys.connect("f", "b", Transform::IDENTITY).unwrap();
+
+    let pwd = &std::env::current_dir().unwrap();
+    sys.save(pwd);
+
+    // We will use SPICE data for the planetary ephemeris
+    // from_local() will check if you already downloaded the data locally
+    // if not calls from_naif() to download the data
+    let mut spice = Some(Spice::from_local().unwrap());
+
+    // Run a simulation
+    sys.simulate("", 0.0, 7200.0, 1.0, &mut spice);
+}
