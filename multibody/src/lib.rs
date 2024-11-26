@@ -8,7 +8,6 @@ pub mod result;
 pub mod sensor;
 pub mod solver;
 pub mod system;
-pub mod system_sim;
 
 use aerospace::celestial_system::CelestialErrors;
 use base::BaseErrors;

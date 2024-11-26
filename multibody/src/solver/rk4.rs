@@ -6,7 +6,7 @@ use crate::{
     joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{SensorResult, SensorTrait},
-    system_sim::MultibodySystemSim,
+    system::system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
 use std::collections::HashMap;

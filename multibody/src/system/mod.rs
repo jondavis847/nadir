@@ -1,9 +1,10 @@
+pub mod system_sim;
+use system_sim::MultibodySystemSim;
 use super::{
     algorithms::MultibodyAlgorithm,
     base::Base,
     body::{Body, BodyTrait},
-    joint::{Joint, JointTrait},
-    system_sim::MultibodySystemSim,
+    joint::{Joint, JointTrait},    
     MultibodyErrors, MultibodyTrait,
 };
 use crate::{
