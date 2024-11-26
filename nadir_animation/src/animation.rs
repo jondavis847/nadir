@@ -12,20 +12,22 @@ use iced::{
 
 use multibody::{
     result::{MultibodyResult, ResultEntry},
+    system::MultibodySystem,
     MultibodyErrors,
 };
+
 use scene::Scene;
 
 #[derive(Debug)]
 pub struct AnimationGui {
-    pub state: AnimationState,
-    pub result: Option<MultibodyResult>,
+    state: AnimationState,
+    result: Option<MultibodyResult>,
 }
 
 impl AnimationGui {
-    pub fn new(result: MultibodyResult) -> (Self, Task<Message>) {
+    pub fn new(result: MultibodyResult, system: MultibodySystem) -> (Self, Task<Message>) {
         let mut state = AnimationState::default();
-        state.initialize(&result).unwrap();
+        state.initialize(&result, &system).unwrap();
         (
             Self {
                 state,
@@ -239,16 +241,37 @@ impl AnimationState {
 
     pub fn right_button_released(&self, _cursor: Point) {}
 
-    pub fn initialize(&mut self, result: &MultibodyResult) -> Result<(), MultibodyErrors> {
-        let sys = &result.system;
-
+    pub fn initialize(
+        &mut self,
+        result: &MultibodyResult,
+        sys: &MultibodySystem,
+    ) -> Result<(), MultibodyErrors> {
         // initialize the multibody bodies
-        for i in 0..sys.bodies.len() {
-            let body = &sys.bodies[i];
-            let q = body.state.attitude_base;
-            let r = body.state.position_base;
-            let rotation = glam::DQuat::from_xyzw(q.x, q.y, q.z, q.s);
-            let position = glam::dvec3(r[0], r[1], r[2]);
+        for (_, body) in &sys.bodies {
+            let qx = result
+                .get_component_state(&body.name, "attitude[x]{base}")
+                .unwrap()[0];
+            let qy = result
+                .get_component_state(&body.name, "attitude[y]{base}")
+                .unwrap()[0];
+            let qz = result
+                .get_component_state(&body.name, "attitude[z]{base}")
+                .unwrap()[0];
+            let qw = result
+                .get_component_state(&body.name, "attitude[w]{base}")
+                .unwrap()[0];
+            let rotation = glam::DQuat::from_xyzw(qx, qy, qz, qw);
+
+            let rx = result
+                .get_component_state(&body.name, "position[x]{base}")
+                .unwrap()[0];
+            let ry = result
+                .get_component_state(&body.name, "position[y]{base}")
+                .unwrap()[0];
+            let rz = result
+                .get_component_state(&body.name, "position[z]{base}")
+                .unwrap()[0];
+            let position = glam::dvec3(rx, ry, rz);
             if let Some(mesh) = &body.mesh {
                 let mut mesh = mesh.clone();
                 mesh.update(position, rotation);

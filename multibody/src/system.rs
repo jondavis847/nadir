@@ -3,7 +3,6 @@ use super::{
     base::Base,
     body::{Body, BodyTrait},
     joint::{Joint, JointTrait},
-    result::MultibodyResult,
     system_sim::MultibodySystemSim,
     MultibodyErrors, MultibodyTrait,
 };
@@ -12,11 +11,11 @@ use crate::{
     component::MultibodyComponent,
     sensor::Sensor,
 };
-use aerospace::gravity::Gravity;
-
+use aerospace::{celestial_system::CelestialSystem, gravity::Gravity};
+use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spice::Spice;
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File, io::Write, path::Path};
 use transforms::Transform;
 use uuid::Uuid;
 
@@ -50,6 +49,10 @@ impl MultibodySystem {
         Ok(())
     }
 
+    pub fn add_celestial_system(&mut self, celestial: CelestialSystem) {
+        self.base.add_celestial_system(celestial);
+    }
+
     pub fn add_joint(&mut self, joint: Joint) -> Result<(), MultibodyErrors> {
         // Return if a component with this name already exists
         if self.check_name_taken(joint.get_name()) {
@@ -77,17 +80,14 @@ impl MultibodySystem {
         &mut self,
         from_name: &str,
         to_name: &str,
-        transform: Option<Transform>,
+        transform: Transform,
     ) -> Result<(), MultibodyErrors> {
         // if the base is the 'from' component
         if self.base.get_name() == from_name {
             // look for valid 'to' components (only joints for now)
             for (_, joint) in &mut self.joints {
                 if joint.get_name() == to_name {
-                    if transform.is_none() {
-                        return Err(MultibodyErrors::NoTransformFound);
-                    }
-                    joint.connect_inner_body(&mut self.base, transform.unwrap())?; // unwrap should be safe since we early returned
+                    joint.connect_inner_body(&mut self.base, transform)?;
                     return Ok(());
                 }
                 // if no joint found, return TODO: InvalidConnection or ComponentNotFound?
@@ -114,14 +114,10 @@ impl MultibodySystem {
         for (_, body) in &mut self.bodies {
             // if the body is the 'from' component
             if body.get_name() == from_name {
-                if transform.is_none() {
-                    return Err(MultibodyErrors::NoTransformFound);
-                }
-
                 // look for valid 'to' components (only joints for now)
                 for (_, joint) in &mut self.joints {
                     if joint.get_name() == to_name {
-                        joint.connect_inner_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
+                        joint.connect_inner_body(body, transform)?;
                         return Ok(());
                     }
                 }
@@ -136,11 +132,7 @@ impl MultibodySystem {
                 // joints
                 for (_, joint) in &mut self.joints {
                     if joint.get_name() == from_name {
-                        // transform is required
-                        if transform.is_none() {
-                            return Err(MultibodyErrors::NoTransformFound);
-                        }
-                        joint.connect_outer_body(body, transform.unwrap())?; //unwrap should be safe since we early returned
+                        joint.connect_outer_body(body, transform)?;
                         return Ok(());
                     }
                 }
@@ -148,7 +140,7 @@ impl MultibodySystem {
                 // body specific sensors
                 for (_, sensor) in &mut self.sensors {
                     if sensor.get_name() == from_name {
-                        sensor.connect_to_body(body, transform.unwrap())?;
+                        sensor.connect_to_body(body, transform)?;
                         return Ok(());
                     }
                 }
@@ -285,16 +277,44 @@ impl MultibodySystem {
         false
     }
 
+    pub fn save(&self, path: &Path) {
+        let path = path.join("system.ron");
+
+        // Open the file
+        let mut file = match File::create(path) {
+            Ok(file) => file,
+            Err(e) => panic!("{e}"),
+        };
+
+        // Convert system to RON string
+        let ron_string = match to_string_pretty(self, PrettyConfig::new()) {
+            Ok(string) => string,
+            Err(e) => panic!("{e}"),
+        };
+
+        // Write the RON string to the file
+        match file.write_all(ron_string.as_bytes()) {
+            Ok(_) => {}
+            Err(e) => panic!("{e}"),
+        }
+    }
+
     pub fn simulate(
         &self,
-        name: String,
+        name: &str,
         tstart: f64,
         tstop: f64,
         dt: f64,
         spice: &mut Option<Spice>,
-    ) -> Result<MultibodyResult, MultibodyErrors> {
-        let mut sim = MultibodySystemSim::try_from(self.clone())?;
-        sim.simulate(name, tstart, tstop, dt, spice)
+    ) {
+        let mut sim = MultibodySystemSim::try_from(self.clone()).unwrap();
+        let result = sim
+            .simulate(name.to_string(), tstart, tstop, dt, spice)
+            .unwrap();
+        let sim_duration = utilities::format_duration(result.sim_duration);
+        let sim_name = result.name.clone();
+        println!("Simulation '{sim_name}' completed in {sim_duration}.");
+        result.save(self);
     }
 
     pub fn validate(&self) -> Result<(), MultibodyErrors> {

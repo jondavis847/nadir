@@ -27,7 +27,6 @@ use spice::Spice;
 use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
 use std::time::{Instant, SystemTime};
-use utilities::generate_unique_id;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -136,9 +135,15 @@ impl MultibodySystemSim {
         JointStates(new_joints)
     }
 
-    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, t: f64, spice: &mut Option<Spice>) {
+    pub fn run(
+        &mut self,
+        dx: &mut JointStates,
+        x: &JointStates,
+        t: f64,
+        spice: &mut Option<Spice>,
+    ) {
         self.set_state(x);
-        self.update_base(t,spice);
+        self.update_base(t, spice);
         self.update_joints();
         self.update_forces();
 
@@ -271,6 +276,61 @@ impl MultibodySystemSim {
         dt: f64,
         spice: &mut Option<Spice>,
     ) -> Result<MultibodyResult, MultibodyErrors> {
+        let mut results = std::env::current_dir().unwrap();
+        results.push("results");
+        let mut tokens = Vec::new();
+
+        let results_dir = match std::fs::read_dir(&results) {
+            Ok(results_dir) => results_dir,
+            Err(_) => {
+                std::fs::create_dir_all(&results).expect("Failed to create directory");
+                std::fs::read_dir(&results).unwrap()
+            }
+        };
+
+        // Read the directory entries
+        for entry in results_dir {
+            let entry = entry.unwrap();
+            let path = entry.path();
+
+            // Check if the entry is a directory
+            if path.is_dir() {
+                if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+                    // Panic if a result already exists with that name
+                    if file_name == name {
+                        panic!("Result name already exists. Please pick a different one.")
+                    }
+                    // Check if the folder starts with "sim"
+                    if file_name.starts_with("sim") {
+                        // Extract the token after "sim"
+                        let token = file_name[3..].to_string();
+                        tokens.push(token);
+                    }
+                }
+            }
+        }
+        let name = if name.is_empty() {
+            if !tokens.is_empty() {
+                let taken_ids: Vec<i64> = tokens
+                    .iter()
+                    .map(|string| match string.parse::<i64>() {
+                        Ok(i) => i,
+                        Err(_) => panic!(
+                            "Got a folder name of sim<token> where token is 
+                            not a numeric integer. This is not valid nadir syntax. Please 
+                            change the name of the folder to be sim<i64> or something else that doesn't start with sim."
+                        ),
+                    })
+                    .collect();
+                let new_id = *taken_ids.iter().max().unwrap() + 1;
+                format!("sim{new_id}")
+            } else {
+                "sim0".to_string()
+            }
+        } else {
+            name
+        };
+
         let start_time = SystemTime::now();
         let instant_start = Instant::now();
 
@@ -287,14 +347,8 @@ impl MultibodySystemSim {
         let sim_duration = sim_start_time.elapsed();
         let total_duration = instant_start.elapsed();
 
-        let mut name = name.clone();
-        if name.is_empty() {
-            name = format!("sim_{}", generate_unique_id());
-        }
-
         Ok(MultibodyResult {
             name: name,
-            system: self.clone(),
             sim_time: times,
             result: hashmap,
             time_start: start_time,
@@ -345,7 +399,7 @@ impl MultibodySystemSim {
     }
 
     fn update_base(&mut self, t: f64, spice: &mut Option<Spice>) {
-        self.base.update(t,spice).unwrap();
+        self.base.update(t, spice).unwrap();
     }
 
     fn update_forces(&mut self) {
@@ -363,7 +417,9 @@ impl MultibodySystemSim {
                         body.calculate_gravity(&transforms.ob_from_base, gravity);
                     }
                 }
-                BaseSystems::Celestial(celestial) => body.calculate_gravity_celestial(&transforms.ob_from_base, celestial)
+                BaseSystems::Celestial(celestial) => {
+                    body.calculate_gravity_celestial(&transforms.ob_from_base, celestial)
+                }
             }
 
             // calculate total external forces for the outer body

@@ -1,11 +1,51 @@
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+authors = ["Jonathan Davis <jonathan.p.davis.@nasa.gov>"]
+rust-version = "1.82.0"
+
 [workspace]
-members = [ "aerospace", "nadir_animation", "benchmarks", "nadir",    
-    "coordinate_systems", "mass_properties",
+members = [ 
+    "aerospace", 
+    "benchmarks", 
+    "color", 
+    "coordinate_systems",     
+    "examples/*",
+    "mass_properties",
     "multibody", 
-    "rotations", "spatial_algebra",
-    "transforms", "utilities", "color", "nadir_3d", "spice", "time", "nadir_fsw",    
+    "nadir",    
+    "nadir_3d", 
+    "nadir_animation", 
+    "nadir_fsw",    
+    "rotations", 
+    "spatial_algebra",
+    "spice", 
+    "transforms", 
+    "utilities",
+    "time", 
 ]
 resolver = "2"
+
+[workspace.dependencies]
+aerospace = {path = "aerospace"} 
+color  = {path = "color"}  
+coordinate_systems  = {path = "coordinate_systems"}
+mass_properties = {path = "mass_properties"} 
+multibody = {path = "multibody"}  
+nadir = {path = "nadir"}  
+nadir_animation = {path = "nadir_animation"}   
+nadir_3d = {path = "nadir_3d"}  
+nadir_fsw = {path = "nadir_fsw"} 
+rotations = {path = "rotations"} 
+spatial_algebra = {path = "spatial_algebra"} 
+spice = {path = "spice"} 
+transforms = {path = "transforms"} 
+utilities = {path = "utilities"} 
+time = {path = "time"} 
+clap = "4.5.21"
+nalgebra = "0.33.2"
+ron = "0.8.1"
+
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
@@ -16,9 +56,9 @@ opt-level = 0
 opt-level = 0
 
 [profile.release]
-debug = 1
-opt-level = 3       # Optimizes for binary size. Use "3" for max performance.
-lto = "thin"          # Link Time Optimization. "fat" can be more aggressive but slower to compile.
-codegen-units = 1     # Better optimization across the entire crate but slower compilation.
+debug = 0
+opt-level = 2       # Optimizes for binary size. Use "3" for max performance.
+lto = "off"          # Link Time Optimization. "fat" can be more aggressive but slower to compile.
 panic = 'abort'       # Reduces binary size by not including unwind code.
-incremental = false   # Disables incremental compilation for release builds.
+incremental = true   # Disables incremental compilation for release builds.
+

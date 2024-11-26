@@ -1,13 +1,16 @@
-use crate::system_sim::MultibodySystemSim;
+use crate::system::MultibodySystem;
 use crate::MultibodyErrors;
 use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
 use aerospace::celestial_system::{CelestialBodies, CelestialErrors, CelestialResult};
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
+use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::quaternion::Quaternion;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+use std::fs::File;
+use std::io::Write;
 use std::time::{Duration, SystemTime};
 use utilities::format_duration;
 
@@ -23,7 +26,6 @@ pub trait MultibodyResultTrait {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MultibodyResult {
     pub name: String,
-    pub system: MultibodySystemSim,
     pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
     pub time_start: SystemTime,
@@ -134,6 +136,33 @@ impl MultibodyResult {
 
     pub fn get_components(&self) -> Vec<String> {
         self.result.keys().cloned().collect()
+    }
+
+    pub fn save(&self, sys: &MultibodySystem) {
+        // check if there is a results folder, otherwise make one
+        let mut path = std::path::PathBuf::new();
+        path.push("results");
+        if !path.exists() {
+            std::fs::create_dir_all(&path).unwrap();
+        }
+
+        // check if this folder exists, panic if so TODO: Put this before starting the sim!
+        path.push(&self.name);
+        if !path.exists() {
+            std::fs::create_dir_all(&path).unwrap();
+        }
+
+        // create the sys file
+        let sys_path = path.join("system.ron");
+        let mut file = File::create(sys_path).unwrap();
+        let ron_string = to_string_pretty(sys, PrettyConfig::new()).unwrap();
+        file.write_all(ron_string.as_bytes()).unwrap();
+
+        // create the ron file
+        let res_path = path.join("result.ron");
+        let mut file = File::create(res_path).unwrap();
+        let ron_string = to_string_pretty(self, PrettyConfig::new()).unwrap();
+        file.write_all(ron_string.as_bytes()).unwrap();
     }
 }
 

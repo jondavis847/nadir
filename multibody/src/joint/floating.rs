@@ -4,12 +4,16 @@ use crate::{
         composite_rigid_body::CompositeRigidBody,
         recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
         MultibodyAlgorithm,
-    }, body::{Body, BodyConnection, BodyTrait}, joint::{
+    },
+    body::{Body, BodyConnection, BodyTrait},
+    joint::{
         joint_sim::{JointCache, JointSimTrait},
         joint_state::JointState,
         joint_transforms::JointTransforms,
         JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
-    }, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
+    },
+    result::{MultibodyResultTrait, ResultEntry},
+    MultibodyErrors, MultibodyTrait,
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
@@ -39,16 +43,42 @@ pub struct FloatingState {
 }
 
 impl FloatingState {
-    pub fn new(q: Quaternion, w: Vector3<f64>, r: Vector3<f64>, v: Vector3<f64>) -> Self {
-        // assume this is about Z until we add more axes
-        Self { q, w, r, v }
+    pub fn new() -> Self {
+        Self {
+            q: Quaternion::IDENTITY,
+            w: Vector3::zeros(),
+            r: Vector3::zeros(),
+            v: Vector3::zeros(),
+        }
     }
 
-    pub fn from_orbit(q: Quaternion, w: Vector3<f64>, orbit: Orbit) -> Self {
+    pub fn with_attitude(mut self, q: Quaternion) -> Self {
+        self.q = q;
+        self
+    }
+
+    pub fn with_rates(mut self, w: Vector3<f64>) -> Self {
+        self.w = w;
+        self
+    }
+
+    pub fn with_position(mut self, r: Vector3<f64>) -> Self {
+        self.r = r;
+        self
+    }
+
+    pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
+        self.v = v;
+        self
+    }
+
+    pub fn with_orbit(mut self, orbit: Orbit) -> Self {
         let (r, v) = match orbit {
             Orbit::Keplerian(kep) => kep.get_rv(),
         };
-        Self { q, w, r, v }
+        self.r = r;
+        self.v = v;
+        self
     }
 }
 
@@ -69,15 +99,95 @@ impl MulAssign<f64> for FloatingState {
         self.v *= rhs;
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FloatingParameters {
+    xr: JointParameters,
+    yr: JointParameters,
+    zr: JointParameters,
+    xt: JointParameters,
+    yt: JointParameters,
+    zt: JointParameters,
+}
+
+impl FloatingParameters {
+    pub fn new() -> Self {
+        Self {
+            xr: JointParameters::default(),
+            yr: JointParameters::default(),
+            zr: JointParameters::default(),
+            xt: JointParameters::default(),
+            yt: JointParameters::default(),
+            zt: JointParameters::default(),
+        }
+    }
+
+    /// Adds JointParameters for rotation in the x, y, and z axis.
+    /// Sets the parameters for all axes!
+    /// Use with_xr for example if you only want to set x.
+    pub fn with_rotation(mut self, p: JointParameters) -> Self {
+        self.xr = p;
+        self.yr = p;
+        self.zr = p;
+        self
+    }
+
+    /// Adds JointParameters for translation in the x, y, and z axis.
+    /// Sets the parameters for all axes!
+    /// Use with_xr for example if you only want to set x.
+    pub fn with_translation(mut self, p: JointParameters) -> Self {
+        self.xt = p;
+        self.yt = p;
+        self.zt = p;
+        self
+    }
+
+    /// Adds JointParameters for rotation in the x axis
+    pub fn with_xr(mut self, p: JointParameters) -> Self {
+        self.xr = p;
+        self
+    }
+
+    /// Adds JointParameters for rotation in the y axis
+    pub fn with_yr(mut self, p: JointParameters) -> Self {
+        self.yr = p;
+        self
+    }
+
+    /// Adds JointParameters for rotation in the z axis
+    pub fn with_zr(mut self, p: JointParameters) -> Self {
+        self.zr = p;
+        self
+    }
+
+    /// Adds JointParameters for translation in the x axis
+    pub fn with_xt(mut self, p: JointParameters) -> Self {
+        self.xt = p;
+        self
+    }
+
+    /// Adds JointParameters for translation in the y axis
+    pub fn with_yt(mut self, p: JointParameters) -> Self {
+        self.yt = p;
+        self
+    }
+
+    /// Adds JointParameters for translation in the z axis
+    pub fn with_zt(mut self, p: JointParameters) -> Self {
+        self.zt = p;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
     pub common: JointCommon,
-    pub parameters: [JointParameters; 6],
+    pub parameters: FloatingParameters,
     pub state: FloatingState,
 }
 
 impl Floating {
-    pub fn new(name: &str, parameters: [JointParameters; 6], state: FloatingState) -> Self {
+    pub fn new(name: &str, parameters: FloatingParameters, state: FloatingState) -> Self {
         let common = JointCommon::new(name);
 
         Self {
@@ -193,7 +303,7 @@ struct FloatingCache {
 pub struct FloatingSim {
     cache: FloatingCache,
     id: Uuid,
-    parameters: [JointParameters; 6],
+    parameters: FloatingParameters,
     mass_properties: Option<SpatialInertia>,
     state: FloatingState,
     transforms: JointTransforms,
@@ -349,29 +459,29 @@ impl JointSimTrait for FloatingSim {
 
         let angles = EulerAngles::from(&self.state.q);
 
-        self.cache.tau[0] = p[0].constant_force
-            - p[0].spring_constant * angles.psi
-            - p[0].damping * self.state.w[0];
-        self.cache.tau[1] = p[1].constant_force
-            - p[1].spring_constant * angles.theta
-            - p[1].damping * self.state.w[1];
-        self.cache.tau[2] = p[2].constant_force
-            - p[2].spring_constant * angles.phi
-            - p[2].damping * self.state.w[2];
+        self.cache.tau[0] = p.xr.constant_force
+            - p.xr.spring_constant * angles.psi
+            - p.xr.damping * self.state.w[0];
+        self.cache.tau[1] = p.yr.constant_force
+            - p.yr.spring_constant * angles.theta
+            - p.yr.damping * self.state.w[1];
+        self.cache.tau[2] = p.zr.constant_force
+            - p.zr.spring_constant * angles.phi
+            - p.zr.damping * self.state.w[2];
 
         // translation uantities are + instead of - since they are expressed in JOF
         // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
         // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
         // to get back to a JIF equilibrium of 0
-        self.cache.tau[3] = p[3].constant_force
-            - p[3].spring_constant * self.state.r[0]
-            - p[3].damping * self.state.v[0];
-        self.cache.tau[4] = p[4].constant_force
-            - p[4].spring_constant * self.state.r[1]
-            - p[4].damping * self.state.v[1];
-        self.cache.tau[5] = p[5].constant_force
-            - p[5].spring_constant * self.state.r[2]
-            - p[5].damping * self.state.v[2];
+        self.cache.tau[3] = p.xt.constant_force
+            - p.xt.spring_constant * self.state.r[0]
+            - p.xt.damping * self.state.v[0];
+        self.cache.tau[4] = p.yt.constant_force
+            - p.yt.spring_constant * self.state.r[1]
+            - p.yt.damping * self.state.v[1];
+        self.cache.tau[5] = p.zt.constant_force
+            - p.zt.spring_constant * self.state.r[2]
+            - p.zt.damping * self.state.v[2];
     }
 
     fn calculate_vj(&mut self) {
@@ -406,12 +516,12 @@ impl JointSimTrait for FloatingSim {
         let v_jof = self.cache.common.v.translation();
         let v_jif = self.transforms.jif_from_jof.0.rotation.transform(*v_jof);
 
-        let derivative = FloatingState::new(
-            q_dot,
-            *self.cache.common.a.rotation(),
-            v_jif,
-            *self.cache.common.a.translation(),
-        );
+        let derivative = FloatingState {
+            q: q_dot,
+            w: *self.cache.common.a.rotation(),
+            r: v_jif,
+            v: *self.cache.common.a.translation(),
+        };
         JointState::Floating(derivative)
     }
 
@@ -591,13 +701,15 @@ impl MultibodyResultTrait for FloatingResult {
     fn get_result_entry(&self) -> ResultEntry {
         ResultEntry::Joint(JointResult::Floating(self.clone()))
     }
-    
+
     fn get_state_names(&self) -> &'static [&'static str] {
         Self::STATES
     }
 
     fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+        self.0
+            .get(state)
+            .ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
     }
 
     fn update(&mut self, joint: &FloatingSim) {

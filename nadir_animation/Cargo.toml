@@ -3,10 +3,6 @@ name = "nadir_animation"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "nadir_animation"
-path = "src/main.rs"
-
 [dependencies]
 aerospace = {path = "../aerospace"}
 bincode = "1.3.3"
@@ -16,4 +12,5 @@ nadir_3d = {path = "../nadir_3d"}
 glam = { version = "0.29.0", features = ["bytemuck"] }
 iced = { version = "0.13.1", features = ["advanced","canvas","tokio"] }
 image = "0.25.2"
-multibody = {path = "../multibody"}
+multibody.workspace = true
+ron.workspace = true

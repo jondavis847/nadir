@@ -8,7 +8,8 @@ pub mod revolute;
 
 use crate::{
     body::BodyConnection,
-    result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors,
+    result::{MultibodyResultTrait, ResultEntry},
+    MultibodyErrors,
 };
 
 use super::{
@@ -52,7 +53,11 @@ impl fmt::Display for Joint {
         }
     }
 }
-
+impl From<Floating> for Joint {
+    fn from(floating: Floating) -> Self {
+        Joint::Floating(floating)
+    }
+}
 impl From<Revolute> for Joint {
     fn from(revolute: Revolute) -> Self {
         Joint::Revolute(revolute)
@@ -82,7 +87,7 @@ pub trait JointTrait: MultibodyTrait {
     fn get_connections(&self) -> &JointConnection;
     fn get_connections_mut(&mut self) -> &mut JointConnection;
     fn get_inner_body_id(&self) -> Option<&Uuid>;
-    fn get_outer_body_id(&self) -> Option<&Uuid>;    
+    fn get_outer_body_id(&self) -> Option<&Uuid>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -245,7 +250,7 @@ pub enum JointResult {
 impl MultibodyResultTrait for JointResult {
     type Component = JointSim;
     const STATES: &'static [&'static str] = &[];
-    
+
     fn get_result_entry(&self) -> ResultEntry {
         match self {
             JointResult::Floating(result) => result.get_result_entry(),

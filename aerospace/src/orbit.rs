@@ -33,6 +33,11 @@ pub enum Orbit {
     //Poincare(PoincareElements), TODO?
 }
 
+impl From<KeplerianElements> for Orbit {
+    fn from(value: KeplerianElements) -> Self {
+        Orbit::Keplerian(value)
+    }
+}
 /// Represents the orbital elements of a Keplerian orbit.
 ///
 /// This struct contains the orbital parameters necessary to describe an object's orbit
@@ -273,7 +278,7 @@ impl KeplerianElements {
 
     pub fn iss() -> Self {
         // from the following NORAD TLE data
-        // ISS (ZARYA)             
+        // ISS (ZARYA)
         // 1 25544U 98067A   24315.45505231  .00030775  00000+0  51963-3 0  9998
         // 2 25544  51.6411 310.7613 0008478 159.7942 297.9503 15.51320041481230
 
@@ -281,21 +286,20 @@ impl KeplerianElements {
         let mu = earth.get_mu();
 
         let n = 15.51320041481230;
-        let a=  (mu/(2.0 * PI * n /86400.0).powi(2)).powf(1.0/3.0); 
+        let a = (mu / (2.0 * PI * n / 86400.0).powi(2)).powf(1.0 / 3.0);
 
         let e = 0.0008478;
         let i = 51.6411 * PI / 180.0;
         let raan = 310.7613 * PI / 180.0;
         let argp = 159.7942 * PI / 180.0;
         let f = 297.9503 * PI / 180.0; // actually mean anomaly but circular so close enough
-            
+
         let epoch = Time::from_doy(2024, 315.45505231, TimeSystem::UTC).unwrap();
 
-        KeplerianElements::new(a,e,i,raan,argp,f,epoch,earth)
+        KeplerianElements::new(a, e, i, raan, argp, f, epoch, earth)
     }
 
-    pub fn keplers_problem(&self, new_t: Time) -> Result<Self, OrbitErrors> {        
-
+    pub fn keplers_problem(&self, new_t: Time) -> Result<Self, OrbitErrors> {
         let delta_t = new_t - self.epoch;
 
         let old_anomaly = match self.orbit_type {
