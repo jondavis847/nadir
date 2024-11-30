@@ -1,8 +1,8 @@
-use multibody::sensor::simple::rate3::Rate3SensorState;
+use multibody::sensor::examples::rate3::Rate3SensorState;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use transforms::Transform;
+use transforms::{prelude::RotationTrait, Transform};
 // fsw processing for the Rate3Sensor found in multibody/sensors/simple/rate3.rs
 
 #[derive(Debug, Error)]
@@ -28,7 +28,7 @@ pub struct Rate3Fsw {
 impl Rate3Fsw {
     pub fn run(&mut self, sensor_telemetry: Rate3SensorState) -> Result<(), Rate3FswErrors> {
         self.state.measurement_sensor = sensor_telemetry.measurement;
-        self.state.measurement_body = self.parameters.transform * sensor_telemetry.measurement;
+        self.state.measurement_body = self.parameters.transform.rotation.transform(sensor_telemetry.measurement);
         Ok(())
     }
 }

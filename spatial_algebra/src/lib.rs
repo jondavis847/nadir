@@ -88,6 +88,14 @@ impl Add<SpatialVector> for SpatialVector {
     }
 }
 
+impl AddAssign<SpatialVector> for SpatialVector {
+    #[inline]
+    fn add_assign(&mut self, rhs: SpatialVector) {
+        self.rotation += rhs.rotation;
+        self.translation += rhs.translation;
+    }
+}
+
 impl Sub<SpatialVector> for SpatialVector {
     type Output = Self;
     #[inline]
@@ -306,6 +314,13 @@ impl Add<ForceVector> for ForceVector {
     }
 }
 
+impl AddAssign<ForceVector> for ForceVector {
+    #[inline]
+    fn add_assign(&mut self, rhs: ForceVector) {
+        self.0 += rhs.0;
+    }
+}
+
 impl Sub<ForceVector> for ForceVector {
     type Output = ForceVector;
     #[inline]
@@ -408,6 +423,13 @@ impl Add<Force> for Force {
     #[inline]
     fn add(self, rhs: Force) -> Force {
         Force(self.0 + rhs.0)
+    }
+}
+
+impl AddAssign<Force> for Force {
+    #[inline]
+    fn add_assign(&mut self, rhs: Force) {
+        self.0 += rhs.0;
     }
 }
 

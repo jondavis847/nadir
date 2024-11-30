@@ -1,9 +1,9 @@
 use crate::{
+    joint::Joint,
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::Sensor, MultibodyErrors,
+    sensor::Sensor,
 };
 
-use super::MultibodyTrait;
 use aerospace::{
     celestial_system::CelestialSystem,
     gravity::{Gravity, GravityTrait},
@@ -14,85 +14,47 @@ use nalgebra::{Vector3, Vector6};
 use rotations::{quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::take};
+use thiserror::Error;
 use transforms::Transform;
-use uuid::Uuid;
 
-use super::joint::JointTrait;
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Error)]
 pub enum BodyErrors {
+    #[error("name cannot be empty for body")]
     EmptyName,
-    InnerJointExists,
-    NoBaseInnerConnection,
-    OuterJointExists,
+    #[error("attempted to connect inner joint to body '{0}', but it already has an inner joint")]
+    InnerJointExists(String),
+    #[error("joint '{0}' already connected to {1} as an outer joint")]
+    OuterJointExists(String, String),
 }
 
-impl std::fmt::Display for BodyErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BodyErrors::EmptyName => write!(f, "Name cannot be empty."),
-            BodyErrors::InnerJointExists => write!(f, "The body already has an inner joint. Can only have one inner joint. Must disconnect first."),
-            BodyErrors::NoBaseInnerConnection => write!(f, "The base cannot have an inner connection."),
-            BodyErrors::OuterJointExists => write!(f, "The joint is already connected as an outer joint."),
-        }
-    }
-}
-
-impl std::error::Error for BodyErrors {}
-
-pub trait BodyTrait: MultibodyTrait {
-    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors>;
-    fn delete_outer_joint(&mut self, joint_id: &Uuid);
-    fn get_outer_joints(&self) -> &Vec<Uuid>;
+pub trait BodyTrait {
+    fn get_name(&self) -> String;
+    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
-    //actuators: Vec<BodyActuatorConnection>,
-    pub id: Uuid,
-    pub inner_joint: Option<Uuid>,
+    pub actuators: Vec<String>,
+    pub inner_joint: Option<String>,
     pub mass_properties: MassProperties,
-    pub name: String,
-    pub outer_joints: Vec<Uuid>, // id of joint in system.joints, joint contains the transform information
     pub mesh: Option<Mesh>,
-    pub sensors: Vec<Uuid>, // id of sensor in system.sensors, sensor contains the transform information
+    pub name: String,
+    pub outer_joints: Vec<String>, // id of joint in system.joints, joint contains the transform information
+    pub sensors: Vec<String>,
+    #[serde(skip)]
+    pub state: BodyState,
+    #[serde(skip)]
+    result: BodyResult,
 }
 
 impl Body {
-    pub fn connect_inner_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
+    pub fn connect_inner_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
         match self.inner_joint {
-            Some(_) => return Err(BodyErrors::InnerJointExists),
-            None => self.inner_joint = Some(*joint.get_id()),
+            Some(_) => return Err(BodyErrors::InnerJointExists(self.name.to_string())),
+            None => self.inner_joint = Some(joint.name.clone()),
         }
         Ok(())
-    }
-
-    pub fn connect_sensor(&mut self, sensor: Uuid) -> Result<(), BodyErrors> {
-        // only add if it's not already there
-        if !self.sensors.contains(&sensor) {
-            self.sensors.push(sensor);
-        }
-        Ok(())
-    }
-
-    pub fn delete_inner_joint(&mut self) {
-        if self.inner_joint.is_some() {
-            self.inner_joint = None;
-        }
-    }
-
-    pub fn delete_sensor(&mut self, sensor: Uuid) -> Result<(), BodyErrors> {
-        self.sensors.retain(|&id| id != sensor);
-        Ok(())
-    }
-
-    pub fn get_inner_joint_id(&self) -> &Option<Uuid> {
-        &self.inner_joint
-    }
-
-    pub fn get_mass_properties(&self) -> &MassProperties {
-        &self.mass_properties
     }
 
     pub fn new(name: &str, mass_properties: MassProperties) -> Result<Self, BodyErrors> {
@@ -100,85 +62,21 @@ impl Body {
             return Err(BodyErrors::EmptyName);
         }
         Ok(Self {
-            //actuators: Vec::new(),
+            actuators: Vec::new(),
             mesh: None,
-            id: Uuid::new_v4(),
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
+            result: BodyResult::default(),
             sensors: Vec::new(),
+            state: BodyState::default(),
         })
     }
 
     pub fn with_mesh(mut self, mesh: Mesh) -> Self {
         self.mesh = Some(mesh);
         self
-    }
-}
-
-impl BodyTrait for Body {
-    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
-        let joint_id = joint.get_id();
-        // Check if the joint already exists in outer_joints
-        if self.outer_joints.iter().any(|id| id == joint_id) {
-            return Err(BodyErrors::OuterJointExists);
-        }
-        // Push the new joint connection
-        self.outer_joints.push(*joint_id);
-        Ok(())
-    }
-
-    fn delete_outer_joint(&mut self, joint_id: &Uuid) {
-        self.outer_joints.retain(|id| id != joint_id);
-    }
-
-    fn get_outer_joints(&self) -> &Vec<Uuid> {
-        &self.outer_joints
-    }
-}
-
-impl MultibodyTrait for Body {
-    fn get_id(&self) -> &Uuid {
-        &self.id
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-}
-
-/// It is not expected that you would create this directly
-/// Instead, create a Body and call BodySim::from(Body), or
-/// Body.into() if appropriate
-
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-pub struct BodySim {
-    pub state: BodyState,
-    pub mesh: Option<Mesh>,
-    pub mass_properties: MassProperties,
-    pub sensors: Vec<Uuid>,
-}
-
-impl From<Body> for BodySim {
-    fn from(body: Body) -> Self {
-        let state = BodyState::default();
-        Self {
-            state,
-            mesh: body.mesh,
-            mass_properties: body.mass_properties,
-            sensors: body.sensors,
-        }
-    }
-}
-
-impl BodySim {
-    pub fn get_external_force_body(&self) -> &Force {
-        &self.state.external_spatial_force_body
     }
 
     pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &Gravity) {
@@ -235,16 +133,283 @@ impl BodySim {
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
 
-    pub fn initialize_result(&self) -> BodyResult {
-        BodyResult::new()
-    }
-
-    pub fn update_sensors(&self, sensors: &mut HashMap<Uuid, Sensor>) {
+    pub fn update_sensors(&self, sensors: &mut HashMap<String, Sensor>) {
         self.sensors.iter().for_each(|id| {
             if let Some(sensor) = sensors.get_mut(id) {
                 sensor.update(self);
             }
         })
+    }
+}
+
+impl MultibodyResultTrait for Body {
+    fn get_result_entry(&mut self) -> ResultEntry {
+        let mut result = HashMap::new();
+        result.insert(
+            "acceleration[x]{base}".to_string(),
+            take(&mut self.result.acceleration_x_base),
+        );
+        result.insert(
+            "acceleration[y]{base}".to_string(),
+            take(&mut self.result.acceleration_y_base),
+        );
+        result.insert(
+            "acceleration[z]{base}".to_string(),
+            take(&mut self.result.acceleration_z_base),
+        );
+        result.insert(
+            "acceleration[x]{body}".to_string(),
+            take(&mut self.result.acceleration_x_body),
+        );
+        result.insert(
+            "acceleration[y]{body}".to_string(),
+            take(&mut self.result.acceleration_y_body),
+        );
+        result.insert(
+            "acceleration[z]{body}".to_string(),
+            take(&mut self.result.acceleration_z_body),
+        );
+        result.insert(
+            "angular_accel[x]{body}".to_string(),
+            take(&mut self.result.angular_accel_x_body),
+        );
+        result.insert(
+            "angular_accel[y]{body}".to_string(),
+            take(&mut self.result.angular_accel_y_body),
+        );
+        result.insert(
+            "angular_accel[z]{body}".to_string(),
+            take(&mut self.result.angular_accel_z_body),
+        );
+        result.insert(
+            "angular_rate[x]{body}".to_string(),
+            take(&mut self.result.angular_rate_x_body),
+        );
+        result.insert(
+            "angular_rate[y]{body}".to_string(),
+            take(&mut self.result.angular_rate_y_body),
+        );
+        result.insert(
+            "angular_rate[z]{body}".to_string(),
+            take(&mut self.result.angular_rate_z_body),
+        );
+        result.insert(
+            "attitude[x]{base}".to_string(),
+            take(&mut self.result.attitude_x_base),
+        );
+        result.insert(
+            "attitude[y]{base}".to_string(),
+            take(&mut self.result.attitude_y_base),
+        );
+        result.insert(
+            "attitude[z]{base}".to_string(),
+            take(&mut self.result.attitude_z_base),
+        );
+        result.insert(
+            "attitude[w]{base}".to_string(),
+            take(&mut self.result.attitude_w_base),
+        );
+        result.insert(
+            "external_force[x]{body}".to_string(),
+            take(&mut self.result.external_force_x_body),
+        );
+        result.insert(
+            "external_force[y]{body}".to_string(),
+            take(&mut self.result.external_force_y_body),
+        );
+        result.insert(
+            "external_force[z]{body}".to_string(),
+            take(&mut self.result.external_force_z_body),
+        );
+        result.insert(
+            "external_torque[x]{body}".to_string(),
+            take(&mut self.result.external_torque_x_body),
+        );
+        result.insert(
+            "external_torque[y]{body}".to_string(),
+            take(&mut self.result.external_torque_y_body),
+        );
+        result.insert(
+            "external_torque[z]{body}".to_string(),
+            take(&mut self.result.external_torque_z_body),
+        );
+        result.insert(
+            "position[x]{base}".to_string(),
+            take(&mut self.result.position_x_base),
+        );
+        result.insert(
+            "position[y]{base}".to_string(),
+            take(&mut self.result.position_y_base),
+        );
+        result.insert(
+            "position[z]{base}".to_string(),
+            take(&mut self.result.position_z_base),
+        );
+        result.insert(
+            "velocity[x]{base}".to_string(),
+            take(&mut self.result.velocity_x_base),
+        );
+        result.insert(
+            "velocity[y]{base}".to_string(),
+            take(&mut self.result.velocity_y_base),
+        );
+        result.insert(
+            "velocity[z]{base}".to_string(),
+            take(&mut self.result.velocity_z_base),
+        );
+        result.insert(
+            "velocity[x]{body}".to_string(),
+            take(&mut self.result.velocity_x_body),
+        );
+        result.insert(
+            "velocity[y]{body}".to_string(),
+            take(&mut self.result.velocity_y_body),
+        );
+        result.insert(
+            "velocity[z]{body}".to_string(),
+            take(&mut self.result.velocity_z_body),
+        );
+
+        ResultEntry::new(result)
+    }
+
+    fn initialize_result(&mut self, capacity: usize) {
+        self.result.acceleration_x_base = Vec::with_capacity(capacity);
+        self.result.acceleration_y_base = Vec::with_capacity(capacity);
+        self.result.acceleration_z_base = Vec::with_capacity(capacity);
+        self.result.acceleration_x_body = Vec::with_capacity(capacity);
+        self.result.acceleration_y_body = Vec::with_capacity(capacity);
+        self.result.acceleration_z_body = Vec::with_capacity(capacity);
+        self.result.angular_accel_x_body = Vec::with_capacity(capacity);
+        self.result.angular_accel_y_body = Vec::with_capacity(capacity);
+        self.result.angular_accel_z_body = Vec::with_capacity(capacity);
+        self.result.angular_rate_x_body = Vec::with_capacity(capacity);
+        self.result.angular_rate_y_body = Vec::with_capacity(capacity);
+        self.result.angular_rate_z_body = Vec::with_capacity(capacity);
+        self.result.attitude_w_base = Vec::with_capacity(capacity);
+        self.result.attitude_x_base = Vec::with_capacity(capacity);
+        self.result.attitude_y_base = Vec::with_capacity(capacity);
+        self.result.attitude_z_base = Vec::with_capacity(capacity);
+        self.result.external_force_x_body = Vec::with_capacity(capacity);
+        self.result.external_force_y_body = Vec::with_capacity(capacity);
+        self.result.external_force_z_body = Vec::with_capacity(capacity);
+        self.result.external_torque_x_body = Vec::with_capacity(capacity);
+        self.result.external_torque_y_body = Vec::with_capacity(capacity);
+        self.result.external_torque_z_body = Vec::with_capacity(capacity);
+        self.result.position_x_base = Vec::with_capacity(capacity);
+        self.result.position_y_base = Vec::with_capacity(capacity);
+        self.result.position_z_base = Vec::with_capacity(capacity);
+        self.result.velocity_x_base = Vec::with_capacity(capacity);
+        self.result.velocity_y_base = Vec::with_capacity(capacity);
+        self.result.velocity_z_base = Vec::with_capacity(capacity);
+        self.result.velocity_x_body = Vec::with_capacity(capacity);
+        self.result.velocity_y_body = Vec::with_capacity(capacity);
+        self.result.velocity_z_body = Vec::with_capacity(capacity);
+    }
+    fn update_result(&mut self) {
+        self.result
+            .acceleration_x_base
+            .push(self.state.acceleration_base[0]);
+        self.result
+            .acceleration_y_base
+            .push(self.state.acceleration_base[1]);
+        self.result
+            .acceleration_z_base
+            .push(self.state.acceleration_base[2]);
+        self.result
+            .acceleration_x_body
+            .push(self.state.acceleration_body[0]);
+        self.result
+            .acceleration_y_body
+            .push(self.state.acceleration_body[1]);
+        self.result
+            .acceleration_z_body
+            .push(self.state.acceleration_body[2]);
+        self.result
+            .angular_accel_x_body
+            .push(self.state.angular_accel_body[0]);
+        self.result
+            .angular_accel_y_body
+            .push(self.state.angular_accel_body[1]);
+        self.result
+            .angular_accel_z_body
+            .push(self.state.angular_accel_body[2]);
+        self.result
+            .angular_rate_x_body
+            .push(self.state.angular_rate_body[0]);
+        self.result
+            .angular_rate_y_body
+            .push(self.state.angular_rate_body[1]);
+        self.result
+            .angular_rate_z_body
+            .push(self.state.angular_rate_body[2]);
+        self.result.attitude_w_base.push(self.state.attitude_base.s);
+        self.result.attitude_x_base.push(self.state.attitude_base.x);
+        self.result.attitude_y_base.push(self.state.attitude_base.y);
+        self.result.attitude_z_base.push(self.state.attitude_base.z);
+        self.result
+            .external_force_x_body
+            .push(self.state.external_force_body[0]);
+        self.result
+            .external_force_y_body
+            .push(self.state.external_force_body[1]);
+        self.result
+            .external_force_z_body
+            .push(self.state.external_force_body[2]);
+        self.result
+            .external_torque_x_body
+            .push(self.state.external_torque_body[0]);
+        self.result
+            .external_torque_y_body
+            .push(self.state.external_torque_body[1]);
+        self.result
+            .external_torque_z_body
+            .push(self.state.external_torque_body[2]);
+        self.result
+            .position_x_base
+            .push(self.state.position_base[0]);
+        self.result
+            .position_y_base
+            .push(self.state.position_base[1]);
+        self.result
+            .position_z_base
+            .push(self.state.position_base[2]);
+        self.result
+            .velocity_x_base
+            .push(self.state.velocity_base[0]);
+        self.result
+            .velocity_y_base
+            .push(self.state.velocity_base[1]);
+        self.result
+            .velocity_z_base
+            .push(self.state.velocity_base[2]);
+        self.result
+            .velocity_x_body
+            .push(self.state.velocity_body[0]);
+        self.result
+            .velocity_y_body
+            .push(self.state.velocity_body[1]);
+        self.result
+            .velocity_z_body
+            .push(self.state.velocity_body[2]);
+    }
+}
+
+impl BodyTrait for Body {
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
+    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
+        // Check if the joint already exists in outer_joints
+        if self.outer_joints.iter().any(|id| *id == joint.name) {
+            return Err(BodyErrors::OuterJointExists(
+                joint.name.to_string(),
+                self.name.to_string(),
+            ));
+        }
+        // Push the new joint connection
+        self.outer_joints.push(joint.name.clone());
+        Ok(())
     }
 }
 
@@ -271,201 +436,48 @@ pub struct BodyState {
     pub linear_momentum_base: Vector3<f64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct BodyResult(HashMap<String, Vec<f64>>);
-
-impl BodyResult {
-    pub fn new() -> Self {
-        let mut result = HashMap::new();
-        Self::STATES.iter().for_each(|state| {
-            result.insert(state.to_string(), Vec::new());
-        });
-        Self(result)
-    }
+#[derive(Debug, Clone, Default)]
+struct BodyResult {
+    acceleration_x_base: Vec<f64>,
+    acceleration_y_base: Vec<f64>,
+    acceleration_z_base: Vec<f64>,
+    acceleration_x_body: Vec<f64>,
+    acceleration_y_body: Vec<f64>,
+    acceleration_z_body: Vec<f64>,
+    angular_accel_x_body: Vec<f64>,
+    angular_accel_y_body: Vec<f64>,
+    angular_accel_z_body: Vec<f64>,
+    angular_rate_x_body: Vec<f64>,
+    angular_rate_y_body: Vec<f64>,
+    angular_rate_z_body: Vec<f64>,
+    attitude_w_base: Vec<f64>,
+    attitude_x_base: Vec<f64>,
+    attitude_y_base: Vec<f64>,
+    attitude_z_base: Vec<f64>,
+    external_force_x_body: Vec<f64>,
+    external_force_y_body: Vec<f64>,
+    external_force_z_body: Vec<f64>,
+    external_torque_x_body: Vec<f64>,
+    external_torque_y_body: Vec<f64>,
+    external_torque_z_body: Vec<f64>,
+    position_x_base: Vec<f64>,
+    position_y_base: Vec<f64>,
+    position_z_base: Vec<f64>,
+    velocity_x_base: Vec<f64>,
+    velocity_y_base: Vec<f64>,
+    velocity_z_base: Vec<f64>,
+    velocity_x_body: Vec<f64>,
+    velocity_y_body: Vec<f64>,
+    velocity_z_body: Vec<f64>,
 }
 
-impl MultibodyResultTrait for BodyResult {
-    type Component = BodySim;
-    const STATES: &'static [&'static str] = &[
-        "acceleration[x]{base}",
-        "acceleration[y]{base}",
-        "acceleration[z]{base}",
-        "acceleration[x]{body}",
-        "acceleration[y]{body}",
-        "acceleration[z]{body}",
-        "angular_accel[x]{body}",
-        "angular_accel[y]{body}",
-        "angular_accel[z]{body}",
-        "angular_rate[x]{body}",
-        "angular_rate[y]{body}",
-        "angular_rate[z]{body}",
-        "attitude[w]{base}",
-        "attitude[x]{base}",
-        "attitude[y]{base}",
-        "attitude[z]{base}",
-        "external_force[x]{body}",
-        "external_force[y]{body}",
-        "external_force[z]{body}",
-        "external_torque[x]{body}",
-        "external_torque[y]{body}",
-        "external_torque[z]{body}",
-        "position[x]{base}",
-        "position[y]{base}",
-        "position[z]{base}",
-        "velocity[x]{base}",
-        "velocity[y]{base}",
-        "velocity[z]{base}",
-        "velocity[x]{body}",
-        "velocity[y]{body}",
-        "velocity[z]{body}",
-    ];
-
-    fn get_result_entry(&self) -> ResultEntry {
-        ResultEntry::Body(self.clone())
-    }
-
-    fn get_state_names(&self) -> &'static [&'static str] {
-        Self::STATES
-    }
-
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
-    }
-
-    fn update(&mut self, body: &BodySim) {
-        self.0
-            .get_mut("acceleration[x]{base}")
-            .unwrap()
-            .push(body.state.acceleration_base[0]);
-        self.0
-            .get_mut("acceleration[y]{base}")
-            .unwrap()
-            .push(body.state.acceleration_base[1]);
-        self.0
-            .get_mut("acceleration[z]{base}")
-            .unwrap()
-            .push(body.state.acceleration_base[2]);
-        self.0
-            .get_mut("acceleration[x]{body}")
-            .unwrap()
-            .push(body.state.acceleration_body[0]);
-        self.0
-            .get_mut("acceleration[y]{body}")
-            .unwrap()
-            .push(body.state.acceleration_body[1]);
-        self.0
-            .get_mut("acceleration[z]{body}")
-            .unwrap()
-            .push(body.state.acceleration_body[2]);
-        self.0
-            .get_mut("angular_accel[x]{body}")
-            .unwrap()
-            .push(body.state.angular_accel_body[0]);
-        self.0
-            .get_mut("angular_accel[y]{body}")
-            .unwrap()
-            .push(body.state.angular_accel_body[1]);
-        self.0
-            .get_mut("angular_accel[z]{body}")
-            .unwrap()
-            .push(body.state.angular_accel_body[2]);
-        self.0
-            .get_mut("angular_rate[x]{body}")
-            .unwrap()
-            .push(body.state.angular_rate_body[0]);
-        self.0
-            .get_mut("angular_rate[y]{body}")
-            .unwrap()
-            .push(body.state.angular_rate_body[1]);
-        self.0
-            .get_mut("angular_rate[z]{body}")
-            .unwrap()
-            .push(body.state.angular_rate_body[2]);
-        self.0
-            .get_mut("attitude[x]{base}")
-            .unwrap()
-            .push(body.state.attitude_base.x);
-        self.0
-            .get_mut("attitude[y]{base}")
-            .unwrap()
-            .push(body.state.attitude_base.y);
-        self.0
-            .get_mut("attitude[z]{base}")
-            .unwrap()
-            .push(body.state.attitude_base.z);
-        self.0
-            .get_mut("attitude[w]{base}")
-            .unwrap()
-            .push(body.state.attitude_base.s);
-        self.0
-            .get_mut("external_force[x]{body}")
-            .unwrap()
-            .push(body.state.external_force_body[0]);
-        self.0
-            .get_mut("external_force[y]{body}")
-            .unwrap()
-            .push(body.state.external_force_body[1]);
-        self.0
-            .get_mut("external_force[z]{body}")
-            .unwrap()
-            .push(body.state.external_force_body[2]);
-        self.0
-            .get_mut("external_torque[x]{body}")
-            .unwrap()
-            .push(body.state.external_torque_body[0]);
-        self.0
-            .get_mut("external_torque[y]{body}")
-            .unwrap()
-            .push(body.state.external_torque_body[1]);
-        self.0
-            .get_mut("external_torque[z]{body}")
-            .unwrap()
-            .push(body.state.external_torque_body[2]);
-        self.0
-            .get_mut("position[x]{base}")
-            .unwrap()
-            .push(body.state.position_base[0]);
-        self.0
-            .get_mut("position[y]{base}")
-            .unwrap()
-            .push(body.state.position_base[1]);
-        self.0
-            .get_mut("position[z]{base}")
-            .unwrap()
-            .push(body.state.position_base[2]);
-        self.0
-            .get_mut("velocity[x]{base}")
-            .unwrap()
-            .push(body.state.velocity_base[0]);
-        self.0
-            .get_mut("velocity[y]{base}")
-            .unwrap()
-            .push(body.state.velocity_base[1]);
-        self.0
-            .get_mut("velocity[z]{base}")
-            .unwrap()
-            .push(body.state.velocity_base[2]);
-        self.0
-            .get_mut("velocity[x]{body}")
-            .unwrap()
-            .push(body.state.velocity_body[0]);
-        self.0
-            .get_mut("velocity[y]{body}")
-            .unwrap()
-            .push(body.state.velocity_body[1]);
-        self.0
-            .get_mut("velocity[z]{body}")
-            .unwrap()
-            .push(body.state.velocity_body[2]);
-    }
-}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BodyConnection {
-    pub body_id: Uuid,
+    pub body_id: String,
     pub transform: Transform,
 }
 impl BodyConnection {
-    pub fn new(body_id: Uuid, transform: Transform) -> Self {
+    pub fn new(body_id: String, transform: Transform) -> Self {
         Self { body_id, transform }
     }
 }

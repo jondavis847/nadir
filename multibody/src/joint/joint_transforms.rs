@@ -2,8 +2,6 @@
 use serde::{Deserialize,Serialize};
 use spatial_algebra::SpatialTransform;
 
-
-
 /// We use the terminology B_from_A rather than A_to_B so that notation matches matrix multiplication
 /// i.e. v_C = C_from_B * B_from_A * v_A instead of
 ///      v_C = (A_to_B * B_to_C) * v_A
@@ -39,7 +37,7 @@ pub struct JointTransforms {
 }
 
 impl JointTransforms {
-    pub fn update(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
+    pub fn update(&mut self, ij_transforms: Option<&JointTransforms>) {
         // transforms are multiplied like matrices from right to left.
         // i.e. if you want to express v from frame A in frame C
         // you would use vC = C_to_B * B_to_A * vA
@@ -52,7 +50,9 @@ impl JointTransforms {
         let jof_from_base;
 
         // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
-        if let Some((ij_ob_from_ij_jof, ij_jof_from_base)) = ij_transforms {
+        if let Some(ij_transforms) = ij_transforms {
+            let ij_ob_from_ij_jof = ij_transforms.ob_from_jof;
+            let ij_jof_from_base = ij_transforms.jof_from_base;        
             // this joints inner body is the parent joints outer body            
             jof_from_ij_jof = self.jof_from_jif * self.jif_from_ib * ij_ob_from_ij_jof;
             ij_jof_from_jof = jof_from_ij_jof.inv();

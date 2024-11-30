@@ -1,22 +1,20 @@
-use super::{    
-    body::{BodyErrors, BodyTrait},
-    joint::JointTrait,
-    MultibodyTrait,
+use crate::joint::Joint;
+
+use super::body::{BodyErrors, BodyTrait};
+use aerospace::{
+    celestial_system::{CelestialErrors, CelestialSystem},
+    gravity::Gravity,
 };
-use aerospace::{celestial_system::{CelestialErrors, CelestialSystem}, gravity::Gravity};
 use serde::{Deserialize, Serialize};
 use spice::Spice;
-use uuid::Uuid;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug,Error)]
 pub enum BaseErrors {
+    #[error("base is celestial")]
     BaseIsCelestial,
-    CelestialError(CelestialErrors),
-}
-impl From<CelestialErrors> for BaseErrors {
-    fn from(value: CelestialErrors) -> Self {
-        BaseErrors::CelestialError(value)
-    }
+    #[error("CelestialError: {0}")]
+    CelestialError(#[from]CelestialErrors),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -27,16 +25,14 @@ pub enum BaseSystems {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
-    id: Uuid,
-    name: String,
+    pub name: String,
     pub system: BaseSystems,
-    pub outer_joints: Vec<Uuid>,
+    pub outer_joints: Vec<String>,
 }
 
 impl Default for Base {
     fn default() -> Self {
         Self {
-            id: Uuid::new_v4(),
             name: "base".to_string(),
             system: BaseSystems::Basic(None),
             outer_joints: Vec::new(),
@@ -61,50 +57,40 @@ impl Base {
         Ok(())
     }
 
-    pub fn update(&mut self, t: f64, spice: &mut Option<Spice>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(
+        &mut self,
+        t: f64,
+        spice: &mut Option<Spice>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         match &mut self.system {
-            BaseSystems::Celestial(celestial) => if let Some(spice) = spice {                
-                celestial.update(t, spice)?
-            } else {
-                return Err(CelestialErrors::SpiceNotFound.into())
-            },
+            BaseSystems::Celestial(celestial) => {
+                if let Some(spice) = spice {
+                    celestial.update(t, spice)?
+                } else {
+                    return Err(CelestialErrors::SpiceNotFound.into());
+                }
+            }
             BaseSystems::Basic(_) => {}
         }
         Ok(())
     }
 }
 
-impl BodyTrait for Base {    
-    fn connect_outer_joint<T: JointTrait>(&mut self, joint: &T) -> Result<(), BodyErrors> {
-        let joint_id = joint.get_id();
+impl BodyTrait for Base {
+    fn get_name(&self) -> String {
+        self.name.clone()
+    }
+    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
         // Check if the joint already exists in outer_joints
-        if self.outer_joints.iter().any(|id| id == joint_id) {
-            return Err(BodyErrors::OuterJointExists);
+        if self.outer_joints.iter().any(|id| *id == joint.name) {
+            return Err(BodyErrors::OuterJointExists(
+                joint.name.clone(),
+                self.name.clone(),
+            ));
         }
 
         // Push the new joint connection
-        self.outer_joints.push(*joint_id);
+        self.outer_joints.push(joint.name.clone());
         Ok(())
-    }
-
-    fn delete_outer_joint(&mut self, joint_id: &Uuid) {
-        self.outer_joints.retain(|id| id != joint_id);
-    }
-
-    fn get_outer_joints(&self) -> &Vec<Uuid> {
-        &self.outer_joints
-    }
-}
-impl MultibodyTrait for Base {
-    fn get_id(&self) -> &Uuid {
-        &self.id
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.name = name;
     }
 }

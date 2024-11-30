@@ -1,31 +1,23 @@
 use crate::{
     algorithms::{
         articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-        composite_rigid_body::CompositeRigidBody,
-        recursive_newton_euler::{RecursiveNewtonEuler, RneCache},
-        MultibodyAlgorithm,
+        recursive_newton_euler::RneCache,
     },
-    body::{Body, BodyConnection, BodyTrait},
-    joint::{
-        joint_sim::{JointCache, JointSimTrait},
-        joint_state::JointState,
-        joint_transforms::JointTransforms,
-        JointCommon, JointConnection, JointErrors, JointParameters, JointResult, JointTrait,
-    },
+    joint::{joint_transforms::JointTransforms, JointParameters},
     result::{MultibodyResultTrait, ResultEntry},
-    MultibodyErrors, MultibodyTrait,
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
-use nalgebra::{DMatrix, DVector, Matrix4x3, Matrix6, Vector3, Vector6};
+use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::collections::HashMap;
 use std::ops::{AddAssign, MulAssign};
+use std::{collections::HashMap, mem::take};
 use transforms::Transform;
-use uuid::Uuid;
+
+use super::{JointCache, JointModel, JointStateVector};
 
 #[derive(Debug, Copy, Clone)]
 pub enum FloatingErrors {}
@@ -179,99 +171,321 @@ impl FloatingParameters {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+struct FloatingResult {
+    qx: Vec<f64>,
+    qy: Vec<f64>,
+    qz: Vec<f64>,
+    qw: Vec<f64>,
+    wx: Vec<f64>,
+    wy: Vec<f64>,
+    aax: Vec<f64>,
+    aay: Vec<f64>,
+    aaz: Vec<f64>,
+    wz: Vec<f64>,
+    rx: Vec<f64>,
+    ry: Vec<f64>,
+    rz: Vec<f64>,
+    vx: Vec<f64>,
+    vy: Vec<f64>,
+    vz: Vec<f64>,
+    ax: Vec<f64>,
+    ay: Vec<f64>,
+    az: Vec<f64>,
+    tau_xr: Vec<f64>,
+    tau_yr: Vec<f64>,
+    tau_zr: Vec<f64>,
+    tau_xt: Vec<f64>,
+    tau_yt: Vec<f64>,
+    tau_zt: Vec<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
-    pub common: JointCommon,
     pub parameters: FloatingParameters,
     pub state: FloatingState,
+    #[serde(skip)]
+    cache: FloatingCache,
+    #[serde(skip)]
+    result: FloatingResult,
 }
 
 impl Floating {
-    pub fn new(name: &str, parameters: FloatingParameters, state: FloatingState) -> Self {
-        let common = JointCommon::new(name);
-
+    pub fn new(parameters: FloatingParameters, state: FloatingState) -> Self {
         Self {
-            common,
             parameters,
             state,
+            cache: FloatingCache::default(),
+            result: FloatingResult::default(),
         }
     }
 }
 
-impl JointTrait for Floating {
-    fn connect_inner_body<T: BodyTrait>(
+#[typetag::serde]
+impl JointModel for Floating {
+    fn calculate_joint_inertia(
         &mut self,
-        body: &mut T,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        if self.common.connection.inner_body.is_some() {
-            return Err(JointErrors::InnerBodyExists);
-        }
-        body.connect_outer_joint(self).unwrap();
-        let connection = BodyConnection::new(*body.get_id(), transform);
-        self.common.connection.inner_body = Some(connection);
-        Ok(())
+        inertia: &MassProperties,
+        transforms: &JointTransforms,
+    ) -> SpatialInertia {
+        let jof_from_ob = transforms.jof_from_ob;
+        // IMPORTANT: floating joint must assume that jof is at cm
+        // otherwise you will have a moment arm and body will torque with linear force at cm
+        // jof_from_ob has already made this correction, but so do mass props
+        let original_cm = inertia.center_of_mass.vector();
+        let mut inertia = inertia.clone();
+        inertia.center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
+        let spatial_inertia = SpatialInertia::from(inertia);
+
+        // only rotate the inertia to the jof, dont translate since cm is @ jof
+        let mut jof_from_ob_rotation_only = jof_from_ob.clone();
+        jof_from_ob_rotation_only.0.translation = CoordinateSystem::ZERO;
+        let joint_mass_properties = jof_from_ob_rotation_only * spatial_inertia;
+
+        // if there is translation in jof_from_ob or the body frame cm is non zero
+        // then we need to add them to the joint state position so that the jof frame is at the cm
+        // r is in the jif frame, so need to transform jof and cm to jif frame
+        let jif_from_jof = transforms.jif_from_jof;
+        let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
+        let ob_from_jof_translation = Cartesian::from(transforms.ob_from_jof.0.translation).vec();
+        let total_in_jof = cm_in_jof + ob_from_jof_translation;
+        let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
+        let r = &mut self.state.r;
+        *r += total_in_jif;
+
+        joint_mass_properties
     }
 
-    fn connect_outer_body(
+    fn calculate_tau(&mut self) {
+        let p = &self.parameters;
+        // this assume tait-bryan euler angle sequence (ZYX)
+        let angles = EulerAngles::from(&self.state.q);
+
+        self.cache.tau[0] = p.xr.constant_force
+            + p.xr.spring_constant * (p.xr.equilibrium - angles.psi)
+            - p.xr.damping * self.state.w[0];
+        self.cache.tau[1] = p.yr.constant_force
+            + p.yr.spring_constant * (p.yr.equilibrium - angles.theta)
+            - p.yr.damping * self.state.w[1];
+        self.cache.tau[2] = p.zr.constant_force
+            + p.zr.spring_constant * (p.zr.equilibrium - angles.phi)
+            - p.zr.damping * self.state.w[2];
+
+        // translation quantities are + instead of - since they are expressed in JOF
+        // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
+        // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
+        // to get back to a JIF equilibrium
+        self.cache.tau[3] = p.xt.constant_force
+            + p.xt.spring_constant * (p.xt.equilibrium - self.state.r[0])
+            - p.xt.damping * self.state.v[0];
+        self.cache.tau[4] = p.yt.constant_force
+            + p.yt.spring_constant * (p.yt.equilibrium - self.state.r[1])
+            - p.yt.damping * self.state.v[1];
+        self.cache.tau[5] = p.zt.constant_force
+            + p.zt.spring_constant * (p.zt.equilibrium - self.state.r[2])
+            - p.zt.damping * self.state.v[2];
+    }
+
+    fn calculate_vj(&self) -> Velocity {
+        Velocity::from(Vector6::new(
+            self.state.w[0],
+            self.state.w[1],
+            self.state.w[2],
+            self.state.v[0],
+            self.state.v[1],
+            self.state.v[2],
+        ))
+    }
+
+    fn ndof(&self) -> u32 {
+        6
+    }
+
+    fn state_derivative(&self, dx: &mut JointStateVector) {
+        // Quaternion is from the body to base, or the body's orientation in the base frame
+        //due to quaternion kinematic equations
+        let q = self.state.q;
+        // Markley eq 3.20 & 2.88
+        let tmp = Matrix4x3::new(
+            q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
+        );
+        let dq = Quaternion::from(0.5 * tmp * self.state.w);
+
+        dx.0[0] = dq.x;
+        dx.0[1] = dq.y;
+        dx.0[2] = dq.z;
+        dx.0[3] = dq.s;
+        dx.0[4] = self.state.v[0];
+        dx.0[5] = self.state.v[1];
+        dx.0[6] = self.state.v[2];
+        dx.0[7] = self.cache.q_ddot[0];
+        dx.0[8] = self.cache.q_ddot[1];
+        dx.0[9] = self.cache.q_ddot[2];
+        dx.0[10] = self.cache.q_ddot[3];
+        dx.0[11] = self.cache.q_ddot[4];
+        dx.0[12] = self.cache.q_ddot[5];
+    }
+
+    fn state_vector_init(&self) -> JointStateVector {
+        let state = vec![
+            self.state.q.x,
+            self.state.q.y,
+            self.state.q.z,
+            self.state.q.s,
+            self.state.r[0],
+            self.state.r[1],
+            self.state.r[2],
+            self.state.w[0],
+            self.state.w[1],
+            self.state.w[2],
+            self.state.v[0],
+            self.state.v[1],
+            self.state.v[2],
+        ];
+        JointStateVector(state)
+    }
+
+    fn state_vector_read(&mut self, state: &JointStateVector) {
+        self.state.q.x = state.0[0];
+        self.state.q.y = state.0[1];
+        self.state.q.z = state.0[2];
+        self.state.q.s = state.0[3];
+        self.state.r[0] = state.0[4];
+        self.state.r[1] = state.0[5];
+        self.state.r[2] = state.0[6];
+        self.state.w[0] = state.0[7];
+        self.state.w[1] = state.0[8];
+        self.state.w[2] = state.0[9];
+        self.state.v[0] = state.0[10];
+        self.state.v[1] = state.0[11];
+        self.state.v[2] = state.0[12];
+    }
+
+    fn state_vector_write(&self, state: &mut JointStateVector) {
+        state.0[0] = self.state.q.x;
+        state.0[1] = self.state.q.y;
+        state.0[2] = self.state.q.z;
+        state.0[3] = self.state.q.s;
+        state.0[4] = self.state.r[0];
+        state.0[5] = self.state.r[1];
+        state.0[6] = self.state.r[2];
+        state.0[7] = self.state.w[0];
+        state.0[8] = self.state.w[1];
+        state.0[9] = self.state.w[2];
+        state.0[10] = self.state.v[0];
+        state.0[11] = self.state.v[1];
+        state.0[12] = self.state.v[2];
+    }
+
+    fn update_transforms(
         &mut self,
-        body: &mut Body,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        if self.common.connection.outer_body.is_some() {
-            return Err(JointErrors::OuterBodyExists);
-        }
-        body.connect_inner_joint(self).unwrap();
-        let connection = BodyConnection::new(*body.get_id(), transform);
-        self.common.connection.outer_body = Some(connection);
-        Ok(())
-    }
+        transforms: &mut JointTransforms,
+        ij_transforms: Option<&JointTransforms>,
+    ) {
+        let rotation = Rotation::from(&self.state.q);
+        let translation = Cartesian::from(self.state.r); // r is already jif to jof
+        let transform = Transform::new(rotation, translation.into());
 
-    fn delete_inner_body_id(&mut self) {
-        if self.common.connection.inner_body.is_some() {
-            self.common.connection.inner_body = None;
-        }
-    }
-
-    fn delete_outer_body_id(&mut self) {
-        if self.common.connection.outer_body.is_some() {
-            self.common.connection.outer_body = None;
-        }
-        self.common.mass_properties = None;
-    }
-
-    fn get_connections(&self) -> &JointConnection {
-        &self.common.connection
-    }
-
-    fn get_connections_mut(&mut self) -> &mut JointConnection {
-        &mut self.common.connection
-    }
-
-    fn get_inner_body_id(&self) -> Option<&Uuid> {
-        match &self.common.connection.inner_body {
-            Some(connection) => Some(&connection.body_id),
-            None => None,
-        }
-    }
-    fn get_outer_body_id(&self) -> Option<&Uuid> {
-        match &self.common.connection.outer_body {
-            Some(connection) => Some(&connection.body_id),
-            None => None,
-        }
+        transforms.jof_from_jif = SpatialTransform(transform);
+        transforms.jif_from_jof = transforms.jof_from_jif.inv();
+        transforms.update(ij_transforms)
     }
 }
 
-impl MultibodyTrait for Floating {
-    fn get_id(&self) -> &Uuid {
-        &self.common.id
-    }
-    fn get_name(&self) -> &str {
-        &self.common.name
+impl MultibodyResultTrait for Floating {
+    fn get_result_entry(&mut self) -> ResultEntry {
+        let mut result = HashMap::new();
+        result.insert("attitude[x]".to_string(), take(&mut self.result.qx));
+        result.insert("attitude[y]".to_string(), take(&mut self.result.qy));
+        result.insert("attitude[z]".to_string(), take(&mut self.result.qz));
+        result.insert("attitude[w]".to_string(), take(&mut self.result.qw));
+        result.insert("angular_rate[x]".to_string(), take(&mut self.result.wx));
+        result.insert("angular_rate[y]".to_string(), take(&mut self.result.wy));
+        result.insert("angular_rate[z]".to_string(), take(&mut self.result.wz));
+        result.insert("angular_accel[x]".to_string(), take(&mut self.result.aax));
+        result.insert("angular_accel[y]".to_string(), take(&mut self.result.aay));
+        result.insert("angular_accel[z]".to_string(), take(&mut self.result.aaz));
+        result.insert("position[x]".to_string(), take(&mut self.result.rx));
+        result.insert("position[y]".to_string(), take(&mut self.result.ry));
+        result.insert("position[z]".to_string(), take(&mut self.result.rz));
+        result.insert("velocity[x]".to_string(), take(&mut self.result.vx));
+        result.insert("velocity[y]".to_string(), take(&mut self.result.vy));
+        result.insert("velocity[z]".to_string(), take(&mut self.result.vz));
+        result.insert("acceleration[x]".to_string(), take(&mut self.result.ax));
+        result.insert("acceleration[y]".to_string(), take(&mut self.result.ay));
+        result.insert("acceleration[z]".to_string(), take(&mut self.result.az));
+        result.insert(
+            "tau_translation[x]".to_string(),
+            take(&mut self.result.tau_xt),
+        );
+        result.insert(
+            "tau_translation[y]".to_string(),
+            take(&mut self.result.tau_yt),
+        );
+        result.insert(
+            "tau_translation[z]".to_string(),
+            take(&mut self.result.tau_zt),
+        );
+        result.insert("tau_rotation[x]".to_string(), take(&mut self.result.tau_xr));
+        result.insert("tau_rotation[y]".to_string(), take(&mut self.result.tau_yr));
+        result.insert("tau_rotation[z]".to_string(), take(&mut self.result.tau_zr));
+        ResultEntry::new(result)
     }
 
-    fn set_name(&mut self, name: String) {
-        self.common.name = name;
+    fn initialize_result(&mut self, capacity: usize) {
+        self.result.qx = Vec::with_capacity(capacity);
+        self.result.qy = Vec::with_capacity(capacity);
+        self.result.qz = Vec::with_capacity(capacity);
+        self.result.qw = Vec::with_capacity(capacity);
+        self.result.wx = Vec::with_capacity(capacity);
+        self.result.wy = Vec::with_capacity(capacity);
+        self.result.aax = Vec::with_capacity(capacity);
+        self.result.aay = Vec::with_capacity(capacity);
+        self.result.aaz = Vec::with_capacity(capacity);
+        self.result.wz = Vec::with_capacity(capacity);
+        self.result.rx = Vec::with_capacity(capacity);
+        self.result.ry = Vec::with_capacity(capacity);
+        self.result.rz = Vec::with_capacity(capacity);
+        self.result.vx = Vec::with_capacity(capacity);
+        self.result.vy = Vec::with_capacity(capacity);
+        self.result.vz = Vec::with_capacity(capacity);
+        self.result.ax = Vec::with_capacity(capacity);
+        self.result.ay = Vec::with_capacity(capacity);
+        self.result.az = Vec::with_capacity(capacity);
+        self.result.tau_xr = Vec::with_capacity(capacity);
+        self.result.tau_yr = Vec::with_capacity(capacity);
+        self.result.tau_zr = Vec::with_capacity(capacity);
+        self.result.tau_xt = Vec::with_capacity(capacity);
+        self.result.tau_yt = Vec::with_capacity(capacity);
+        self.result.tau_zt = Vec::with_capacity(capacity);
+    }
+
+    fn update_result(&mut self) {
+        self.result.qx.push(self.state.q.x);
+        self.result.qy.push(self.state.q.y);
+        self.result.qz.push(self.state.q.z);
+        self.result.qw.push(self.state.q.s);
+        self.result.wx.push(self.state.w[0]);
+        self.result.wy.push(self.state.w[1]);
+        self.result.wz.push(self.state.w[2]);
+        self.result.aax.push(self.cache.q_ddot[0]);
+        self.result.aay.push(self.cache.q_ddot[1]);
+        self.result.aaz.push(self.cache.q_ddot[2]);
+        self.result.rx.push(self.state.r[0]);
+        self.result.ry.push(self.state.r[1]);
+        self.result.rz.push(self.state.r[2]);
+        self.result.vx.push(self.state.v[0]);
+        self.result.vy.push(self.state.v[1]);
+        self.result.vz.push(self.state.v[2]);
+        self.result.ax.push(self.cache.q_ddot[3]);
+        self.result.ay.push(self.cache.q_ddot[4]);
+        self.result.az.push(self.cache.q_ddot[5]);
+        self.result.tau_xr.push(self.cache.tau[0]);
+        self.result.tau_yr.push(self.cache.tau[1]);
+        self.result.tau_zr.push(self.cache.tau[2]);
+        self.result.tau_xt.push(self.cache.tau[3]);
+        self.result.tau_yt.push(self.cache.tau[4]);
+        self.result.tau_zt.push(self.cache.tau[5]);
     }
 }
 
@@ -291,79 +505,26 @@ struct FloatingCrbCache {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct FloatingCache {
-    common: JointCache,
-    aba: Option<FloatingAbaCache>,
-    crb: Option<FloatingCrbCache>,
+    aba: FloatingAbaCache,
+    crb: FloatingCrbCache,
     q_ddot: Vector6<f64>,
-    rne: Option<RneCache>,
+    rne: RneCache,
     tau: Vector6<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FloatingSim {
-    cache: FloatingCache,
-    id: Uuid,
-    parameters: FloatingParameters,
-    mass_properties: Option<SpatialInertia>,
-    state: FloatingState,
-    transforms: JointTransforms,
-}
-
-impl FloatingSim {
-    pub const DOF: usize = 6;
-}
-
-impl From<Floating> for FloatingSim {
-    fn from(floating: Floating) -> Self {
-        // update the joints to body transforms
-        let mut transforms = JointTransforms::default();
-        if let Some(inner_body) = &floating.common.connection.inner_body {
-            transforms.jif_from_ib = inner_body.transform.into();
-            transforms.ib_from_jif = inner_body.transform.inv().into();
-        } else {
-            unreachable!("no inner body, should have been caught in system validation")
-        }
-
-        if let Some(outer_body) = &floating.common.connection.outer_body {
-            transforms.jof_from_ob = outer_body.transform.into();
-            transforms.ob_from_jof = outer_body.transform.inv().into();
-        } else {
-            unreachable!("no outer body, should have been caught in system validation")
-        }
-
-        FloatingSim {
-            cache: FloatingCache::default(),
-            id: *floating.get_id(),
-            mass_properties: floating.common.mass_properties,
-            parameters: floating.parameters,
-            state: floating.state,
-            transforms,
-        }
-    }
-}
-
-impl ArticulatedBodyAlgorithm for FloatingSim {
-    fn aba_first_pass(&mut self, v_ij: Velocity) {
-        let aba = self.cache.aba.as_mut().unwrap();
-        let transforms = &self.transforms;
-        let joint_inertia = &self.mass_properties.unwrap();
-        let v = &mut self.cache.common.v;
-        let vj = &self.cache.common.vj;
-
-        *v = transforms.jof_from_ij_jof * v_ij + *vj;
-        aba.common.c = v.cross_motion(*vj); // + cj
-        aba.common.inertia_articulated = *joint_inertia;
-        aba.common.p_big_a = v.cross_force(*joint_inertia * *v) - self.cache.common.f;
-    }
-
-    fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
-        let aba = self.cache.aba.as_mut().unwrap();
-        let inertia_articulated_matrix = aba.common.inertia_articulated.matrix();
+impl ArticulatedBodyAlgorithm for Floating {
+    fn aba_second_pass(
+        &mut self,
+        joint_cache: &mut JointCache,
+        inner_is_base: bool,
+    ) -> Option<(SpatialInertia, Force)> {
+        let aba = &mut self.cache.aba;
+        let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix; // S is just identity for floating joint
         aba.big_d_inv = aba.big_u.try_inverse().unwrap();
-        aba.lil_u = self.cache.tau - aba.common.p_big_a.vector(); //note force is 1 indexed, so 1
+        aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector(); //note force is 1 indexed, so 1
 
         if !inner_is_base {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
@@ -371,407 +532,105 @@ impl ArticulatedBodyAlgorithm for FloatingSim {
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
             );
 
-            aba.common.p_lil_a = aba.common.p_big_a
-                + Force::from(i_lil_a * aba.common.c)
+            joint_cache.aba.p_lil_a = joint_cache.aba.p_big_a
+                + Force::from(i_lil_a * joint_cache.aba.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            let parent_inertia_articulated_contribution = self.transforms.ij_jof_from_jof * i_lil_a;
-            let parent_p_big_a = self.transforms.ij_jof_from_jof * aba.common.p_lil_a;
+            let parent_inertia_articulated_contribution =
+                joint_cache.transforms.ij_jof_from_jof * i_lil_a;
+            let parent_p_big_a = joint_cache.transforms.ij_jof_from_jof * aba.common.p_lil_a;
             Some((parent_inertia_articulated_contribution, parent_p_big_a))
         } else {
             None
         }
     }
 
-    fn aba_third_pass(&mut self, a_ij: Acceleration) {
-        let aba = self.cache.aba.as_mut().unwrap();
-        let a = &mut self.cache.common.a;
-
-        let q_ddot = &mut self.cache.q_ddot;
-
-        aba.common.a_prime = self.transforms.jof_from_ij_jof * a_ij + aba.common.c;
-        *q_ddot = aba.big_d_inv * (aba.lil_u - aba.big_u.transpose() * aba.common.a_prime.vector());
-        *a = aba.common.a_prime + Acceleration::from(*q_ddot);
-    }
-
-    fn get_p_big_a(&self) -> Force {
-        self.cache.aba.unwrap().common.p_big_a
-    }
-
-    fn add_inertia_articulated(&mut self, inertia: SpatialInertia) {
-        let aba = self.cache.aba.as_mut().unwrap();
-        let ia = &mut aba.common.inertia_articulated;
-        *ia = *ia + inertia;
-    }
-
-    fn add_p_big_a(&mut self, p_big_a: Force) {
-        let aba = self.cache.aba.as_mut().unwrap();
-        let pa = &mut aba.common.p_big_a;
-        *pa = *pa + p_big_a;
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, a_ij: Acceleration) {
+        let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
+        self.cache.q_ddot = self.cache.aba.big_d_inv
+            * (self.cache.aba.lil_u - self.cache.aba.big_u.transpose() * a_prime.vector());
+        joint_cache.a = a_prime + Acceleration::from(self.cache.q_ddot);
     }
 }
 
-impl RecursiveNewtonEuler for FloatingSim {
-    fn rne_first_pass(&mut self, a_ij: Acceleration, v_ij: Velocity, use_qddot: bool) {
-        let a = &mut self.cache.common.a;
-        let v = &mut self.cache.common.v;
-        let vj = &mut self.cache.common.vj;
-        let q_ddot = &mut self.cache.q_ddot;
-        let f = &mut self.cache.rne.as_mut().unwrap().f;
-        let f_b = &mut self.cache.common.f;
+// impl RecursiveNewtonEuler for Floating {
+//     fn rne_first_pass(&mut self, a_ij: Acceleration, v_ij: Velocity, use_qddot: bool) {
+//         let a = &mut self.cache.common.a;
+//         let v = &mut self.cache.common.v;
+//         let vj = &mut self.cache.common.vj;
+//         let q_ddot = &mut self.cache.q_ddot;
+//         let f = &mut self.cache.rne.as_mut().unwrap().f;
+//         let f_b = &mut self.cache.common.f;
 
-        let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
-        let joint_inertia = &self.mass_properties.unwrap();
+//         let jof_from_ij_jof = &self.transforms.jof_from_ij_jof;
+//         let joint_inertia = &self.mass_properties.unwrap();
 
-        *v = *jof_from_ij_jof * v_ij + *vj;
+//         *v = *jof_from_ij_jof * v_ij + *vj;
 
-        let a_new = match use_qddot {
-            true => *jof_from_ij_jof * a_ij + Acceleration::from(*q_ddot) + v.cross_motion(*vj),
-            false => *jof_from_ij_jof * a_ij + v.cross_motion(*vj),
-        };
+//         let a_new = match use_qddot {
+//             true => *jof_from_ij_jof * a_ij + Acceleration::from(*q_ddot) + v.cross_motion(*vj),
+//             false => *jof_from_ij_jof * a_ij + v.cross_motion(*vj),
+//         };
 
-        *a = a_new;
+//         *a = a_new;
 
-        *f = *joint_inertia * *a + v.cross_force(*joint_inertia * *v) - *f_b;
-    }
+//         *f = *joint_inertia * *a + v.cross_force(*joint_inertia * *v) - *f_b;
+//     }
 
-    fn rne_second_pass(&mut self) {
-        self.cache.tau = self.cache.rne.unwrap().f.vector();
-    }
+//     fn rne_second_pass(&mut self) {
+//         self.cache.tau = self.cache.rne.unwrap().f.vector();
+//     }
 
-    fn rne_add_force(&mut self, force: Force) {
-        self.cache.rne.as_mut().unwrap().f = self.cache.rne.as_mut().unwrap().f + force;
-    }
+//     fn rne_add_force(&mut self, force: Force) {
+//         self.cache.rne.as_mut().unwrap().f = self.cache.rne.as_mut().unwrap().f + force;
+//     }
 
-    fn rne_get_force(&self) -> Force {
-        self.cache.rne.unwrap().f
-    }
+//     fn rne_get_force(&self) -> Force {
+//         self.cache.rne.unwrap().f
+//     }
 
-    fn rne_set_tau(&mut self) {
-        self.cache.tau = self.cache.rne.unwrap().f.vector(); //TODO: duplicate of second pass?
-    }
-}
+//     fn rne_set_tau(&mut self) {
+//         self.cache.tau = self.cache.rne.unwrap().f.vector(); //TODO: duplicate of second pass?
+//     }
+// }
 
-impl JointSimTrait for FloatingSim {
-    fn calculate_tau(&mut self) {
-        let p = &self.parameters;
-        // this assume tait-bryan euler angle sequence (ZYX)
+// impl CompositeRigidBody for Floating {
+//     fn add_ic(&mut self, new_ic: SpatialInertia) {
+//         let ic = &mut self.cache.crb.as_mut().unwrap().ic;
+//         *ic += new_ic;
+//     }
 
-        let angles = EulerAngles::from(&self.state.q);
+//     fn get_crb_index(&self) -> usize {
+//         self.cache.crb.unwrap().cache_index
+//     }
 
-        self.cache.tau[0] = p.xr.constant_force
-            - p.xr.spring_constant * angles.psi
-            - p.xr.damping * self.state.w[0];
-        self.cache.tau[1] = p.yr.constant_force
-            - p.yr.spring_constant * angles.theta
-            - p.yr.damping * self.state.w[1];
-        self.cache.tau[2] = p.zr.constant_force
-            - p.zr.spring_constant * angles.phi
-            - p.zr.damping * self.state.w[2];
+//     fn get_ic(&self) -> SpatialInertia {
+//         self.cache.crb.unwrap().ic
+//     }
 
-        // translation uantities are + instead of - since they are expressed in JOF
-        // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
-        // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
-        // to get back to a JIF equilibrium of 0
-        self.cache.tau[3] = p.xt.constant_force
-            - p.xt.spring_constant * self.state.r[0]
-            - p.xt.damping * self.state.v[0];
-        self.cache.tau[4] = p.yt.constant_force
-            - p.yt.spring_constant * self.state.r[1]
-            - p.yt.damping * self.state.v[1];
-        self.cache.tau[5] = p.zt.constant_force
-            - p.zt.spring_constant * self.state.r[2]
-            - p.zt.damping * self.state.v[2];
-    }
+//     fn reset_ic(&mut self) {
+//         let ic = &mut self.cache.crb.as_mut().unwrap().ic;
+//         *ic = self.mass_properties.unwrap();
+//     }
 
-    fn calculate_vj(&mut self) {
-        // self.state.velocity is in the JIF frame
-        // ABA assumes velocities in the JOF frame so S is constant
-        // transform to JOF velocity
-        self.cache.common.vj = Velocity::from(Vector6::new(
-            self.state.w[0],
-            self.state.w[1],
-            self.state.w[2],
-            self.state.v[0],
-            self.state.v[1],
-            self.state.v[2],
-        ));
-    }
+//     fn set_crb_index(&mut self, n: usize) {
+//         if let Some(crb) = &mut self.cache.crb {
+//             crb.cache_index = n;
+//         }
+//     }
 
-    fn get_a_jof(&self) -> &Acceleration {
-        &self.cache.common.a
-    }
+//     fn set_c(&self, c: &mut DVector<f64>) {
+//         let index = self.cache.crb.unwrap().cache_index;
+//         let mut my_space = c.fixed_rows_mut::<6>(index);
+//         my_space.copy_from(&self.cache.tau);
+//     }
 
-    fn get_derivative(&self) -> JointState {
-        // Quaternion is from the body to base, or the body's orientation in the base frame
-        //due to quaternion kinematic equations
-        let q = self.state.q;
-        // Markley eq 3.20 & 2.88
-        let tmp = Matrix4x3::new(
-            q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
-        );
-        let q_dot = Quaternion::from(0.5 * tmp * self.state.w);
+//     fn set_h(&self, h: &mut DMatrix<f64>) {
+//         let crb = &self.cache.crb.unwrap();
+//         let index = crb.cache_index;
+//         let ic = &crb.ic;
 
-        // transform v and jif frame so it makes sense for position translation integration
-        let v_jof = self.cache.common.v.translation();
-        let v_jif = self.transforms.jif_from_jof.0.rotation.transform(*v_jof);
-
-        let derivative = FloatingState {
-            q: q_dot,
-            w: *self.cache.common.a.rotation(),
-            r: v_jif,
-            v: *self.cache.common.a.translation(),
-        };
-        JointState::Floating(derivative)
-    }
-
-    fn get_id(&self) -> &Uuid {
-        &self.id
-    }
-    fn get_inertia(&self) -> SpatialInertia {
-        self.mass_properties.unwrap()
-    }
-
-    fn get_ndof(&self) -> usize {
-        FloatingSim::DOF
-    }
-
-    fn get_state(&self) -> JointState {
-        JointState::Floating(self.state)
-    }
-
-    fn get_v(&self) -> &Velocity {
-        &self.cache.common.v
-    }
-
-    fn initialize_result(&self) -> JointResult {
-        JointResult::Floating(FloatingResult::new())
-    }
-
-    fn set_inertia(&mut self, inertia: &MassProperties) {
-        let jof_from_ob = self.transforms.jof_from_ob;
-        // IMPORTANT: floating joint must assume that jof is at cm
-        // otherwise you will have a moment arm and body will torque with linear force at cm
-        // jof_from_ob has already made this correction, but so do mass props
-        let original_cm = inertia.center_of_mass.vector();
-        let mut inertia = inertia.clone();
-        inertia.center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
-        let spatial_inertia = SpatialInertia::from(inertia);
-
-        // only rotate the inertia to the jof, dont translate since cm is @ jof
-        let mut jof_from_ob_rotation_only = jof_from_ob.clone();
-        jof_from_ob_rotation_only.0.translation = CoordinateSystem::ZERO;
-        let joint_mass_properties = jof_from_ob_rotation_only * spatial_inertia;
-        self.mass_properties = Some(joint_mass_properties);
-
-        // if there is translation in jof_from_ob or the body frame cm is non zero
-        // then we need to add them to the joint state position so that the jof frame is at the cm
-        // r is in the jif frame, so need to transform jof and cm to jif frame
-        let jif_from_jof = self.transforms.jif_from_jof;
-        let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
-        let ob_from_jof_translation =
-            Cartesian::from(self.transforms.ob_from_jof.0.translation).vec();
-        let total_in_jof = cm_in_jof + ob_from_jof_translation;
-        let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
-        let r = &mut self.state.r;
-        *r += total_in_jif;
-    }
-
-    fn set_force(&mut self, force: Force) {
-        self.cache.common.f = force;
-    }
-
-    fn set_state(&mut self, state: JointState) {
-        if let JointState::Floating(floating_state) = state {
-            self.state = floating_state
-        }
-    }
-    fn get_transforms(&self) -> &JointTransforms {
-        &self.transforms
-    }
-
-    fn get_transforms_mut(&mut self) -> &mut JointTransforms {
-        &mut self.transforms
-    }
-    fn update_transforms(&mut self, ij_transforms: Option<(SpatialTransform, SpatialTransform)>) {
-        let rotation = Rotation::from(&self.state.q);
-        let translation = Cartesian::from(self.state.r); // r is already jif to jof
-        let transform = Transform::new(rotation, translation.into());
-
-        self.transforms.jof_from_jif = SpatialTransform(transform);
-        self.transforms.jif_from_jof = self.transforms.jof_from_jif.inv();
-        self.transforms.update(ij_transforms)
-    }
-
-    fn with_algorithm(mut self, algorithm: MultibodyAlgorithm) -> Self {
-        match algorithm {
-            MultibodyAlgorithm::ArticulatedBody => {
-                self.cache.aba = Some(FloatingAbaCache::default());
-                self.cache.crb = None;
-                self.cache.rne = None;
-            }
-            MultibodyAlgorithm::CompositeRigidBody => {
-                self.cache.aba = None;
-                self.cache.crb = Some(FloatingCrbCache::default());
-                self.cache.rne = Some(RneCache::default());
-            }
-        }
-        self
-    }
-}
-
-impl CompositeRigidBody for FloatingSim {
-    fn add_ic(&mut self, new_ic: SpatialInertia) {
-        let ic = &mut self.cache.crb.as_mut().unwrap().ic;
-        *ic += new_ic;
-    }
-
-    fn get_crb_index(&self) -> usize {
-        self.cache.crb.unwrap().cache_index
-    }
-
-    fn get_ic(&self) -> SpatialInertia {
-        self.cache.crb.unwrap().ic
-    }
-
-    fn reset_ic(&mut self) {
-        let ic = &mut self.cache.crb.as_mut().unwrap().ic;
-        *ic = self.mass_properties.unwrap();
-    }
-
-    fn set_crb_index(&mut self, n: usize) {
-        if let Some(crb) = &mut self.cache.crb {
-            crb.cache_index = n;
-        }
-    }
-
-    fn set_c(&self, c: &mut DVector<f64>) {
-        let index = self.cache.crb.unwrap().cache_index;
-        let mut my_space = c.fixed_rows_mut::<6>(index);
-        my_space.copy_from(&self.cache.tau);
-    }
-
-    fn set_h(&self, h: &mut DMatrix<f64>) {
-        let crb = &self.cache.crb.unwrap();
-        let index = crb.cache_index;
-        let ic = &crb.ic;
-
-        let mut view = h.fixed_view_mut::<1, 1>(index, index);
-        view[0] = ic.matrix()[0];
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct FloatingResult(HashMap<String, Vec<f64>>);
-
-impl FloatingResult {
-    pub fn new() -> Self {
-        let mut result = HashMap::new();
-        Self::STATES.iter().for_each(|state| {
-            result.insert(state.to_string(), Vec::new());
-        });
-        Self(result)
-    }
-}
-
-impl MultibodyResultTrait for FloatingResult {
-    type Component = FloatingSim;
-    const STATES: &'static [&'static str] = &[
-        "acceleration[x]",
-        "acceleration[y]",
-        "acceleration[z]",
-        "angular_accel[x]",
-        "angular_accel[y]",
-        "angular_accel[z]",
-        "angular_rate[x]",
-        "angular_rate[y]",
-        "angular_rate[z]",
-        "position[x]",
-        "position[y]",
-        "position[z]",
-        "quaternion[x]",
-        "quaternion[y]",
-        "quaternion[z]",
-        "quaternion[w]",
-        "velocity[x]",
-        "velocity[y]",
-        "velocity[z]",
-    ];
-
-    fn get_result_entry(&self) -> ResultEntry {
-        ResultEntry::Joint(JointResult::Floating(self.clone()))
-    }
-
-    fn get_state_names(&self) -> &'static [&'static str] {
-        Self::STATES
-    }
-
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        self.0
-            .get(state)
-            .ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
-    }
-
-    fn update(&mut self, joint: &FloatingSim) {
-        self.0
-            .get_mut("acceleration[x]")
-            .unwrap()
-            .push(joint.cache.q_ddot[3]);
-        self.0
-            .get_mut("acceleration[y]")
-            .unwrap()
-            .push(joint.cache.q_ddot[4]);
-        self.0
-            .get_mut("acceleration[z]")
-            .unwrap()
-            .push(joint.cache.q_ddot[5]);
-        self.0
-            .get_mut("angular_accel[x]")
-            .unwrap()
-            .push(joint.cache.q_ddot[0]);
-        self.0
-            .get_mut("angular_accel[y]")
-            .unwrap()
-            .push(joint.cache.q_ddot[1]);
-        self.0
-            .get_mut("angular_accel[z]")
-            .unwrap()
-            .push(joint.cache.q_ddot[2]);
-        self.0
-            .get_mut("angular_rate[x]")
-            .unwrap()
-            .push(joint.state.w[0]);
-        self.0
-            .get_mut("angular_rate[y]")
-            .unwrap()
-            .push(joint.state.w[1]);
-        self.0
-            .get_mut("angular_rate[z]")
-            .unwrap()
-            .push(joint.state.w[2]);
-        self.0
-            .get_mut("position[x]")
-            .unwrap()
-            .push(joint.state.r[0]);
-        self.0
-            .get_mut("position[y]")
-            .unwrap()
-            .push(joint.state.r[1]);
-        self.0
-            .get_mut("position[z]")
-            .unwrap()
-            .push(joint.state.r[2]);
-        self.0
-            .get_mut("velocity[x]")
-            .unwrap()
-            .push(joint.state.v[0]);
-        self.0
-            .get_mut("velocity[y]")
-            .unwrap()
-            .push(joint.state.v[1]);
-        self.0
-            .get_mut("velocity[z]")
-            .unwrap()
-            .push(joint.state.v[2]);
-    }
-}
+//         let mut view = h.fixed_view_mut::<1, 1>(index, index);
+//         view[0] = ic.matrix()[0];
+//     }
+// }

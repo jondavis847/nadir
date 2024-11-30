@@ -1,4 +1,4 @@
-use multibody::sensor::simple::star_tracker::StarTrackerState;
+use multibody::sensor::examples::star_tracker::StarTrackerState;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use transforms::{prelude::Quaternion, Transform};

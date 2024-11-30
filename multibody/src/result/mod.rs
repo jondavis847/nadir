@@ -1,7 +1,6 @@
 use crate::system::MultibodySystem;
 use crate::MultibodyErrors;
-use crate::{body::BodyResult, joint::JointResult, sensor::SensorResult};
-use aerospace::celestial_system::{CelestialBodies, CelestialErrors, CelestialResult};
+use aerospace::celestial_system::{CelestialBodies, CelestialErrors};
 use chrono::{DateTime, Utc};
 use nalgebra::Vector3;
 use ron::ser::{to_string_pretty, PrettyConfig};
@@ -15,22 +14,36 @@ use std::time::{Duration, SystemTime};
 use utilities::format_duration;
 
 pub trait MultibodyResultTrait {
-    const STATES: &'static [&'static str];
-    type Component;
-    fn get_state_names(&self) -> &'static [&'static str];
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors>;
-    fn get_result_entry(&self) -> ResultEntry;
-    fn update(&mut self, component: &Self::Component);
+    /// Initializes the ResultEntry for storing the sim result for this joint
+    fn initialize_result(&mut self, capacity: usize);
+    /// Collects the final joint model result to be added to the MultibodyResult map
+    fn get_result_entry(&mut self) -> ResultEntry;
+    // Updates the result entry with the values from the joint
+    fn update_result(&mut self);
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ResultEntry(HashMap<String, Vec<f64>>);
+
+impl ResultEntry {
+    pub fn new(map: HashMap<String, Vec<f64>>) -> Self {
+        Self(map)
+    }
+    pub fn get(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
+        self.0
+            .get(state)
+            .ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MultibodyResult {
     pub name: String,
-    pub sim_time: Vec<f64>,
-    pub result: HashMap<String, ResultEntry>,
     pub time_start: SystemTime,
     pub sim_duration: Duration,
     pub total_duration: Duration,
+    pub sim_time: Vec<f64>,
+    pub result: HashMap<String, ResultEntry>,
 }
 
 impl MultibodyResult {
@@ -43,12 +56,13 @@ impl MultibodyResult {
         component_name: &str,
         state_name: &str,
     ) -> Result<&Vec<f64>, MultibodyErrors> {
-        if let Some(entry) = self.get_component(component_name) {
-            match entry {
-                ResultEntry::Body(result) => result.get_state_value(state_name),
-                ResultEntry::Joint(result) => result.get_state_value(state_name),
-                ResultEntry::Sensor(result) => result.get_state_value(state_name),
-                ResultEntry::Celestial(result) => Ok(result.get_state_value(state_name)?),
+        if let Some(result) = self.get_component(component_name) {
+            if let Some(entry) = result.0.get(state_name) {
+                Ok(entry)
+            } else {
+                Err(MultibodyErrors::ComponentStateNotFound(
+                    state_name.to_string(),
+                ))
             }
         } else {
             Err(MultibodyErrors::ComponentNotFound(
@@ -57,25 +71,16 @@ impl MultibodyResult {
         }
     }
 
-    pub fn get_component_states(&self, component_name: &str) -> Vec<String> {
-        let component = self.result.get(component_name).unwrap();
-        match component {
-            ResultEntry::Body(result) => result
-                .get_state_names()
-                .iter()
-                .map(|state| state.to_string())
-                .collect(),
-            ResultEntry::Joint(result) => result
-                .get_state_names()
-                .iter()
-                .map(|state| state.to_string())
-                .collect(),
-            ResultEntry::Sensor(result) => result
-                .get_state_names()
-                .iter()
-                .map(|state| state.to_string())
-                .collect(),
-            ResultEntry::Celestial(result) => result.get_state_names(),
+    pub fn get_component_states(
+        &self,
+        component_name: &str,
+    ) -> Result<Vec<String>, MultibodyErrors> {
+        if let Some(component) = self.result.get(component_name) {
+            Ok(component.0.keys().cloned().collect())
+        } else {
+            Err(MultibodyErrors::ComponentNotFound(
+                component_name.to_string(),
+            ))
         }
     }
 
@@ -84,23 +89,24 @@ impl MultibodyResult {
         body_name: &str,
         t: f64,
     ) -> Result<(Quaternion, Vector3<f64>), MultibodyErrors> {
-        let body = match self.result.get(body_name).unwrap() {
-            ResultEntry::Body(body) => body,
-            _ => unreachable!("should not be possible"),
-        };
-        let time = &self.sim_time;
-        let qx = body.get_state_value("attitude[x]{base}")?;
-        let qy = body.get_state_value("attitude[y]{base}")?;
-        let qz = body.get_state_value("attitude[z]{base}")?;
-        let qw = body.get_state_value("attitude[w]{base}")?;
-        let rx = body.get_state_value("position[x]{base}")?;
-        let ry = body.get_state_value("position[y]{base}")?;
-        let rz = body.get_state_value("position[z]{base}")?;
+        if let Some(result) = self.result.get(body_name) {
+            let time = &self.sim_time;
+            let qx = result.get("attitude[x]{base}")?;
+            let qy = result.get("attitude[y]{base}")?;
+            let qz = result.get("attitude[z]{base}")?;
+            let qw = result.get("attitude[w]{base}")?;
 
-        let attitude = (qx, qy, qz, qw);
-        let position = (rx, ry, rz);
+            let rx = result.get("position[x]{base}")?;
+            let ry = result.get("position[y]{base}")?;
+            let rz = result.get("position[z]{base}")?;
 
-        Ok(get_state_at_time_interp(t, time, &attitude, &position))
+            let attitude = (qx, qy, qz, qw);
+            let position = (rx, ry, rz);
+
+            Ok(get_state_at_time_interp(t, time, &attitude, &position))
+        } else {
+            Err(MultibodyErrors::ComponentNotFound(body_name.to_string()))
+        }
     }
 
     pub fn get_celestial_state_at_time_interp(
@@ -109,19 +115,15 @@ impl MultibodyResult {
         t: f64,
     ) -> Result<(Quaternion, Vector3<f64>), MultibodyErrors> {
         let time = &self.sim_time;
-        let celestial = match self.result.get("celestial").unwrap() {
-            ResultEntry::Celestial(celestial) => celestial,
-            _ => unreachable!("should not be possible"),
-        };
 
-        if let Some(body_result) = celestial.bodies.get(&body) {
-            let qx = body_result.get_state_value("orientation[x]")?;
-            let qy = body_result.get_state_value("orientation[y]")?;
-            let qz = body_result.get_state_value("orientation[z]")?;
-            let qw = body_result.get_state_value("orientation[w]")?;
-            let rx = body_result.get_state_value("position[x]")?;
-            let ry = body_result.get_state_value("position[y]")?;
-            let rz = body_result.get_state_value("position[z]")?;
+        if let Some(result) = self.result.get(&body.get_name()) {
+            let qx = result.0.get("attitude[x]").unwrap();
+            let qy = result.0.get("attitude[y]").unwrap();
+            let qz = result.0.get("attitude[z]").unwrap();
+            let qw = result.0.get("attitude[w]").unwrap();
+            let rx = result.0.get("position[x]").unwrap();
+            let ry = result.0.get("position[y]").unwrap();
+            let rz = result.0.get("position[z]").unwrap();
 
             let attitude = (qx, qy, qz, qw);
             let position = (rx, ry, rz);
@@ -163,6 +165,34 @@ impl MultibodyResult {
         let mut file = File::create(res_path).unwrap();
         let ron_string = to_string_pretty(self, PrettyConfig::new()).unwrap();
         file.write_all(ron_string.as_bytes()).unwrap();
+    }
+}
+
+impl fmt::Debug for MultibodyResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let time_start = DateTime::<Utc>::from(self.time_start);
+
+        writeln!(f)?;
+        writeln!(f, "sim name: {}", self.name)?;
+        writeln!(f, "start time: {}", time_start)?;
+        writeln!(f, "sim duration: {}", format_duration(self.sim_duration))?;
+        writeln!(
+            f,
+            "total duration: {}",
+            format_duration(self.total_duration)
+        )?;
+        writeln!(f, "states: ")?;
+
+        // Collect headers (keys) and sort them
+        let mut headers: Vec<&String> = self.result.keys().collect();
+        headers.sort();
+
+        // Print each header as an individual row
+        for header in headers {
+            writeln!(f, "     {}", header)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -234,41 +264,5 @@ fn get_state_at_time_interp(
                 (interp_attitude, interp_position)
             }
         }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ResultEntry {
-    Body(BodyResult),
-    Celestial(CelestialResult),
-    Joint(JointResult),
-    Sensor(SensorResult),
-}
-
-impl fmt::Debug for MultibodyResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let time_start = DateTime::<Utc>::from(self.time_start);
-
-        writeln!(f)?;
-        writeln!(f, "sim name: {}", self.name)?;
-        writeln!(f, "start time: {}", time_start)?;
-        writeln!(f, "sim duration: {}", format_duration(self.sim_duration))?;
-        writeln!(
-            f,
-            "total duration: {}",
-            format_duration(self.total_duration)
-        )?;
-        writeln!(f, "states: ")?;
-
-        // Collect headers (keys) and sort them
-        let mut headers: Vec<&String> = self.result.keys().collect();
-        headers.sort();
-
-        // Print each header as an individual row
-        for header in headers {
-            writeln!(f, "     {}", header)?;
-        }
-
-        Ok(())
     }
 }

@@ -6,7 +6,10 @@ use color::Color;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     body::Body,
-    joint::floating::{Floating, FloatingParameters, FloatingState},
+    joint::{
+        floating::{Floating, FloatingParameters, FloatingState},
+        Joint,
+    },
     system::MultibodySystem,
 };
 
@@ -41,8 +44,9 @@ fn main() {
     let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let state = FloatingState::new().with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
-    let f = Floating::new("f", parameters, state);
-    sys.add_joint(f.into()).unwrap();
+    let f_model = Floating::new(parameters, state);
+    let f = Joint::new("f", f_model).unwrap();
+    sys.add_joint(f).unwrap();
 
     // Create the main body of the spacecraft
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);

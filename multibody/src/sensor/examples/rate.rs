@@ -1,15 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::take};
 
 use crate::{
-    body::{BodyConnection, BodySim},
+    body::{Body, BodyConnection},
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::{noise::Noise, SensorResult, SensorTrait}, MultibodyErrors,
+    sensor::{noise::Noise, SensorModel},
 };
 
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
-
-use super::SimpleSensorResult;
 
 /// A simple rate sensor with gaussian white noise & constant delay
 /// The sensor frame is right hand rotation about X
@@ -48,12 +46,10 @@ pub struct RateSensorState {
     noise: f64,
     measurement: f64,
 }
-impl SensorTrait for RateSensor {
-    fn initialize_result(&self) -> SensorResult {
-        SensorResult::Simple(SimpleSensorResult::Rate(RateSensorResult::default()))
-    }
 
-    fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
+#[typetag::serde]
+impl SensorModel for RateSensor {
+    fn update(&mut self, body: &Body, connection: &BodyConnection) {
         let rotation = connection.transform.rotation;
         let body_rate = &body.state.angular_rate_body;
         let sensor_rate = rotation.transform(*body_rate);
@@ -62,40 +58,27 @@ impl SensorTrait for RateSensor {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RateSensorResult(HashMap<String, Vec<f64>>);
-
-impl RateSensorResult {
-    pub fn new() -> Self {
+impl MultibodyResultTrait for RateSensor {
+    fn get_result_entry(&mut self) -> ResultEntry {
         let mut result = HashMap::new();
-        Self::STATES.iter().for_each(|state| {
-            result.insert(state.to_string(), Vec::new());
-        });
-        Self(result)
+        result.insert("measurement".to_string(), take(&mut self.result.measurement));
+        result.insert("noise".to_string(), take(&mut self.result.noise));        
+        ResultEntry::new(result)
+    }
+
+    fn initialize_result(&mut self, capacity: usize) {
+        self.result.measurement = Vec::with_capacity(capacity);
+        self.result.noise = Vec::with_capacity(capacity);        
+    }
+
+    fn update_result(&mut self) {
+        self.result.measurement.push(self.state.measurement);
+        self.result.noise.push(self.state.noise);
     }
 }
 
-impl MultibodyResultTrait for RateSensorResult {
-    type Component = RateSensor;
-    const STATES: &'static [&'static str] = &["measurement", "noise"];
-
-    fn get_result_entry(&self) -> ResultEntry {
-        ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::Rate(self.clone())))
-    }
-    
-    fn get_state_names(&self) -> &'static [&'static str] {
-        Self::STATES
-    }
-
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
-    }
-
-    fn update(&mut self, sensor: &RateSensor) {
-        self.0
-            .get_mut("measurement")
-            .unwrap()
-            .push(sensor.state.measurement);
-        self.0.get_mut("noise").unwrap().push(sensor.state.noise);
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RateSensorResult {
+    measurement: Vec<f64>,
+    noise: Vec<f64>,
 }

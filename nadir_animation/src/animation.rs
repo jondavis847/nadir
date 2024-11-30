@@ -11,9 +11,7 @@ use iced::{
 };
 
 use multibody::{
-    result::{MultibodyResult, ResultEntry},
-    system::MultibodySystem,
-    MultibodyErrors,
+    base::BaseSystems, result::MultibodyResult, system::MultibodySystem, MultibodyErrors,
 };
 
 use scene::Scene;
@@ -247,7 +245,7 @@ impl AnimationState {
         sys: &MultibodySystem,
     ) -> Result<(), MultibodyErrors> {
         // initialize the multibody bodies
-        for (_, body) in &sys.bodies {
+        for body in &sys.bodies {
             let qx = result
                 .get_component_state(&body.name, "attitude[x]{base}")
                 .unwrap()[0];
@@ -280,35 +278,34 @@ impl AnimationState {
         }
 
         // initialize the celestial bodies
-        if let Some(celestial_entry) = result.result.get("celestial") {
-            match celestial_entry {
-                ResultEntry::Celestial(celestial) => {
-                    for (body, result) in &celestial.bodies {
-                        self.scene.celestial.add_body(*body);
-
+        match &sys.base.system {
+            BaseSystems::Basic(_) => (), // do nothing
+            BaseSystems::Celestial(celestial) => {
+                for body in &celestial.bodies {
+                    if let Some(body_result) = result.result.get(&body.body.get_name()) {
+                        self.scene.celestial.add_body(body.body);
                         // get initial state
-                        let rx = result.get_state_value("position[x]")?[0];
-                        let ry = result.get_state_value("position[y]")?[0];
-                        let rz = result.get_state_value("position[z]")?[0];
-                        let qx = result.get_state_value("orientation[x]")?[0];
-                        let qy = result.get_state_value("orientation[y]")?[0];
-                        let qz = result.get_state_value("orientation[z]")?[0];
-                        let qw = result.get_state_value("orientation[w]")?[0];
+                        let rx = body_result.get("position[x]")?[0];
+                        let ry = body_result.get("position[y]")?[0];
+                        let rz = body_result.get("position[z]")?[0];
+                        let qx = body_result.get("attitude[x]")?[0];
+                        let qy = body_result.get("attitude[y]")?[0];
+                        let qz = body_result.get("attitude[z]")?[0];
+                        let qw = body_result.get("attitude[w]")?[0];
 
                         // convert to graphics types
-                        //position of celestials is in km, convert to m for accurate graphics
+                        // position of celestials is in km, convert to m for accurate graphics
                         let position = glam::dvec3(rx, ry, rz) * 1e3;
                         let orientation = glam::dquat(qx, qy, qz, qw);
 
                         // update the mesh state and push to scene
                         self.scene
                             .celestial
-                            .update_body(*body, position, orientation);
+                            .update_body(body.body, position, orientation);
                     }
                 }
-                _ => unreachable!("celestial should always be a CelestialResult"),
+                self.scene.set_celestial();
             }
-            self.scene.set_celestial();
         }
 
         let t = &result.sim_time;

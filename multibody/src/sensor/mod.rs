@@ -1,25 +1,50 @@
+pub mod examples;
 pub mod noise;
-pub mod simple;
 
 use crate::{
-    body::{Body, BodyConnection, BodySim}, result::{MultibodyResultTrait, ResultEntry}, MultibodyErrors, MultibodyTrait
+    body::{Body, BodyConnection},
+    result::MultibodyResultTrait,
 };
 use serde::{Deserialize, Serialize};
-use simple::{SimpleSensor, SimpleSensorResult};
+use std::fmt::Debug;
+use thiserror::Error;
 use transforms::Transform;
-use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum SensorErrors {
-    AlreadyConnected,
+    #[error("sensor '{0}' is already connected to body '{1}'")]
+    AlreadyConnectedToAnotherBody(String, String),
+    #[error("sensor '{0}' is already connected to that body")]
+    AlreadyConnectedToThisBody(String),
+}
+
+#[typetag::serde]
+pub trait SensorModel: CloneSensorModel + Debug + MultibodyResultTrait {
+    fn update(&mut self, body: &Body, connection: &BodyConnection);
+}
+pub trait CloneSensorModel {
+    fn clone_model(&self) -> Box<dyn SensorModel>;
+}
+impl<T> CloneSensorModel for T
+where
+    T: SensorModel + Clone + 'static,
+{
+    fn clone_model(&self) -> Box<dyn SensorModel> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn SensorModel> {
+    fn clone(&self) -> Self {
+        self.clone_model()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Sensor {
-    name: String,
-    model: SensorModel,
+    pub name: String,
+    pub model: Box<dyn SensorModel>,
     connection: Option<BodyConnection>,
-    id: Uuid,
 }
 
 impl Sensor {
@@ -28,126 +53,36 @@ impl Sensor {
         body: &mut Body,
         transform: Transform,
     ) -> Result<(), SensorErrors> {
-        if self.connection.is_some() {
-            return Err(SensorErrors::AlreadyConnected);
+        if let Some(connection) = &self.connection {
+            return Err(SensorErrors::AlreadyConnectedToAnotherBody(
+                self.name.clone(),
+                connection.body_id.clone(),
+            ));
         }
 
-        if !body.sensors.contains(&self.id) {
-            body.sensors.push(self.id);
+        if body.sensors.contains(&self.name) {
+            return Err(SensorErrors::AlreadyConnectedToThisBody(self.name.clone()));
+        } else {
+            body.sensors.push(self.name.clone());
         }
 
-        self.connection = Some(BodyConnection::new(body.id, transform));
+        self.connection = Some(BodyConnection::new(body.name.clone(), transform));
         Ok(())
     }
 
-    pub fn get_model(&self) -> &SensorModel {
-        &self.model
-    }
-
-    pub fn new(name: String, model: SensorModel) -> Self {
+    pub fn new(name: String, model: impl SensorModel + 'static) -> Self {
         Self {
             name,
-            model,
+            model: Box::new(model),
             connection: None,
-            id: Uuid::new_v4(),
         }
     }
 
-    pub fn set_model(&mut self, model: SensorModel) {
-        self.model = model;
-    }
-
-    pub fn update(&mut self, body: &BodySim) {
+    pub fn update(&mut self, body: &Body) {
         if let Some(connection) = &self.connection {
             self.model.update(body, connection);
         } else {
             unreachable!("no sensor connection found. should not be possible, should be caught in system validation.")
-        }
-    }
-}
-
-impl MultibodyTrait for Sensor {
-    fn get_id(&self) -> &Uuid {
-        &self.id
-    }
-
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-}
-
-impl SensorTrait for Sensor {
-    fn initialize_result(&self) -> SensorResult {
-        match &self.model {
-            SensorModel::Simple(sensor) => sensor.initialize_result(),
-        }
-    }
-    fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
-        match &mut self.model {
-            SensorModel::Simple(sensor) => sensor.update(body, connection),
-        }
-    }
-}
-
-pub trait SensorTrait {
-    fn initialize_result(&self) -> SensorResult;
-    fn update(&mut self, body: &BodySim, connection: &BodyConnection);
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum SensorModel {
-    //Custom,
-    Simple(SimpleSensor),
-}
-
-impl SensorTrait for SensorModel {
-    fn initialize_result(&self) -> SensorResult {
-        match self {
-            SensorModel::Simple(sensor) => sensor.initialize_result(),
-        }
-    }
-    fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
-        match self {
-            SensorModel::Simple(sensor) => sensor.update(body, connection),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SensorResult {
-    Simple(SimpleSensorResult),
-    //Custom(CustomSensorResult), TODO
-}
-
-impl MultibodyResultTrait for SensorResult {
-    type Component = Sensor;
-    const STATES: &'static [&'static str] = &[];
-
-    fn get_result_entry(&self) -> ResultEntry {
-        match self {
-            SensorResult::Simple(result) => result.get_result_entry(),
-        }
-    }
-
-    fn get_state_names(&self) -> &'static [&'static str] {
-        match self {
-            SensorResult::Simple(result) => result.get_state_names(),
-        }
-    }
-
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        match self {
-            SensorResult::Simple(result) => result.get_state_value(state),
-        }
-    }
-    fn update(&mut self, sensor: &Sensor) {
-        match (self, &sensor.model) {
-            (SensorResult::Simple(result), SensorModel::Simple(sensor)) => result.update(sensor),
-            // _ => unreachable!("invalid combo"),
         }
     }
 }

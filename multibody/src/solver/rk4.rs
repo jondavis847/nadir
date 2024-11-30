@@ -2,17 +2,15 @@ use spice::Spice;
 
 use crate::{
     base::BaseSystems,
-    body::BodyResult,
-    joint::{joint_sim::JointSimTrait, joint_state::JointStates, JointResult},
+    joint::JointStates,
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::{SensorResult, SensorTrait},
-    system::system_sim::MultibodySystemSim,
-    MultibodyErrors, MultibodyTrait,
+    system::MultibodySystem,
+    MultibodyErrors,
 };
 use std::collections::HashMap;
 
 pub fn solve_fixed_rk4(
-    sys: &mut MultibodySystemSim,
+    sys: &mut MultibodySystem,
     tstart: f64,
     tstop: f64,
     mut dt: f64,
@@ -22,46 +20,42 @@ pub fn solve_fixed_rk4(
         return Err(MultibodyErrors::DtCantBeZero);
     };
 
-    // initialize body results
-    let mut body_results: Vec<BodyResult> = sys
-        .bodies
-        .iter()
-        .map(|body| body.initialize_result())
-        .collect();
-
-    // initialize joint results
-    let mut joint_results: Vec<JointResult> = sys
-        .joints
-        .iter()
-        .map(|joint| joint.initialize_result())
-        .collect();
-
-    // initialize sensor results
-    let mut sensor_results: Vec<SensorResult> = sys
-        .sensors
-        .iter()
-        .map(|(_, sensor)| sensor.initialize_result())
-        .collect();
-
-    // initialize celestial results
-    let mut celestial_result = match &sys.base.system {
-        BaseSystems::Basic(_) => None,
-        BaseSystems::Celestial(celestial) => Some(celestial.initialize_result()),
-    };
-
     // Create a vec of JointStates as the initial state
-    let x0 = JointStates(sys.joints.iter().map(|joint| joint.get_state()).collect());
+    let x0 = JointStates(
+        sys.joints
+            .iter()
+            .map(|joint| joint.model.state_vector_init())
+            .collect(),
+    );
 
     let mut half_dt = dt / 2.0;
     let mut dt_6 = dt / 6.0;
     let mut x = x0.clone();
     let mut t = tstart;
 
-    // using resize instead of with_capacity so we can clone_from results instead of .push(clone())
-    let result_length = ((tstop - tstart) / dt).floor() as usize + 1;
+    let result_length = ((tstop - tstart) / dt).floor() as usize + 1;    
 
-    let mut time = Vec::new();
-    time.resize(result_length, 0.0);
+    // initialize results
+
+    let mut time = Vec::with_capacity(result_length);    
+
+    for body in &mut sys.bodies {
+        body.initialize_result(result_length);
+    }
+
+    for joint in &mut sys.joints {
+        joint.model.initialize_result(result_length);
+    }
+
+    for (_, sensor) in &mut sys.sensors {
+        sensor.model.initialize_result(result_length);
+    }
+
+    // initialize celestial results
+    match &mut sys.base.system {
+        BaseSystems::Basic(_) => {}
+        BaseSystems::Celestial(celestial) => celestial.initialize_result(result_length),
+    };
 
     // one time clone for initialization
     let mut k1 = x0.clone();
@@ -73,43 +67,35 @@ pub fn solve_fixed_rk4(
     //update body states based on initial joint states so that things like gravity can be calculated on first pass
     sys.update_body_states();
 
-    for i in 0..result_length {
+    for _ in 0..result_length {
         // calculate all secondary states with the current state
         // only joint states are required to integrate, but
         // we want to save things like body states, gravity , etc.
         sys.run(&mut tmp, &x, t, spice);
 
         // update the result vectors with the current values
-        time[i] = t;
+        time.push(t);
 
         // update body results
-        sys.bodies
-            .iter()
-            .enumerate()
-            .for_each(|(index, body)| body_results[index].update(body));
+        for body in &mut sys.bodies {
+            body.update_result();
+        }
 
         // update joint results
-        sys.joints
-            .iter()
-            .enumerate()
-            .for_each(|(index, joint)| joint_results[index].update(joint));
+        for joint in &mut sys.joints {
+            joint.model.update_result();
+        }
 
         // update sensor results
-        sys.sensors
-            .iter()
-            .enumerate()
-            .for_each(|(index, (_, sensor))| sensor_results[index].update(sensor));
+        for (_, sensor) in &mut sys.sensors {
+            sensor.model.update_result();
+        }
 
         // update celestial results
-        if let Some(result) = &mut celestial_result {
-            match &sys.base.system {
-                BaseSystems::Basic(_) => {
-                    unreachable!("we checked this when we created celestial_result")
-                }
-                BaseSystems::Celestial(celestial) => {
-                    let current_epoch = celestial.epoch + t;
-                    result.update(current_epoch,celestial)?
-                },
+        match &mut sys.base.system {
+            BaseSystems::Basic(_) => {} //nothing to do
+            BaseSystems::Celestial(celestial) => {
+                celestial.update_result(); // system.run() will update the values, including epoch
             }
         }
 
@@ -159,29 +145,31 @@ pub fn solve_fixed_rk4(
         t += dt;
     }
 
-    let mut result_hm = HashMap::<String, ResultEntry>::new();
-    joint_results
-        .iter()
-        .enumerate()
-        .for_each(|(index, result)| {
-            result_hm.insert(sys.joint_names[index].clone(), result.get_result_entry());
-        });
-
-    body_results.iter().enumerate().for_each(|(index, result)| {
-        result_hm.insert(sys.body_names[index].clone(), result.get_result_entry());
-    });
-    sys.sensors
-        .iter()
-        .enumerate()
-        .for_each(|(index, (_, sensor))| {
-            result_hm.insert(
-                sensor.get_name().to_string(),
-                sensor_results[index].get_result_entry(),
-            );
-        });
-    if let Some(celestial) = celestial_result {
-        result_hm.insert("celestial".to_string(),ResultEntry::Celestial(celestial));
+    // collect results
+    let mut result_hm = HashMap::new();
+    for body in &mut sys.bodies {
+        result_hm.insert(body.name.clone(), body.get_result_entry());
     }
-    
+    for joint in &mut sys.joints {
+        result_hm.insert(joint.name.clone(), joint.model.get_result_entry());
+    }
+
+    for (name, sensor) in &mut sys.sensors {
+        result_hm.insert(name.clone(), sensor.model.get_result_entry());
+    }
+
+    match &mut sys.base.system {
+        BaseSystems::Celestial(celestial) => {
+            result_hm.insert(
+                "epoch".to_string(),
+                ResultEntry::new(celestial.get_result_entry()),
+            );
+            for body in &mut celestial.bodies {
+                result_hm.insert(body.body.get_name(), ResultEntry::new(body.get_result_entry()));
+            }
+        }
+        _ => {} //nothing
+    }
+
     Ok((time, result_hm))
 }

@@ -1,13 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::take};
 
 use crate::{
-    body::{BodyConnection, BodySim},
+    body::{Body, BodyConnection},
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
-        simple::SimpleSensorResult,
-        SensorResult, SensorTrait,
-    }, MultibodyErrors,
+        SensorModel,
+    },
 };
 
 use rotations::{prelude::Quaternion, Rotation};
@@ -64,12 +63,9 @@ impl StarTracker {
     }
 }
 
-impl SensorTrait for StarTracker {
-    fn initialize_result(&self) -> SensorResult {
-        SensorResult::Simple(SimpleSensorResult::StarTracker(StarTrackerResult::default()))
-    }
-
-    fn update(&mut self, body: &BodySim, connection: &BodyConnection) {
+#[typetag::serde]
+impl SensorModel for StarTracker {
+    fn update(&mut self, body: &Body, connection: &BodyConnection) {
         let body_to_st = Quaternion::from(&connection.transform.rotation);
 
         // Get the truth attitude
@@ -90,77 +86,51 @@ impl SensorTrait for StarTracker {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StarTrackerResult(HashMap<String, Vec<f64>>);
-
-impl StarTrackerResult {
-    pub fn new() -> Self {
+impl MultibodyResultTrait for StarTracker {
+    fn get_result_entry(&mut self) -> ResultEntry {
         let mut result = HashMap::new();
-        Self::STATES.iter().for_each(|state| {
-            result.insert(state.to_string(), Vec::new());
-        });
-        Self(result)
+        result.insert("measurement[x]".to_string(), take(&mut self.result.measurement_x));
+        result.insert("measurement[y]".to_string(), take(&mut self.result.measurement_y));
+        result.insert("measurement[z]".to_string(), take(&mut self.result.measurement_z));
+        result.insert("measurement[w]".to_string(), take(&mut self.result.measurement_w));
+        result.insert("noise[x]".to_string(), take(&mut self.result.noise_x));        
+        result.insert("noise[y]".to_string(), take(&mut self.result.noise_y));        
+        result.insert("noise[z]".to_string(), take(&mut self.result.noise_z));        
+        result.insert("noise[w]".to_string(), take(&mut self.result.noise_w));
+        ResultEntry::new(result)
+    }
+
+    fn initialize_result(&mut self, capacity: usize) {
+        self.result.measurement_x = Vec::with_capacity(capacity);
+        self.result.measurement_y = Vec::with_capacity(capacity);
+        self.result.measurement_z = Vec::with_capacity(capacity);
+        self.result.measurement_w = Vec::with_capacity(capacity);
+        self.result.noise_x = Vec::with_capacity(capacity);        
+        self.result.noise_y = Vec::with_capacity(capacity);        
+        self.result.noise_z = Vec::with_capacity(capacity);        
+        self.result.noise_w = Vec::with_capacity(capacity);        
+    }
+
+    fn update_result(&mut self) {
+        self.result.measurement_x.push(self.state.measurement.x);
+        self.result.measurement_y.push(self.state.measurement.y);
+        self.result.measurement_z.push(self.state.measurement.z);
+        self.result.measurement_w.push(self.state.measurement.s);
+        self.result.noise_x.push(self.state.noise.x);
+        self.result.noise_y.push(self.state.noise.y);
+        self.result.noise_z.push(self.state.noise.z);
+        self.result.noise_w.push(self.state.noise.s);
     }
 }
 
-impl MultibodyResultTrait for StarTrackerResult {
-    type Component = StarTracker;
-    const STATES: &'static [&'static str] = &[
-        "measurement[x]",
-        "measurement[y]",
-        "measurement[z]",
-        "measurement[w]",
-        "noise[x]",
-        "noise[y]",
-        "noise[z]",
-        "noise[w]",
-    ];
-    fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, MultibodyErrors> {
-        self.0.get(state).ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
-    }
-
-    fn get_state_names(&self) -> &'static [&'static str] {
-        Self::STATES
-    }
-    
-    fn get_result_entry(&self) -> ResultEntry {
-        ResultEntry::Sensor(SensorResult::Simple(SimpleSensorResult::StarTracker(
-            self.clone(),
-        )))
-    }
-
-    fn update(&mut self, sensor: &StarTracker) {
-        self.0
-            .get_mut("measurement[x]")
-            .unwrap()
-            .push(sensor.state.measurement.x);
-        self.0
-            .get_mut("measurement[y]")
-            .unwrap()
-            .push(sensor.state.measurement.y);
-        self.0
-            .get_mut("measurement[z]")
-            .unwrap()
-            .push(sensor.state.measurement.z);
-        self.0
-            .get_mut("measurement[w]")
-            .unwrap()
-            .push(sensor.state.measurement.s);
-        self.0
-            .get_mut("noise[x]")
-            .unwrap()
-            .push(sensor.state.noise.x);
-        self.0
-            .get_mut("noise[y]")
-            .unwrap()
-            .push(sensor.state.noise.y);
-        self.0
-            .get_mut("noise[z]")
-            .unwrap()
-            .push(sensor.state.noise.z);
-        self.0
-            .get_mut("noise[w]")
-            .unwrap()
-            .push(sensor.state.noise.s);
-    }
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StarTrackerResult {
+    measurement_x: Vec<f64>,
+    measurement_y: Vec<f64>,
+    measurement_z: Vec<f64>,
+    measurement_w: Vec<f64>,
+    noise_x: Vec<f64>,
+    noise_y: Vec<f64>,
+    noise_z: Vec<f64>,
+    noise_w: Vec<f64>,
 }

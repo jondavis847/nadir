@@ -10,7 +10,7 @@ use rotations::{
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies};
 
-use std::{collections::HashMap, f64::consts::PI};
+use std::{collections::HashMap, f64::consts::PI, mem::take};
 use thiserror::Error;
 use time::Time;
 
@@ -31,6 +31,8 @@ pub enum CelestialErrors {
 pub struct CelestialSystem {
     pub epoch: Time,
     pub bodies: Vec<CelestialBody>,
+    #[serde(skip)]
+    result: CelestialResult,
 }
 
 impl CelestialSystem {
@@ -39,7 +41,11 @@ impl CelestialSystem {
         let sun = CelestialBody::new(CelestialBodies::Sun, None, None);
         let bodies = vec![sun];
 
-        Ok(Self { epoch, bodies })
+        Ok(Self {
+            epoch,
+            bodies,
+            result: CelestialResult::default(),
+        })
     }
 
     pub fn update(&mut self, t: f64, spice: &mut Spice) -> Result<(), Box<dyn std::error::Error>> {
@@ -50,6 +56,17 @@ impl CelestialSystem {
             body.update(current_epoch, spice)?;
         }
         Ok(())
+    }
+
+    pub fn update_result(&mut self) {
+        // update the epoch based on sim time
+        self.result
+            .epoch_sec_j2k_tai
+            .push(self.epoch.get_seconds_j2k());
+        // it should be safe to do this enumerated since we initialized the result struct from the sys struct
+        for body in &mut self.bodies {
+            body.update_result();
+        }
     }
 
     pub fn set_geomag(
@@ -145,16 +162,20 @@ impl CelestialSystem {
         g_final
     }
 
-    pub fn initialize_result(&self) -> CelestialResult {
-        let mut body_results = HashMap::new();
-        for body in &self.bodies {
-            body_results.insert(body.body, CelestialBodyResult::new());
+    pub fn initialize_result(&mut self, capacity: usize) {
+        for body in &mut self.bodies {
+            body.initialize_result(capacity);
         }
+        self.result.initialize_result(capacity);
+    }
 
-        CelestialResult {
-            epoch_sec_j2k_tai: Vec::new(),
-            bodies: body_results,
-        }
+    pub fn get_result_entry(&mut self) -> HashMap<String, Vec<f64>> {
+        let mut result = HashMap::new();
+        result.insert(
+            "epoch".to_string(),
+            take(&mut self.result.epoch_sec_j2k_tai),
+        );
+        result
     }
 }
 
@@ -165,6 +186,8 @@ pub struct CelestialBody {
     pub orientation: Quaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,
+    #[serde(skip)]
+    result: CelestialBodyResult,
 }
 
 impl CelestialBody {
@@ -179,6 +202,7 @@ impl CelestialBody {
             orientation: Quaternion::IDENTITY,
             gravity,
             geomag,
+            result: CelestialBodyResult::default(),
         }
     }
 
@@ -220,6 +244,38 @@ impl CelestialBody {
 
         Ok(())
     }
+
+    pub fn get_result_entry(&mut self) -> HashMap<String, Vec<f64>> {
+        let mut result = HashMap::new();
+        result.insert("attitude[x]".to_string(), take(&mut self.result.qx));
+        result.insert("attitude[y]".to_string(), take(&mut self.result.qy));
+        result.insert("attitude[z]".to_string(), take(&mut self.result.qz));
+        result.insert("attitude[w]".to_string(), take(&mut self.result.qw));
+        result.insert("position[x]".to_string(), take(&mut self.result.rx));
+        result.insert("position[y]".to_string(), take(&mut self.result.ry));
+        result.insert("position[z]".to_string(), take(&mut self.result.rz));
+        result
+    }
+
+    fn initialize_result(&mut self, capacity: usize) {
+        self.result.qx = Vec::with_capacity(capacity);
+        self.result.qy = Vec::with_capacity(capacity);
+        self.result.qz = Vec::with_capacity(capacity);
+        self.result.qw = Vec::with_capacity(capacity);
+        self.result.rx = Vec::with_capacity(capacity);
+        self.result.ry = Vec::with_capacity(capacity);
+        self.result.rz = Vec::with_capacity(capacity);
+    }
+
+    fn update_result(&mut self) {
+        self.result.qx.push(self.orientation.x);
+        self.result.qy.push(self.orientation.y);
+        self.result.qz.push(self.orientation.z);
+        self.result.qw.push(self.orientation.s);
+        self.result.rx.push(self.position[0]);
+        self.result.ry.push(self.position[1]);
+        self.result.rz.push(self.position[2]);
+    }
 }
 
 fn from_planet_fact_sheet(
@@ -259,73 +315,15 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Quater
     orientation_from_rotation * initial_orientation
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CelestialBodyResult(HashMap<String, Vec<f64>>);
-
-impl CelestialBodyResult {
-    const STATES: &'static [&'static str] = &[
-        "position[x]",
-        "position[y]",
-        "position[z]",
-        "orientation[x]",
-        "orientation[y]",
-        "orientation[z]",
-        "orientation[w]",
-    ];
-
-    pub fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, CelestialErrors> {
-        self.0
-            .get(state)
-            .ok_or(CelestialErrors::StateNotFound(state.to_string()))
-    }
-
-    pub fn new() -> Self {
-        let mut result = HashMap::new();
-        Self::STATES.iter().for_each(|state| {
-            result.insert(state.to_string(), Vec::new());
-        });
-        Self(result)
-    }
-
-    pub fn update(&mut self, body: &CelestialBody) {
-        self.0
-            .get_mut("position[x]")
-            .unwrap()
-            .push(body.position[0]);
-        self.0
-            .get_mut("position[y]")
-            .unwrap()
-            .push(body.position[1]);
-        self.0
-            .get_mut("position[z]")
-            .unwrap()
-            .push(body.position[2]);
-
-        self.0
-            .get_mut("orientation[x]")
-            .unwrap()
-            .push(body.orientation.x);
-        self.0
-            .get_mut("orientation[y]")
-            .unwrap()
-            .push(body.orientation.y);
-        self.0
-            .get_mut("orientation[x]")
-            .unwrap()
-            .push(body.orientation.x);
-        self.0
-            .get_mut("orientation[z]")
-            .unwrap()
-            .push(body.orientation.z);
-        self.0
-            .get_mut("orientation[x]")
-            .unwrap()
-            .push(body.orientation.x);
-        self.0
-            .get_mut("orientation[w]")
-            .unwrap()
-            .push(body.orientation.s);
-    }
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct CelestialBodyResult {
+    rx: Vec<f64>,
+    ry: Vec<f64>,
+    rz: Vec<f64>,
+    qx: Vec<f64>,
+    qy: Vec<f64>,
+    qz: Vec<f64>,
+    qw: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
@@ -414,66 +412,10 @@ impl CelestialBodies {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CelestialResult {
     pub epoch_sec_j2k_tai: Vec<f64>,
-    pub bodies: HashMap<CelestialBodies, CelestialBodyResult>,
 }
 
 impl CelestialResult {
-    pub fn update(&mut self, epoch: Time, sys: &CelestialSystem) -> Result<(), CelestialErrors> {
-        // update the epoch based on sim time
-        self.epoch_sec_j2k_tai.push(epoch.get_seconds_j2k());
-        // it should be safe to do this enumerated since we initialized the result struct from the sys struct
-        for body in &sys.bodies {
-            if let Some(body_result) = self.bodies.get_mut(&body.body) {
-                body_result.update(body);
-            } else {
-                return Err(CelestialErrors::BodyNotFoundInCelestialSystem);
-            }
-        }
-        Ok(())
-    }
-
-    pub fn get_state_names(&self) -> Vec<String> {
-        let mut names = Vec::new();
-        names.push("epoch_sec_j2k_tai".to_string());
-
-        let body_states = CelestialBodyResult::STATES;
-
-        for (body, _) in &self.bodies {
-            let body_name = body.get_name();
-            let these_names: Vec<String> = body_states
-                .iter()
-                .map(|state| body_name.clone() + "_" + state)
-                .collect();
-            names.extend_from_slice(&these_names);
-        }
-        names
-    }
-
-    pub fn get_state_value(&self, state: &str) -> Result<&Vec<f64>, CelestialErrors> {
-        let body_prefixes = [
-            ("earth_", CelestialBodies::Earth),
-            ("jupiter_", CelestialBodies::Jupiter),
-            ("mars_", CelestialBodies::Mars),
-            ("mercury_", CelestialBodies::Mercury),
-            ("moon_", CelestialBodies::Moon),
-            ("neptune_", CelestialBodies::Neptune),
-            ("pluto_", CelestialBodies::Pluto),
-            ("saturn_", CelestialBodies::Saturn),
-            ("sun_", CelestialBodies::Sun),
-            ("uranus_", CelestialBodies::Uranus),
-            ("venus_", CelestialBodies::Venus),
-        ];
-
-        for (prefix, body) in body_prefixes {
-            if let Some(stripped_state) = state.strip_prefix(prefix) {
-                return self
-                    .bodies
-                    .get(&body)
-                    .ok_or(CelestialErrors::BodyNotFoundInCelestialSystem)?
-                    .get_state_value(stripped_state);
-            }
-        }
-
-        Err(CelestialErrors::BodyNotFoundInCelestialSystem)
+    fn initialize_result(&mut self, capacity: usize) {
+        self.epoch_sec_j2k_tai = Vec::with_capacity(capacity);
     }
 }
