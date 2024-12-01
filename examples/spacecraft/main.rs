@@ -41,7 +41,7 @@ fn main() {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
     let state = FloatingState::new().with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
@@ -74,14 +74,11 @@ fn main() {
     sys.connect("base", "f", Transform::IDENTITY).unwrap();
     sys.connect("f", "b", Transform::IDENTITY).unwrap();
 
-    let pwd = &std::env::current_dir().unwrap();
-    sys.save(pwd);
-
     // We will use SPICE data for the planetary ephemeris
     // from_local() will check if you already downloaded the data locally
     // if not calls from_naif() to download the data
     let mut spice = Some(Spice::from_local().unwrap());
 
-    // Run a simulation
+    // Run the simulation
     sys.simulate("", 0.0, 7200.0, 1.0, &mut spice);
 }

@@ -73,6 +73,12 @@ pub enum Gravity {
     EGM96(EGM96Gravity),
 }
 
+impl From<ConstantGravity> for Gravity {
+    fn from(value: ConstantGravity) -> Self {
+        Self::Constant(value)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstantGravity {
     pub value: Vector3<f64>,
@@ -271,7 +277,7 @@ impl GravityTrait for EGM96Gravity {
                 gy = 0.0;
                 gz = 1.0 / r * du_dr * pos[2];
             }
-            Vector3::new(gx, gy, gz)            
+            Vector3::new(gx, gy, gz)
         }
 
         fn lambda_coeff(max_deg: usize, lambda: f64) -> (Vec<f64>, Vec<f64>) {

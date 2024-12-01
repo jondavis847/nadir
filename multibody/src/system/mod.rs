@@ -1,8 +1,5 @@
 use crate::{
-    base::BaseSystems,
-    joint::JointStates,
-    result::MultibodyResult,
-    solver::rk4::solve_fixed_rk4,
+    base::BaseSystems, joint::JointStates, result::MultibodyResult, solver::rk4::solve_fixed_rk4,
 };
 
 use super::{
@@ -71,7 +68,7 @@ impl MultibodySystem {
         if self.check_name_taken(&joint.name) {
             return Err(MultibodyErrors::NameTaken(joint.name));
         }
-        
+
         self.joints.push(joint);
         Ok(())
     }
@@ -199,14 +196,14 @@ impl MultibodySystem {
 
     /// Reorders the bodies and joints appropraitely at the start of the multibody simulation
     fn permute(&mut self) {
-        let mut joint_order = Vec::new();
+        let mut joint_order = Vec::new();        
         let mut body_order = Vec::new();
 
         // Helper function to recursively traverse joints and bodies
         fn traverse_body(
             sys: &MultibodySystem,
             body_id: &str,
-            joint_order: &mut Vec<usize>,
+            joint_order: &mut Vec<usize>,            
             body_order: &mut Vec<usize>,
         ) {
             // Find the body by its ID
@@ -230,7 +227,12 @@ impl MultibodySystem {
 
                         // Recurse into connected outer bodies
                         if let Some(connection) = &joint.connections.outer_body {
-                            traverse_body(sys, &connection.body_id, joint_order, body_order);
+                            traverse_body(
+                                sys,
+                                &connection.body_id,
+                                joint_order,                                
+                                body_order,
+                            );
                         }
                     }
                 }
@@ -249,7 +251,12 @@ impl MultibodySystem {
 
                 // Recurse into connected outer bodies
                 if let Some(connection) = &joint.connections.outer_body {
-                    traverse_body(self, &connection.body_id, &mut joint_order, &mut body_order);
+                    traverse_body(
+                        self,
+                        &connection.body_id,
+                        &mut joint_order,                        
+                        &mut body_order,
+                    );
                 }
             }
         }
@@ -257,14 +264,39 @@ impl MultibodySystem {
         // Update the simulation's order of joints and bodies
         let mut ij = 0 as usize;
         for i in joint_order {
-            self.joints.swap(ij, i);
+            self.joints.swap(ij, i);            
             ij += 1;
         }
-
         let mut ib = 0 as usize;
         for i in body_order {
             self.bodies.swap(ib, i);
             ib += 1;
+        }
+
+        // get and assign the inner joints to joints
+        let mut inner_joints = Vec::new();
+        for joint in self.joints.iter() {
+            let inner_body_name = &joint.connections.inner_body.as_ref().unwrap().body_id;
+            if inner_body_name == "base" {
+                inner_joints.push(None);
+            } else {
+                let inner_body = self
+                    .bodies
+                    .iter()
+                    .find(|body| body.name == *inner_body_name)
+                    .unwrap();
+                let inner_joint_name = inner_body.inner_joint.as_ref().unwrap();
+                let (inner_joint_idx, _) = self
+                    .joints
+                    .iter()
+                    .enumerate()
+                    .find(|(_, joint)| joint.name == *inner_joint_name)
+                    .unwrap();
+                inner_joints.push(Some(inner_joint_idx));
+            }
+        }
+        for (i, joint) in self.joints.iter_mut().enumerate() {
+            joint.inner_joint = inner_joints[i];
         }
     }
 
@@ -302,9 +334,9 @@ impl MultibodySystem {
                     if let Some((parent_ia, parent_pa)) =
                         self.joints[i].aba_second_pass(inner_is_base)
                     {
-                        let parent_joint_index = self.joints[i].inner_joint.unwrap();
-                        self.joints[parent_joint_index].cache.aba.inertia_articulated += parent_ia;
-                        self.joints[parent_joint_index].cache.aba.p_big_a += parent_pa;
+                        let parent_index = self.joints[i].inner_joint.unwrap();
+                        self.joints[parent_index].cache.aba.inertia_articulated += parent_ia;
+                        self.joints[parent_index].cache.aba.p_big_a += parent_pa;
                     }
                 }
 
@@ -620,7 +652,7 @@ impl MultibodySystem {
         for i in 0..self.joints.len() {
             // we use split_at_mut here to get an immutable reference to the inner joint and mutable ref to the current joint
             let (left, right) = self.joints.split_at_mut(i);
-            let joint = &mut right[0];            
+            let joint = &mut right[0];
             let ij_transforms = match joint.inner_joint {
                 // inner body is the base
                 None => None,
