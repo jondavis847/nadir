@@ -4,31 +4,25 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aerospace = {path = "../aerospace"}
-spice = {path = "../spice"}
-transforms = {path = "../transforms"}
-coordinate_systems = {path = "../coordinate_systems"}
-nadir_3d = {path = "../nadir_3d"}
-rotations = {path = "../rotations"}
-spatial_algebra = {path = "../spatial_algebra"}
-mass_properties = {path = "../mass_properties"}
-utilities = {path = "../utilities"}
-chrono = "0.4.38"
-nalgebra = "0.33.0"
-clap = { version = "4.5.11", features = ["derive"] }
-colored = "2.1.0"
-smol_str = "0.2.2"
-reedline = "0.33.0"
-ratatui = "0.27.0"
+aerospace.workspace = true
+spice.workspace = true
+transforms.workspace = true
+coordinate_systems.workspace = true
+nadir_3d.workspace = true
+rotations.workspace = true
+spatial_algebra.workspace = true
+mass_properties.workspace = true
+utilities.workspace = true
+time.workspace = true
+chrono.workspace = true
+nalgebra.workspace = true
+clap.workspace = true
 ron.workspace = true
-serde = { version = "1.0.204", features = ["derive"] }
-dhat = "0.3.3"
-dirs-next = "2.0.0"
-rand = { version = "0.8.5", features = ["serde", "serde1", "small_rng"] }
-rand_distr = { version = "0.4.3", features = ["serde", "serde1"] }
-time = { path = "../time"}
-thiserror = "2.0.3"
-typetag = "0.2.18"
+serde.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+thiserror.workspace = true
+typetag.workspace = true
 
 [features]
 dhat-heap = []

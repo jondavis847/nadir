@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aerospace = {path = "../aerospace"}
+aerospace.workspace = true
 bincode = "1.3.3"
-bytemuck = "1.17.0"
-color = {path = "../color"}
-nadir_3d = {path = "../nadir_3d"}
-glam = { version = "0.29.0", features = ["bytemuck"] }
-iced = { version = "0.13.1", features = ["advanced","canvas","tokio"] }
-image = "0.25.2"
+bytemuck.workspace = true
+color.workspace = true
+glam.workspace = true
+iced.workspace = true
+image.workspace = true
+nadir_3d.workspace = true
 multibody.workspace = true
 ron.workspace = true

@@ -156,7 +156,7 @@ impl Mul<MassProperties> for Transform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx_eq::assert_approx_eq;
+    use approx::assert_abs_diff_eq;
     use rotations::{
         euler_angles::{EulerAngles, EulerSequence},
         quaternion::Quaternion,
@@ -189,16 +189,16 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_approx_eq!(result_rotation.s, expected_rotation.s, TOL);
-        assert_approx_eq!(result_rotation.x, expected_rotation.x, TOL);
-        assert_approx_eq!(result_rotation.y, expected_rotation.y, TOL);
-        assert_approx_eq!(result_rotation.z, expected_rotation.z, TOL);
-        assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
-        assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
-        assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
-        assert_approx_eq!(result_vector[0], expected_vector[0], TOL);
-        assert_approx_eq!(result_vector[1], expected_vector[1], TOL);
-        assert_approx_eq!(result_vector[2], expected_vector[2], TOL);
+        assert_abs_diff_eq!(result_rotation.s, expected_rotation.s, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[0], expected_vector[0], epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[1], expected_vector[1], epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[2], expected_vector[2], epsilon = TOL);
     }
 
     fn assert_transform_mul3(
@@ -231,16 +231,16 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_approx_eq!(result_rotation.s, expected_rotation.s, TOL);
-        assert_approx_eq!(result_rotation.x, expected_rotation.x, TOL);
-        assert_approx_eq!(result_rotation.y, expected_rotation.y, TOL);
-        assert_approx_eq!(result_rotation.z, expected_rotation.z, TOL);
-        assert_approx_eq!(result_translation.x, expected_translation.x, TOL);
-        assert_approx_eq!(result_translation.y, expected_translation.y, TOL);
-        assert_approx_eq!(result_translation.z, expected_translation.z, TOL);
-        assert_approx_eq!(result_vector[0], expected_vector[0], TOL);
-        assert_approx_eq!(result_vector[1], expected_vector[1], TOL);
-        assert_approx_eq!(result_vector[2], expected_vector[2], TOL);
+        assert_abs_diff_eq!(result_rotation.s, expected_rotation.s, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[0], expected_vector[0], epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[1], expected_vector[1], epsilon = TOL);
+        assert_abs_diff_eq!(result_vector[2], expected_vector[2], epsilon = TOL);
     }
 
     #[test]
