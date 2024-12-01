@@ -42,7 +42,7 @@ fn main() {
             } else {
                 std::env::current_dir().unwrap()
             };
-            nadir_animation::main(Some(result_path)).unwrap();
+            animation::main(Some(result_path)).unwrap();
         }
     }
 }

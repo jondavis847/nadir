@@ -35,7 +35,7 @@ checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
 
 [[package]]
 name = "aerospace"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "interp",
@@ -139,6 +139,22 @@ name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
+
+[[package]]
+name = "animation"
+version = "0.0.1"
+dependencies = [
+ "aerospace",
+ "bincode",
+ "bytemuck",
+ "color",
+ "glam 0.29.2",
+ "iced",
+ "image",
+ "multibody",
+ "nadir_3d",
+ "ron",
+]
 
 [[package]]
 name = "anstream"
@@ -818,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "color"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "serde",
 ]
@@ -887,7 +903,7 @@ dependencies = [
 
 [[package]]
 name = "coordinate_systems"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "nalgebra",
  "serde",
@@ -2745,7 +2761,7 @@ dependencies = [
 
 [[package]]
 name = "mass_properties"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "nalgebra",
  "serde",
@@ -2846,7 +2862,7 @@ dependencies = [
 
 [[package]]
 name = "multibody"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "aerospace",
  "chrono",
@@ -2873,13 +2889,13 @@ dependencies = [
 name = "nadir"
 version = "0.0.1"
 dependencies = [
+ "animation",
  "clap",
- "nadir_animation",
 ]
 
 [[package]]
 name = "nadir_3d"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytemuck",
  "color",
@@ -2889,24 +2905,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "nadir_animation"
-version = "0.1.0"
-dependencies = [
- "aerospace",
- "bincode",
- "bytemuck",
- "color",
- "glam 0.29.2",
- "iced",
- "image",
- "multibody",
- "nadir_3d",
- "ron",
-]
-
-[[package]]
 name = "nadir_fsw"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "multibody",
  "nalgebra",
@@ -4098,7 +4098,7 @@ dependencies = [
 
 [[package]]
 name = "rotations"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "coordinate_systems",
@@ -4562,7 +4562,7 @@ dependencies = [
 
 [[package]]
 name = "spatial_algebra"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "coordinate_systems",
@@ -4575,7 +4575,7 @@ dependencies = [
 
 [[package]]
 name = "spice"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "bincode",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "chrono",
@@ -5023,7 +5023,7 @@ dependencies = [
 
 [[package]]
 name = "transforms"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "approx",
  "coordinate_systems",
@@ -5201,7 +5201,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "utilities"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "uuid"
