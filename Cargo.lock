@@ -4555,9 +4555,11 @@ dependencies = [
  "nalgebra",
  "ron",
  "rotations",
+ "serde",
  "spice",
  "time",
  "transforms",
+ "typetag",
 ]
 
 [[package]]

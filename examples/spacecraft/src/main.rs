@@ -22,6 +22,8 @@ use spice::Spice;
 use time::Time;
 use transforms::Transform;
 
+mod hardware;
+
 fn main() {
     // Create the MultibodySystem
     // sys is will be created with nothing but a default base

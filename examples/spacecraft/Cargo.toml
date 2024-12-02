@@ -12,10 +12,8 @@ nadir_3d.workspace = true
 nalgebra.workspace = true
 rotations.workspace = true 
 ron.workspace = true
+serde.workspace = true
 spice.workspace = true
 time.workspace = true
 transforms.workspace = true
-
-[[bin]]
-name = "spacecraft"
-path = "main.rs"
+typetag.workspace = true

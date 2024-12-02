@@ -1,6 +1,6 @@
 use std::{collections::HashMap, mem::take};
 
-use crate::{
+use multibody::{
     body::{Body, BodyConnection},
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{noise::Noise, SensorModel},
