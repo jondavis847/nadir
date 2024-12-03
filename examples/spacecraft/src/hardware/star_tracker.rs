@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem::take};
 
 use multibody::{
-    body::{Body, BodyConnection},
+    body::BodyConnection,
     result::{MultibodyResultTrait, ResultEntry},
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
@@ -46,11 +46,13 @@ impl StarTracker {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_misalignment(mut self, misalignment: Rotation) -> Self {
         self.parameters.misalignment = Some(misalignment);
         self
@@ -65,12 +67,11 @@ impl StarTracker {
 
 #[typetag::serde]
 impl SensorModel for StarTracker {
-    fn update(&mut self, body: &Body, connection: &BodyConnection) {
+    fn update(&mut self, connection: &BodyConnection) {
+        let body = connection.body.borrow();
         let body_to_st = Quaternion::from(&connection.transform.rotation);
-
         // Get the truth attitude
         let mut sensor_attitude = body_to_st * body.state.attitude_base;
-
         // Apply optional misalignment
         if let Some(misalignment) = &self.parameters.misalignment {
             sensor_attitude = Quaternion::from(misalignment) * sensor_attitude;
@@ -89,13 +90,25 @@ impl SensorModel for StarTracker {
 impl MultibodyResultTrait for StarTracker {
     fn get_result_entry(&mut self) -> ResultEntry {
         let mut result = HashMap::new();
-        result.insert("measurement[x]".to_string(), take(&mut self.result.measurement_x));
-        result.insert("measurement[y]".to_string(), take(&mut self.result.measurement_y));
-        result.insert("measurement[z]".to_string(), take(&mut self.result.measurement_z));
-        result.insert("measurement[w]".to_string(), take(&mut self.result.measurement_w));
-        result.insert("noise[x]".to_string(), take(&mut self.result.noise_x));        
-        result.insert("noise[y]".to_string(), take(&mut self.result.noise_y));        
-        result.insert("noise[z]".to_string(), take(&mut self.result.noise_z));        
+        result.insert(
+            "measurement[x]".to_string(),
+            take(&mut self.result.measurement_x),
+        );
+        result.insert(
+            "measurement[y]".to_string(),
+            take(&mut self.result.measurement_y),
+        );
+        result.insert(
+            "measurement[z]".to_string(),
+            take(&mut self.result.measurement_z),
+        );
+        result.insert(
+            "measurement[w]".to_string(),
+            take(&mut self.result.measurement_w),
+        );
+        result.insert("noise[x]".to_string(), take(&mut self.result.noise_x));
+        result.insert("noise[y]".to_string(), take(&mut self.result.noise_y));
+        result.insert("noise[z]".to_string(), take(&mut self.result.noise_z));
         result.insert("noise[w]".to_string(), take(&mut self.result.noise_w));
         ResultEntry::new(result)
     }
@@ -105,10 +118,10 @@ impl MultibodyResultTrait for StarTracker {
         self.result.measurement_y = Vec::with_capacity(capacity);
         self.result.measurement_z = Vec::with_capacity(capacity);
         self.result.measurement_w = Vec::with_capacity(capacity);
-        self.result.noise_x = Vec::with_capacity(capacity);        
-        self.result.noise_y = Vec::with_capacity(capacity);        
-        self.result.noise_z = Vec::with_capacity(capacity);        
-        self.result.noise_w = Vec::with_capacity(capacity);        
+        self.result.noise_x = Vec::with_capacity(capacity);
+        self.result.noise_y = Vec::with_capacity(capacity);
+        self.result.noise_z = Vec::with_capacity(capacity);
+        self.result.noise_w = Vec::with_capacity(capacity);
     }
 
     fn update_result(&mut self) {

@@ -3,12 +3,17 @@ use aerospace::{
     orbit::KeplerianElements,
 };
 use color::Color;
+use hardware::{rate_gyro::RateGyro, star_tracker::StarTracker};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     body::Body,
     joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
+    },
+    sensor::{
+        noise::{gaussian::GaussianNoise, NoiseModels},
+        Sensor,
     },
     system::MultibodySystem,
 };
@@ -22,7 +27,7 @@ use spice::Spice;
 use time::Time;
 use transforms::Transform;
 
-//mod hardware;
+mod hardware;
 
 fn main() {
     // Create the MultibodySystem
@@ -43,8 +48,11 @@ fn main() {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
-    let state = FloatingState::new().with_orbit(orbit.into());
+    let orbit =
+        KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
+    let state = FloatingState::new()
+        .with_rates([0.0, 0.0, 0.1].into())
+        .with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
     let f = Joint::new("f", f_model).unwrap();
@@ -70,12 +78,31 @@ fn main() {
     let b = Body::new("b", mp).unwrap().with_mesh(mesh);
     sys.add_body(b).unwrap();
 
+    // Add a star tracker and a rate gyro
+    let st = Sensor::new(
+        "st",
+        StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
+            0.0,
+            50.0 / 3600.0 * 180.0 / std::f64::consts::PI,
+        ))),
+    );
+    sys.add_sensor(st).unwrap();
+    let imu = Sensor::new(
+        "imu",
+        RateGyro::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
+            0.0,
+            1.0 * std::f64::consts::PI / 180.0,
+        ))),
+    );
+    sys.add_sensor(imu).unwrap();
+
     // Connect the components together.
     // Connections are made by the components names.
     // The direction of the connection matters - (from,to)
     sys.connect("base", "f", Transform::IDENTITY).unwrap();
     sys.connect("f", "b", Transform::IDENTITY).unwrap();
-
+    sys.connect("st", "b", Transform::IDENTITY).unwrap();
+    sys.connect("imu", "b", Transform::IDENTITY).unwrap();
     // We will use SPICE data for the planetary ephemeris
     // from_local() will check if you already downloaded the data locally
     // if not calls from_naif() to download the data

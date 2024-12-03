@@ -19,7 +19,7 @@ pub enum SensorErrors {
 
 #[typetag::serde]
 pub trait SensorModel: CloneSensorModel + Debug + MultibodyResultTrait {
-    fn update(&mut self);
+    fn update(&mut self, connection: &BodyConnection);
 }
 pub trait CloneSensorModel {
     fn clone_model(&self) -> Box<dyn SensorModel>;
@@ -63,15 +63,15 @@ impl Sensor {
         Ok(())
     }
 
-    pub fn new(name: String, model: impl SensorModel + 'static) -> Self {
+    pub fn new(name: &str, model: impl SensorModel + 'static) -> Self {
         Self {
-            name,
+            name: name.to_string(),
             model: Box::new(model),
             connection: None,
         }
     }
 
     pub fn update(&mut self) {
-        self.model.update();
+        self.model.update(&self.connection.as_ref().unwrap());
     }
 }

@@ -377,6 +377,7 @@ impl JointModel for Floating {
         state.0[12] = self.state.v[2];
     }
 
+
     fn update_transforms(
         &mut self,
         transforms: &mut JointTransforms,
