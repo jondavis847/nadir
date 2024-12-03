@@ -1,7 +1,7 @@
 pub mod noise;
 
 use crate::{
-    body::{Body, BodyConnection},
+    body::{BodyConnection, BodyRef},
     result::MultibodyResultTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ pub enum SensorErrors {
 
 #[typetag::serde]
 pub trait SensorModel: CloneSensorModel + Debug + MultibodyResultTrait {
-    fn update(&mut self, body: &Body, connection: &BodyConnection);
+    fn update(&mut self);
 }
 pub trait CloneSensorModel {
     fn clone_model(&self) -> Box<dyn SensorModel>;
@@ -49,23 +49,17 @@ pub struct Sensor {
 impl Sensor {
     pub fn connect_to_body(
         &mut self,
-        body: &mut Body,
+        body: &BodyRef,
         transform: Transform,
     ) -> Result<(), SensorErrors> {
         if let Some(connection) = &self.connection {
             return Err(SensorErrors::AlreadyConnectedToAnotherBody(
                 self.name.clone(),
-                connection.body_id.clone(),
+                connection.body.borrow().name.clone(),
             ));
         }
 
-        if body.sensors.contains(&self.name) {
-            return Err(SensorErrors::AlreadyConnectedToThisBody(self.name.clone()));
-        } else {
-            body.sensors.push(self.name.clone());
-        }
-
-        self.connection = Some(BodyConnection::new(body.name.clone(), transform));
+        self.connection = Some(BodyConnection::new(body.clone(), transform));
         Ok(())
     }
 
@@ -77,11 +71,7 @@ impl Sensor {
         }
     }
 
-    pub fn update(&mut self, body: &Body) {
-        if let Some(connection) = &self.connection {
-            self.model.update(body, connection);
-        } else {
-            unreachable!("no sensor connection found. should not be possible, should be caught in system validation.")
-        }
+    pub fn update(&mut self) {
+        self.model.update();
     }
 }

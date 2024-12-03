@@ -154,11 +154,11 @@ impl MultibodyResult {
             std::fs::create_dir_all(&path).unwrap();
         }
 
-        // create the sys file
-        let sys_path = path.join("system.ron");
-        let mut file = File::create(sys_path).unwrap();
-        let ron_string = to_string_pretty(sys, PrettyConfig::new()).unwrap();
-        file.write_all(ron_string.as_bytes()).unwrap();
+        // // create the sys file
+        // let sys_path = path.join("system.ron");
+        // let mut file = File::create(sys_path).unwrap();
+        // let ron_string = to_string_pretty(sys, PrettyConfig::new()).unwrap();
+        // file.write_all(ron_string.as_bytes()).unwrap();
 
         // create the ron file
         let res_path = path.join("result.ron");

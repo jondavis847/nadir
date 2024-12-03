@@ -17,7 +17,7 @@ use std::ops::{AddAssign, MulAssign};
 use std::{collections::HashMap, mem::take};
 use transforms::Transform;
 
-use super::{JointCache, JointModel, JointStateVector};
+use super::{JointCache, JointModel, JointRef, JointStateVector};
 
 #[derive(Debug, Copy, Clone)]
 pub enum FloatingErrors {}
@@ -380,7 +380,7 @@ impl JointModel for Floating {
     fn update_transforms(
         &mut self,
         transforms: &mut JointTransforms,
-        ij_transforms: Option<&JointTransforms>,
+        inner_joint: &Option<JointRef>,
     ) {
         let rotation = Rotation::from(&self.state.q);
         let translation = Cartesian::from(self.state.r); // r is already jif to jof
@@ -388,7 +388,7 @@ impl JointModel for Floating {
 
         transforms.jof_from_jif = SpatialTransform(transform);
         transforms.jif_from_jof = transforms.jof_from_jif.inv();
-        transforms.update(ij_transforms)
+        transforms.update(inner_joint)
     }
 }
 
@@ -513,11 +513,7 @@ struct FloatingCache {
 }
 
 impl ArticulatedBodyAlgorithm for Floating {
-    fn aba_second_pass(
-        &mut self,
-        joint_cache: &mut JointCache,
-        inner_is_base: bool,
-    ) -> Option<(SpatialInertia, Force)> {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let aba = &mut self.cache.aba;
         let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
@@ -526,7 +522,7 @@ impl ArticulatedBodyAlgorithm for Floating {
         aba.big_d_inv = aba.big_u.try_inverse().unwrap();
         aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector(); //note force is 1 indexed, so 1
 
-        if !inner_is_base {
+        if let Some(inner_joint_ref) = inner_joint {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
@@ -536,16 +532,20 @@ impl ArticulatedBodyAlgorithm for Floating {
                 + Force::from(i_lil_a * joint_cache.aba.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            let parent_inertia_articulated_contribution =
+            let mut inner_joint = inner_joint_ref.borrow_mut();
+            inner_joint.cache.aba.inertia_articulated +=
                 joint_cache.transforms.ij_jof_from_jof * i_lil_a;
-            let parent_p_big_a = joint_cache.transforms.ij_jof_from_jof * aba.common.p_lil_a;
-            Some((parent_inertia_articulated_contribution, parent_p_big_a))
-        } else {
-            None
+            inner_joint.cache.aba.p_big_a +=
+                joint_cache.transforms.ij_jof_from_jof * joint_cache.aba.p_lil_a;
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, a_ij: Acceleration) {
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
+        let a_ij = if let Some(inner_joint_ref) = inner_joint {
+            inner_joint_ref.borrow().cache.a
+        } else {
+            Acceleration::zeros()
+        };
         let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
         self.cache.q_ddot = self.cache.aba.big_d_inv
             * (self.cache.aba.lil_u - self.cache.aba.big_u.transpose() * a_prime.vector());

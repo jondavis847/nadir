@@ -1,7 +1,6 @@
 use crate::{
-    joint::Joint,
+    joint::{Joint, JointRef},
     result::{MultibodyResultTrait, ResultEntry},
-    sensor::Sensor,
 };
 
 use aerospace::{
@@ -14,7 +13,12 @@ use nalgebra::{Vector3, Vector6};
 use rotations::{quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
-use std::{collections::HashMap, mem::take};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    mem::take,
+    rc::{Rc, Weak},
+};
 use thiserror::Error;
 use transforms::Transform;
 
@@ -30,18 +34,17 @@ pub enum BodyErrors {
 
 pub trait BodyTrait {
     fn get_name(&self) -> String;
-    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors>;
+    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors>;
 }
 
+pub type BodyRef = Rc<RefCell<Body>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
-    pub actuators: Vec<String>,
-    pub inner_joint: Option<String>,
+    pub inner_joint: Option<Weak<RefCell<Joint>>>,
     pub mass_properties: MassProperties,
     pub mesh: Option<Mesh>,
     pub name: String,
-    pub outer_joints: Vec<String>, // id of joint in system.joints, joint contains the transform information
-    pub sensors: Vec<String>,
+    pub outer_joints: Vec<Weak<RefCell<Joint>>>, // id of joint in system.joints, joint contains the transform information
     #[serde(skip)]
     pub state: BodyState,
     #[serde(skip)]
@@ -49,10 +52,10 @@ pub struct Body {
 }
 
 impl Body {
-    pub fn connect_inner_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
+    pub fn connect_inner_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
         match self.inner_joint {
             Some(_) => return Err(BodyErrors::InnerJointExists(self.name.to_string())),
-            None => self.inner_joint = Some(joint.name.clone()),
+            None => self.inner_joint = Some(Rc::downgrade(&joint.clone())),
         }
         Ok(())
     }
@@ -62,14 +65,12 @@ impl Body {
             return Err(BodyErrors::EmptyName);
         }
         Ok(Self {
-            actuators: Vec::new(),
             mesh: None,
             inner_joint: None,
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
             result: BodyResult::default(),
-            sensors: Vec::new(),
             state: BodyState::default(),
         })
     }
@@ -131,14 +132,6 @@ impl Body {
         // populate values for reporting
         self.state.external_force_body = *self.state.external_spatial_force_body.translation();
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
-    }
-
-    pub fn update_sensors(&self, sensors: &mut HashMap<String, Sensor>) {
-        self.sensors.iter().for_each(|id| {
-            if let Some(sensor) = sensors.get_mut(id) {
-                sensor.update(self);
-            }
-        })
     }
 }
 
@@ -399,16 +392,22 @@ impl BodyTrait for Body {
     fn get_name(&self) -> String {
         self.name.clone()
     }
-    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
+    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
         // Check if the joint already exists in outer_joints
-        if self.outer_joints.iter().any(|id| *id == joint.name) {
-            return Err(BodyErrors::OuterJointExists(
-                joint.name.to_string(),
-                self.name.to_string(),
-            ));
+        let name = joint.borrow().name.clone();
+        for jointref in &self.outer_joints {
+            if let Some(joint) = jointref.upgrade() {
+                if joint.borrow().name == name {
+                    return Err(BodyErrors::OuterJointExists(
+                        name,
+                        self.name.clone(),
+                    ));
+                }
+            }
         }
+
         // Push the new joint connection
-        self.outer_joints.push(joint.name.clone());
+        self.outer_joints.push(Rc::downgrade(&joint.clone()));
         Ok(())
     }
 }
@@ -473,11 +472,11 @@ struct BodyResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BodyConnection {
-    pub body_id: String,
+    pub body: BodyRef,
     pub transform: Transform,
 }
 impl BodyConnection {
-    pub fn new(body_id: String, transform: Transform) -> Self {
-        Self { body_id, transform }
+    pub fn new(body: BodyRef, transform: Transform) -> Self {
+        Self { body, transform }
     }
 }

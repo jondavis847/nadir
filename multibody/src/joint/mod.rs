@@ -3,10 +3,11 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
-use super::body::{Body, BodyErrors, BodyTrait};
+use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::BodyConnection,
+    base::{BaseConnection, BaseRef},
+    body::{BodyConnection, BodyRef},
     result::MultibodyResultTrait,
 };
 use joint_transforms::JointTransforms;
@@ -14,8 +15,10 @@ use mass_properties::MassProperties;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::{
+    cell::RefCell,
     fmt::Debug,
     ops::{AddAssign, MulAssign},
+    rc::Rc,
 };
 use thiserror::Error;
 use transforms::Transform;
@@ -33,6 +36,8 @@ pub enum JointErrors {
     #[error("outer body already exists for joint '{0}'")]
     OuterBodyExists(String),
 }
+
+pub type JointRef = Rc<RefCell<Joint>>;
 
 #[typetag::serde]
 pub trait JointModel:
@@ -63,7 +68,7 @@ pub trait JointModel:
     fn update_transforms(
         &mut self,
         transforms: &mut JointTransforms,
-        ij_transforms: Option<&JointTransforms>,
+        inner_joint: &Option<JointRef>,
     );
 }
 pub trait CloneJointModel {
@@ -92,11 +97,18 @@ pub struct Joint {
     #[serde(skip)]
     pub cache: JointCache,
     #[serde(skip)]
-    pub inner_joint: Option<usize>, //index of the parent joint
+    pub inner_joint: Option<JointRef>, //index of the parent joint
 }
 
 impl Joint {
-    pub fn aba_first_pass(&mut self, v_ij: Velocity) {
+    pub fn aba_first_pass(&mut self) {
+        // get the inner joint velocity
+        let v_ij = if let Some(inner_joint_ref) = &self.inner_joint {
+            inner_joint_ref.borrow().cache.v
+        } else {
+            Velocity::zeros()
+        };
+
         let c = &mut self.cache;
 
         c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
@@ -105,12 +117,14 @@ impl Joint {
         c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;
     }
 
-    pub fn aba_second_pass(&mut self, inner_is_base: bool) -> Option<(SpatialInertia, Force)> {
-        self.model.aba_second_pass(&mut self.cache, inner_is_base)
+    pub fn aba_second_pass(&mut self) {
+        self.model
+            .aba_second_pass(&mut self.cache, &self.inner_joint);
     }
 
-    pub fn aba_third_pass(&mut self, a_ij: Acceleration) {
-        self.model.aba_third_pass(&mut self.cache, a_ij);
+    pub fn aba_third_pass(&mut self) {
+        self.model
+            .aba_third_pass(&mut self.cache, &self.inner_joint);
     }
 
     pub fn new(name: &str, model: impl JointModel + 'static) -> Result<Self, JointErrors> {
@@ -126,57 +140,80 @@ impl Joint {
         })
     }
     /// Calculates the mass properties about the joint given mass properties at the outer body
-    pub fn calculate_joint_inertia(&mut self, mass_properties: &MassProperties) {
+    pub fn calculate_joint_inertia(&mut self) {
+        let outer_body_connection = self.connections.outer_body.as_ref().unwrap();
+        let mass_properties = &outer_body_connection.body.borrow().mass_properties;
+
         self.model
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
-    pub fn connect_inner_body<B: BodyTrait>(
+    pub fn connect_base(&mut self, base: BaseRef, transform: Transform) -> Result<(), JointErrors> {
+        if let Some(_) = &self.connections.inner_body {
+            return Err(JointErrors::InnerBodyExists(self.name.to_string()));
+        } else {
+            self.connections.inner_body =
+                Some(InnerBody::Base(BaseConnection::new(base, transform)));
+            self.cache.transforms.jif_from_ib = SpatialTransform(transform);
+            self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
+        }
+        Ok(())
+    }
+
+    pub fn connect_inner_body(
         &mut self,
-        body: &mut B,
+        body: &BodyRef,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
         } else {
-            body.connect_outer_joint(self)?;
-            self.connections.inner_body = Some(BodyConnection::new(body.get_name(), transform));
+            self.connections.inner_body =
+                Some(InnerBody::Body(BodyConnection::new(body.clone(), transform)));
             self.cache.transforms.jif_from_ib = SpatialTransform(transform);
-            self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());            
+            self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
         }
         Ok(())
     }
 
     pub fn connect_outer_body(
         &mut self,
-        body: &mut Body,
+        bodyref: &BodyRef,
         transform: Transform,
     ) -> Result<(), JointErrors> {
         if let Some(_) = &self.connections.outer_body {
             return Err(JointErrors::OuterBodyExists(self.name.clone()));
         } else {
-            body.connect_inner_joint(self)?;
-            self.connections.outer_body = Some(BodyConnection::new(body.name.clone(), transform));
-            self.cache.transforms.jof_from_ob = SpatialTransform(transform);
-            self.cache.transforms.ob_from_jof = SpatialTransform(transform.inv());
-            // calculate inertia about the joint
-            // some joints make model specific assumptions about this
-            self.cache.inertia = self
-                .model
-                .calculate_joint_inertia(&body.mass_properties, &self.cache.transforms);
+            {
+                let mass_properties = bodyref.borrow().mass_properties;
+                self.cache.transforms.jof_from_ob = SpatialTransform(transform);
+                self.cache.transforms.ob_from_jof = SpatialTransform(transform.inv());
+                // calculate inertia about the joint
+                // some joints make model specific assumptions about this
+                self.cache.inertia = self
+                    .model
+                    .calculate_joint_inertia(&mass_properties, &self.cache.transforms);
+            }
+            self.connections.outer_body = Some(BodyConnection::new(bodyref.clone(), transform));
         }
         Ok(())
     }
 
-    pub fn update_transforms(&mut self, ij_transforms: Option<&JointTransforms>) {
+    pub fn update_transforms(&mut self) {
         self.model
-            .update_transforms(&mut self.cache.transforms, ij_transforms);
+            .update_transforms(&mut self.cache.transforms, &self.inner_joint);
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InnerBody {
+    Base(BaseConnection),
+    Body(BodyConnection),
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointConnection {
-    pub inner_body: Option<BodyConnection>,
+    pub inner_body: Option<InnerBody>,
     pub outer_body: Option<BodyConnection>,
 }
 

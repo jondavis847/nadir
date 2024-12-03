@@ -24,7 +24,7 @@ pub fn solve_fixed_rk4(
     let x0 = JointStates(
         sys.joints
             .iter()
-            .map(|joint| joint.model.state_vector_init())
+            .map(|joint| joint.borrow().model.state_vector_init())
             .collect(),
     );
 
@@ -33,18 +33,18 @@ pub fn solve_fixed_rk4(
     let mut x = x0.clone();
     let mut t = tstart;
 
-    let result_length = ((tstop - tstart) / dt).floor() as usize + 1;    
+    let result_length = ((tstop - tstart) / dt).floor() as usize + 1;
 
     // initialize results
 
-    let mut time = Vec::with_capacity(result_length);    
+    let mut time = Vec::with_capacity(result_length);
 
     for body in &mut sys.bodies {
-        body.initialize_result(result_length);
+        body.borrow_mut().initialize_result(result_length);
     }
 
     for joint in &mut sys.joints {
-        joint.model.initialize_result(result_length);
+        joint.borrow_mut().model.initialize_result(result_length);
     }
 
     for (_, sensor) in &mut sys.sensors {
@@ -52,7 +52,7 @@ pub fn solve_fixed_rk4(
     }
 
     // initialize celestial results
-    match &mut sys.base.system {
+    match &mut sys.base.borrow_mut().system {
         BaseSystems::Basic(_) => {}
         BaseSystems::Celestial(celestial) => celestial.initialize_result(result_length),
     };
@@ -78,12 +78,12 @@ pub fn solve_fixed_rk4(
 
         // update body results
         for body in &mut sys.bodies {
-            body.update_result();
+            body.borrow_mut().update_result();
         }
 
         // update joint results
         for joint in &mut sys.joints {
-            joint.model.update_result();
+            joint.borrow_mut().model.update_result();
         }
 
         // update sensor results
@@ -92,7 +92,7 @@ pub fn solve_fixed_rk4(
         }
 
         // update celestial results
-        match &mut sys.base.system {
+        match &mut sys.base.borrow_mut().system {
             BaseSystems::Basic(_) => {} //nothing to do
             BaseSystems::Celestial(celestial) => {
                 celestial.update_result(); // system.run() will update the values, including epoch
@@ -148,9 +148,11 @@ pub fn solve_fixed_rk4(
     // collect results
     let mut result_hm = HashMap::new();
     for body in &mut sys.bodies {
+        let mut body = body.borrow_mut();
         result_hm.insert(body.name.clone(), body.get_result_entry());
     }
     for joint in &mut sys.joints {
+        let mut joint = joint.borrow_mut();
         result_hm.insert(joint.name.clone(), joint.model.get_result_entry());
     }
 
@@ -158,14 +160,17 @@ pub fn solve_fixed_rk4(
         result_hm.insert(name.clone(), sensor.model.get_result_entry());
     }
 
-    match &mut sys.base.system {
+    match &mut sys.base.borrow_mut().system {
         BaseSystems::Celestial(celestial) => {
             result_hm.insert(
                 "epoch".to_string(),
                 ResultEntry::new(celestial.get_result_entry()),
             );
             for body in &mut celestial.bodies {
-                result_hm.insert(body.body.get_name(), ResultEntry::new(body.get_result_entry()));
+                result_hm.insert(
+                    body.body.get_name(),
+                    ResultEntry::new(body.get_result_entry()),
+                );
             }
         }
         _ => {} //nothing

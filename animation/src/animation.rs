@@ -246,6 +246,7 @@ impl AnimationState {
     ) -> Result<(), MultibodyErrors> {
         // initialize the multibody bodies
         for body in &sys.bodies {
+            let body = body.borrow();
             let qx = result
                 .get_component_state(&body.name, "attitude[x]{base}")
                 .unwrap()[0];
@@ -278,7 +279,7 @@ impl AnimationState {
         }
 
         // initialize the celestial bodies
-        match &sys.base.system {
+        match &sys.base.borrow().system {
             BaseSystems::Basic(_) => (), // do nothing
             BaseSystems::Celestial(celestial) => {
                 for body in &celestial.bodies {

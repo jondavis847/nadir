@@ -162,6 +162,7 @@ impl Sub<MotionVector> for MotionVector {
 pub struct Velocity(pub MotionVector);
 
 impl Velocity {
+
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
         self.0.vector()

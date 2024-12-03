@@ -1,4 +1,6 @@
-use crate::joint::Joint;
+use std::{cell::RefCell, rc::{Rc, Weak}};
+
+use crate::joint::{Joint, JointRef};
 
 use super::body::{BodyErrors, BodyTrait};
 use aerospace::{
@@ -8,14 +10,17 @@ use aerospace::{
 use serde::{Deserialize, Serialize};
 use spice::Spice;
 use thiserror::Error;
+use transforms::Transform;
 
-#[derive(Debug,Error)]
+#[derive(Debug, Error)]
 pub enum BaseErrors {
     #[error("base is celestial")]
     BaseIsCelestial,
     #[error("CelestialError: {0}")]
-    CelestialError(#[from]CelestialErrors),
+    CelestialError(#[from] CelestialErrors),
 }
+
+pub type BaseRef = Rc<RefCell<Base>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BaseSystems {
@@ -27,7 +32,7 @@ pub enum BaseSystems {
 pub struct Base {
     pub name: String,
     pub system: BaseSystems,
-    pub outer_joints: Vec<String>,
+    pub outer_joints: Vec<Weak<RefCell<Joint>>>,
 }
 
 impl Default for Base {
@@ -80,17 +85,33 @@ impl BodyTrait for Base {
     fn get_name(&self) -> String {
         self.name.clone()
     }
-    fn connect_outer_joint(&mut self, joint: &Joint) -> Result<(), BodyErrors> {
-        // Check if the joint already exists in outer_joints
-        if self.outer_joints.iter().any(|id| *id == joint.name) {
-            return Err(BodyErrors::OuterJointExists(
-                joint.name.clone(),
-                self.name.clone(),
-            ));
+    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
+        // Iterate over the existing outer joints
+        for jointref in &self.outer_joints {
+            if let Some(existing_joint) = jointref.upgrade() {
+                // Check if the existing joint and the new joint point to the same allocation
+                if Rc::ptr_eq(&existing_joint, joint) {
+                    return Err(BodyErrors::OuterJointExists(
+                        existing_joint.borrow().name.clone(),
+                        self.name.clone(),
+                    ));
+                }
+            }
         }
-
-        // Push the new joint connection
-        self.outer_joints.push(joint.name.clone());
+    
+        // If no match is found, add the new joint to outer_joints
+        self.outer_joints.push(Rc::downgrade(&joint.clone()));
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BaseConnection {
+    pub base: Rc<RefCell<Base>>,
+    pub transform: Transform,
+}
+impl BaseConnection {
+    pub fn new(base: Rc<RefCell<Base>>, transform: Transform) -> Self {
+        Self { base, transform }
     }
 }

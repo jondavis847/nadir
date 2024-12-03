@@ -22,7 +22,7 @@ use spice::Spice;
 use time::Time;
 use transforms::Transform;
 
-mod hardware;
+//mod hardware;
 
 fn main() {
     // Create the MultibodySystem
