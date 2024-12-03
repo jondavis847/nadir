@@ -47,7 +47,7 @@ pub fn solve_fixed_rk4(
         joint.borrow_mut().model.initialize_result(result_length);
     }
 
-    for (_, sensor) in &mut sys.sensors {
+    for sensor in &mut sys.sensors {
         sensor.model.initialize_result(result_length);
     }
 
@@ -87,7 +87,7 @@ pub fn solve_fixed_rk4(
         }
 
         // update sensor results
-        for (_, sensor) in &mut sys.sensors {
+        for sensor in &mut sys.sensors {
             sensor.model.update_result();
         }
 
@@ -156,8 +156,8 @@ pub fn solve_fixed_rk4(
         result_hm.insert(joint.name.clone(), joint.model.get_result_entry());
     }
 
-    for (name, sensor) in &mut sys.sensors {
-        result_hm.insert(name.clone(), sensor.model.get_result_entry());
+    for sensor in &mut sys.sensors {
+        result_hm.insert(sensor.name.clone(), sensor.model.get_result_entry());
     }
 
     match &mut sys.base.borrow_mut().system {

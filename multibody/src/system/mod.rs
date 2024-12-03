@@ -24,7 +24,6 @@ use spatial_algebra::{MotionVector, SpatialVector, Velocity};
 use spice::Spice;
 use std::{
     cell::RefCell,
-    collections::HashMap,
     fs::File,
     io::Write,
     path::Path,
@@ -35,23 +34,23 @@ use transforms::Transform;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystem {
-    pub actuators: HashMap<String, Actuator>,
+    pub actuators: Vec<Actuator>,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
     pub joints: Vec<JointRef>,
-    pub sensors: HashMap<String, Sensor>,
+    pub sensors: Vec<Sensor>,
 }
 
 impl MultibodySystem {
     pub fn new() -> Self {
         Self {
-            actuators: HashMap::new(),
+            actuators: Vec::new(),
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: Rc::new(RefCell::new(Base::default())),
             bodies: Vec::new(),
             joints: Vec::new(),
-            sensors: HashMap::new(),
+            sensors: Vec::new(),
         }
     }
 
@@ -85,7 +84,7 @@ impl MultibodySystem {
             return Err(MultibodyErrors::NameTaken(sensor.name));
         }
 
-        self.sensors.insert(sensor.name.clone(), sensor);
+        self.sensors.push(sensor);
         Ok(())
     }
     pub fn add_gravity(&mut self, gravity: Gravity) -> Result<(), MultibodyErrors> {
@@ -111,7 +110,9 @@ impl MultibodySystem {
             for jointref in &self.joints {
                 let joint_name = jointref.borrow().name.clone();
                 if joint_name == to_name {
-                    jointref.borrow_mut().connect_base(self.base.clone(), transform)?;
+                    jointref
+                        .borrow_mut()
+                        .connect_base(self.base.clone(), transform)?;
                     self.base.borrow_mut().connect_outer_joint(jointref)?;
                     return Ok(());
                 }
@@ -158,7 +159,7 @@ impl MultibodySystem {
                 }
 
                 // body specific sensors
-                for (_, sensor) in &mut self.sensors {
+                for sensor in &mut self.sensors {
                     if sensor.name == from_name {
                         sensor.connect_to_body(bodyref, transform)?;
                         return Ok(());
@@ -187,11 +188,11 @@ impl MultibodySystem {
             return true;
         }
 
-        if self.sensors.iter().any(|(_, sensor)| sensor.name == name) {
+        if self.sensors.iter().any(|sensor| sensor.name == name) {
             return true;
         }
 
-        if self.actuators.iter().any(|(_, sensor)| sensor.name == name) {
+        if self.actuators.iter().any(|sensor| sensor.name == name) {
             return true;
         }
 
@@ -595,7 +596,7 @@ impl MultibodySystem {
     }
 
     fn update_sensors(&mut self) {
-        for (_, sensor) in &mut self.sensors {
+        for sensor in &mut self.sensors {
             sensor.update()
         }
     }
