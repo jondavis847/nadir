@@ -40,10 +40,12 @@ pub trait BodyTrait {
 pub type BodyRef = Rc<RefCell<Body>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
+    #[serde(skip)]
     pub inner_joint: Option<Weak<RefCell<Joint>>>,
     pub mass_properties: MassProperties,
     pub mesh: Option<Mesh>,
     pub name: String,
+    #[serde(skip)]
     pub outer_joints: Vec<Weak<RefCell<Joint>>>, // id of joint in system.joints, joint contains the transform information
     #[serde(skip)]
     pub state: BodyState,

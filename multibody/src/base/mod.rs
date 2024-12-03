@@ -32,6 +32,7 @@ pub enum BaseSystems {
 pub struct Base {
     pub name: String,
     pub system: BaseSystems,
+    #[serde(skip)]
     pub outer_joints: Vec<Weak<RefCell<Joint>>>,
 }
 
