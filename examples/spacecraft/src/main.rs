@@ -49,7 +49,7 @@ fn main() {
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
     let orbit =
-        KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
+        KeplerianElements::new(8e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
     let state = FloatingState::new()
         .with_rates([0.0, 0.0, 0.1].into())
         .with_orbit(orbit.into());

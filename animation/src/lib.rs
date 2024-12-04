@@ -11,7 +11,7 @@ use iced::{
     Point, Size, Vector,
 };
 
-use multibody::{result::MultibodyResult, system::MultibodySystem};
+use multibody::result::MultibodyResult;
 use ron::de::from_reader;
 use std::time::Instant;
 
@@ -49,12 +49,6 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     res_file.read_to_string(&mut res_content).unwrap();
     let result: MultibodyResult = from_reader(res_content.as_bytes()).unwrap();
 
-    let sys_path = pwd.join("system.ron");
-    let mut sys_file = File::open(sys_path).unwrap();
-    let mut sys_content = String::new();
-    sys_file.read_to_string(&mut sys_content).unwrap();
-    let system: MultibodySystem = from_reader(sys_content.as_bytes()).unwrap();
-
     // load the icon
     const ICON: &[u8] = include_bytes!("../resources/icon.png");
     let icon_image = image::load_from_memory(ICON).expect("Failed to load icon");
@@ -71,5 +65,5 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
         .window(window_settings)
         .subscription(AnimationGui::subscription)
         .theme(AnimationGui::theme)
-        .run_with(move || AnimationGui::new(result, system))
+        .run_with(move || AnimationGui::new(result))
 }

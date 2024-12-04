@@ -2,6 +2,7 @@ use crate::system::MultibodySystem;
 use crate::MultibodyErrors;
 use aerospace::celestial_system::{CelestialBodies, CelestialErrors};
 use chrono::{DateTime, Utc};
+use nadir_3d::mesh::Mesh;
 use nalgebra::Vector3;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::quaternion::Quaternion;
@@ -44,6 +45,8 @@ pub struct MultibodyResult {
     pub total_duration: Duration,
     pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
+    pub bodies: HashMap<String, Mesh>, // need to keep the bodies for animation initialization and mesh info
+    pub celestial: Vec<CelestialBodies>, // need to know which celestial bodies to render
 }
 
 impl MultibodyResult {

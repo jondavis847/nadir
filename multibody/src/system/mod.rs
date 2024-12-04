@@ -24,6 +24,7 @@ use spatial_algebra::{MotionVector, SpatialVector, Velocity};
 use spice::Spice;
 use std::{
     cell::RefCell,
+    collections::HashMap,
     fs::File,
     io::Write,
     path::Path,
@@ -492,6 +493,24 @@ impl MultibodySystem {
         let sim_duration = sim_start_time.elapsed();
         let total_duration = instant_start.elapsed();
 
+        let mut meshes = HashMap::new();
+        for bodyref in &self.bodies {
+            let body = bodyref.borrow();
+            if let Some(mesh) = &body.mesh {
+                meshes.insert(body.name.clone(), mesh.clone());
+            }
+        }
+
+        let mut celestial_bodies = Vec::new();
+        match &self.base.borrow().system {
+            BaseSystems::Basic(_) => {}
+            BaseSystems::Celestial(celestial) => {
+                for body in &celestial.bodies {
+                    celestial_bodies.push(body.body.clone())
+                }
+            }
+        }
+
         let result = MultibodyResult {
             name: name.clone(),
             sim_time: times,
@@ -499,6 +518,8 @@ impl MultibodySystem {
             time_start: start_time,
             sim_duration: sim_duration,
             total_duration: total_duration,
+            bodies: meshes,
+            celestial: celestial_bodies,
         };
 
         let sim_duration = utilities::format_duration(sim_duration);

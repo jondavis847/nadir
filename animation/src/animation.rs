@@ -10,9 +10,7 @@ use iced::{
     window, Color, Element, Length, Point, Subscription, Task, Theme, Vector,
 };
 
-use multibody::{
-    base::BaseSystems, result::MultibodyResult, system::MultibodySystem, MultibodyErrors,
-};
+use multibody::{result::MultibodyResult, MultibodyErrors};
 
 use scene::Scene;
 
@@ -23,9 +21,9 @@ pub struct AnimationGui {
 }
 
 impl AnimationGui {
-    pub fn new(result: MultibodyResult, system: MultibodySystem) -> (Self, Task<Message>) {
+    pub fn new(result: MultibodyResult) -> (Self, Task<Message>) {
         let mut state = AnimationState::default();
-        state.initialize(&result, &system).unwrap();
+        state.initialize(&result).unwrap();
         (
             Self {
                 state,
@@ -239,74 +237,64 @@ impl AnimationState {
 
     pub fn right_button_released(&self, _cursor: Point) {}
 
-    pub fn initialize(
-        &mut self,
-        result: &MultibodyResult,
-        sys: &MultibodySystem,
-    ) -> Result<(), MultibodyErrors> {
+    pub fn initialize(&mut self, result: &MultibodyResult) -> Result<(), MultibodyErrors> {
         // initialize the multibody bodies
-        for body in &sys.bodies {
-            let body = body.borrow();
+        for (name, mesh) in &result.bodies {
             let qx = result
-                .get_component_state(&body.name, "attitude[x]{base}")
+                .get_component_state(name, "attitude[x]{base}")
                 .unwrap()[0];
             let qy = result
-                .get_component_state(&body.name, "attitude[y]{base}")
+                .get_component_state(name, "attitude[y]{base}")
                 .unwrap()[0];
             let qz = result
-                .get_component_state(&body.name, "attitude[z]{base}")
+                .get_component_state(name, "attitude[z]{base}")
                 .unwrap()[0];
             let qw = result
-                .get_component_state(&body.name, "attitude[w]{base}")
+                .get_component_state(name, "attitude[w]{base}")
                 .unwrap()[0];
             let rotation = glam::DQuat::from_xyzw(qx, qy, qz, qw);
 
             let rx = result
-                .get_component_state(&body.name, "position[x]{base}")
+                .get_component_state(name, "position[x]{base}")
                 .unwrap()[0];
             let ry = result
-                .get_component_state(&body.name, "position[y]{base}")
+                .get_component_state(name, "position[y]{base}")
                 .unwrap()[0];
             let rz = result
-                .get_component_state(&body.name, "position[z]{base}")
+                .get_component_state(name, "position[z]{base}")
                 .unwrap()[0];
             let position = glam::dvec3(rx, ry, rz);
-            if let Some(mesh) = &body.mesh {
-                let mut mesh = mesh.clone();
-                mesh.update(position, rotation);
-                self.scene.body_meshes.push(mesh);
-            }
+
+            let mut mesh = mesh.clone();
+            mesh.update(position, rotation);
+            self.scene.body_meshes.push(mesh);
         }
 
-        // initialize the celestial bodies
-        match &sys.base.borrow().system {
-            BaseSystems::Basic(_) => (), // do nothing
-            BaseSystems::Celestial(celestial) => {
-                for body in &celestial.bodies {
-                    if let Some(body_result) = result.result.get(&body.body.get_name()) {
-                        self.scene.celestial.add_body(body.body);
-                        // get initial state
-                        let rx = body_result.get("position[x]")?[0];
-                        let ry = body_result.get("position[y]")?[0];
-                        let rz = body_result.get("position[z]")?[0];
-                        let qx = body_result.get("attitude[x]")?[0];
-                        let qy = body_result.get("attitude[y]")?[0];
-                        let qz = body_result.get("attitude[z]")?[0];
-                        let qw = body_result.get("attitude[w]")?[0];
+        for body in &result.celestial {
+            if let Some(body_result) = result.result.get(&body.get_name()) {
+                self.scene.celestial.add_body(*body);
+                // get initial state
+                let rx = body_result.get("position[x]")?[0];
+                let ry = body_result.get("position[y]")?[0];
+                let rz = body_result.get("position[z]")?[0];
+                let qx = body_result.get("attitude[x]")?[0];
+                let qy = body_result.get("attitude[y]")?[0];
+                let qz = body_result.get("attitude[z]")?[0];
+                let qw = body_result.get("attitude[w]")?[0];
 
-                        // convert to graphics types
-                        // position of celestials is in km, convert to m for accurate graphics
-                        let position = glam::dvec3(rx, ry, rz) * 1e3;
-                        let orientation = glam::dquat(qx, qy, qz, qw);
+                // convert to graphics types
+                // position of celestials is in km, convert to m for accurate graphics
+                let position = glam::dvec3(rx, ry, rz) * 1e3;
+                let orientation = glam::dquat(qx, qy, qz, qw);
 
-                        // update the mesh state and push to scene
-                        self.scene
-                            .celestial
-                            .update_body(body.body, position, orientation);
-                    }
-                }
-                self.scene.set_celestial();
+                // update the mesh state and push to scene
+                self.scene
+                    .celestial
+                    .update_body(*body, position, orientation);
             }
+        }
+        if !result.celestial.is_empty() {
+            self.scene.set_celestial();
         }
 
         let t = &result.sim_time;
