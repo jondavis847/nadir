@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use iced::{
     mouse::Cursor,
-    widget::canvas::{path::Builder, Cache, Geometry, Path, Program, Stroke, Style},
-    Color, Point, Rectangle, Renderer, Theme,
+    widget::canvas::{path::Builder, Cache, Geometry, Program, Stroke, Style},
+    Point, Rectangle, Renderer, Theme,
 };
 
-use crate::{Series, SeriesMap};
+use crate::SeriesMap;
 
 #[derive(Debug, Default)]
 pub struct CanvasState {}
@@ -14,7 +12,7 @@ pub struct CanvasState {}
 #[derive(Debug, Default)]
 pub struct PlotCanvas {
     series: SeriesMap,
-    state: CanvasState,
+    _state: CanvasState,
     cache: Cache,
 }
 

@@ -1,17 +1,11 @@
 use iced::widget::canvas;
-use iced::widget::canvas::{
-    stroke::{self, Stroke},
-    Geometry, Path,
-};
-use iced::{mouse, Task};
+
+use iced::Task;
 use iced::{window, Settings};
-use iced::{Color, Element, Fill, Point, Rectangle, Renderer, Size, Subscription, Theme, Vector};
-
-use std::collections::HashMap;
+use iced::{Element, Fill, Size, Subscription, Theme};
 use std::time::Instant;
-
 use crate::canvas::PlotCanvas;
-use crate::{Series, SeriesMap};
+use crate::SeriesMap;
 
 pub fn main(series: SeriesMap) -> iced::Result {
     let settings = Settings {
@@ -85,11 +79,6 @@ impl Default for AppState {
 }
 
 impl AppState {
-    pub fn new() -> AppState {
-        let now = Instant::now();
-        AppState { now }
-    }
-
     pub fn update(&mut self, now: Instant) {
         self.now = now;
     }

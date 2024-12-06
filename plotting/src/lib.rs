@@ -1,7 +1,7 @@
 use core::f64;
 use iced::widget::canvas::Frame;
-use iced::{Point, Rectangle};
-use inquire::Select;
+use iced::Point;
+use inquire::{Confirm, Select};
 use multibody::result::MultibodyResult;
 use ron::de::from_reader;
 use std::collections::HashMap;
@@ -142,75 +142,78 @@ impl Series {
     }
 }
 
-pub fn main(provided_path: Option<PathBuf>) {
-    let mut id = 0 as u32;
+pub fn main(provided_path: Option<PathBuf>) {    
     let mut series = SeriesMap::new();
 
-    let path = match provided_path {
-        Some(path) => path,
-        None => match std::env::current_dir() {
-            Ok(path) => path,
-            Err(_) => panic!("Could not get current directory"),
-        },
+    let mut path = match provided_path {
+        Some(p) => p,
+        None => std::env::current_dir().expect("Could not get current directory"),
     };
 
-    // Get the folder with the result.ron file
-    let result_folder = if path.join("result.ron").is_file() {
-        // already in a results folder with a results.ron file
-        path
-    } else if path.join("results").is_dir() {
-        // in the root folder, where results is. select the result folder
-        let result_folders = get_results(&path.join("results"));
-        if result_folders.is_empty() {
-            panic!("Could not find 'result.ron' in any subfolders or the current folder.")
-        } else {
-            if let Some(folder) = select_folder(result_folders) {
-                folder
+    loop {
+        // Determine the result folder containing the 'result.ron' file
+        let result_folder = if path.join("result.ron").is_file() {
+            path.clone()
+        } else if path.join("results").is_dir() {
+            let result_folders = get_results(&path.join("results"));
+            if result_folders.is_empty() {
+                panic!("Could not find 'result.ron' in any subfolders or the current folder.");
             } else {
-                unreachable!("Selected folder did not exist. Code should not allow this.")
+                select_folder(result_folders).expect("Selected folder did not exist.")
             }
-        }
-    } else {
-        panic!("Could not find 'result.ron' in any subfolders or the current folder.")
-    };
-
-    let ron_path = result_folder.join("result.ron");
-    let mut ron_file = File::open(ron_path).unwrap();
-    let mut ron_content = String::new();
-    ron_file.read_to_string(&mut ron_content).unwrap();
-    let result: MultibodyResult = from_reader(ron_content.as_bytes()).unwrap();
-
-    let mut components: Vec<String> = result.result.keys().cloned().collect();
-    components.sort();
-    let component_name = match Select::new("component:", components).prompt().ok() {
-        Some(component) => component,
-        None => unreachable!("Selected component did not exist. Code should not allow this."),
-    };
-
-    if let Some(component) = result.result.get(&component_name) {
-        let mut states = component.keys();
-        states.sort();
-        let state_name = match Select::new("state:", states).prompt().ok() {
-            Some(state) => state,
-            None => unreachable!("Selected state did not exist. Code should not allow this."),
+        } else {
+            panic!("Could not find 'result.ron' in any subfolders or the current folder.");
         };
 
-        let x = result.sim_time;
-        let y = component.get(&state_name).unwrap().clone();
+        let ron_path = result_folder.join("result.ron");
+        let mut ron_file = File::open(&ron_path).expect("Failed to open 'result.ron'");
+        let mut ron_content = String::new();
+        ron_file
+            .read_to_string(&mut ron_content)
+            .expect("Failed to read 'result.ron'");
+        let result: MultibodyResult =
+            from_reader(ron_content.as_bytes()).expect("Failed to parse 'result.ron'");
 
-        series.insert(Series::new(
-            result.name.clone(),
-            component_name,
-            state_name,
-            x,
-            y,
-        ));
-        id += 1;
-    } else {
-        unreachable!("Component not found in the result map. Should not be possible.")
+        let mut components: Vec<String> = result.result.keys().cloned().collect();
+        components.sort();
+        let component_name = Select::new("component:", components)
+            .prompt()
+            .expect("Component selection failed");
+
+        if let Some(component) = result.result.get(&component_name) {
+            let mut states = component.keys();
+            states.sort();
+            let state_name = Select::new("state:", states)
+                .prompt()
+                .expect("State selection failed");
+
+            let x = result.sim_time.clone();
+            let y = component
+                .get(&state_name)
+                .expect("State not found in component")
+                .clone();
+
+            series.insert(Series::new(
+                result.name.clone(),
+                component_name,
+                state_name,
+                x,
+                y,
+            ));            
+        } else {
+            panic!("Component not found in the result map.");
+        }
+
+        // Ask the user if they want to add another series
+        let add_another = Confirm::new("add another?")
+            .prompt()
+            .unwrap_or(false);
+        if !add_another {
+            break;
+        }
     }
 
-    application::main(series);
+    application::main(series).expect("Application failed to run");
 }
 
 /// Returns a `Vec<String>` containing the names of directories in the specified folder
