@@ -35,6 +35,10 @@ impl ResultEntry {
             .get(state)
             .ok_or(MultibodyErrors::ComponentStateNotFound(state.to_string()))
     }
+
+    pub fn keys(&self) -> Vec<String> {
+        self.0.keys().cloned().collect()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -22,7 +22,7 @@ members = [
     "spice", 
     "transforms", 
     "utilities",
-    "time", 
+    "time", "plotting", 
 ]
 resolver = "2"
 
@@ -35,6 +35,7 @@ mass_properties = {path = "mass_properties"}
 multibody = {path = "multibody"}  
 nadir = {path = "nadir"}  
 nadir_3d = {path = "nadir_3d"} 
+plotting = {path = "plotting"}
 rotations = {path = "rotations"} 
 software = {path = "software"} 
 spatial_algebra = {path = "spatial_algebra"} 
@@ -53,6 +54,7 @@ glam = { version = "0.29.0", features = ["bytemuck", "serde"] }
 httpdate = "1.0.3"
 iced = { version = "0.13.1", features = ["advanced","canvas","tokio"] }
 image = "0.25.2"
+inquire = "0.7.5"
 interp = "2.0.1"
 nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
 phf = { version = "0.11.2", features = ["macros"] }

@@ -23,6 +23,12 @@ enum Commands {
         #[arg(short = 'r', long)]
         result: Option<String>,
     },
+    /// Plot a NADIR result
+    Plot {
+        /// Sim name in 'results'
+        #[arg(short = 'r', long)]
+        result: Option<String>,
+    },
 }
 
 fn main() {
@@ -43,6 +49,20 @@ fn main() {
                 std::env::current_dir().unwrap()
             };
             animation::main(Some(result_path)).unwrap();
+        }
+        Commands::Plot { result } => {
+            let pwd = std::env::current_dir().unwrap();
+            let result_path = if let Some(result) = result {
+                let results = pwd.join("results");
+                if !results.is_dir() {
+                    panic!("No 'results' folder found in pwd.");
+                } else {
+                    results.join(result)
+                }
+            } else {
+                std::env::current_dir().unwrap()
+            };
+            plotting::main(Some(result_path));
         }
     }
 }
