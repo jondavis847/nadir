@@ -99,7 +99,7 @@ impl JointModel for Revolute {
             - damping * self.state.omega;
     }
 
-    fn calculate_vj(&self) -> Velocity {
+    fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(self.state.omega, 0.0, 0.0, 0.0, 0.0, 0.0))
     }
 
@@ -107,7 +107,7 @@ impl JointModel for Revolute {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut JointStateVector) {
+    fn state_derivative(&self, derivative: &mut JointStateVector, _transforms: &JointTransforms) {
         derivative.0[0] = self.state.omega;
         derivative.0[1] = self.cache.q_ddot;
     }

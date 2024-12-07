@@ -286,14 +286,17 @@ impl JointModel for Floating {
             - p.zt.damping * self.state.v[2];
     }
 
-    fn calculate_vj(&self) -> Velocity {
+    // !!!!note!!!! this must convert state.v, which is in the jif frome, to vj, which is in the jof frame
+    fn calculate_vj(&self, transforms: &JointTransforms) -> Velocity {
+        let v_jif = self.state.v;
+        let v_jof = transforms.jof_from_jif.0.rotation.transform(v_jif);
         Velocity::from(Vector6::new(
             self.state.w[0],
             self.state.w[1],
             self.state.w[2],
-            self.state.v[0],
-            self.state.v[1],
-            self.state.v[2],
+            v_jof[0],
+            v_jof[1],
+            v_jof[2],
         ))
     }
 
@@ -301,7 +304,7 @@ impl JointModel for Floating {
         6
     }
 
-    fn state_derivative(&self, dx: &mut JointStateVector) {
+    fn state_derivative(&self, dx: &mut JointStateVector, transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
         //due to quaternion kinematic equations
         let q = self.state.q;
@@ -310,6 +313,18 @@ impl JointModel for Floating {
             q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
+
+        // for floating joint, need to transform v and a to jif frame so it makes sense for position translation integration
+        // when calculating vj, we retransform state.v back to jof frame,
+        // a doesnt need to be be retransformed because it's reset and recalcualted from scratch every step,
+        // but vj affects other child joints and needs to accurately represent the jofs velocity
+
+        let a_jof = Vector3::new(
+            self.cache.q_ddot[3],
+            self.cache.q_ddot[4],
+            self.cache.q_ddot[5],
+        );
+        let a_jif = transforms.jif_from_jof.0.rotation.transform(a_jof);
 
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;
@@ -321,9 +336,9 @@ impl JointModel for Floating {
         dx.0[7] = self.cache.q_ddot[0];
         dx.0[8] = self.cache.q_ddot[1];
         dx.0[9] = self.cache.q_ddot[2];
-        dx.0[10] = self.cache.q_ddot[3];
-        dx.0[11] = self.cache.q_ddot[4];
-        dx.0[12] = self.cache.q_ddot[5];
+        dx.0[10] = a_jif[0];
+        dx.0[11] = a_jif[1];
+        dx.0[12] = a_jif[2];
     }
 
     fn state_vector_init(&self) -> JointStateVector {
@@ -376,7 +391,6 @@ impl JointModel for Floating {
         state.0[11] = self.state.v[1];
         state.0[12] = self.state.v[2];
     }
-
 
     fn update_transforms(
         &mut self,

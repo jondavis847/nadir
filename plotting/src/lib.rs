@@ -1,21 +1,20 @@
 use core::f64;
 use iced::widget::canvas::Frame;
 use iced::Point;
-use inquire::{Confirm, Select};
+use inquire::{Confirm, MultiSelect, Select};
 use multibody::result::MultibodyResult;
 use ron::de::from_reader;
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 mod application;
 mod canvas;
+mod theme;
 
 #[derive(Debug)]
 pub struct SeriesMap {
-    map: HashMap<u32, Series>,
-    next_id: u32,
+    map: Vec<Series>,
     xmax: f32,
     xmin: f32,
     ymax: f32,
@@ -25,8 +24,7 @@ pub struct SeriesMap {
 impl Default for SeriesMap {
     fn default() -> Self {
         Self {
-            map: HashMap::new(),
-            next_id: 0,
+            map: Vec::new(),
             xmax: -f32::INFINITY,
             xmin: f32::INFINITY,
             ymax: -f32::INFINITY,
@@ -70,8 +68,7 @@ impl SeriesMap {
                 self.ymax = *ymax;
             }
 
-            self.map.insert(self.next_id, series);
-            self.next_id += 1;
+            self.map.push(series);
         } else {
             panic!("Could not find data boundaries. Check the data is not corrupted.")
         };
@@ -84,6 +81,7 @@ pub struct Series {
     pub component: String,
     pub state: String,
     pub points: Vec<Point>,
+    pub axes: (usize, usize), // which axes to plot on, (row,column)
 }
 
 impl Series {
@@ -93,12 +91,14 @@ impl Series {
             .zip(y)
             .map(|(x, y)| Point::new(x as f32, y as f32))
             .collect();
+        let axes = (0_usize, 0_usize);
 
         Self {
             result,
             component,
             state,
             points,
+            axes,
         }
     }
 
@@ -142,10 +142,10 @@ impl Series {
     }
 }
 
-pub fn main(provided_path: Option<PathBuf>) {    
+pub fn main(provided_path: Option<PathBuf>) {
     let mut series = SeriesMap::new();
 
-    let mut path = match provided_path {
+    let path = match provided_path {
         Some(p) => p,
         None => std::env::current_dir().expect("Could not get current directory"),
     };
@@ -183,31 +183,31 @@ pub fn main(provided_path: Option<PathBuf>) {
         if let Some(component) = result.result.get(&component_name) {
             let mut states = component.keys();
             states.sort();
-            let state_name = Select::new("state:", states)
+            let state_names = MultiSelect::new("state:", states)
                 .prompt()
                 .expect("State selection failed");
 
-            let x = result.sim_time.clone();
-            let y = component
-                .get(&state_name)
-                .expect("State not found in component")
-                .clone();
+            for state_name in &state_names {
+                let x = result.sim_time.clone();
+                let y = component
+                    .get(&state_name)
+                    .expect("State not found in component")
+                    .clone();
 
-            series.insert(Series::new(
-                result.name.clone(),
-                component_name,
-                state_name,
-                x,
-                y,
-            ));            
+                series.insert(Series::new(
+                    result.name.clone(),
+                    component_name.clone(),
+                    state_name.clone(),
+                    x,
+                    y,
+                ));
+            }
         } else {
             panic!("Component not found in the result map.");
         }
 
         // Ask the user if they want to add another series
-        let add_another = Confirm::new("add another?")
-            .prompt()
-            .unwrap_or(false);
+        let add_another = Confirm::new("add another?").prompt().unwrap_or(false);
         if !add_another {
             break;
         }

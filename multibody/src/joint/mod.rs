@@ -51,12 +51,12 @@ pub trait JointModel:
     /// Calculates internal force tau based on model joint parameters
     fn calculate_tau(&mut self);
     /// Calculates velocity across the joint based on model state
-    fn calculate_vj(&self) -> Velocity;
+    fn calculate_vj(&self, transforms: &JointTransforms) -> Velocity;
     /// Returns the number of degrees of freedom for the joint
     /// Used to populate elements in the mass matrix and state arrays        
     fn ndof(&self) -> u32;
     /// Populates derivative with the appropriate values for the joint state derivative
-    fn state_derivative(&self, derivative: &mut JointStateVector);
+    fn state_derivative(&self, derivative: &mut JointStateVector, transforms: &JointTransforms);
     /// Initializes a vector of f64 values representing state vector for the ODE integration
     fn state_vector_init(&self) -> JointStateVector;
     /// Reads a state vector into the joint state
@@ -148,6 +148,10 @@ impl Joint {
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
+    pub fn calculate_vj(&mut self) {
+        self.model.calculate_vj(&self.cache.transforms);
+    }
+
     pub fn connect_base(&mut self, base: BaseRef, transform: Transform) -> Result<(), JointErrors> {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
@@ -168,8 +172,10 @@ impl Joint {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
         } else {
-            self.connections.inner_body =
-                Some(InnerBody::Body(BodyConnection::new(body.clone(), transform)));
+            self.connections.inner_body = Some(InnerBody::Body(BodyConnection::new(
+                Rc::clone(body),
+                transform,
+            )));
             self.cache.transforms.jif_from_ib = SpatialTransform(transform);
             self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
         }
@@ -194,9 +200,14 @@ impl Joint {
                     .model
                     .calculate_joint_inertia(&mass_properties, &self.cache.transforms);
             }
-            self.connections.outer_body = Some(BodyConnection::new(bodyref.clone(), transform));
+            self.connections.outer_body = Some(BodyConnection::new(Rc::clone(bodyref), transform));
         }
         Ok(())
+    }
+
+    pub fn state_derivative(&self, derivative: &mut JointStateVector) {
+        self.model
+            .state_derivative(derivative, &self.cache.transforms);
     }
 
     pub fn update_transforms(&mut self) {

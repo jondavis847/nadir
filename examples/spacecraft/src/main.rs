@@ -109,5 +109,5 @@ fn main() {
     let mut spice = Some(Spice::from_local().unwrap());
 
     // Run the simulation
-    sys.simulate("", 0.0, 10.0, 1.0, &mut spice);
+    sys.simulate("", 0.0, 7000.0, 1.0, &mut spice);
 }

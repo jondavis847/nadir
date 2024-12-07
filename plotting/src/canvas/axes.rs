@@ -1,41 +1,38 @@
 use super::line::Line;
-use crate::ui::theme::Theme;
+use crate::{theme::PlotTheme, Series};
 use iced::{
     widget::canvas::{Fill, Frame, Path, Stroke},
     Point, Rectangle, Size, Vector,
 };
-use std::collections::HashMap;
 
-pub mod axis;
-use axis::Axis;
+use super::axis::Axis;
 
 #[derive(Debug)]
 pub struct Axes {
     padding: f32,
     axis: Axis,
-    xlim: (f32, f32),
-    ylim: (f32, f32),
-    lines: HashMap<String, Line>,
+    pub xlim: (f32, f32),
+    pub ylim: (f32, f32),
+    lines: Vec<Line>,
+    pub location: (usize, usize),
 }
 
-impl Default for Axes {
-    fn default() -> Self {
+impl Axes {
+    pub fn new(location: (usize, usize)) -> Self {
         Self {
             padding: 0.0,
             axis: Axis::default(),
             xlim: (0.0, 1.0),
             ylim: (0.0, 1.0),
-            lines: HashMap::new(),
+            lines: Vec::new(),
+            location: location,
         }
     }
-}
-
-impl Axes {
-    pub fn draw(&self, frame: &mut Frame, theme: &Theme) {
+    pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
         // update the bounds based on the frame
         let canvas_bounds = self.get_bounds(frame);
-        self.background(frame, theme, &canvas_bounds);        
-        
+        self.background(frame, theme, &canvas_bounds);
+
         frame.with_save(|frame| {
             let translation = Vector::new(self.padding, self.padding);
             frame.translate(translation);
@@ -45,7 +42,7 @@ impl Axes {
         self.draw_lines(frame, theme);
     }
 
-    fn draw_lines(&self, frame: &mut Frame, _theme: &Theme) {
+    fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme) {
         let bounds = self.get_bounds(frame);
         let height = bounds.height;
         let width = bounds.width;
@@ -53,44 +50,55 @@ impl Axes {
 
         let ylim = self.ylim;
         let xlim = self.xlim;
-        
+
         let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
             let mut canvas_points = points.clone();
-            let axes_height = height-2.0*self.axis.padding-self.axis.line_width;
-            let axes_width = width-2.0*self.axis.padding-self.axis.line_width;
+            let axes_height = height - 2.0 * self.axis.padding - self.axis.line_width;
+            let axes_width = width - 2.0 * self.axis.padding - self.axis.line_width;
 
             let x_ratio = axes_width / (xlim.1 - xlim.0);
             let y_ratio = axes_height / (ylim.1 - ylim.0);
             for i in 0..points.len() {
-                let canvas_x = (points[i].x - xlim.0) * x_ratio + top_left.x + self.axis.padding + self.axis.line_width/2.0;
-                let canvas_y = top_left.y + axes_height  + self.axis.padding + self.axis.line_width/2.0 - (points[i].y - ylim.0) * y_ratio;
+                let canvas_x = (points[i].x - xlim.0) * x_ratio
+                    + top_left.x
+                    + self.axis.padding
+                    + self.axis.line_width / 2.0;
+                let canvas_y =
+                    top_left.y + axes_height + self.axis.padding + self.axis.line_width / 2.0
+                        - (points[i].y - ylim.0) * y_ratio;
                 canvas_points[i] = Point::new(canvas_x, canvas_y);
             }
             canvas_points
         };
 
-        for (_, line) in &self.lines {
+        for (i, line) in self.lines.iter().enumerate() {
             if line.data.len() > 1 {
                 //convert line data to canvas data
-                let canvas_data = canvas_values(&line.data);                
+                let canvas_data = canvas_values(&line.data);
 
                 let path = Path::new(|builder| {
                     builder.move_to(canvas_data[0]);
 
-                    for point in &canvas_data[1..] {
+                    for point in &canvas_data[1..] {                        
                         builder.line_to(*point);
                     }
                 });
 
-                frame.stroke(&path, Stroke::default().with_color(line.color));
+                let line_color = if let Some(color) = line.color {
+                    color
+                } else {
+                    theme.line_colors[i]
+                };
+
+                frame.stroke(&path, Stroke::default().with_color(line_color));
             }
         }
     }
 
-    fn background(&self, frame: &mut Frame, theme: &Theme, bounds: &Rectangle) {
+    fn background(&self, frame: &mut Frame, theme: &PlotTheme, bounds: &Rectangle) {
         let axes_top_left = bounds.position();
         let axes_size = bounds.size();
-        let axes_background = Fill::from(theme.dark_background);
+        let axes_background = Fill::from(theme.light_background);
 
         // create the axes border
         let axes_border = Path::rectangle(axes_top_left, axes_size);
@@ -103,17 +111,17 @@ impl Axes {
     pub fn get_bounds(&self, frame: &Frame) -> Rectangle {
         let frame_size = frame.size();
         let axes_height = frame_size.height - 2.0 * self.padding;
-        let axes_width = frame_size.width - 2.0 * self.padding;
+        let axes_width: f32 = frame_size.width - 2.0 * self.padding;
         let axes_top_left = Point::new(self.padding, self.padding);
         let axes_size = Size::new(axes_width, axes_height);
         let axes_bounds = Rectangle::new(axes_top_left, axes_size);
         axes_bounds
     }
 
-    pub fn plot(&mut self, line_label: String, points: Vec<Point>) {
-        let theme = Theme::ORANGE;
-        let line = Line::new(line_label.clone(), points, theme.highlight);
-        self.lines.insert(line_label, line);
+    pub fn add_line(&mut self, series: &Series) {
+        let line = Line::new(series.state.clone(), series.points.clone(), None);
+        self.lines.push(line);
+
         //update xlim and ylim based on line data
         if let Some((x_lim, y_lim)) = get_global_lims(&self.lines) {
             self.xlim = x_lim;
@@ -150,7 +158,7 @@ fn get_lims(points: &Vec<Point>) -> Option<((f32, f32), (f32, f32))> {
     Some(((x_min, x_max), (y_min, y_max)))
 }
 
-fn get_global_lims(lines: &HashMap<String, Line>) -> Option<((f32, f32), (f32, f32))> {
+fn get_global_lims(lines: &Vec<Line>) -> Option<((f32, f32), (f32, f32))> {
     let mut x_min = f32::INFINITY;
     let mut x_max = f32::NEG_INFINITY;
     let mut y_min = f32::INFINITY;
@@ -158,7 +166,7 @@ fn get_global_lims(lines: &HashMap<String, Line>) -> Option<((f32, f32), (f32, f
 
     let mut found_any_points = false;
 
-    for line in lines.values() {
+    for line in lines {
         if let Some(((line_x_min, line_x_max), (line_y_min, line_y_max))) = get_lims(&line.data) {
             found_any_points = true;
             if line_x_min < x_min {

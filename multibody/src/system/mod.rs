@@ -1,7 +1,7 @@
 use crate::{
     base::{BaseRef, BaseSystems},
     body::BodyRef,
-    joint::{JointRef, JointStates},
+    joint::{InnerBody, JointRef, JointStates},
     result::MultibodyResult,
     solver::rk4::solve_fixed_rk4,
 };
@@ -94,7 +94,7 @@ impl MultibodySystem {
 
     fn write_derivative(&self, dx: &mut JointStates) {
         for (i, joint) in self.joints.iter().enumerate() {
-            joint.borrow().model.state_derivative(&mut dx.0[i]);
+            joint.borrow().state_derivative(&mut dx.0[i]);
         }
     }
 
@@ -263,6 +263,23 @@ impl MultibodySystem {
         }
         for (i, &body_idx) in body_order.iter().enumerate() {
             self.bodies.swap(i, body_idx);
+        }
+
+        // Set inner joints for the joints
+        for joint_ref in &self.joints {
+            let mut joint = joint_ref.borrow_mut();
+
+            if let Some(inner_body) = joint.connections.inner_body.as_ref() {
+                joint.inner_joint = match inner_body {
+                    InnerBody::Base(_) => None,
+                    InnerBody::Body(connection) => connection
+                        .body
+                        .borrow()
+                        .inner_joint
+                        .as_ref()
+                        .and_then(|weak_joint| weak_joint.upgrade()),
+                };
+            }
         }
     }
 
@@ -611,7 +628,7 @@ impl MultibodySystem {
             let mut joint = jointref.borrow_mut();
             joint.update_transforms();
             joint.calculate_joint_inertia();
-            joint.model.calculate_vj();
+            joint.calculate_vj();
             joint.model.calculate_tau();
         }
     }

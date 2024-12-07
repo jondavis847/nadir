@@ -1,4 +1,4 @@
-use crate::canvas::axes;
+use crate::theme::PlotTheme;
 use iced::{
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text},
@@ -30,7 +30,7 @@ impl Axis {
     pub fn draw(
         &self,
         frame: &mut Frame,
-        theme: &Theme,
+        theme: &PlotTheme,
         canvas_bounds: &Rectangle,
         xlim: &(f32, f32),
         ylim: &(f32, f32),
@@ -65,7 +65,7 @@ impl Axis {
         // Draw ticks, labels, and grid lines
         let draw_ticks_labels_and_grids =
             |frame: &mut Frame,
-             theme: &Theme,
+             theme: &PlotTheme,
              axis_start: Point,
              axis_end: Point,
              axes_size: Size,
@@ -80,7 +80,7 @@ impl Axis {
                 let (tick_spacing, tick_increment) =
                     calculate_tick_spacing(value_span, canvas_span, n_ticks);
 
-                let grid_stroke = Stroke::default().with_width(1.0).with_color(theme.border);
+                let grid_stroke = Stroke::default().with_width(1.0).with_color(theme.grid_color);
 
                 // Draw ticks in both positive and negative directions from 0.0
                 for direction in [-1, 1].iter() {
@@ -153,19 +153,19 @@ impl Axis {
                         frame.stroke(&grid_line, grid_stroke.clone());
 
                         // Draw tick marks
-                        let tick_path = if is_x_axis {
-                            Path::line(
-                                tick_point + Vector::new(0.0, tick_length / 2.0),
-                                tick_point + Vector::new(0.0, -tick_length / 2.0),
-                            )
-                        } else {
-                            Path::line(
-                                tick_point + Vector::new(-tick_length / 2.0, 0.0),
-                                tick_point + Vector::new(tick_length / 2.0, 0.0),
-                            )
-                        };
+                        // let tick_path = if is_x_axis {
+                        //     Path::line(
+                        //         tick_point + Vector::new(0.0, tick_length / 2.0),
+                        //         tick_point + Vector::new(0.0, -tick_length / 2.0),
+                        //     )
+                        // } else {
+                        //     Path::line(
+                        //         tick_point + Vector::new(-tick_length / 2.0, 0.0),
+                        //         tick_point + Vector::new(tick_length / 2.0, 0.0),
+                        //     )
+                        // };
 
-                        frame.stroke(&tick_path, Stroke::default().with_width(line_width));
+                        // frame.stroke(&tick_path, Stroke::default().with_width(line_width));
 
                         // Automatically decide between fixed-point and scientific notation
                         let label = if value.abs() < 0.01 || value.abs() > 1000.0 {
@@ -182,7 +182,7 @@ impl Axis {
 
                         let text = Text {
                             content: label,
-                            color: theme.primary,
+                            color: theme.text_color,
                             horizontal_alignment: Horizontal::Center,
                             position: text_center,
                             vertical_alignment: Vertical::Center,

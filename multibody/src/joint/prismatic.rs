@@ -102,7 +102,7 @@ impl JointModel for Prismatic {
             - damping * self.state.velocity;
     }
 
-    fn calculate_vj(&self) -> Velocity {
+    fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0))
     }
 
@@ -110,7 +110,7 @@ impl JointModel for Prismatic {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut JointStateVector) {
+    fn state_derivative(&self, derivative: &mut JointStateVector, _transforms: &JointTransforms) {
         derivative.0[0] = self.state.velocity;
         derivative.0[1] = self.cache.q_ddot;
     }

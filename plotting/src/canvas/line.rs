@@ -3,11 +3,11 @@ use iced::{Color, Point};
 pub struct Line {
     pub label: String,
     pub data: Vec<Point>,
-    pub color: Color,
+    pub color: Option<Color>,
 }
 
 impl Line {
-    pub fn new(label: String, data: Vec<Point>, color: Color) -> Self {
+    pub fn new(label: String, data: Vec<Point>, color: Option<Color>) -> Self {
         Self { label, data, color }
     }
 }
