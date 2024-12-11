@@ -1,6 +1,8 @@
+use crate::base::BaseErrors;
 use crate::system::MultibodySystem;
 use crate::MultibodyErrors;
-use aerospace::celestial_system::{CelestialBodies, CelestialErrors};
+use aerospace::celestial_system::{CelestialBodies, CelestialErrors, CelestialResult};
+use bincode::{serialize, serialize_into};
 use chrono::{DateTime, Utc};
 use nadir_3d::mesh::Mesh;
 use nalgebra::Vector3;
@@ -50,7 +52,7 @@ pub struct MultibodyResult {
     pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
     pub bodies: HashMap<String, Mesh>, // need to keep the bodies for animation initialization and mesh info
-    pub celestial: Vec<CelestialBodies>, // need to know which celestial bodies to render
+    pub celestial: Option<CelestialResult>, // need to know which celestial bodies to render
 }
 
 impl MultibodyResult {
@@ -123,23 +125,26 @@ impl MultibodyResult {
     ) -> Result<(Quaternion, Vector3<f64>), MultibodyErrors> {
         let time = &self.sim_time;
 
-        if let Some(result) = self.result.get(&body.get_name()) {
-            let qx = result.0.get("attitude[x]").unwrap();
-            let qy = result.0.get("attitude[y]").unwrap();
-            let qz = result.0.get("attitude[z]").unwrap();
-            let qw = result.0.get("attitude[w]").unwrap();
-            let rx = result.0.get("position[x]").unwrap();
-            let ry = result.0.get("position[y]").unwrap();
-            let rz = result.0.get("position[z]").unwrap();
+        if let Some(celestial) = &self.celestial {
+            if let Some(body) = celestial.bodies.get(&body) {
+                let qx = body.q.iter().map(|q| q.x).collect();
+                let qy = body.q.iter().map(|q| q.y).collect();
+                let qz = body.q.iter().map(|q| q.z).collect();
+                let qw = body.q.iter().map(|q| q.s).collect();
+                let rx = body.r.iter().map(|r| r[0]).collect();
+                let ry = body.r.iter().map(|r| r[1]).collect();
+                let rz = body.r.iter().map(|r| r[2]).collect();
 
-            let attitude = (qx, qy, qz, qw);
-            let position = (rx, ry, rz);
-
-            Ok(get_state_at_time_interp(t, time, &attitude, &position))
+                let attitude = (&qx, &qy, &qz, &qw);
+                let position = (&rx, &ry, &rz);
+                Ok(get_state_at_time_interp(t, time, &attitude, &position))
+            } else {
+                Err(MultibodyErrors::CelestialErrors(
+                    CelestialErrors::BodyNotFoundInCelestialSystem,
+                ))
+            }
         } else {
-            Err(MultibodyErrors::CelestialErrors(
-                CelestialErrors::BodyNotFoundInCelestialSystem,
-            ))
+            Err(MultibodyErrors::BaseErrors(BaseErrors::BaseIsNotCelestial))
         }
     }
 
@@ -161,17 +166,29 @@ impl MultibodyResult {
             std::fs::create_dir_all(&path).unwrap();
         }
 
+        // // Serialize `sys` to a binary file
+        // let sys_name = self.name.clone() + ".sys";
+        // let sys_path = path.join(sys_name);
+        // let mut file = File::create(sys_path).unwrap();
+        // serialize_into(&mut file, &sys).unwrap();
+
+        // Serialize another struct or result
+        let res_path = path.join("result.bin");
+        let mut file = File::create(res_path).unwrap();
+        serialize_into(&mut file, &self).unwrap(); // Replace `sys` with the actual struct
+
         // create the sys file
+
         let sys_path = path.join("system.ron");
         let mut file = File::create(sys_path).unwrap();
         let ron_string = to_string_pretty(sys, PrettyConfig::new()).unwrap();
         file.write_all(ron_string.as_bytes()).unwrap();
 
-        // create the ron file
-        let res_path = path.join("result.ron");
-        let mut file = File::create(res_path).unwrap();
-        let ron_string = to_string_pretty(self, PrettyConfig::new()).unwrap();
-        file.write_all(ron_string.as_bytes()).unwrap();
+        // // create the ron file
+        // let res_path = path.join("result.ron");
+        // let mut file = File::create(res_path).unwrap();
+        // let ron_string = to_string_pretty(self, PrettyConfig::new()).unwrap();
+        // file.write_all(ron_string.as_bytes()).unwrap();
     }
 }
 

@@ -2982,6 +2982,7 @@ name = "multibody"
 version = "0.0.1"
 dependencies = [
  "aerospace",
+ "bincode",
  "chrono",
  "clap",
  "coordinate_systems",
@@ -3839,6 +3840,7 @@ dependencies = [
 name = "plotting"
 version = "0.0.1"
 dependencies = [
+ "bincode",
  "iced",
  "inquire",
  "multibody",

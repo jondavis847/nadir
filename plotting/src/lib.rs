@@ -1,3 +1,4 @@
+use bincode::deserialize_from;
 use core::f64;
 use iced::widget::canvas::Frame;
 use iced::Point;
@@ -152,27 +153,22 @@ pub fn main(provided_path: Option<PathBuf>) {
 
     loop {
         // Determine the result folder containing the 'result.ron' file
-        let result_folder = if path.join("result.ron").is_file() {
+        let result_folder = if path.join("result.bin").is_file() {
             path.clone()
         } else if path.join("results").is_dir() {
             let result_folders = get_results(&path.join("results"));
             if result_folders.is_empty() {
-                panic!("Could not find 'result.ron' in any subfolders or the current folder.");
+                panic!("Could not find 'result.bin' in any subfolders or the current folder.");
             } else {
                 select_folder(result_folders).expect("Selected folder did not exist.")
             }
         } else {
-            panic!("Could not find 'result.ron' in any subfolders or the current folder.");
+            panic!("Could not find 'result.bin' in any subfolders or the current folder.");
         };
 
-        let ron_path = result_folder.join("result.ron");
-        let mut ron_file = File::open(&ron_path).expect("Failed to open 'result.ron'");
-        let mut ron_content = String::new();
-        ron_file
-            .read_to_string(&mut ron_content)
-            .expect("Failed to read 'result.ron'");
-        let result: MultibodyResult =
-            from_reader(ron_content.as_bytes()).expect("Failed to parse 'result.ron'");
+        let res_path = result_folder.join("result.bin");
+        let res_file = File::open(res_path).unwrap();
+        let result: MultibodyResult = deserialize_from(res_file).unwrap();
 
         let mut components: Vec<String> = result.result.keys().cloned().collect();
         components.sort();

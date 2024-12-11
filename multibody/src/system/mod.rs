@@ -502,7 +502,7 @@ impl MultibodySystem {
         // solve for the multibody system
         let result = solve_fixed_rk4(self, tstart, tstop, dt, spice);
 
-        let (times, hashmap) = match result {
+        let (times, hashmap, celestial) = match result {
             Ok(result) => result,
             Err(e) => panic!("{e}"),
         };
@@ -518,16 +518,6 @@ impl MultibodySystem {
             }
         }
 
-        let mut celestial_bodies = Vec::new();
-        match &self.base.borrow().system {
-            BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => {
-                for body in &celestial.bodies {
-                    celestial_bodies.push(body.body.clone())
-                }
-            }
-        }
-
         let result = MultibodyResult {
             name: name.clone(),
             sim_time: times,
@@ -536,13 +526,13 @@ impl MultibodySystem {
             sim_duration: sim_duration,
             total_duration: total_duration,
             bodies: meshes,
-            celestial: celestial_bodies,
+            celestial: celestial,
         };
 
         let sim_duration = utilities::format_duration(sim_duration);
         let sim_name = name.clone();
-        println!("Simulation '{sim_name}' completed in {sim_duration}.");
-        result.save(self);
+        println!("Simulation '{sim_name}' completed in {sim_duration}.");        
+        result.save(self);        
     }
 
     pub fn update_body_states(&mut self) {
@@ -566,8 +556,8 @@ impl MultibodySystem {
             //body_a_in_base_rotation,
             //body_a_in_base_translation,
             //)));
-            let joint_v = inner_joint.cache.v;
-            let body_v = body_from_joint * joint_v;
+            let joint_v = inner_joint.cache.v;            
+            let body_v = body_from_joint * joint_v;            
             // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
             let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
             let body_v_in_base_translation =

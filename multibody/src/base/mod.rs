@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::{Rc, Weak}};
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use crate::joint::{Joint, JointRef};
 
@@ -16,6 +19,8 @@ use transforms::Transform;
 pub enum BaseErrors {
     #[error("base is celestial")]
     BaseIsCelestial,
+    #[error("base is not celestial")]
+    BaseIsNotCelestial,
     #[error("CelestialError: {0}")]
     CelestialError(#[from] CelestialErrors),
 }
@@ -99,7 +104,7 @@ impl BodyTrait for Base {
                 }
             }
         }
-    
+
         // If no match is found, add the new joint to outer_joints
         self.outer_joints.push(Rc::downgrade(&joint.clone()));
         Ok(())

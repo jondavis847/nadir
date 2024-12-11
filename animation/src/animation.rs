@@ -270,30 +270,23 @@ impl AnimationState {
             self.scene.body_meshes.push(mesh);
         }
 
-        for body in &result.celestial {
-            if let Some(body_result) = result.result.get(&body.get_name()) {
-                self.scene.celestial.add_body(*body);
-                // get initial state
-                let rx = body_result.get("position[x]")?[0];
-                let ry = body_result.get("position[y]")?[0];
-                let rz = body_result.get("position[z]")?[0];
-                let qx = body_result.get("attitude[x]")?[0];
-                let qy = body_result.get("attitude[y]")?[0];
-                let qz = body_result.get("attitude[z]")?[0];
-                let qw = body_result.get("attitude[w]")?[0];
+        if let Some(celestial) = &result.celestial {
+            for body in &celestial.bodies {
+                self.scene.celestial.add_body(*body.0);
 
+                // get initial state
+                let r = body.1.r[0];
+                let q = body.1.q[0];
                 // convert to graphics types
                 // position of celestials is in km, convert to m for accurate graphics
-                let position = glam::dvec3(rx, ry, rz) * 1e3;
-                let orientation = glam::dquat(qx, qy, qz, qw);
+                let position = glam::dvec3(r[0], r[1], r[2]) * 1e3;
+                let orientation = glam::dquat(q.x, q.y, q.z, q.s);
 
                 // update the mesh state and push to scene
                 self.scene
                     .celestial
-                    .update_body(*body, position, orientation);
+                    .update_body(*body.0, position, orientation);
             }
-        }
-        if !result.celestial.is_empty() {
             self.scene.set_celestial();
         }
 

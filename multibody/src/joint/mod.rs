@@ -109,20 +109,20 @@ impl Joint {
             Velocity::zeros()
         };
 
-        let c = &mut self.cache;
+        let c = &mut self.cache;        
 
         c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
         c.aba.c = c.v.cross_motion(c.vj); // + cj
         c.aba.inertia_articulated = c.inertia;
-        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;
+        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;        
     }
 
-    pub fn aba_second_pass(&mut self) {
+    pub fn aba_second_pass(&mut self) {        
         self.model
             .aba_second_pass(&mut self.cache, &self.inner_joint);
     }
 
-    pub fn aba_third_pass(&mut self) {
+    pub fn aba_third_pass(&mut self) {        
         self.model
             .aba_third_pass(&mut self.cache, &self.inner_joint);
     }
@@ -144,12 +144,12 @@ impl Joint {
         let outer_body_connection = self.connections.outer_body.as_ref().unwrap();
         let mass_properties = &outer_body_connection.body.borrow().mass_properties;
 
-        self.model
+        self.cache.inertia = self.model
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
     pub fn calculate_vj(&mut self) {
-        self.model.calculate_vj(&self.cache.transforms);
+        self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
     }
 
     pub fn connect_base(&mut self, base: BaseRef, transform: Transform) -> Result<(), JointErrors> {

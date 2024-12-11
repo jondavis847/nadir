@@ -1,3 +1,4 @@
+use bincode::deserialize_from;
 use std::{fs::File, io::Read, path::PathBuf};
 
 mod animation;
@@ -40,14 +41,12 @@ pub enum Message {
 pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     let pwd = match result_path {
         Some(path) => path,
-        None => std::env::current_dir().unwrap()
+        None => std::env::current_dir().unwrap(),
     };
-    
-    let res_path = pwd.join("result.ron");    
-    let mut res_file = File::open(res_path).unwrap();
-    let mut res_content = String::new();
-    res_file.read_to_string(&mut res_content).unwrap();
-    let result: MultibodyResult = from_reader(res_content.as_bytes()).unwrap();
+
+    let res_path = pwd.join("result.bin");
+    let res_file = File::open(res_path).unwrap();
+    let result: MultibodyResult = deserialize_from(res_file).unwrap();
 
     // load the icon
     const ICON: &[u8] = include_bytes!("../resources/icon.png");

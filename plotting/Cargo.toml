@@ -6,6 +6,7 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bincode.workspace = true
 iced.workspace = true
 iced.features = ["debug", "canvas", "image", "tokio"]
 inquire.workspace = true

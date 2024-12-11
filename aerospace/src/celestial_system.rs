@@ -32,7 +32,7 @@ pub struct CelestialSystem {
     pub epoch: Time,
     pub bodies: Vec<CelestialBody>,
     #[serde(skip)]
-    result: CelestialResult,
+    pub result: CelestialResult,
 }
 
 impl CelestialSystem {
@@ -245,36 +245,14 @@ impl CelestialBody {
         Ok(())
     }
 
-    pub fn get_result_entry(&mut self) -> HashMap<String, Vec<f64>> {
-        let mut result = HashMap::new();
-        result.insert("attitude[x]".to_string(), take(&mut self.result.qx));
-        result.insert("attitude[y]".to_string(), take(&mut self.result.qy));
-        result.insert("attitude[z]".to_string(), take(&mut self.result.qz));
-        result.insert("attitude[w]".to_string(), take(&mut self.result.qw));
-        result.insert("position[x]".to_string(), take(&mut self.result.rx));
-        result.insert("position[y]".to_string(), take(&mut self.result.ry));
-        result.insert("position[z]".to_string(), take(&mut self.result.rz));
-        result
-    }
-
     fn initialize_result(&mut self, capacity: usize) {
-        self.result.qx = Vec::with_capacity(capacity);
-        self.result.qy = Vec::with_capacity(capacity);
-        self.result.qz = Vec::with_capacity(capacity);
-        self.result.qw = Vec::with_capacity(capacity);
-        self.result.rx = Vec::with_capacity(capacity);
-        self.result.ry = Vec::with_capacity(capacity);
-        self.result.rz = Vec::with_capacity(capacity);
+        self.result.q = Vec::with_capacity(capacity);
+        self.result.r = Vec::with_capacity(capacity);        
     }
 
     fn update_result(&mut self) {
-        self.result.qx.push(self.orientation.x);
-        self.result.qy.push(self.orientation.y);
-        self.result.qz.push(self.orientation.z);
-        self.result.qw.push(self.orientation.s);
-        self.result.rx.push(self.position[0]);
-        self.result.ry.push(self.position[1]);
-        self.result.rz.push(self.position[2]);
+        self.result.q.push(self.orientation);        
+        self.result.r.push(self.position);        
     }
 }
 
@@ -317,13 +295,8 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Quater
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct CelestialBodyResult {
-    rx: Vec<f64>,
-    ry: Vec<f64>,
-    rz: Vec<f64>,
-    qx: Vec<f64>,
-    qy: Vec<f64>,
-    qz: Vec<f64>,
-    qw: Vec<f64>,
+    pub r: Vec<Vector3<f64>>,
+    pub q: Vec<Quaternion>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
@@ -412,10 +385,15 @@ impl CelestialBodies {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CelestialResult {
     pub epoch_sec_j2k_tai: Vec<f64>,
+    pub bodies: HashMap<CelestialBodies, CelestialBodyResult>,
 }
 
 impl CelestialResult {
     fn initialize_result(&mut self, capacity: usize) {
-        self.epoch_sec_j2k_tai = Vec::with_capacity(capacity);
+        self.epoch_sec_j2k_tai = Vec::with_capacity(capacity);        
+    }
+
+    pub fn add_result(&mut self, body: &mut CelestialBody) {
+        self.bodies.insert(body.body,take(&mut body.result));
     }
 }

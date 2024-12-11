@@ -1,3 +1,4 @@
+use aerospace::celestial_system::CelestialResult;
 use spice::Spice;
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
     system::MultibodySystem,
     MultibodyErrors,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, mem::take};
 
 pub fn solve_fixed_rk4(
     sys: &mut MultibodySystem,
@@ -15,7 +16,14 @@ pub fn solve_fixed_rk4(
     tstop: f64,
     mut dt: f64,
     spice: &mut Option<Spice>,
-) -> Result<(Vec<f64>, HashMap<String, ResultEntry>), MultibodyErrors> {
+) -> Result<
+    (
+        Vec<f64>,
+        HashMap<String, ResultEntry>,
+        Option<CelestialResult>,
+    ),
+    MultibodyErrors,
+> {
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };
@@ -160,21 +168,17 @@ pub fn solve_fixed_rk4(
         result_hm.insert(sensor.name.clone(), sensor.model.get_result_entry());
     }
 
-    match &mut sys.base.borrow_mut().system {
+    let celestial = match &mut sys.base.borrow_mut().system {
+        BaseSystems::Basic(_) => None,
         BaseSystems::Celestial(celestial) => {
-            result_hm.insert(
-                "epoch".to_string(),
-                ResultEntry::new(celestial.get_result_entry()),
-            );
+            // add the celestial body states to the base result
             for body in &mut celestial.bodies {
-                result_hm.insert(
-                    body.body.get_name(),
-                    ResultEntry::new(body.get_result_entry()),
-                );
+                celestial.result.add_result(body);
             }
+            let result = take(&mut celestial.result);
+            Some(result)
         }
-        _ => {} //nothing
-    }
+    };
 
-    Ok((time, result_hm))
+    Ok((time, result_hm, celestial))
 }
