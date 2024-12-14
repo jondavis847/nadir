@@ -121,11 +121,6 @@ impl JointModel for Revolute {
         self.state.omega = state.0[1];
     }
 
-    fn state_vector_write(&self, state: &mut JointStateVector) {
-        state.0[0] = self.state.omega;
-        state.0[1] = self.state.theta;
-    }
-
     fn update_transforms(
         &mut self,
         transforms: &mut JointTransforms,

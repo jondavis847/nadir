@@ -61,8 +61,6 @@ pub trait JointModel:
     fn state_vector_init(&self) -> JointStateVector;
     /// Reads a state vector into the joint state
     fn state_vector_read(&mut self, state: &JointStateVector);
-    /// Writes the joint state to a state vector
-    fn state_vector_write(&self, state: &mut JointStateVector);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
     fn update_transforms(
@@ -110,7 +108,6 @@ impl Joint {
         };
 
         let c = &mut self.cache;        
-
         c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
         c.aba.c = c.v.cross_motion(c.vj); // + cj
         c.aba.inertia_articulated = c.inertia;

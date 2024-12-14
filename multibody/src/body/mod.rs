@@ -135,6 +135,42 @@ impl Body {
         self.state.external_force_body = *self.state.external_spatial_force_body.translation();
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
+
+    pub fn update_acceleration(&mut self) {
+        let inner_joint_weak = self.inner_joint.as_ref().unwrap();
+        let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
+        let inner_joint = inner_joint_rc.borrow();
+
+        let transforms = &inner_joint.cache.transforms;
+        let body_from_joint = transforms.ob_from_jof;
+        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+        let joint_a = inner_joint.cache.a;
+        let body_a = body_from_joint * joint_a;
+        // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
+        let body_a_in_base = base_from_body * body_a;
+        self.state.acceleration_body = *body_a.translation();
+        self.state.acceleration_base = *body_a_in_base.translation();
+        self.state.angular_accel_body = *body_a.rotation();
+    }
+
+    pub fn update_state(&mut self) {
+        let inner_joint_weak = self.inner_joint.as_ref().unwrap();
+        let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
+        let inner_joint = inner_joint_rc.borrow();
+
+        let transforms = &inner_joint.cache.transforms;
+        let body_from_joint = transforms.ob_from_jof;
+        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+        let joint_v = inner_joint.cache.v;
+        let body_v = body_from_joint * joint_v;
+        let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
+        self.state.velocity_body = *body_v.translation();
+        self.state.velocity_base = body_v_in_base_translation;
+        self.state.angular_rate_body = *body_v.rotation();
+        let body_from_base = base_from_body.0.inv();
+        self.state.position_base = body_from_base.translation.vec();
+        self.state.attitude_base = Quaternion::from(&body_from_base.rotation);
+    }
 }
 
 impl MultibodyResultTrait for Body {
@@ -400,10 +436,7 @@ impl BodyTrait for Body {
         for jointref in &self.outer_joints {
             if let Some(joint) = jointref.upgrade() {
                 if joint.borrow().name == name {
-                    return Err(BodyErrors::OuterJointExists(
-                        name,
-                        self.name.clone(),
-                    ));
+                    return Err(BodyErrors::OuterJointExists(name, self.name.clone()));
                 }
             }
         }

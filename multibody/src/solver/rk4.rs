@@ -28,7 +28,7 @@ pub fn solve_fixed_rk4(
         return Err(MultibodyErrors::DtCantBeZero);
     };
 
-    // Create a vec of JointStates as the initial state
+    // Create a vec of JointStates as the initial integration state
     let x0 = JointStates(
         sys.joints
             .iter()
@@ -36,15 +36,21 @@ pub fn solve_fixed_rk4(
             .collect(),
     );
 
+    // define some variables
     let mut half_dt = dt / 2.0;
     let mut dt_6 = dt / 6.0;
     let mut x = x0.clone();
     let mut t = tstart;
 
+    // one time clone for preallocation of temporary variables
+    let mut k1 = x0.clone();
+    let mut k2 = x0.clone();
+    let mut k3 = x0.clone();
+    let mut k4 = x0.clone();
+    let mut tmp = x0.clone();
+
+    // preallocate result storage
     let result_length = ((tstop - tstart) / dt).floor() as usize + 1;
-
-    // initialize results
-
     let mut time = Vec::with_capacity(result_length);
 
     for body in &mut sys.bodies {
@@ -65,71 +71,48 @@ pub fn solve_fixed_rk4(
         BaseSystems::Celestial(celestial) => celestial.initialize_result(result_length),
     };
 
-    // one time clone for initialization
-    let mut k1 = x0.clone();
-    let mut k2 = x0.clone();
-    let mut k3 = x0.clone();
-    let mut k4 = x0.clone();
-    let mut tmp = x0.clone();
+    // add initial conditions to results storage    
+    time.push(t);
+    sys.update_results();
 
-    //update body states based on initial joint states so that things like gravity can be calculated on first pass
-    sys.update_body_states();
-
-    for _ in 0..result_length {
-        // calculate all secondary states with the current state
-        // only joint states are required to integrate, but
-        // we want to save things like body states, gravity , etc.
-        sys.run(&mut tmp, &x, t, spice);
-
-        // update the result vectors with the current values
-        time.push(t);
-
-        // update body results
-        for body in &mut sys.bodies {
-            body.borrow_mut().update_result();
-        }
-
-        // update joint results
-        for joint in &mut sys.joints {
-            joint.borrow_mut().model.update_result();
-        }
-
-        // update sensor results
-        for sensor in &mut sys.sensors {
-            sensor.model.update_result();
-        }
-
-        // update celestial results
-        match &mut sys.base.borrow_mut().system {
-            BaseSystems::Basic(_) => {} //nothing to do
-            BaseSystems::Celestial(celestial) => {
-                celestial.update_result(); // system.run() will update the values, including epoch
-            }
-        }
-
-        // change dt near end of sim to capture end point
+    // RUN THE RK4 LOOP
+    for i in 0..result_length {
+        //println!("step {i}");
+        // logic to change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {
             dt = tstop - t;
             half_dt = dt / 2.0;
             dt_6 = dt / 6.0;
         }
 
+        // BEGIN RK4 STAGES
+        //println!("k1");
         // calculate k1 = f(x,t)
         tmp.clone_from(&x);
         sys.run(&mut k1, &tmp, t, spice);
+        //dbg!(&k1);
+        // update the results vectors here since we just updated all secondary states based on integrated state 'x'
+        // NOTE: This may not be true for all solvers! This just saves us one function call
+        // If not, call sys.run one more time before or after the stages to update 
+        // (or only call what's needed to update secondary states instead of sys.run)
+        time.push(t);
+        sys.update_results();
 
+        //println!("k2");
         // calculate k2 = f(x + 0.5*k1 , t + 0.5dt)
         tmp.clone_from(&k1);
         tmp *= half_dt;
         tmp += &x;
         sys.run(&mut k2, &tmp, t + half_dt, spice);
 
+        //println!("k3");
         // calculate k3 = f(x + 0.5*k2 , t + 0.5dt)
         tmp.clone_from(&k2);
         tmp *= half_dt;
         tmp += &x;
         sys.run(&mut k3, &tmp, t + half_dt, spice);
 
+        //println!("k4");
         // calculate k4 = f(x + k3 , t + dt)
         tmp.clone_from(&k3);
         tmp *= dt;
@@ -149,6 +132,8 @@ pub fn solve_fixed_rk4(
 
         k4 *= dt_6;
         x += &k4;
+
+        //dbg!(&x);
 
         t += dt;
     }

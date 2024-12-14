@@ -1,0 +1,13 @@
+[package]
+name = "floater"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+color.workspace = true
+mass_properties.workspace = true
+multibody.workspace = true
+nadir_3d.workspace = true
+transforms.workspace = true

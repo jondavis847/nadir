@@ -9,8 +9,11 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
-use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
-use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
+use nalgebra::{Matrix3, Matrix4x3, Matrix6, Vector3, Vector6};
+use rotations::{
+    euler_angles::EulerAngles, prelude::RotationMatrix, quaternion::Quaternion, Rotation,
+    RotationTrait,
+};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
@@ -288,15 +291,15 @@ impl JointModel for Floating {
 
     // !!!!note!!!! this must convert state.v, which is in the jif frome, to vj, which is in the jof frame
     fn calculate_vj(&self, transforms: &JointTransforms) -> Velocity {
-        let v_jif = self.state.v;
-        let v_jof = transforms.jof_from_jif.0.rotation.transform(v_jif);
+        let v_jif = self.state.v;        
+        let v_jof = transforms.jof_from_jif.0.rotation.transform(v_jif);        
         Velocity::from(Vector6::new(
             self.state.w[0],
             self.state.w[1],
             self.state.w[2],
-            v_jof[0],
-            v_jof[1],
-            v_jof[2],
+            self.state.v[0],
+            self.state.v[1],
+            self.state.v[2],            
         ))
     }
 
@@ -313,32 +316,37 @@ impl JointModel for Floating {
             q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
-
         // for floating joint, need to transform v and a to jif frame so it makes sense for position translation integration
         // when calculating vj, we retransform state.v back to jof frame,
         // a doesnt need to be be retransformed because it's reset and recalcualted from scratch every step,
         // but vj affects other child joints and needs to accurately represent the jofs velocity
 
-        let a_jof = Vector3::new(
-            self.cache.q_ddot[3],
-            self.cache.q_ddot[4],
-            self.cache.q_ddot[5],
-        );
-        let a_jif = transforms.jif_from_jof.0.rotation.transform(a_jof);
+        // we need to account for the rotating frame when converting from the jof to the jif
+        // for example, if the jof is translating with 1m/s in y and rotating about x by 1 rad/s
+        // the velocity in the body frame on the next cycle will have some component of velocity
+        // in the -z axis due to the rotation, which means there must have been some acceleration in z
+        // we will see that acceleration in the jof, but jif accel should still b 0
+        // v_jof = R * v_jif where R = jof_from_jif
+        // a_jof = dv_jof/dt = R * a_jof + dR/dt * v_jif where dR/dt = R * wx (w skew symetric matrix)
+        
+
+        // transform self.state.v (v_jof) to the jif for integrating r via transport theorem
+        // this is techinically v_jif = R * v_jof + w x r, but r is 0 since jof frame is coincident with itself for floating joint
+        let v_jif = transforms.jif_from_jof.0.rotation.transform(self.state.v);
 
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;
         dx.0[2] = dq.z;
         dx.0[3] = dq.s;
-        dx.0[4] = self.state.v[0];
-        dx.0[5] = self.state.v[1];
-        dx.0[6] = self.state.v[2];
+        dx.0[4] = v_jif[0];
+        dx.0[5] = v_jif[1];
+        dx.0[6] = v_jif[2];
         dx.0[7] = self.cache.q_ddot[0];
         dx.0[8] = self.cache.q_ddot[1];
         dx.0[9] = self.cache.q_ddot[2];
-        dx.0[10] = a_jif[0];
-        dx.0[11] = a_jif[1];
-        dx.0[12] = a_jif[2];
+        dx.0[10] = self.cache.q_ddot[3];
+        dx.0[11] = self.cache.q_ddot[4];
+        dx.0[12] = self.cache.q_ddot[5];
     }
 
     fn state_vector_init(&self) -> JointStateVector {
@@ -361,10 +369,9 @@ impl JointModel for Floating {
     }
 
     fn state_vector_read(&mut self, state: &JointStateVector) {
-        self.state.q.x = state.0[0];
-        self.state.q.y = state.0[1];
-        self.state.q.z = state.0[2];
-        self.state.q.s = state.0[3];
+        // need to normalize the integrated quaternion
+        let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3]).normalize();
+        self.state.q = q;
         self.state.r[0] = state.0[4];
         self.state.r[1] = state.0[5];
         self.state.r[2] = state.0[6];
@@ -374,22 +381,6 @@ impl JointModel for Floating {
         self.state.v[0] = state.0[10];
         self.state.v[1] = state.0[11];
         self.state.v[2] = state.0[12];
-    }
-
-    fn state_vector_write(&self, state: &mut JointStateVector) {
-        state.0[0] = self.state.q.x;
-        state.0[1] = self.state.q.y;
-        state.0[2] = self.state.q.z;
-        state.0[3] = self.state.q.s;
-        state.0[4] = self.state.r[0];
-        state.0[5] = self.state.r[1];
-        state.0[6] = self.state.r[2];
-        state.0[7] = self.state.w[0];
-        state.0[8] = self.state.w[1];
-        state.0[9] = self.state.w[2];
-        state.0[10] = self.state.v[0];
-        state.0[11] = self.state.v[1];
-        state.0[12] = self.state.v[2];
     }
 
     fn update_transforms(
@@ -403,7 +394,7 @@ impl JointModel for Floating {
 
         transforms.jof_from_jif = SpatialTransform(transform);
         transforms.jif_from_jof = transforms.jof_from_jif.inv();
-        transforms.update(inner_joint)
+        transforms.update(inner_joint);
     }
 }
 
@@ -535,7 +526,7 @@ impl ArticulatedBodyAlgorithm for Floating {
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix; // S is just identity for floating joint
         aba.big_d_inv = aba.big_u.try_inverse().unwrap();
-        aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector(); //note force is 1 indexed, so 1
+        aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector();
 
         if let Some(inner_joint_ref) = inner_joint {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;

@@ -12,6 +12,7 @@ use super::{
     base::Base,
     body::{Body, BodyTrait},
     joint::Joint,
+    result::MultibodyResultTrait,
     sensor::Sensor,
     MultibodyErrors,
 };
@@ -20,7 +21,6 @@ use aerospace::{celestial_system::CelestialSystem, gravity::Gravity};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{MotionVector, SpatialVector, Velocity};
 use spice::Spice;
 use std::{
     cell::RefCell,
@@ -290,10 +290,12 @@ impl MultibodySystem {
         t: f64,
         spice: &mut Option<Spice>,
     ) {
-        self.set_state(x);
-        self.update_base(t, spice);
-        self.update_joints();
-        self.update_forces();
+        self.set_state(x); // write the integrated states back in to the joints
+        self.update_base(t, spice); // update epoch based celestial states based on new time
+        self.update_joints(); // update joint state based quantities like transforms
+        self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
+                                   // self.update_actuators(); // run the actuators after software has produced commands and before updating forces on the body
+        self.update_forces(); // update forces after body states for position based gravity calcs
 
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
@@ -377,9 +379,8 @@ impl MultibodySystem {
                 // }
             }
         }
-
-        self.update_body_states(); //only update body states once joint accels have been calculated (so we can update body accel based on joint accel)
-        self.update_sensors(); //only update sensors after body states have been updated
+        self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
+                                         //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
         self.write_derivative(dx);
     }
 
@@ -419,6 +420,7 @@ impl MultibodySystem {
         dt: f64,
         spice: &mut Option<Spice>,
     ) {
+        let total_time = Instant::now();
         // validate that the system can be simulated
         print!("validating multibody system...");
         match self.validate() {
@@ -487,19 +489,20 @@ impl MultibodySystem {
         // Resort the bodies and joints based on multibody tree philosophy
         self.permute();
 
-        // calculate the joint mass properties
+        // initialize the components initial conditions and secondary states
         for jointref in &self.joints {
             let mut joint = jointref.borrow_mut();
             joint.update_transforms();
             joint.calculate_joint_inertia();
         }
+        self.update_body_states();
+        self.update_sensors();
 
-        let start_time = SystemTime::now();
-        let instant_start = Instant::now();
+        // start timers for performance metrics
+        let system_time = SystemTime::now();
+        let start_time = Instant::now();
 
-        let sim_start_time = Instant::now();
-
-        // solve for the multibody system
+        // solve the multibody system
         let result = solve_fixed_rk4(self, tstart, tstop, dt, spice);
 
         let (times, hashmap, celestial) = match result {
@@ -507,9 +510,12 @@ impl MultibodySystem {
             Err(e) => panic!("{e}"),
         };
 
-        let sim_duration = sim_start_time.elapsed();
-        let total_duration = instant_start.elapsed();
-
+        let sim_duration = start_time.elapsed();
+        let sim_duration_str = utilities::format_duration(sim_duration);
+        let sim_name = name.clone();
+        println!("Simulation '{sim_name}' completed in {sim_duration_str}.");
+        let save_time = Instant::now();
+        // collect meshes from the system into the result so we can use for animation
         let mut meshes = HashMap::new();
         for bodyref in &self.bodies {
             let body = bodyref.borrow();
@@ -522,60 +528,31 @@ impl MultibodySystem {
             name: name.clone(),
             sim_time: times,
             result: hashmap,
-            time_start: start_time,
+            time_start: system_time,
             sim_duration: sim_duration,
-            total_duration: total_duration,
             bodies: meshes,
             celestial: celestial,
         };
 
-        let sim_duration = utilities::format_duration(sim_duration);
-        let sim_name = name.clone();
-        println!("Simulation '{sim_name}' completed in {sim_duration}.");        
-        result.save(self);        
+        result.save(self);
+        let save_duration = save_time.elapsed();
+        let save_duration_str = utilities::format_duration(save_duration);
+        println!("Results saved in {save_duration_str}.");
+        let total_duration = utilities::format_duration(total_time.elapsed());
+        println!("Total duration: {total_duration}.");
     }
 
-    pub fn update_body_states(&mut self) {
-        for bodyref in self.bodies.iter_mut() {
+    fn update_body_acceleration(&mut self) {        
+        for bodyref in &self.bodies {
             let mut body = bodyref.borrow_mut();
-            let inner_joint_weak = body.inner_joint.as_ref().unwrap();
-            let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
-            let inner_joint = inner_joint_rc.borrow();
+            body.update_acceleration();
+        }
+    }
 
-            let transforms = &inner_joint.cache.transforms;
-            let body_from_joint = transforms.ob_from_jof;
-            let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
-            let joint_a = inner_joint.cache.a;
-
-            let body_a = body_from_joint * joint_a;
-            // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
-            let body_a_in_base = base_from_body * body_a;
-            //let body_a_in_base_rotation = base_from_body.0.rotation.transform(*body_a.rotation());
-            //let body_a_in_base_translation = base_from_body.0.rotation.transform(*body_a.translation());
-            //let body_a_in_base = Acceleration(MotionVector(SpatialVector::new(
-            //body_a_in_base_rotation,
-            //body_a_in_base_translation,
-            //)));
-            let joint_v = inner_joint.cache.v;            
-            let body_v = body_from_joint * joint_v;            
-            // velocity in body to velocity in base is just a rotation, translation due to rotation should be accounted for in calc of body_v
-            let body_v_in_base_rotation = base_from_body.0.rotation.transform(*body_v.rotation());
-            let body_v_in_base_translation =
-                base_from_body.0.rotation.transform(*body_v.translation());
-            let body_v_in_base = Velocity(MotionVector(SpatialVector::new(
-                body_v_in_base_rotation,
-                body_v_in_base_translation,
-            )));
-
-            body.state.acceleration_body = *body_a.translation();
-            body.state.acceleration_base = *body_a_in_base.translation();
-            body.state.angular_accel_body = *body_a.rotation();
-            body.state.velocity_base = *body_v_in_base.translation();
-            body.state.angular_rate_body = *body_v.rotation();
-
-            let body_from_base = base_from_body.0.inv();
-            body.state.position_base = body_from_base.translation.vec();
-            body.state.attitude_base = Quaternion::from(&body_from_base.rotation);
+    fn update_body_states(&mut self) {
+        for bodyref in &self.bodies {
+            let mut body = bodyref.borrow_mut();
+            body.update_state();
         }
     }
 
@@ -617,13 +594,40 @@ impl MultibodySystem {
         for jointref in &self.joints {
             let mut joint = jointref.borrow_mut();
             joint.update_transforms();
-            joint.calculate_joint_inertia();
+            // joint.calculate_joint_inertia(); // currently only need to do this once at initialization
             joint.calculate_vj();
             joint.model.calculate_tau();
         }
     }
 
-    fn update_sensors(&mut self) {
+    /// Updates the results in the system based on their current states
+    /// Used each timestep for reporting the current states
+    pub fn update_results(&mut self) {
+        // update body results
+        for body in &mut self.bodies {
+            body.borrow_mut().update_result();
+        }
+
+        // update joint results
+        for joint in &mut self.joints {
+            joint.borrow_mut().model.update_result();
+        }
+
+        // update sensor results
+        for sensor in &mut self.sensors {
+            sensor.model.update_result();
+        }
+
+        // update celestial results
+        match &mut self.base.borrow_mut().system {
+            BaseSystems::Basic(_) => {} //nothing to do
+            BaseSystems::Celestial(celestial) => {
+                celestial.update_result(); // system.run() will update the values, including epoch
+            }
+        }
+    }
+
+    pub fn update_sensors(&mut self) {
         for sensor in &mut self.sensors {
             sensor.update()
         }

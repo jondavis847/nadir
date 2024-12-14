@@ -2,7 +2,7 @@ use crate::base::BaseErrors;
 use crate::system::MultibodySystem;
 use crate::MultibodyErrors;
 use aerospace::celestial_system::{CelestialBodies, CelestialErrors, CelestialResult};
-use bincode::{serialize, serialize_into};
+use bincode::serialize_into;
 use chrono::{DateTime, Utc};
 use nadir_3d::mesh::Mesh;
 use nalgebra::Vector3;
@@ -47,8 +47,7 @@ impl ResultEntry {
 pub struct MultibodyResult {
     pub name: String,
     pub time_start: SystemTime,
-    pub sim_duration: Duration,
-    pub total_duration: Duration,
+    pub sim_duration: Duration,    
     pub sim_time: Vec<f64>,
     pub result: HashMap<String, ResultEntry>,
     pub bodies: HashMap<String, Mesh>, // need to keep the bodies for animation initialization and mesh info
@@ -200,11 +199,6 @@ impl fmt::Debug for MultibodyResult {
         writeln!(f, "sim name: {}", self.name)?;
         writeln!(f, "start time: {}", time_start)?;
         writeln!(f, "sim duration: {}", format_duration(self.sim_duration))?;
-        writeln!(
-            f,
-            "total duration: {}",
-            format_duration(self.total_duration)
-        )?;
         writeln!(f, "states: ")?;
 
         // Collect headers (keys) and sort them
