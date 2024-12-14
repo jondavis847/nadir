@@ -143,14 +143,24 @@ impl Body {
 
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
-        let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
+        let base_from_body = &(transforms.base_from_jof * transforms.jof_from_ob)
+            .0
+            .rotation;
         let joint_a = inner_joint.cache.a;
         let body_a = body_from_joint * joint_a;
-        // accel in body to accel in base is just a rotation, translation due to rotation should be accounted for in calc of body_a
-        let body_a_in_base = base_from_body * body_a;
         self.state.acceleration_body = *body_a.translation();
-        self.state.acceleration_base = *body_a_in_base.translation();
         self.state.angular_accel_body = *body_a.rotation();
+        // need to apply kinematic transport theorem to get acceleration of the body in the base
+        // r is zero since the position of the frame in the frame is just 0
+        // v however is non zero in the body frame
+        // using transport theorem, a_base = R_base_from_body * (a_body + w_body x v_body)
+        self.state.acceleration_base = base_from_body.transform(
+            body_a.translation()
+                + self
+                    .state
+                    .angular_rate_body
+                    .cross(&self.state.velocity_body),
+        );
     }
 
     pub fn update_state(&mut self) {
@@ -163,6 +173,10 @@ impl Body {
         let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
         let joint_v = inner_joint.cache.v;
         let body_v = body_from_joint * joint_v;
+        // need to apply kinematic transport theorem to get velocity of the body in the base
+        // r is technically 0 since the body is coincident iwth its own frame
+        // there would be a non-zero r if we were looking for motion of body frame w.r.t jof, but that motion
+        // is already accounted for in the spatial algebra when converting from jof to body.
         let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
         self.state.velocity_body = *body_v.translation();
         self.state.velocity_base = body_v_in_base_translation;

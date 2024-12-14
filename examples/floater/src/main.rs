@@ -21,7 +21,7 @@ fn main() {
     // sys is will be created with nothing but a default base
     let mut sys = MultibodySystem::new();
     let state = FloatingState::new()
-        .with_rates([1.0, 0.0, 0.0].into())
+        .with_rates([1.0, 0.0, 1.0].into())
         .with_velocity([0.0, 1.0, 0.0].into());
 
     let parameters = FloatingParameters::new();
@@ -55,5 +55,5 @@ fn main() {
     sys.connect("base", "f", Transform::IDENTITY).unwrap();
     sys.connect("f", "b", Transform::IDENTITY).unwrap();
     // Run the simulation
-    sys.simulate("", 0.0, 1.0, 0.1, &mut None);
+    sys.simulate("", 0.0, 10.0, 0.1, &mut None);
 }

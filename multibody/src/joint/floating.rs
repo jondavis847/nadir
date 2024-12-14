@@ -9,9 +9,9 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
-use nalgebra::{Matrix3, Matrix4x3, Matrix6, Vector3, Vector6};
+use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rotations::{
-    euler_angles::EulerAngles, prelude::RotationMatrix, quaternion::Quaternion, Rotation,
+    euler_angles::EulerAngles, quaternion::Quaternion, Rotation,
     RotationTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -290,9 +290,7 @@ impl JointModel for Floating {
     }
 
     // !!!!note!!!! this must convert state.v, which is in the jif frome, to vj, which is in the jof frame
-    fn calculate_vj(&self, transforms: &JointTransforms) -> Velocity {
-        let v_jif = self.state.v;        
-        let v_jof = transforms.jof_from_jif.0.rotation.transform(v_jif);        
+    fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {        
         Velocity::from(Vector6::new(
             self.state.w[0],
             self.state.w[1],
@@ -309,30 +307,25 @@ impl JointModel for Floating {
 
     fn state_derivative(&self, dx: &mut JointStateVector, transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
-        //due to quaternion kinematic equations
+        // due to quaternion kinematic equations
         let q = self.state.q;
         // Markley eq 3.20 & 2.88
         let tmp = Matrix4x3::new(
             q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
-        // for floating joint, need to transform v and a to jif frame so it makes sense for position translation integration
-        // when calculating vj, we retransform state.v back to jof frame,
-        // a doesnt need to be be retransformed because it's reset and recalcualted from scratch every step,
-        // but vj affects other child joints and needs to accurately represent the jofs velocity
-
-        // we need to account for the rotating frame when converting from the jof to the jif
-        // for example, if the jof is translating with 1m/s in y and rotating about x by 1 rad/s
-        // the velocity in the body frame on the next cycle will have some component of velocity
-        // in the -z axis due to the rotation, which means there must have been some acceleration in z
-        // we will see that acceleration in the jof, but jif accel should still b 0
-        // v_jof = R * v_jif where R = jof_from_jif
-        // a_jof = dv_jof/dt = R * a_jof + dR/dt * v_jif where dR/dt = R * wx (w skew symetric matrix)
         
+        // we make assumptions about velocity and acceleration being in the jof so that our joint space matrix is constant
+        // however, position makes a lot more sense when expressed in the jif. we will also specify linear velocity
+        // and acceleration in the jif which is much more intuitive. however, we need to account for rotating
+        // reference frames, i.e. the kinematic transport theorem. luckily, for joints, the frames are coincident 
+        // with the origin, so r = 0 and many terms cancel. coriolis acceleration, however does not.        
 
         // transform self.state.v (v_jof) to the jif for integrating r via transport theorem
         // this is techinically v_jif = R * v_jof + w x r, but r is 0 since jof frame is coincident with itself for floating joint
-        let v_jif = transforms.jif_from_jof.0.rotation.transform(self.state.v);
+        let jif_from_jof = &transforms.jif_from_jof.0.rotation;     
+        let v_jof = self.state.v;
+        let v_jif = jif_from_jof.transform(v_jof);        
 
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;
