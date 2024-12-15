@@ -4,9 +4,7 @@ use iced::widget::canvas::Frame;
 use iced::Point;
 use inquire::{Confirm, MultiSelect, Select};
 use multibody::result::MultibodyResult;
-use ron::de::from_reader;
 use std::fs::{self, File};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 mod application;

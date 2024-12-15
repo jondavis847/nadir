@@ -19,7 +19,6 @@ use super::{
 
 use aerospace::{celestial_system::CelestialSystem, gravity::Gravity};
 use ron::ser::{to_string_pretty, PrettyConfig};
-use rotations::{prelude::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spice::Spice;
 use std::{

@@ -3,9 +3,9 @@ use iced::widget::canvas;
 
 use crate::canvas::PlotCanvas;
 use crate::SeriesMap;
-use iced::{Point, Task};
 use iced::{window, Settings};
 use iced::{Element, Fill, Size, Subscription};
+use iced::{Point, Task};
 use std::time::Instant;
 
 pub fn main(series: SeriesMap) -> iced::Result {
@@ -26,13 +26,12 @@ pub fn main(series: SeriesMap) -> iced::Result {
 pub struct PlotApp {
     state: AppState,
     canvas: PlotCanvas,
-    series: SeriesMap,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     Tick(Instant),
-    WheelScrolled(Point,ScrollDelta)
+    WheelScrolled(Point, ScrollDelta),
 }
 
 impl PlotApp {
@@ -41,7 +40,6 @@ impl PlotApp {
             Self {
                 state: AppState::default(),
                 canvas: PlotCanvas::new(&series),
-                series,
             },
             window::get_latest().and_then(window::gain_focus),
         )
@@ -51,8 +49,8 @@ impl PlotApp {
             Message::Tick(instant) => {
                 self.state.update(instant);
             }
-            Message::WheelScrolled(position,delta) => {
-                self.canvas.wheel_scrolled(position,delta);
+            Message::WheelScrolled(position, delta) => {
+                self.canvas.wheel_scrolled(position, delta);
             }
         }
     }

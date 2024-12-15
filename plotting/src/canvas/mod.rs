@@ -5,7 +5,7 @@ use crate::{
 };
 use axes::Axes;
 use iced::{
-    advanced::{graphics::text::cosmic_text::Scroll, mouse},
+    advanced::mouse,
     event::Status,
     mouse::{Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
@@ -67,10 +67,10 @@ impl PlotCanvas {
         for axes in &mut self.axes {
             let width = axes.xlim.1 - axes.xlim.0;
             let height = axes.ylim.1 - axes.ylim.0;
-            axes.xlim.0 += -width * SPEED * delta;
-            axes.xlim.1 += width * SPEED * delta;
-            axes.ylim.0 += -height * SPEED * delta;
-            axes.ylim.1 += height * SPEED * delta;
+            axes.xlim.0 += width * SPEED * delta;
+            axes.xlim.1 += -width * SPEED * delta;
+            axes.ylim.0 += height * SPEED * delta;
+            axes.ylim.1 += -height * SPEED * delta;
         }
 
         self.cache.clear();

@@ -1,5 +1,5 @@
 use bincode::deserialize_from;
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 mod animation;
 mod celestial;
@@ -13,7 +13,6 @@ use iced::{
 };
 
 use multibody::result::MultibodyResult;
-use ron::de::from_reader;
 use std::time::Instant;
 
 #[derive(Debug)]

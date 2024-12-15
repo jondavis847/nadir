@@ -43,29 +43,37 @@ impl Axes {
     }
 
     fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let bounds = self.get_bounds(frame);
-        let height = bounds.height;
-        let width = bounds.width;
-        let top_left = bounds.position();
+        let canvas_bounds = self.get_bounds(frame);
+        let axes_bounds = Rectangle::new(
+            Point::new(self.axis.padding, self.axis.padding),
+            Size::new(
+                canvas_bounds.width - 2.0 * self.axis.padding,
+                canvas_bounds.height - 2.0 * self.axis.padding,
+            ),
+        );
+        let top_left = axes_bounds.position();
+        let size = axes_bounds.size();
+        let axes_height = size.height;
+        let axes_width = size.width;
+        let left = top_left.x;
+        let right = left + axes_width;
+        let top = top_left.y;
+        let bottom = top + axes_height;
 
         let ylim = self.ylim;
         let xlim = self.xlim;
 
         let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
             let mut canvas_points = points.clone();
-            let axes_height = height - 2.0 * self.axis.padding - self.axis.line_width;
-            let axes_width = width - 2.0 * self.axis.padding - self.axis.line_width;
 
             let x_ratio = axes_width / (xlim.1 - xlim.0);
             let y_ratio = axes_height / (ylim.1 - ylim.0);
             for i in 0..points.len() {
-                let canvas_x = (points[i].x - xlim.0) * x_ratio
-                    + top_left.x
-                    + self.axis.padding
-                    + self.axis.line_width / 2.0;
-                let canvas_y =
-                    top_left.y + axes_height + self.axis.padding + self.axis.line_width / 2.0
-                        - (points[i].y - ylim.0) * y_ratio;
+                let canvas_x =
+                    (points[i].x - xlim.0) * x_ratio + top_left.x + self.axis.line_width / 2.0;
+                let canvas_y = top_left.y + axes_height + self.axis.line_width / 2.0
+                    - (points[i].y - ylim.0) * y_ratio;
+
                 canvas_points[i] = Point::new(canvas_x, canvas_y);
             }
             canvas_points
@@ -76,21 +84,46 @@ impl Axes {
                 //convert line data to canvas data
                 let canvas_data = canvas_values(&line.data);
 
-                let path = Path::new(|builder| {
-                    builder.move_to(canvas_data[0]);
-
-                    for point in &canvas_data[1..] {                        
-                        builder.line_to(*point);
-                    }
-                });
-
-                let line_color = if let Some(color) = line.color {
-                    color
-                } else {
-                    theme.line_colors[i]
+                // break it up into smaller lines if needed for clipping since with_clip() doesnt seem to work
+                let mut sublines = Vec::new();
+                let mut current_subline = Vec::new();
+                let is_in_bounds = |point: &Point| -> bool {
+                    (left..=right).contains(&point.x) && (top..=bottom).contains(&point.y)
                 };
 
-                frame.stroke(&path, Stroke::default().with_color(line_color));
+                for point in canvas_data {
+                    if is_in_bounds(&point) {
+                        current_subline.push(point);
+                    } else {
+                        if !current_subline.is_empty() {
+                            sublines.push(current_subline);
+                            current_subline = Vec::new();
+                        }
+                    }
+                }
+
+                // Add the last collected subline if it's not empty
+                if !current_subline.is_empty() {
+                    sublines.push(current_subline);
+                }
+
+                for subline in sublines {
+                    let path = Path::new(|builder| {
+                        builder.move_to(subline[0]);
+
+                        for point in &subline[1..] {
+                            builder.line_to(*point);
+                        }
+                    });
+
+                    let line_color = if let Some(color) = line.color {
+                        color
+                    } else {
+                        theme.line_colors[i]
+                    };
+
+                    frame.stroke(&path, Stroke::default().with_color(line_color));
+                }
             }
         }
     }

@@ -49,7 +49,7 @@ impl Axis {
         let axis_top_right = Point::new(axes_size.width + padding, padding);
 
         // Draw border lines
-        let border_stroke = Stroke::default().with_width(1.0);
+        let border_stroke = Stroke::default().with_width(1.0).with_color(theme.border);
 
         let axis_lines = [
             (axis_bottom_left, axis_bottom_right), // x-axis border
@@ -73,14 +73,16 @@ impl Axis {
              canvas_span: f32,
              n_ticks: u32,
              is_x_axis: bool,
-             tick_length: f32,
+             _tick_length: f32,
              tick_text_spacing: f32,
              line_width: f32| {
                 let value_span = value_range.1 - value_range.0;
                 let (tick_spacing, tick_increment) =
                     calculate_tick_spacing(value_span, canvas_span, n_ticks);
 
-                let grid_stroke = Stroke::default().with_width(1.0).with_color(theme.grid_color);
+                let grid_stroke = Stroke::default()
+                    .with_width(1.0)
+                    .with_color(theme.grid_color);
 
                 // Draw ticks in both positive and negative directions from 0.0
                 for direction in [-1, 1].iter() {
@@ -112,7 +114,12 @@ impl Axis {
 
                             let zero_axis = Path::line(zero_axis_start, zero_axis_end);
 
-                            frame.stroke(&zero_axis, Stroke::default().with_width(line_width));
+                            frame.stroke(
+                                &zero_axis,
+                                Stroke::default()
+                                    .with_width(line_width)
+                                    .with_color(theme.axis_color),
+                            );
                             (v, cp)
                         } else {
                             // Otherwise, start at the range minimum or maximum

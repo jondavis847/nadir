@@ -76,7 +76,7 @@ pub fn solve_fixed_rk4(
     sys.update_results();
 
     // RUN THE RK4 LOOP
-    for i in 0..result_length {
+    for _ in 0..result_length {
         //println!("step {i}");
         // logic to change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {
