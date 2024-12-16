@@ -3853,6 +3853,7 @@ version = "0.0.1"
 dependencies = [
  "bincode",
  "iced",
+ "image 0.25.5",
  "inquire",
  "multibody",
  "rand",
