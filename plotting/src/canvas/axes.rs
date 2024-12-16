@@ -87,18 +87,114 @@ impl Axes {
                 // break it up into smaller lines if needed for clipping since with_clip() doesnt seem to work
                 let mut sublines = Vec::new();
                 let mut current_subline = Vec::new();
-                let is_in_bounds = |point: &Point| -> bool {
-                    (left..=right).contains(&point.x) && (top..=bottom).contains(&point.y)
+
+                enum Bound {
+                    Top,
+                    Bottom,
+                    Right,
+                    Left,
+                }
+                let is_out_of_bounds = |point: &Point| -> Option<Bound> {
+                    let x = if point.x < left {
+                        Some((Bound::Left, left - point.x))
+                    } else if point.x > right {
+                        Some((Bound::Right, point.x - right))
+                    } else {
+                        None
+                    };
+
+                    let y = if point.y < top {
+                        Some((Bound::Top, top - point.y))
+                    } else if point.y > bottom {
+                        Some((Bound::Bottom, point.y - bottom))
+                    } else {
+                        None
+                    };
+
+                    // determine which one clips first if any
+                    match (x, y) {
+                        (Some(x), Some(y)) => {
+                            if x.1 > y.1 {
+                                Some(x.0)
+                            } else {
+                                Some(y.0)
+                            }
+                        }
+                        (Some(x), None) => Some(x.0),
+                        (None, Some(y)) => Some(y.0),
+                        (None, None) => None,
+                    }
                 };
 
-                for point in canvas_data {
-                    if is_in_bounds(&point) {
-                        current_subline.push(point);
-                    } else {
+                for (i, point) in canvas_data.iter().enumerate() {
+                    if let Some(bound) = is_out_of_bounds(&point) {
                         if !current_subline.is_empty() {
+                            // previous point was in bound
+                            let prev_point = &canvas_data[i - 1];
+                            let end_point = match bound {
+                                Bound::Bottom => {
+                                    let x = prev_point.x
+                                        + (bottom - prev_point.y) / (point.y - prev_point.y)
+                                            * (point.x - prev_point.x);
+                                    Point::new(x, bottom)
+                                }
+                                Bound::Left => {
+                                    let y = prev_point.y
+                                        + (left - prev_point.x) / (point.x - prev_point.x)
+                                            * (point.y - prev_point.y);
+                                    Point::new(left, y)
+                                }
+                                Bound::Right => {
+                                    let y = prev_point.y
+                                        + (right - prev_point.x) / (point.x - prev_point.x)
+                                            * (point.y - prev_point.y);
+                                    Point::new(right, y)
+                                }
+                                Bound::Top => {
+                                    let x = prev_point.x
+                                        + (top - prev_point.y) / (point.y - prev_point.y)
+                                            * (point.x - prev_point.x);
+                                    Point::new(x, top)
+                                }
+                            };
+                            current_subline.push(end_point);
                             sublines.push(current_subline);
                             current_subline = Vec::new();
+                        } else if i < canvas_data.len() - 1 {
+                            if is_out_of_bounds(&canvas_data[i + 1]).is_none() {
+                                // next point is in bounds, get starting point
+                                let next_point = &canvas_data[i + 1];
+                                let starting_point = match bound {
+                                    Bound::Bottom => {
+                                        let x = point.x
+                                            + (bottom - point.y) / (next_point.y - point.y)
+                                                * (next_point.x - point.x);
+                                        Point::new(x, bottom)
+                                    }
+                                    Bound::Left => {
+                                        let y = point.y
+                                            + (left - point.x) / (next_point.x - point.x)
+                                                * (next_point.y - point.y);
+                                        Point::new(left, y)
+                                    }
+                                    Bound::Right => {
+                                        let y = point.y
+                                            + (right - point.x) / (next_point.x - point.x)
+                                                * (next_point.y - point.y);
+                                        Point::new(right, y)
+                                    }
+                                    Bound::Top => {
+                                        let x = point.x
+                                            + (top - point.y) / (next_point.y - point.y)
+                                                * (next_point.x - point.x);
+                                        Point::new(x, top)
+                                    }
+                                };
+                                current_subline.push(starting_point);
+                            }
                         }
+                    } else {
+                        current_subline.push(*point);
                     }
                 }
 
