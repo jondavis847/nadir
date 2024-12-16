@@ -46,11 +46,11 @@ impl PlotCanvas {
                 .find(|axes| axes.location == series.axes)
             {
                 // If found, add the line to the existing Axes
-                axes.add_line(series);
+                axes.add_line(series, None);
             } else {
                 // If not found, create a new Axes with the specified location
                 let mut new_axes = Axes::new(series.axes);
-                new_axes.add_line(series);
+                new_axes.add_line(series, None);
                 canvas.axes.push(new_axes);
             }
         }

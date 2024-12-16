@@ -175,11 +175,19 @@ impl Axis {
                         // frame.stroke(&tick_path, Stroke::default().with_width(line_width));
 
                         // Automatically decide between fixed-point and scientific notation
-                        let label = if value.abs() < 0.01 || value.abs() > 1000.0 {
-                            format!("{:e}", value) // use scientific notation
-                        } else {
-                            format!("{:.2}", value) // use fixed precision
-                        };
+                        let label =
+                            if value > 0.0 - std::f32::EPSILON && value < 0.0 + std::f32::EPSILON {
+                                "0".to_string()
+                            } else if value.abs() < 0.01 || value.abs() > 1000.0 {
+                                format!("{:e}", value) // use scientific notation
+                            } else {
+                                let formatted = format!("{:.2}", value);
+                                if formatted.ends_with(".00") {
+                                    formatted.trim_end_matches(".00").to_string()
+                                } else {
+                                    formatted
+                                }
+                            };
 
                         let text_center = if is_x_axis {
                             tick_point + Vector::new(0.0, tick_text_spacing)
