@@ -20,15 +20,15 @@ pub struct EarthParameters {
 impl EarthParameters {
     const EARTH_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/earth_1962_240827_2124_combined.bpc";
 
-    pub fn check_naif(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
         check_naif(EarthParameters::EARTH_BPC, self.last_modified.clone())
     }
 
-    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
-        io::stdout().flush()?;
-        let response = reqwest::blocking::get(EarthParameters::EARTH_BPC)?;
+        io::stdout().flush().expect("spice could not flush io");
+        let response = reqwest::blocking::get(EarthParameters::EARTH_BPC).expect("spice could not http get");
 
         // Get the Last-Modified header if it exists
         let last_modified = response
@@ -38,7 +38,7 @@ impl EarthParameters {
             .map(String::from)
             .ok_or(SpiceErrors::HeaderNotFound)?;
 
-        let eop_bytes = response.bytes()?;
+        let eop_bytes = response.bytes().expect("spiace could not get bytes");
         let daf_data = DafData::new(&eop_bytes, SpiceFileTypes::Pck)?;
         let duration = start.elapsed();
         println!("Done! in {} sec.", duration.as_secs_f32());
@@ -52,7 +52,7 @@ impl EarthParameters {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<&mut Segment>, SpiceErrors> {
         self.daf.get_segment(body, t)
     }
 }
@@ -67,15 +67,15 @@ impl MoonParameters {
 
     const MOON_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc";
 
-    pub fn check_naif(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
         check_naif(MoonParameters::MOON_BPC, self.last_modified.clone())
     }
 
-    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
-        io::stdout().flush()?;
-        let response = reqwest::blocking::get(MoonParameters::MOON_BPC)?;
+        io::stdout().flush().expect("spice could not flush io");
+        let response = reqwest::blocking::get(MoonParameters::MOON_BPC).expect("spice could not perform http get request");
 
         // Get the Last-Modified header if it exists
         let last_modified = response
@@ -85,7 +85,7 @@ impl MoonParameters {
             .map(String::from)
             .ok_or(SpiceErrors::HeaderNotFound)?;
 
-        let eop_bytes = response.bytes()?;
+        let eop_bytes = response.bytes().expect("spice could not get eop bytes");
         let daf_data = DafData::new(&eop_bytes, SpiceFileTypes::Pck)?;
         let duration = start.elapsed();
         println!("Done! in {} sec.", duration.as_secs_f32());
@@ -99,7 +99,7 @@ impl MoonParameters {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<&mut Segment>, SpiceErrors> {
         self.daf.get_segment(body, t)
     }
 }

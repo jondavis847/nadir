@@ -7,17 +7,21 @@ use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     base::{BaseConnection, BaseRef},
-    body::{BodyConnection, BodyRef},
-    result::MultibodyResultTrait,
+    body::{BodyConnection, BodyRef}, MultibodyResult,
 };
+use csv::Writer;
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
+use utilities::initialize_writer;
 use std::{
     cell::RefCell,
     fmt::Debug,
+    fs::File,
+    io::BufWriter,
     ops::{AddAssign, MulAssign},
+    path::PathBuf,
     rc::Rc,
 };
 use thiserror::Error;
@@ -41,7 +45,7 @@ pub type JointRef = Rc<RefCell<Joint>>;
 
 #[typetag::serde]
 pub trait JointModel:
-    CloneJointModel + Debug + MultibodyResultTrait + ArticulatedBodyAlgorithm
+    CloneJointModel + Debug + MultibodyResult + ArticulatedBodyAlgorithm
 {
     fn calculate_joint_inertia(
         &mut self,
@@ -107,19 +111,19 @@ impl Joint {
             Velocity::zeros()
         };
 
-        let c = &mut self.cache;        
+        let c = &mut self.cache;
         c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
         c.aba.c = c.v.cross_motion(c.vj); // + cj
         c.aba.inertia_articulated = c.inertia;
-        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;        
+        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;
     }
 
-    pub fn aba_second_pass(&mut self) {        
+    pub fn aba_second_pass(&mut self) {
         self.model
             .aba_second_pass(&mut self.cache, &self.inner_joint);
     }
 
-    pub fn aba_third_pass(&mut self) {        
+    pub fn aba_third_pass(&mut self) {
         self.model
             .aba_third_pass(&mut self.cache, &self.inner_joint);
     }
@@ -141,7 +145,8 @@ impl Joint {
         let outer_body_connection = self.connections.outer_body.as_ref().unwrap();
         let mass_properties = &outer_body_connection.body.borrow().mass_properties;
 
-        self.cache.inertia = self.model
+        self.cache.inertia = self
+            .model
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
@@ -210,6 +215,19 @@ impl Joint {
     pub fn update_transforms(&mut self) {
         self.model
             .update_transforms(&mut self.cache.transforms, &self.inner_joint);
+    }
+
+    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
+        // Define the joints subfolder folder path
+        let joints_folder_path = result_folder_path.join("joints");
+
+        // Check if the folder exists, if not, create it
+        if !joints_folder_path.exists() {
+            std::fs::create_dir_all(&joints_folder_path).expect("Failed to create bodies folder");
+        }
+
+        // Initialize writer using the updated path
+        initialize_writer(self.name.clone(), &joints_folder_path)
     }
 }
 

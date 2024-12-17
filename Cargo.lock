@@ -38,6 +38,7 @@ name = "aerospace"
 version = "0.0.1"
 dependencies = [
  "approx",
+ "csv",
  "interp",
  "nalgebra",
  "rotations",
@@ -45,6 +46,7 @@ dependencies = [
  "spice",
  "thiserror 2.0.3",
  "time",
+ "utilities",
 ]
 
 [[package]]
@@ -1124,6 +1126,27 @@ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
+]
+
+[[package]]
+name = "csv"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acdc4883a9c96732e4733212c01447ebd805833b7275a73ca3ee080fd77afdaf"
+dependencies = [
+ "csv-core",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "csv-core"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -2997,6 +3020,7 @@ dependencies = [
  "chrono",
  "clap",
  "coordinate_systems",
+ "csv",
  "mass_properties",
  "nadir_3d",
  "nalgebra",
@@ -4754,6 +4778,7 @@ version = "0.0.1"
 dependencies = [
  "aerospace",
  "color",
+ "csv",
  "mass_properties",
  "multibody",
  "nadir_3d",
@@ -4795,6 +4820,7 @@ dependencies = [
  "reqwest",
  "rotations",
  "serde",
+ "thiserror 2.0.3",
  "time",
 ]
 
@@ -5445,6 +5471,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "utilities"
 version = "0.0.1"
+dependencies = [
+ "csv",
+]
 
 [[package]]
 name = "uuid"

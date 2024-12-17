@@ -81,5 +81,5 @@ fn main() {
         .unwrap();
 
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, &mut None);
+    sys.simulate("", 0.0, 20.0, 0.1);
 }

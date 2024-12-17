@@ -23,7 +23,6 @@ use nadir_3d::{
     material::Material,
     mesh::Mesh,
 };
-use spice::Spice;
 use time::Time;
 use transforms::Transform;
 
@@ -103,11 +102,7 @@ fn main() {
     sys.connect("f", "b", Transform::IDENTITY).unwrap();
     sys.connect("st", "b", Transform::IDENTITY).unwrap();
     sys.connect("imu", "b", Transform::IDENTITY).unwrap();
-    // We will use SPICE data for the planetary ephemeris
-    // from_local() will check if you already downloaded the data locally
-    // if not calls from_naif() to download the data
-    let mut spice = Some(Spice::from_local().unwrap());
 
     // Run the simulation
-    sys.simulate("", 0.0, 7000.0, 1.0, &mut spice);
+    sys.simulate("", 0.0, 7000.0, 1.0);
 }

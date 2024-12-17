@@ -1,9 +1,9 @@
 use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    joint::{joint_transforms::JointTransforms, JointModel, JointParameters},
-    result::{MultibodyResultTrait, ResultEntry},
+    joint::{joint_transforms::JointTransforms, JointModel, JointParameters}, MultibodyResult,
 };
 use coordinate_systems::CoordinateSystem;
+use csv::Writer;
 use mass_properties::MassProperties;
 use nalgebra::{Matrix6x1, Vector6};
 use rotations::{
@@ -12,8 +12,11 @@ use rotations::{
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::ops::{AddAssign, MulAssign};
-use std::{collections::HashMap, mem::take};
+use std::{
+    fs::File,
+    io::BufWriter,
+    ops::{AddAssign, MulAssign},
+};
 use thiserror::Error;
 use transforms::Transform;
 
@@ -50,22 +53,12 @@ impl MulAssign<f64> for RevoluteState {
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct RevoluteParameters(JointParameters);
 
-#[derive(Debug, Default, Clone)]
-struct RevoluteResult {
-    theta: Vec<f64>,
-    omega: Vec<f64>,
-    alpha: Vec<f64>,
-    tau: Vec<f64>,
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Revolute {
     pub parameters: RevoluteParameters,
     pub state: RevoluteState,
     #[serde(skip)]
     cache: RevoluteCache,
-    #[serde(skip)]
-    result: RevoluteResult,
 }
 
 impl Revolute {
@@ -75,6 +68,22 @@ impl Revolute {
             state,
             ..Default::default()
         }
+    }
+
+    pub fn initialize_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&["theta", "omega", "alpha", "tau"])
+            .expect(&format!("could not write to file"));
+    }
+    pub fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&[
+                self.state.theta.to_string(),
+                self.state.omega.to_string(),
+                self.cache.q_ddot.to_string(),
+                self.cache.tau.to_string(),
+            ])
+            .expect(&format!("could not write to file"));
     }
 }
 
@@ -137,28 +146,20 @@ impl JointModel for Revolute {
     }
 }
 
-impl MultibodyResultTrait for Revolute {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert("theta".to_string(), take(&mut self.result.theta));
-        result.insert("omega".to_string(), take(&mut self.result.omega));
-        result.insert("alpha".to_string(), take(&mut self.result.alpha));
-        result.insert("tau".to_string(), take(&mut self.result.tau));
-        ResultEntry::new(result)
+impl MultibodyResult for Revolute {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&["theta", "omega", "alpha", "tau"])
+            .expect("Failed to write header");
     }
 
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.theta = Vec::with_capacity(capacity);
-        self.result.omega = Vec::with_capacity(capacity);
-        self.result.alpha = Vec::with_capacity(capacity);
-        self.result.tau = Vec::with_capacity(capacity);
-    }
-
-    fn update_result(&mut self) {
-        self.result.theta.push(self.state.theta);
-        self.result.omega.push(self.state.omega);
-        self.result.alpha.push(self.cache.q_ddot);
-        self.result.tau.push(self.cache.tau);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer.write_record(&[
+            self.state.theta.to_string(),
+            self.state.omega.to_string(),
+            self.cache.q_ddot.to_string(),
+            self.cache.tau.to_string(),
+        ]).expect("could not write revolute result file");
     }
 }
 

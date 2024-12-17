@@ -1,9 +1,13 @@
-use std::{collections::HashMap, mem::take};
+use std::{fs::File, io::BufWriter};
 
+use csv::Writer;
 use multibody::{
     body::BodyConnection,
-    result::{MultibodyResultTrait, ResultEntry},
-    sensor::{noise::{Noise, NoiseModels}, SensorModel},
+    sensor::{
+        noise::{Noise, NoiseModels},
+        SensorModel,
+    },
+    MultibodyResult,
 };
 use nalgebra::Vector3;
 use rotations::RotationTrait;
@@ -30,7 +34,6 @@ pub struct RateGyroState {
 pub struct RateGyro {
     parameters: RateGyroParameters,
     state: RateGyroState,
-    result: RateGyroResult,
 }
 
 impl RateGyro {
@@ -78,58 +81,46 @@ impl SensorModel for RateGyro {
     }
 }
 
-impl MultibodyResultTrait for RateGyro {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert(
-            "measurement[x]".to_string(),
-            take(&mut self.result.measurement_x),
-        );
-        result.insert(
-            "measurement[y]".to_string(),
-            take(&mut self.result.measurement_y),
-        );
-        result.insert(
-            "measurement[z]".to_string(),
-            take(&mut self.result.measurement_z),
-        );
-        if self.parameters.noise.is_some() {
-            result.insert("noise[x]".to_string(), take(&mut self.result.noise_x));
-            result.insert("noise[y]".to_string(), take(&mut self.result.noise_y));
-            result.insert("noise[z]".to_string(), take(&mut self.result.noise_z));
-        }
-        ResultEntry::new(result)
-    }
-
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.measurement_x = Vec::with_capacity(capacity);
-        self.result.measurement_y = Vec::with_capacity(capacity);
-        self.result.measurement_z = Vec::with_capacity(capacity);
-        if self.parameters.noise.is_some() {
-            self.result.noise_x = Vec::with_capacity(capacity);
-            self.result.noise_y = Vec::with_capacity(capacity);
-            self.result.noise_z = Vec::with_capacity(capacity);
+impl MultibodyResult for RateGyro {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        if let Some(_) = &self.parameters.noise {
+            writer
+                .write_record(&[
+                    "measurement[x]",
+                    "measurement[y]",
+                    "measurement[z]",
+                    "noise[x]",
+                    "noise[y]",
+                    "noise[z]",
+                ])
+                .expect("Failed to write header");
+        } else {
+            writer
+                .write_record(&["measurement[x]", "measurement[y]", "measurement[z]"])
+                .expect("Failed to write header");
         }
     }
 
-    fn update_result(&mut self) {
-        self.result.measurement_x.push(self.state.measurement[0]);
-        self.result.measurement_y.push(self.state.measurement[1]);
-        self.result.measurement_z.push(self.state.measurement[2]);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
         if let Some(noise) = &self.state.noise {
-            self.result.noise_x.push(noise[0]);
-            self.result.noise_y.push(noise[1]);
-            self.result.noise_z.push(noise[2]);
+            writer
+                .write_record(&[
+                    self.state.measurement[0].to_string(),
+                    self.state.measurement[1].to_string(),
+                    self.state.measurement[2].to_string(),
+                    noise[0].to_string(),
+                    noise[1].to_string(),
+                    noise[2].to_string(),
+                ])
+                .expect("Failed to write rate gyro result file");
+        } else {
+            writer
+                .write_record(&[
+                    self.state.measurement[0].to_string(),
+                    self.state.measurement[1].to_string(),
+                    self.state.measurement[2].to_string(),
+                ])
+                .expect("Failed to write rate gyro result file");
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RateGyroResult {
-    measurement_x: Vec<f64>,
-    measurement_y: Vec<f64>,
-    measurement_z: Vec<f64>,
-    noise_x: Vec<f64>,
-    noise_y: Vec<f64>,
-    noise_z: Vec<f64>,
 }

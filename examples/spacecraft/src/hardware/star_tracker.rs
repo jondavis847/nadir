@@ -1,12 +1,13 @@
-use std::{collections::HashMap, mem::take};
+use std::{fs::File, io::BufWriter};
 
+use csv::Writer;
 use multibody::{
     body::BodyConnection,
-    result::{MultibodyResultTrait, ResultEntry},
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
         SensorModel,
     },
+    MultibodyResult,
 };
 
 use rotations::{prelude::Quaternion, Rotation};
@@ -34,7 +35,6 @@ pub struct StarTrackerState {
 pub struct StarTracker {
     parameters: StarTrackerParameters,
     state: StarTrackerState,
-    result: StarTrackerResult,
 }
 
 impl StarTracker {
@@ -42,7 +42,6 @@ impl StarTracker {
         Self {
             parameters: StarTrackerParameters::default(),
             state: StarTrackerState::default(),
-            result: StarTrackerResult::default(),
         }
     }
 
@@ -87,63 +86,34 @@ impl SensorModel for StarTracker {
     }
 }
 
-impl MultibodyResultTrait for StarTracker {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert(
-            "measurement[x]".to_string(),
-            take(&mut self.result.measurement_x),
-        );
-        result.insert(
-            "measurement[y]".to_string(),
-            take(&mut self.result.measurement_y),
-        );
-        result.insert(
-            "measurement[z]".to_string(),
-            take(&mut self.result.measurement_z),
-        );
-        result.insert(
-            "measurement[w]".to_string(),
-            take(&mut self.result.measurement_w),
-        );
-        result.insert("noise[x]".to_string(), take(&mut self.result.noise_x));
-        result.insert("noise[y]".to_string(), take(&mut self.result.noise_y));
-        result.insert("noise[z]".to_string(), take(&mut self.result.noise_z));
-        result.insert("noise[w]".to_string(), take(&mut self.result.noise_w));
-        ResultEntry::new(result)
+impl MultibodyResult for StarTracker {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&[
+                "measurement[x]",
+                "measurement[y]",
+                "measurement[z]",
+                "measurement[w]",
+                "noise[x]",
+                "noise[y]",
+                "noise[z]",
+                "noise[w]",
+            ])
+            .expect("Failed to write header");
     }
 
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.measurement_x = Vec::with_capacity(capacity);
-        self.result.measurement_y = Vec::with_capacity(capacity);
-        self.result.measurement_z = Vec::with_capacity(capacity);
-        self.result.measurement_w = Vec::with_capacity(capacity);
-        self.result.noise_x = Vec::with_capacity(capacity);
-        self.result.noise_y = Vec::with_capacity(capacity);
-        self.result.noise_z = Vec::with_capacity(capacity);
-        self.result.noise_w = Vec::with_capacity(capacity);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&[
+                self.state.measurement.x.to_string(),
+                self.state.measurement.y.to_string(),
+                self.state.measurement.z.to_string(),
+                self.state.measurement.s.to_string(),
+                self.state.noise.x.to_string(),
+                self.state.noise.y.to_string(),
+                self.state.noise.z.to_string(),
+                self.state.noise.s.to_string(),
+            ])
+            .expect("could not write star tracker result file");
     }
-
-    fn update_result(&mut self) {
-        self.result.measurement_x.push(self.state.measurement.x);
-        self.result.measurement_y.push(self.state.measurement.y);
-        self.result.measurement_z.push(self.state.measurement.z);
-        self.result.measurement_w.push(self.state.measurement.s);
-        self.result.noise_x.push(self.state.noise.x);
-        self.result.noise_y.push(self.state.noise.y);
-        self.result.noise_z.push(self.state.noise.z);
-        self.result.noise_w.push(self.state.noise.s);
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StarTrackerResult {
-    measurement_x: Vec<f64>,
-    measurement_y: Vec<f64>,
-    measurement_z: Vec<f64>,
-    measurement_w: Vec<f64>,
-    noise_x: Vec<f64>,
-    noise_y: Vec<f64>,
-    noise_z: Vec<f64>,
-    noise_w: Vec<f64>,
 }

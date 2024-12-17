@@ -12,6 +12,7 @@ phf.workspace = true
 rotations.workspace = true
 reqwest.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 time.workspace = true
 httpdate.workspace = true
 approx.workspace = true

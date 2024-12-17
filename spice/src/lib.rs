@@ -13,39 +13,28 @@ use spk::SpiceSpk;
 
 use std::fs::File;
 use std::io::{Read, Write};
+use thiserror::Error;
 use time::{Time, TimeSystem};
 
 pub mod daf;
 pub mod pck;
 pub mod spk;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SpiceErrors {
+    #[error("body not found in Spice data")]
     BodyNotFound,
+    #[error("could not open the computer's config directory")]
     CantOpenConfigDir,
+    #[error("header not found")]
     HeaderNotFound,
+    #[error("could not find orientation data for this body")]
     NoOrientationDataForThisBody,
+    #[error("record meta not found")]
     RecordMetaNotFound,
+    #[error("record not found")]
     RecordNotFound,
 }
-
-impl std::fmt::Display for SpiceErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SpiceErrors::BodyNotFound => writeln!(f, "Body not found in Spice data."),
-            SpiceErrors::CantOpenConfigDir => {
-                writeln!(f, "Could not open the computer's config directory.")
-            }
-            SpiceErrors::HeaderNotFound => writeln!(f, "Header not found."),
-            SpiceErrors::NoOrientationDataForThisBody => {
-                writeln!(f, "Could not find orientation data for this body.")
-            }
-            SpiceErrors::RecordMetaNotFound => writeln!(f, "Record meta not found."),
-            SpiceErrors::RecordNotFound => writeln!(f, "Record not found."),
-        }
-    }
-}
-impl std::error::Error for SpiceErrors {}
 
 pub enum SpiceFileTypes {
     Pck,
@@ -62,15 +51,16 @@ impl Spice {
     /// Attempts to load the file from the serialize binary in the local temp directory
     /// If for any reason it can't, it will attempt to redownload and save the latest files
     /// It will also check the dates of the spice files and update if possible
-    pub fn from_local() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_local() -> Result<Self, SpiceErrors> {
         // can we find the config dir where data is saved?
         if let Some(mut path) = config_dir() {
             path.push("nadir/spice.data");
             // does the file already exist?
             if path.exists() {
-                let mut file = File::open(&path)?;
+                let mut file = File::open(&path).expect("could not open spice file");
                 let mut buffer = Vec::new();
-                file.read_to_end(&mut buffer)?;
+                file.read_to_end(&mut buffer)
+                    .expect("could not read spice file");
                 // atempt to deserialize, if error redownload new files
                 let mut spice: Spice = match bincode::deserialize(&buffer) {
                     Ok(spice) => spice,
@@ -120,7 +110,7 @@ impl Spice {
         }
     }
 
-    pub fn from_naif() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_naif() -> Result<Self, SpiceErrors> {
         let earth = EarthParameters::from_naif()?;
         let moon = MoonParameters::from_naif()?;
         let spk = SpiceSpk::from_naif()?;
@@ -133,7 +123,7 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<Vector3<f64>, Box<dyn std::error::Error>> {
+    ) -> Result<Vector3<f64>, SpiceErrors> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         // earth is the center of our frame, so always zeros
         if body == SpiceBodies::Earth {
@@ -182,7 +172,7 @@ impl Spice {
         &mut self,
         t: Time,
         body: SpiceBodies,
-    ) -> Result<Quaternion, Box<dyn std::error::Error>> {
+    ) -> Result<Quaternion, SpiceErrors> {
         let t = t.to_system(TimeSystem::TT).get_seconds_j2k();
         let segment = match body {
             SpiceBodies::Earth => {
@@ -220,13 +210,13 @@ impl Spice {
         Ok(orientation_equatorial)
     }
 
-    pub fn save_spice_data(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_spice_data(&self) -> Result<(), SpiceErrors> {
         if let Some(mut path) = config_dir() {
             path.push("nadir");
             path.push("spice.data");
             let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
-            let mut file = File::create(path)?;
-            file.write_all(&encoded)?; // Write the serialized data to a file
+            let mut file = File::create(path).expect("spice could not get open file");
+            file.write_all(&encoded).expect("spice could not write file"); // Write the serialized data to a file
             Ok(())
         } else {
             Err(SpiceErrors::CantOpenConfigDir.into())
@@ -400,9 +390,9 @@ impl DataTypes {
     }
 }
 
-fn check_naif(url: &str, local: String) -> Result<bool, Box<dyn std::error::Error>> {
+fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
     let client = Client::new();
-    let response = client.head(url).send()?;
+    let response = client.head(url).send().expect("spice could not send http request");
     if let Some(last_modified) = response.headers().get("last-modified") {
         let remote_date = last_modified.to_str().unwrap().to_string();
         if remote_date == local {

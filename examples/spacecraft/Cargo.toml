@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 aerospace.workspace = true
 color.workspace = true
+csv.workspace = true
 mass_properties.workspace = true
 multibody.workspace = true
 nadir_3d.workspace = true

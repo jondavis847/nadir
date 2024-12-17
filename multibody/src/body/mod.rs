@@ -1,26 +1,29 @@
 use crate::{
     joint::{Joint, JointRef},
-    result::{MultibodyResultTrait, ResultEntry},
+    MultibodyResult,
 };
-
 use aerospace::{
     celestial_system::CelestialSystem,
     gravity::{Gravity, GravityTrait},
 };
+use csv::Writer;
 use mass_properties::MassProperties;
 use nadir_3d::mesh::Mesh;
 use nalgebra::{Vector3, Vector6};
+use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{quaternion::Quaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
 use std::{
     cell::RefCell,
-    collections::HashMap,
-    mem::take,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
     rc::{Rc, Weak},
 };
 use thiserror::Error;
 use transforms::Transform;
+use utilities::initialize_writer;
 
 #[derive(Clone, Debug, Error)]
 pub enum BodyErrors {
@@ -49,8 +52,6 @@ pub struct Body {
     pub outer_joints: Vec<Weak<RefCell<Joint>>>, // id of joint in system.joints, joint contains the transform information
     #[serde(skip)]
     pub state: BodyState,
-    #[serde(skip)]
-    result: BodyResult,
 }
 
 impl Body {
@@ -72,7 +73,6 @@ impl Body {
             mass_properties: mass_properties,
             name: name.to_string(),
             outer_joints: Vec::new(),
-            result: BodyResult::default(),
             state: BodyState::default(),
         })
     }
@@ -185,258 +185,106 @@ impl Body {
         self.state.position_base = body_from_base.translation.vec();
         self.state.attitude_base = Quaternion::from(&body_from_base.rotation);
     }
+
+    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
+        // Define the bodies subfolder folder path
+        let bodies_folder_path = result_folder_path.join("bodies");
+
+        // Check if the folder exists, if not, create it
+        if !bodies_folder_path.exists() {
+            std::fs::create_dir_all(&bodies_folder_path).expect("Failed to create bodies folder");
+        }
+
+        // Initialize writer using the updated path
+        let writer = initialize_writer(self.name.clone(), &bodies_folder_path);
+
+        if let Some(mesh) = &self.mesh {
+            let mesh_file_path = bodies_folder_path.join(self.name.clone()).join("mesh.ron");
+            let mut mesh_file = File::create(mesh_file_path).expect("could not create file");
+
+            let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
+            mesh_file.write_all(ron_string.as_bytes()).unwrap();
+        }
+        writer
+    }
 }
 
-impl MultibodyResultTrait for Body {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert(
-            "acceleration[x]{base}".to_string(),
-            take(&mut self.result.acceleration_x_base),
-        );
-        result.insert(
-            "acceleration[y]{base}".to_string(),
-            take(&mut self.result.acceleration_y_base),
-        );
-        result.insert(
-            "acceleration[z]{base}".to_string(),
-            take(&mut self.result.acceleration_z_base),
-        );
-        result.insert(
-            "acceleration[x]{body}".to_string(),
-            take(&mut self.result.acceleration_x_body),
-        );
-        result.insert(
-            "acceleration[y]{body}".to_string(),
-            take(&mut self.result.acceleration_y_body),
-        );
-        result.insert(
-            "acceleration[z]{body}".to_string(),
-            take(&mut self.result.acceleration_z_body),
-        );
-        result.insert(
-            "angular_accel[x]{body}".to_string(),
-            take(&mut self.result.angular_accel_x_body),
-        );
-        result.insert(
-            "angular_accel[y]{body}".to_string(),
-            take(&mut self.result.angular_accel_y_body),
-        );
-        result.insert(
-            "angular_accel[z]{body}".to_string(),
-            take(&mut self.result.angular_accel_z_body),
-        );
-        result.insert(
-            "angular_rate[x]{body}".to_string(),
-            take(&mut self.result.angular_rate_x_body),
-        );
-        result.insert(
-            "angular_rate[y]{body}".to_string(),
-            take(&mut self.result.angular_rate_y_body),
-        );
-        result.insert(
-            "angular_rate[z]{body}".to_string(),
-            take(&mut self.result.angular_rate_z_body),
-        );
-        result.insert(
-            "attitude[x]{base}".to_string(),
-            take(&mut self.result.attitude_x_base),
-        );
-        result.insert(
-            "attitude[y]{base}".to_string(),
-            take(&mut self.result.attitude_y_base),
-        );
-        result.insert(
-            "attitude[z]{base}".to_string(),
-            take(&mut self.result.attitude_z_base),
-        );
-        result.insert(
-            "attitude[w]{base}".to_string(),
-            take(&mut self.result.attitude_w_base),
-        );
-        result.insert(
-            "external_force[x]{body}".to_string(),
-            take(&mut self.result.external_force_x_body),
-        );
-        result.insert(
-            "external_force[y]{body}".to_string(),
-            take(&mut self.result.external_force_y_body),
-        );
-        result.insert(
-            "external_force[z]{body}".to_string(),
-            take(&mut self.result.external_force_z_body),
-        );
-        result.insert(
-            "external_torque[x]{body}".to_string(),
-            take(&mut self.result.external_torque_x_body),
-        );
-        result.insert(
-            "external_torque[y]{body}".to_string(),
-            take(&mut self.result.external_torque_y_body),
-        );
-        result.insert(
-            "external_torque[z]{body}".to_string(),
-            take(&mut self.result.external_torque_z_body),
-        );
-        result.insert(
-            "position[x]{base}".to_string(),
-            take(&mut self.result.position_x_base),
-        );
-        result.insert(
-            "position[y]{base}".to_string(),
-            take(&mut self.result.position_y_base),
-        );
-        result.insert(
-            "position[z]{base}".to_string(),
-            take(&mut self.result.position_z_base),
-        );
-        result.insert(
-            "velocity[x]{base}".to_string(),
-            take(&mut self.result.velocity_x_base),
-        );
-        result.insert(
-            "velocity[y]{base}".to_string(),
-            take(&mut self.result.velocity_y_base),
-        );
-        result.insert(
-            "velocity[z]{base}".to_string(),
-            take(&mut self.result.velocity_z_base),
-        );
-        result.insert(
-            "velocity[x]{body}".to_string(),
-            take(&mut self.result.velocity_x_body),
-        );
-        result.insert(
-            "velocity[y]{body}".to_string(),
-            take(&mut self.result.velocity_y_body),
-        );
-        result.insert(
-            "velocity[z]{body}".to_string(),
-            take(&mut self.result.velocity_z_body),
-        );
-
-        ResultEntry::new(result)
+impl MultibodyResult for Body {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        // Initialize first row header info for the file
+        writer
+            .write_record(&[
+                "acceleration(base)[x]",
+                "acceleration(base)[y]",
+                "acceleration(base)[z]",
+                "acceleration(body)[x]",
+                "acceleration(body)[y]",
+                "acceleration(body)[z]",
+                "angular_accel(body)[x]",
+                "angular_accel(body)[y]",
+                "angular_accel(body)[z]",
+                "angular_rate(body)[x]",
+                "angular_rate(body)[y]",
+                "angular_rate(body)[z]",
+                "attitude(base)[x]",
+                "attitude(base)[y]",
+                "attitude(base)[z]",
+                "attitude(base)[w]",
+                "external_force(body)[x]",
+                "external_force(body)[y]",
+                "external_force(body)[z]",
+                "external_torque(body)[x]",
+                "external_torque(body)[y]",
+                "external_torque(body)[z]",
+                "position(base)[x]",
+                "position(base)[y]",
+                "position(base)[z]",
+                "velocity(base)[x]",
+                "velocity(base)[y]",
+                "velocity(base)[z]",
+                "velocity(body)[x]",
+                "velocity(body)[y]",
+                "velocity(body)[z]",
+            ])
+            .expect("Failed to write header");
     }
 
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.acceleration_x_base = Vec::with_capacity(capacity);
-        self.result.acceleration_y_base = Vec::with_capacity(capacity);
-        self.result.acceleration_z_base = Vec::with_capacity(capacity);
-        self.result.acceleration_x_body = Vec::with_capacity(capacity);
-        self.result.acceleration_y_body = Vec::with_capacity(capacity);
-        self.result.acceleration_z_body = Vec::with_capacity(capacity);
-        self.result.angular_accel_x_body = Vec::with_capacity(capacity);
-        self.result.angular_accel_y_body = Vec::with_capacity(capacity);
-        self.result.angular_accel_z_body = Vec::with_capacity(capacity);
-        self.result.angular_rate_x_body = Vec::with_capacity(capacity);
-        self.result.angular_rate_y_body = Vec::with_capacity(capacity);
-        self.result.angular_rate_z_body = Vec::with_capacity(capacity);
-        self.result.attitude_w_base = Vec::with_capacity(capacity);
-        self.result.attitude_x_base = Vec::with_capacity(capacity);
-        self.result.attitude_y_base = Vec::with_capacity(capacity);
-        self.result.attitude_z_base = Vec::with_capacity(capacity);
-        self.result.external_force_x_body = Vec::with_capacity(capacity);
-        self.result.external_force_y_body = Vec::with_capacity(capacity);
-        self.result.external_force_z_body = Vec::with_capacity(capacity);
-        self.result.external_torque_x_body = Vec::with_capacity(capacity);
-        self.result.external_torque_y_body = Vec::with_capacity(capacity);
-        self.result.external_torque_z_body = Vec::with_capacity(capacity);
-        self.result.position_x_base = Vec::with_capacity(capacity);
-        self.result.position_y_base = Vec::with_capacity(capacity);
-        self.result.position_z_base = Vec::with_capacity(capacity);
-        self.result.velocity_x_base = Vec::with_capacity(capacity);
-        self.result.velocity_y_base = Vec::with_capacity(capacity);
-        self.result.velocity_z_base = Vec::with_capacity(capacity);
-        self.result.velocity_x_body = Vec::with_capacity(capacity);
-        self.result.velocity_y_body = Vec::with_capacity(capacity);
-        self.result.velocity_z_body = Vec::with_capacity(capacity);
-    }
-    fn update_result(&mut self) {
-        self.result
-            .acceleration_x_base
-            .push(self.state.acceleration_base[0]);
-        self.result
-            .acceleration_y_base
-            .push(self.state.acceleration_base[1]);
-        self.result
-            .acceleration_z_base
-            .push(self.state.acceleration_base[2]);
-        self.result
-            .acceleration_x_body
-            .push(self.state.acceleration_body[0]);
-        self.result
-            .acceleration_y_body
-            .push(self.state.acceleration_body[1]);
-        self.result
-            .acceleration_z_body
-            .push(self.state.acceleration_body[2]);
-        self.result
-            .angular_accel_x_body
-            .push(self.state.angular_accel_body[0]);
-        self.result
-            .angular_accel_y_body
-            .push(self.state.angular_accel_body[1]);
-        self.result
-            .angular_accel_z_body
-            .push(self.state.angular_accel_body[2]);
-        self.result
-            .angular_rate_x_body
-            .push(self.state.angular_rate_body[0]);
-        self.result
-            .angular_rate_y_body
-            .push(self.state.angular_rate_body[1]);
-        self.result
-            .angular_rate_z_body
-            .push(self.state.angular_rate_body[2]);
-        self.result.attitude_w_base.push(self.state.attitude_base.s);
-        self.result.attitude_x_base.push(self.state.attitude_base.x);
-        self.result.attitude_y_base.push(self.state.attitude_base.y);
-        self.result.attitude_z_base.push(self.state.attitude_base.z);
-        self.result
-            .external_force_x_body
-            .push(self.state.external_force_body[0]);
-        self.result
-            .external_force_y_body
-            .push(self.state.external_force_body[1]);
-        self.result
-            .external_force_z_body
-            .push(self.state.external_force_body[2]);
-        self.result
-            .external_torque_x_body
-            .push(self.state.external_torque_body[0]);
-        self.result
-            .external_torque_y_body
-            .push(self.state.external_torque_body[1]);
-        self.result
-            .external_torque_z_body
-            .push(self.state.external_torque_body[2]);
-        self.result
-            .position_x_base
-            .push(self.state.position_base[0]);
-        self.result
-            .position_y_base
-            .push(self.state.position_base[1]);
-        self.result
-            .position_z_base
-            .push(self.state.position_base[2]);
-        self.result
-            .velocity_x_base
-            .push(self.state.velocity_base[0]);
-        self.result
-            .velocity_y_base
-            .push(self.state.velocity_base[1]);
-        self.result
-            .velocity_z_base
-            .push(self.state.velocity_base[2]);
-        self.result
-            .velocity_x_body
-            .push(self.state.velocity_body[0]);
-        self.result
-            .velocity_y_body
-            .push(self.state.velocity_body[1]);
-        self.result
-            .velocity_z_body
-            .push(self.state.velocity_body[2]);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&[
+                self.state.acceleration_base[0].to_string(),
+                self.state.acceleration_base[1].to_string(),
+                self.state.acceleration_base[2].to_string(),
+                self.state.acceleration_body[0].to_string(),
+                self.state.acceleration_body[1].to_string(),
+                self.state.acceleration_body[2].to_string(),
+                self.state.angular_accel_body[0].to_string(),
+                self.state.angular_accel_body[1].to_string(),
+                self.state.angular_accel_body[2].to_string(),
+                self.state.angular_rate_body[0].to_string(),
+                self.state.angular_rate_body[1].to_string(),
+                self.state.angular_rate_body[2].to_string(),
+                self.state.attitude_base.x.to_string(),
+                self.state.attitude_base.y.to_string(),
+                self.state.attitude_base.z.to_string(),
+                self.state.attitude_base.s.to_string(),
+                self.state.external_force_body[0].to_string(),
+                self.state.external_force_body[1].to_string(),
+                self.state.external_force_body[2].to_string(),
+                self.state.external_torque_body[0].to_string(),
+                self.state.external_torque_body[1].to_string(),
+                self.state.external_torque_body[2].to_string(),
+                self.state.position_base[0].to_string(),
+                self.state.position_base[1].to_string(),
+                self.state.position_base[2].to_string(),
+                self.state.velocity_base[0].to_string(),
+                self.state.velocity_base[1].to_string(),
+                self.state.velocity_base[2].to_string(),
+                self.state.velocity_body[0].to_string(),
+                self.state.velocity_body[1].to_string(),
+                self.state.velocity_body[2].to_string(),
+            ])
+            .expect("could not write file");
     }
 }
 
@@ -482,41 +330,6 @@ pub struct BodyState {
     pub angular_momentum_base: Vector3<f64>,
     pub linear_momentum_body: Vector3<f64>,
     pub linear_momentum_base: Vector3<f64>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct BodyResult {
-    acceleration_x_base: Vec<f64>,
-    acceleration_y_base: Vec<f64>,
-    acceleration_z_base: Vec<f64>,
-    acceleration_x_body: Vec<f64>,
-    acceleration_y_body: Vec<f64>,
-    acceleration_z_body: Vec<f64>,
-    angular_accel_x_body: Vec<f64>,
-    angular_accel_y_body: Vec<f64>,
-    angular_accel_z_body: Vec<f64>,
-    angular_rate_x_body: Vec<f64>,
-    angular_rate_y_body: Vec<f64>,
-    angular_rate_z_body: Vec<f64>,
-    attitude_w_base: Vec<f64>,
-    attitude_x_base: Vec<f64>,
-    attitude_y_base: Vec<f64>,
-    attitude_z_base: Vec<f64>,
-    external_force_x_body: Vec<f64>,
-    external_force_y_body: Vec<f64>,
-    external_force_z_body: Vec<f64>,
-    external_torque_x_body: Vec<f64>,
-    external_torque_y_body: Vec<f64>,
-    external_torque_z_body: Vec<f64>,
-    position_x_base: Vec<f64>,
-    position_y_base: Vec<f64>,
-    position_z_base: Vec<f64>,
-    velocity_x_base: Vec<f64>,
-    velocity_y_base: Vec<f64>,
-    velocity_z_base: Vec<f64>,
-    velocity_x_body: Vec<f64>,
-    velocity_y_body: Vec<f64>,
-    velocity_z_body: Vec<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

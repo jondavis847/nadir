@@ -2,10 +2,12 @@ pub mod noise;
 
 use crate::{
     body::{BodyConnection, BodyRef},
-    result::MultibodyResultTrait,
+    MultibodyResult,
 };
+use csv::Writer;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use utilities::initialize_writer;
+use std::{fmt::Debug, fs::File, io::BufWriter, path::PathBuf};
 use thiserror::Error;
 use transforms::Transform;
 
@@ -18,7 +20,7 @@ pub enum SensorErrors {
 }
 
 #[typetag::serde]
-pub trait SensorModel: CloneSensorModel + Debug + MultibodyResultTrait {
+pub trait SensorModel: CloneSensorModel + Debug + MultibodyResult {
     fn update(&mut self, connection: &BodyConnection);
 }
 pub trait CloneSensorModel {
@@ -73,5 +75,18 @@ impl Sensor {
 
     pub fn update(&mut self) {
         self.model.update(&self.connection.as_ref().unwrap());
+    }
+
+    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
+        // Define the sensor subfolder folder path
+        let sensor_folder_path = result_folder_path.join("sensors");
+
+        // Check if the folder exists, if not, create it
+        if !sensor_folder_path.exists() {
+            std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
+        }
+
+        // Initialize writer using the updated path
+        initialize_writer(self.name.clone(), &sensor_folder_path)
     }
 }

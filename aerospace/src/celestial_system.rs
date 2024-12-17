@@ -2,15 +2,17 @@ use crate::{
     geomag::GeoMagnetism,
     gravity::{Gravity, GravityTrait, NewtownianGravity},
 };
+use csv::Writer;
 use nalgebra::Vector3;
 use rotations::{
     prelude::{EulerAngles, EulerSequence, Quaternion},
     RotationTrait,
 };
 use serde::{Deserialize, Serialize};
-use spice::{Spice, SpiceBodies};
+use spice::{Spice, SpiceBodies, SpiceErrors};
+use utilities::initialize_writer;
 
-use std::{collections::HashMap, f64::consts::PI, mem::take};
+use std::{f64::consts::PI, fs::File, io::BufWriter, path::PathBuf};
 use thiserror::Error;
 use time::Time;
 
@@ -26,47 +28,110 @@ pub enum CelestialErrors {
         "state found in celestial result - should only be position[x/y/z] or orientation[x/y/z/w]"
     )]
     StateNotFound(String),
+    #[error("SpiceError: {0}")]
+    SpiceError(#[from] SpiceErrors),
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
     pub epoch: Time,
     pub bodies: Vec<CelestialBody>,
-    #[serde(skip)]
-    pub result: CelestialResult,
+    pub spice: Option<Spice>,
 }
 
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
-        // make sure there's at least a sun
+        // make sure there's at least a sun for animation
         let sun = CelestialBody::new(CelestialBodies::Sun, None, None);
         let bodies = vec![sun];
-
+        // for now lets default to having spice, in the future add analytical ephem
+        let spice = Some(Spice::from_local()?);
         Ok(Self {
             epoch,
             bodies,
-            result: CelestialResult::default(),
+            spice,
         })
     }
 
-    pub fn update(&mut self, t: f64, spice: &mut Spice) -> Result<(), Box<dyn std::error::Error>> {
-        // t is sim time in seconds
-        let current_epoch = self.epoch + t;
-        let current_epoch = current_epoch.to_system(time::TimeSystem::TT);
-        for body in self.bodies.iter_mut() {
-            body.update(current_epoch, spice)?;
+    pub fn update(&mut self, t: f64) -> Result<(), CelestialErrors> {
+        if let Some(spice) = &mut self.spice {
+            // t is sim time in seconds
+            let current_epoch = self.epoch + t;
+            let current_epoch = current_epoch.to_system(time::TimeSystem::TT);
+            for body in self.bodies.iter_mut() {
+                body.update(current_epoch, spice)?;
+            }
+            Ok(())
+        } else {
+            Err(CelestialErrors::SpiceNotFound)
         }
-        Ok(())
     }
 
-    pub fn update_result(&mut self) {
-        // update the epoch based on sim time
-        self.result
-            .epoch_sec_j2k_tai
-            .push(self.epoch.get_seconds_j2k());
-        // it should be safe to do this enumerated since we initialized the result struct from the sys struct
-        for body in &mut self.bodies {
-            body.update_result();
+    /// returns a tuple of bufwriters, the first element is the epoch writer, the second element is a Vec of the writers for the bodies
+    pub fn initialize_writers(
+        &self,
+        result_folder_path: &PathBuf,
+    ) -> (Writer<BufWriter<File>>, Vec<Writer<BufWriter<File>>>) {
+        // Define the celestial subfolder folder path
+        let celestial_folder_path = result_folder_path.join("celestial");
+
+        // Check if the folder exists, if not, create it
+        if !celestial_folder_path.exists() {
+            std::fs::create_dir_all(&celestial_folder_path)
+                .expect("Failed to create celestial folder");
         }
+
+        let mut body_writers = Vec::new();
+        for body in &self.bodies {
+            let mut writer = initialize_writer(body.body.get_name(), &celestial_folder_path);
+            writer
+                .write_record(&[
+                    "position[x]",
+                    "position[y]",
+                    "position[z]",
+                    "orientation[x]",
+                    "orientation[y]",
+                    "orientation[z]",
+                    "orientation[w]",
+                ])
+                .expect("Failed to write header");
+            body_writers.push(writer);
+        }
+        let mut epoch_writer = initialize_writer("epoch".to_string(), &celestial_folder_path);
+        epoch_writer
+            .write_record(&["sec_since_j2k", "julian_date"])
+            .unwrap();
+        (epoch_writer, body_writers)
+    }
+
+    pub fn write_result_file(
+        &self,
+        writers: &mut (Writer<BufWriter<File>>, Vec<Writer<BufWriter<File>>>),
+    ) {
+        // update the epoch based on sim time
+        let epoch_writer = &mut writers.0;
+        epoch_writer
+            .write_record(&[
+                self.epoch.get_seconds_j2k().to_string(),
+                self.epoch.get_jd().to_string(),
+            ])
+            .expect("could not write to result file");
+
+        self.bodies
+            .iter()
+            .zip(&mut writers.1)
+            .for_each(|(body, writer)| {
+                writer
+                    .write_record(&[
+                        body.position[0].to_string(),
+                        body.position[1].to_string(),
+                        body.position[2].to_string(),
+                        body.orientation.x.to_string(),
+                        body.orientation.y.to_string(),
+                        body.orientation.z.to_string(),
+                        body.orientation.s.to_string(),
+                    ])
+                    .expect("could not write to result file");
+            });
     }
 
     pub fn set_geomag(
@@ -161,22 +226,6 @@ impl CelestialSystem {
         }
         g_final
     }
-
-    pub fn initialize_result(&mut self, capacity: usize) {
-        for body in &mut self.bodies {
-            body.initialize_result(capacity);
-        }
-        self.result.initialize_result(capacity);
-    }
-
-    pub fn get_result_entry(&mut self) -> HashMap<String, Vec<f64>> {
-        let mut result = HashMap::new();
-        result.insert(
-            "epoch".to_string(),
-            take(&mut self.result.epoch_sec_j2k_tai),
-        );
-        result
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -186,8 +235,6 @@ pub struct CelestialBody {
     pub orientation: Quaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,
-    #[serde(skip)]
-    result: CelestialBodyResult,
 }
 
 impl CelestialBody {
@@ -202,11 +249,10 @@ impl CelestialBody {
             orientation: Quaternion::IDENTITY,
             gravity,
             geomag,
-            result: CelestialBodyResult::default(),
         }
     }
 
-    pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), CelestialErrors> {
         //spice uses TDB/TT
         //gsfc planet fact sheet uses UTC
         //TODO: do these time calcs upstream and pass as args so we don't calculate for each body
@@ -243,16 +289,6 @@ impl CelestialBody {
         };
 
         Ok(())
-    }
-
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.q = Vec::with_capacity(capacity);
-        self.result.r = Vec::with_capacity(capacity);        
-    }
-
-    fn update_result(&mut self) {
-        self.result.q.push(self.orientation);        
-        self.result.r.push(self.position);        
     }
 }
 
@@ -291,12 +327,6 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Quater
     let orientation_from_rotation =
         Quaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct CelestialBodyResult {
-    pub r: Vec<Vector3<f64>>,
-    pub q: Vec<Quaternion>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
@@ -379,21 +409,5 @@ impl CelestialBodies {
             CelestialBodies::Uranus => 25362000.0,
             CelestialBodies::Venus => 6051800.0,
         }
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CelestialResult {
-    pub epoch_sec_j2k_tai: Vec<f64>,
-    pub bodies: HashMap<CelestialBodies, CelestialBodyResult>,
-}
-
-impl CelestialResult {
-    fn initialize_result(&mut self, capacity: usize) {
-        self.epoch_sec_j2k_tai = Vec::with_capacity(capacity);        
-    }
-
-    pub fn add_result(&mut self, body: &mut CelestialBody) {
-        self.bodies.insert(body.body,take(&mut body.result));
     }
 }

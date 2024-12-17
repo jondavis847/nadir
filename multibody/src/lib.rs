@@ -4,14 +4,16 @@ pub mod base;
 pub mod body;
 //pub mod component;
 pub mod joint;
-pub mod result;
 pub mod sensor;
 pub mod solver;
 pub mod system;
 
+use std::{fs::File, io::BufWriter};
+
 use aerospace::celestial_system::CelestialErrors;
 use base::BaseErrors;
 use body::BodyErrors;
+use csv::Writer;
 use joint::{revolute::RevoluteErrors, JointErrors};
 use sensor::SensorErrors;
 use spice::SpiceErrors;
@@ -59,4 +61,12 @@ pub enum MultibodyErrors {
     SensorErrors(#[from] SensorErrors),
     #[error("spice error: {0}")]
     SpiceErrors(#[from] SpiceErrors),
+}
+
+
+pub trait MultibodyResult {
+    /// Initializes the ResultEntry for storing the sim result for this joint
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>);
+    // Writes the next entry in the result file
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>);
 }

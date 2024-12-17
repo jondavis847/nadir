@@ -306,3 +306,74 @@ impl AnimationState {
         self.scene.camera.update_position_from_scroll_delta(delta);
     }
 }
+
+fn get_state_at_time_interp(
+    t: f64,
+    time: &Vec<f64>,
+    q: &(&Vec<f64>, &Vec<f64>, &Vec<f64>, &Vec<f64>),
+    r: &(&Vec<f64>, &Vec<f64>, &Vec<f64>),
+) -> (Quaternion, Vector3<f64>) {
+    match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
+        Ok(i) => {
+            // The target is exactly at index i
+            (
+                Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                Vector3::new(r.0[i], r.1[i], r.2[i]),
+            )
+        }
+        Err(i) => {
+            if i == 0 {
+                // The target is smaller than the first element
+                (
+                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                    Vector3::new(r.0[i], r.1[i], r.2[i]),
+                )
+            } else if i == time.len() {
+                // The target is greater than the last element
+                (
+                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
+                    Vector3::new(r.0[i], r.1[i], r.2[i]),
+                )
+            } else {
+                // The target is between elements at i - 1 and i
+                let t_prev = time[i - 1];
+                let t_next = time[i];
+                let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
+
+                let position_prev = Vector3::new(r.0[i - 1], r.1[i - 1], r.2[i - 1]);
+                let position_next = Vector3::new(r.0[i], r.1[i], r.2[i]);
+                let interp_position = Vector3::lerp(&position_prev, &position_next, interp_factor);
+
+                let attitude_prev = Quaternion::new(q.0[i - 1], q.1[i - 1], q.2[i - 1], q.3[i - 1]);
+                let mut attitude_next = Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]);
+
+                // Ensure quaternion continuity
+                if attitude_prev.dot(&attitude_next) < 0.0 {
+                    attitude_next = Quaternion {
+                        x: -attitude_next.x,
+                        y: -attitude_next.y,
+                        z: -attitude_next.z,
+                        s: -attitude_next.s,
+                    };
+                }
+
+                let interp_attitude;
+                if false {
+                    // TODO: fix squad
+                    //if i >= 2 && i < attitude.len() - 1 {
+                    //squad
+                    let q0 = Quaternion::new(q.0[i - 2], q.1[i - 2], q.2[i - 2], q.3[i - 2]);
+                    let q3 = Quaternion::new(q.0[i + 1], q.1[i + 1], q.2[i + 1], q.3[i + 1]);
+                    interp_attitude =
+                        Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
+                } else {
+                    //slerp
+                    interp_attitude =
+                        Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
+                }
+
+                (interp_attitude, interp_position)
+            }
+        }
+    }
+}

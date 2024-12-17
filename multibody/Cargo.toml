@@ -16,6 +16,7 @@ utilities.workspace = true
 time.workspace = true
 bincode.workspace = true
 chrono.workspace = true
+csv.workspace = true
 nalgebra.workspace = true
 clap.workspace = true
 ron.workspace = true

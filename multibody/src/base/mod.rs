@@ -11,7 +11,6 @@ use aerospace::{
     gravity::Gravity,
 };
 use serde::{Deserialize, Serialize};
-use spice::Spice;
 use thiserror::Error;
 use transforms::Transform;
 
@@ -68,19 +67,9 @@ impl Base {
         Ok(())
     }
 
-    pub fn update(
-        &mut self,
-        t: f64,
-        spice: &mut Option<Spice>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update(&mut self, t: f64) -> Result<(), Box<dyn std::error::Error>> {
         match &mut self.system {
-            BaseSystems::Celestial(celestial) => {
-                if let Some(spice) = spice {
-                    celestial.update(t, spice)?
-                } else {
-                    return Err(CelestialErrors::SpiceNotFound.into());
-                }
-            }
+            BaseSystems::Celestial(celestial) => celestial.update(t)?,
             BaseSystems::Basic(_) => {}
         }
         Ok(())

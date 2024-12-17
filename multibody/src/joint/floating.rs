@@ -3,21 +3,21 @@ use crate::{
         articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
         recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters},
-    result::{MultibodyResultTrait, ResultEntry},
+    joint::{joint_transforms::JointTransforms, JointParameters}, MultibodyResult,
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use csv::Writer;
 use mass_properties::{CenterOfMass, MassProperties};
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
-use rotations::{
-    euler_angles::EulerAngles, quaternion::Quaternion, Rotation,
-    RotationTrait,
-};
+use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::ops::{AddAssign, MulAssign};
-use std::{collections::HashMap, mem::take};
+use std::{
+    fs::File,
+    io::BufWriter,
+    ops::{AddAssign, MulAssign},
+};
 use transforms::Transform;
 
 use super::{JointCache, JointModel, JointRef, JointStateVector};
@@ -174,43 +174,12 @@ impl FloatingParameters {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-struct FloatingResult {
-    qx: Vec<f64>,
-    qy: Vec<f64>,
-    qz: Vec<f64>,
-    qw: Vec<f64>,
-    wx: Vec<f64>,
-    wy: Vec<f64>,
-    aax: Vec<f64>,
-    aay: Vec<f64>,
-    aaz: Vec<f64>,
-    wz: Vec<f64>,
-    rx: Vec<f64>,
-    ry: Vec<f64>,
-    rz: Vec<f64>,
-    vx: Vec<f64>,
-    vy: Vec<f64>,
-    vz: Vec<f64>,
-    ax: Vec<f64>,
-    ay: Vec<f64>,
-    az: Vec<f64>,
-    tau_xr: Vec<f64>,
-    tau_yr: Vec<f64>,
-    tau_zr: Vec<f64>,
-    tau_xt: Vec<f64>,
-    tau_yt: Vec<f64>,
-    tau_zt: Vec<f64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
     pub parameters: FloatingParameters,
     pub state: FloatingState,
     #[serde(skip)]
     cache: FloatingCache,
-    #[serde(skip)]
-    result: FloatingResult,
 }
 
 impl Floating {
@@ -219,7 +188,6 @@ impl Floating {
             parameters,
             state,
             cache: FloatingCache::default(),
-            result: FloatingResult::default(),
         }
     }
 }
@@ -290,14 +258,14 @@ impl JointModel for Floating {
     }
 
     // !!!!note!!!! this must convert state.v, which is in the jif frome, to vj, which is in the jof frame
-    fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {        
+    fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(
             self.state.w[0],
             self.state.w[1],
             self.state.w[2],
             self.state.v[0],
             self.state.v[1],
-            self.state.v[2],            
+            self.state.v[2],
         ))
     }
 
@@ -314,18 +282,18 @@ impl JointModel for Floating {
             q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
-        
+
         // we make assumptions about velocity and acceleration being in the jof so that our joint space matrix is constant
         // however, position makes a lot more sense when expressed in the jif. we will also specify linear velocity
         // and acceleration in the jif which is much more intuitive. however, we need to account for rotating
-        // reference frames, i.e. the kinematic transport theorem. luckily, for joints, the frames are coincident 
-        // with the origin, so r = 0 and many terms cancel. coriolis acceleration, however does not.        
+        // reference frames, i.e. the kinematic transport theorem. luckily, for joints, the frames are coincident
+        // with the origin, so r = 0 and many terms cancel. coriolis acceleration, however does not.
 
         // transform self.state.v (v_jof) to the jif for integrating r via transport theorem
         // this is techinically v_jif = R * v_jof + w x r, but r is 0 since jof frame is coincident with itself for floating joint
-        let jif_from_jof = &transforms.jif_from_jof.0.rotation;     
+        let jif_from_jof = &transforms.jif_from_jof.0.rotation;
         let v_jof = self.state.v;
-        let v_jif = jif_from_jof.transform(v_jof);        
+        let v_jif = jif_from_jof.transform(v_jof);
 
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;
@@ -391,100 +359,67 @@ impl JointModel for Floating {
     }
 }
 
-impl MultibodyResultTrait for Floating {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert("attitude[x]".to_string(), take(&mut self.result.qx));
-        result.insert("attitude[y]".to_string(), take(&mut self.result.qy));
-        result.insert("attitude[z]".to_string(), take(&mut self.result.qz));
-        result.insert("attitude[w]".to_string(), take(&mut self.result.qw));
-        result.insert("angular_rate[x]".to_string(), take(&mut self.result.wx));
-        result.insert("angular_rate[y]".to_string(), take(&mut self.result.wy));
-        result.insert("angular_rate[z]".to_string(), take(&mut self.result.wz));
-        result.insert("angular_accel[x]".to_string(), take(&mut self.result.aax));
-        result.insert("angular_accel[y]".to_string(), take(&mut self.result.aay));
-        result.insert("angular_accel[z]".to_string(), take(&mut self.result.aaz));
-        result.insert("position[x]".to_string(), take(&mut self.result.rx));
-        result.insert("position[y]".to_string(), take(&mut self.result.ry));
-        result.insert("position[z]".to_string(), take(&mut self.result.rz));
-        result.insert("velocity[x]".to_string(), take(&mut self.result.vx));
-        result.insert("velocity[y]".to_string(), take(&mut self.result.vy));
-        result.insert("velocity[z]".to_string(), take(&mut self.result.vz));
-        result.insert("acceleration[x]".to_string(), take(&mut self.result.ax));
-        result.insert("acceleration[y]".to_string(), take(&mut self.result.ay));
-        result.insert("acceleration[z]".to_string(), take(&mut self.result.az));
-        result.insert(
-            "tau_translation[x]".to_string(),
-            take(&mut self.result.tau_xt),
-        );
-        result.insert(
-            "tau_translation[y]".to_string(),
-            take(&mut self.result.tau_yt),
-        );
-        result.insert(
-            "tau_translation[z]".to_string(),
-            take(&mut self.result.tau_zt),
-        );
-        result.insert("tau_rotation[x]".to_string(), take(&mut self.result.tau_xr));
-        result.insert("tau_rotation[y]".to_string(), take(&mut self.result.tau_yr));
-        result.insert("tau_rotation[z]".to_string(), take(&mut self.result.tau_zr));
-        ResultEntry::new(result)
+impl MultibodyResult for Floating {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&[
+                "acceleration[x]",
+                "acceleration[y]",
+                "acceleration[z]",
+                "angular_accel[x]",
+                "angular_accel[y]",
+                "angular_accel[z]",
+                "angular_rate[x]",
+                "angular_rate[y]",
+                "angular_rate[z]",
+                "attitude[x]",
+                "attitude[y]",
+                "attitude[z]",
+                "attitude[w]",
+                "position[x]",
+                "position[y]",
+                "position[z]",
+                "tau_rotation[x]",
+                "tau_rotation[y]",
+                "tau_rotation[z]",
+                "tau_translation[x]",
+                "tau_translation[y]",
+                "tau_translation[z]",
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",
+            ])
+            .expect("Failed to write header");
     }
 
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.qx = Vec::with_capacity(capacity);
-        self.result.qy = Vec::with_capacity(capacity);
-        self.result.qz = Vec::with_capacity(capacity);
-        self.result.qw = Vec::with_capacity(capacity);
-        self.result.wx = Vec::with_capacity(capacity);
-        self.result.wy = Vec::with_capacity(capacity);
-        self.result.aax = Vec::with_capacity(capacity);
-        self.result.aay = Vec::with_capacity(capacity);
-        self.result.aaz = Vec::with_capacity(capacity);
-        self.result.wz = Vec::with_capacity(capacity);
-        self.result.rx = Vec::with_capacity(capacity);
-        self.result.ry = Vec::with_capacity(capacity);
-        self.result.rz = Vec::with_capacity(capacity);
-        self.result.vx = Vec::with_capacity(capacity);
-        self.result.vy = Vec::with_capacity(capacity);
-        self.result.vz = Vec::with_capacity(capacity);
-        self.result.ax = Vec::with_capacity(capacity);
-        self.result.ay = Vec::with_capacity(capacity);
-        self.result.az = Vec::with_capacity(capacity);
-        self.result.tau_xr = Vec::with_capacity(capacity);
-        self.result.tau_yr = Vec::with_capacity(capacity);
-        self.result.tau_zr = Vec::with_capacity(capacity);
-        self.result.tau_xt = Vec::with_capacity(capacity);
-        self.result.tau_yt = Vec::with_capacity(capacity);
-        self.result.tau_zt = Vec::with_capacity(capacity);
-    }
-
-    fn update_result(&mut self) {
-        self.result.qx.push(self.state.q.x);
-        self.result.qy.push(self.state.q.y);
-        self.result.qz.push(self.state.q.z);
-        self.result.qw.push(self.state.q.s);
-        self.result.wx.push(self.state.w[0]);
-        self.result.wy.push(self.state.w[1]);
-        self.result.wz.push(self.state.w[2]);
-        self.result.aax.push(self.cache.q_ddot[0]);
-        self.result.aay.push(self.cache.q_ddot[1]);
-        self.result.aaz.push(self.cache.q_ddot[2]);
-        self.result.rx.push(self.state.r[0]);
-        self.result.ry.push(self.state.r[1]);
-        self.result.rz.push(self.state.r[2]);
-        self.result.vx.push(self.state.v[0]);
-        self.result.vy.push(self.state.v[1]);
-        self.result.vz.push(self.state.v[2]);
-        self.result.ax.push(self.cache.q_ddot[3]);
-        self.result.ay.push(self.cache.q_ddot[4]);
-        self.result.az.push(self.cache.q_ddot[5]);
-        self.result.tau_xr.push(self.cache.tau[0]);
-        self.result.tau_yr.push(self.cache.tau[1]);
-        self.result.tau_zr.push(self.cache.tau[2]);
-        self.result.tau_xt.push(self.cache.tau[3]);
-        self.result.tau_yt.push(self.cache.tau[4]);
-        self.result.tau_zt.push(self.cache.tau[5]);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer.write_record(&[
+            self.cache.q_ddot[3].to_string(),
+            self.cache.q_ddot[4].to_string(),
+            self.cache.q_ddot[5].to_string(),
+            self.cache.q_ddot[0].to_string(),
+            self.cache.q_ddot[1].to_string(),
+            self.cache.q_ddot[2].to_string(),
+            self.state.w[0].to_string(),
+            self.state.w[1].to_string(),
+            self.state.w[2].to_string(),
+            self.state.q.x.to_string(),
+            self.state.q.y.to_string(),
+            self.state.q.z.to_string(),
+            self.state.q.s.to_string(),
+            self.state.r[0].to_string(),
+            self.state.r[1].to_string(),
+            self.state.r[2].to_string(),
+            self.cache.tau[0].to_string(),
+            self.cache.tau[1].to_string(),
+            self.cache.tau[2].to_string(),
+            self.cache.tau[3].to_string(),
+            self.cache.tau[4].to_string(),
+            self.cache.tau[5].to_string(),
+            self.state.v[0].to_string(),
+            self.state.v[1].to_string(),
+            self.state.v[2].to_string(),
+        ]).expect("could not write floating result file");
     }
 }
 

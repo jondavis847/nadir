@@ -15,7 +15,7 @@ pub struct DafData {
 }
 
 impl DafData {
-    pub fn new(data: &[u8], file_type: SpiceFileTypes) -> Result<DafData, Box<dyn std::error::Error>> {
+    pub fn new(data: &[u8], file_type: SpiceFileTypes) -> Result<DafData, SpiceErrors> {
         let mut header = [0u8; 1024];
         header.copy_from_slice(&data[0..1024]);
         let file_record = FileRecord::from_bytes(&header).unwrap();
@@ -91,7 +91,7 @@ impl DafData {
         &mut self,
         body: &SpiceBodies,
         t: f64,
-    ) -> Result<Option<&mut Segment>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<&mut Segment>, SpiceErrors> {
         if let Some(segments) = self.segments.get_mut(body) {
             Ok(segments
                 .binary_search_by(|segment| {
@@ -344,7 +344,7 @@ impl Segment {
         }
     }
 
-    fn get_record_metadata(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
+    fn get_record_metadata(&mut self, data: &[u8]) -> Result<(), SpiceErrors> {
         // Convert final_address to byte offset
         let final_byte_offset = (self.final_address as usize) * 8;
 

@@ -11,8 +11,6 @@ use iced::{
     window::{self, icon},
     Point, Size, Vector,
 };
-
-use multibody::result::MultibodyResult;
 use std::time::Instant;
 
 #[derive(Debug)]
@@ -42,6 +40,10 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
         Some(path) => path,
         None => std::env::current_dir().unwrap(),
     };
+    let bodies_path = pwd.join("bodies");
+    
+
+    let celestial_path = pwd.join("celestial");
 
     let res_path = pwd.join("result.bin");
     let res_file = File::open(res_path).unwrap();

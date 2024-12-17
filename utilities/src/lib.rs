@@ -1,5 +1,10 @@
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use csv::Writer;
 
 pub fn format_number(value: f64) -> String {
     if !(1e-2..=1e4).contains(&value) {
@@ -7,7 +12,10 @@ pub fn format_number(value: f64) -> String {
         format!("{:.4e}", value)
     } else {
         // Format with up to 4 decimal places, removing trailing zeros
-        format!("{:.4}", value).trim_end_matches('0').trim_end_matches('.').to_string()
+        format!("{:.4}", value)
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
@@ -17,7 +25,7 @@ pub fn generate_unique_id() -> String {
     let duration_since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
     let timestamp = duration_since_epoch.as_secs();
     // Convert the timestamp to base-36
-    base36_encode(timestamp)    
+    base36_encode(timestamp)
 }
 
 // Function to encode a number to base-36
@@ -53,6 +61,15 @@ pub fn format_duration(duration: Duration) -> String {
     } else {
         format!("{} us", duration.as_micros())
     }
+}
+
+pub fn initialize_writer(name: String, path: &PathBuf) -> Writer<BufWriter<File>> {
+    let folder_path = path.join(&name);
+    std::fs::create_dir_all(&folder_path).expect("Failed to create directory");
+    let filename = name.clone() + ".csv";
+    let file = File::create(folder_path.join(filename)).expect("Failed to create file");
+    let buf_writer = BufWriter::new(file);
+    Writer::from_writer(buf_writer)
 }
 
 /// Combines two vectors of strings and returns a vector containing only the unique strings,
@@ -111,5 +128,5 @@ pub fn unique_strings(vec1: Vec<String>, vec2: Vec<String>) -> Vec<String> {
 pub fn unique_strings_alphabetical(vec1: Vec<String>, vec2: Vec<String>) -> Vec<String> {
     let mut result = unique_strings(vec1, vec2);
     result.sort();
-    result 
+    result
 }

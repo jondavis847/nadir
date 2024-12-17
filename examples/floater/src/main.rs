@@ -55,5 +55,5 @@ fn main() {
     sys.connect("base", "f", Transform::IDENTITY).unwrap();
     sys.connect("f", "b", Transform::IDENTITY).unwrap();
     // Run the simulation
-    sys.simulate("", 0.0, 10.0, 0.1, &mut None);
+    sys.simulate("", 0.0, 10.0, 0.1);
 }

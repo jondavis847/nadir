@@ -2,17 +2,20 @@ use crate::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm, recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters},
-    result::{MultibodyResultTrait, ResultEntry},
+    joint::{joint_transforms::JointTransforms, JointParameters}, MultibodyResult,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use csv::Writer;
 use mass_properties::MassProperties;
 use nalgebra::{Matrix6x1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::ops::{AddAssign, MulAssign};
-use std::{collections::HashMap, mem::take};
+use std::{
+    fs::File,
+    io::BufWriter,
+    ops::{AddAssign, MulAssign},
+};
 use transforms::Transform;
 
 use super::{JointCache, JointModel, JointRef, JointStateVector};
@@ -49,23 +52,12 @@ impl MulAssign<f64> for PrismaticState {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PrismaticParameters(JointParameters);
-
-#[derive(Debug, Default, Clone)]
-struct PrismaticResult {
-    position: Vec<f64>,
-    velocity: Vec<f64>,
-    acceleration: Vec<f64>,
-    tau: Vec<f64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prismatic {
     pub parameters: PrismaticParameters,
     pub state: PrismaticState,
     #[serde(skip)]
     cache: PrismaticCache,
-    #[serde(skip)]
-    result: PrismaticResult,
 }
 
 impl Prismatic {
@@ -74,7 +66,6 @@ impl Prismatic {
             parameters,
             state,
             cache: PrismaticCache::default(),
-            result: PrismaticResult::default(),
         }
     }
 }
@@ -139,31 +130,20 @@ impl JointModel for Prismatic {
     }
 }
 
-impl MultibodyResultTrait for Prismatic {
-    fn get_result_entry(&mut self) -> ResultEntry {
-        let mut result = HashMap::new();
-        result.insert("position".to_string(), take(&mut self.result.position));
-        result.insert("velocity".to_string(), take(&mut self.result.velocity));
-        result.insert(
-            "acceleration".to_string(),
-            take(&mut self.result.acceleration),
-        );
-        result.insert("tau".to_string(), take(&mut self.result.tau));
-        ResultEntry::new(result)
+impl MultibodyResult for Prismatic {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer
+            .write_record(&["position", "velocity", "acceleration", "tau"])
+            .expect("Failed to write header");
     }
 
-    fn initialize_result(&mut self, capacity: usize) {
-        self.result.position = Vec::with_capacity(capacity);
-        self.result.velocity = Vec::with_capacity(capacity);
-        self.result.acceleration = Vec::with_capacity(capacity);
-        self.result.tau = Vec::with_capacity(capacity);
-    }
-
-    fn update_result(&mut self) {
-        self.result.position.push(self.state.position);
-        self.result.velocity.push(self.state.velocity);
-        self.result.acceleration.push(self.cache.q_ddot);
-        self.result.tau.push(self.cache.tau);
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+        writer.write_record(&[
+            self.state.position.to_string(),
+            self.state.velocity.to_string(),
+            self.cache.q_ddot.to_string(),
+            self.cache.tau.to_string(),
+        ]).expect("could not write prismatic result file");
     }
 }
 
