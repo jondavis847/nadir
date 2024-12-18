@@ -1,4 +1,3 @@
-
 use iced::Point;
 
 #[derive(Debug)]
@@ -8,23 +7,19 @@ pub struct SeriesMap {
     pub xmin: f32,
     pub ymax: f32,
     pub ymin: f32,
+    pub axes: (usize, usize), // which axes to plot on, (row,column)
 }
 
-impl Default for SeriesMap {
-    fn default() -> Self {
+impl SeriesMap {
+    pub fn new(axes: (usize,usize)) -> Self {
         Self {
             map: Vec::new(),
             xmax: -f32::INFINITY,
             xmin: f32::INFINITY,
             ymax: -f32::INFINITY,
             ymin: f32::INFINITY,
+            axes,
         }
-    }
-}
-
-impl SeriesMap {
-    pub fn new() -> Self {
-        SeriesMap::default()
     }
 
     pub fn insert(&mut self, series: Series) {
@@ -51,26 +46,23 @@ impl SeriesMap {
 
 #[derive(Debug)]
 pub struct Series {
-    //pub x_name: String,
+    pub x_name: String,
     pub y_name: String,
     pub points: Vec<Point>,
-    pub axes: (usize, usize), // which axes to plot on, (row,column)
 }
 
 impl Series {
-    pub fn new(_x_name: String, x: Vec<f64>, y_name: String, y: Vec<f64>) -> Self {
+    pub fn new(x_name: String, x: Vec<f64>, y_name: String, y: Vec<f64>) -> Self {
         let points = x
             .into_iter()
             .zip(y)
             .map(|(x, y)| Point::new(x as f32, y as f32))
             .collect();
-        let axes = (0_usize, 0_usize);
 
         Self {
-            //_x_name,
+            x_name,
             y_name,
             points,
-            axes,
         }
     }
 

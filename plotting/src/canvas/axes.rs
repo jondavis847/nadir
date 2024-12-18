@@ -4,8 +4,8 @@ use super::{
 };
 use crate::{theme::PlotTheme, Series};
 use iced::{
-    widget::canvas::{Fill, Frame, Path, Stroke, Text},
-    Color, Point, Rectangle, Size, Vector,
+    widget::canvas::{Frame, Path, Stroke, Text},
+    Color, Point, Rectangle, Size,
 };
 
 use super::axis::Axis;
@@ -13,52 +13,57 @@ use super::axis::Axis;
 #[derive(Debug)]
 pub struct Axes {
     // legend: Legend,
-    padding: f32,
-    axis: Axis,
+    //padding: f32,
+    pub axis: Axis,
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
     lines: Vec<Line>,
-    pub location: (usize, usize),
+    //pub location: (usize, usize),
+    //pub click_start: Option<Point>,
+    pub bounds: Rectangle,
 }
 
 impl Axes {
-    pub fn new(location: (usize, usize)) -> Self {
+    pub fn new(_location: (usize, usize), bounds: Rectangle) -> Self {
         Self {
-            padding: 0.0,
+            //        padding: 0.0,
             axis: Axis::default(),
             xlim: (0.0, 1.0),
             ylim: (0.0, 1.0),
             // legend: Legend::default(),
             lines: Vec::new(),
-            location: location,
+            //      location,
+            //click_start: None,
+            bounds,
         }
     }
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let canvas_bounds = self.get_bounds(frame);
-        self.draw_background(frame, theme, &canvas_bounds);
-        self.draw_axes(frame, theme, &canvas_bounds);
-        self.draw_lines(frame, theme, &canvas_bounds);
+        self.draw_background(frame, theme);
+        self.draw_axis(frame, theme);
+        self.draw_lines(frame, theme);
     }
 
-    fn draw_axes(&self, frame: &mut Frame, theme: &PlotTheme, canvas_bounds: &Rectangle) {
-        frame.with_save(|frame| {
-            let translation = Vector::new(self.padding, self.padding);
-            frame.translate(translation);
-            self.axis
-                .draw(frame, theme, canvas_bounds, &self.xlim, &self.ylim);
-        });
+    fn draw_axis(&self, frame: &mut Frame, theme: &PlotTheme) {
+        self.axis.draw(frame, theme, &self.xlim, &self.ylim);
     }
 
-    fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme, canvas_bounds: &Rectangle) {
-        let axes_bounds = Rectangle::new(
-            Point::new(self.axis.padding, self.axis.padding),
+    fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
+        let center = frame.center();
+        let size = frame.size();
+        let top_left = Point::new(center.x - size.width / 2.0, center.y - size.height / 2.0);
+        frame.fill_rectangle(top_left, size, theme.light_background)
+    }
+
+    fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme) {
+        let axis_bounds = Rectangle::new(
+            Point::new(self.axis.x_padding, self.axis.y_padding),
             Size::new(
-                canvas_bounds.width - 2.0 * self.axis.padding,
-                canvas_bounds.height - 2.0 * self.axis.padding,
+                frame.width() - 2.0 * self.axis.x_padding,
+                frame.height() - 2.0 * self.axis.y_padding,
             ),
         );
-        let top_left = axes_bounds.position();
-        let size = axes_bounds.size();
+        let top_left = axis_bounds.position();
+        let size = axis_bounds.size();
         let axes_height = size.height;
         let axes_width = size.width;
         let left = top_left.x;
@@ -230,54 +235,32 @@ impl Axes {
                 // add a legend entry if there is one
                 if line.legend {
                     let legend_bounds = Rectangle::new(
-                        canvas_bounds.position(),
-                        Size::new(canvas_bounds.width, self.axis.padding),
+                        Point::ORIGIN,
+                        Size::new(frame.width(), self.axis.y_padding),
                     );
-                    let legend_entry_width = legend_bounds.width / 5.0;
+                    let character_estimate = 8.0;
+                    let max_characters = 20.0;
+                    let legend_entry_width = character_estimate * max_characters;
                     let legend_entry_height = legend_bounds.height / 3.0;
 
-                    frame.with_clip(legend_bounds, |frame| {
-                        let x = canvas_bounds.width
-                            - legend_entry_width
-                            - legend_entry_width * legend_counter as f32; //starts at the right side and goes backwards
-                        let y = legend_bounds.height - legend_entry_height;
-                        let position = Point::new(x, y);
-                        let text = Text {
-                            content: line.label.clone(),
-                            position,
-                            color: line_color,
-                            size: iced::Pixels(legend_entry_height * 0.8),
-                            ..Default::default()
-                        };
-                        frame.fill_text(text);
-                    });
+                    let x = frame.width()
+                        - legend_entry_width
+                        - legend_entry_width * legend_counter as f32; //starts at the right side and goes backwards
+                    let y = legend_bounds.height - legend_entry_height;
+                    let position = Point::new(x, y);
+                    let text = Text {
+                        content: line.label.clone(),
+                        position,
+                        color: line_color,
+                        size: iced::Pixels(14.0),
+                        ..Default::default()
+                    };
+                    frame.fill_text(text);
+
                     legend_counter += 1;
                 };
             }
         }
-    }
-
-    fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme, bounds: &Rectangle) {
-        let axes_top_left = bounds.position();
-        let axes_size = bounds.size();
-        let axes_background = Fill::from(theme.light_background);
-
-        // create the axes border
-        let axes_border = Path::rectangle(axes_top_left, axes_size);
-        frame.stroke(&axes_border, Stroke::default());
-
-        // fill the background
-        frame.fill_rectangle(axes_top_left, axes_size, axes_background)
-    }
-
-    pub fn get_bounds(&self, frame: &Frame) -> Rectangle {
-        let frame_size = frame.size();
-        let axes_height = frame_size.height - 2.0 * self.padding;
-        let axes_width: f32 = frame_size.width - 2.0 * self.padding;
-        let axes_top_left = Point::new(self.padding, self.padding);
-        let axes_size = Size::new(axes_width, axes_height);
-        let axes_bounds = Rectangle::new(axes_top_left, axes_size);
-        axes_bounds
     }
 
     pub fn add_line(&mut self, series: &Series, color: Option<Color>) {

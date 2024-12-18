@@ -11,7 +11,7 @@ use std::time::Instant;
 
 const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
 
-pub fn main(series: SeriesMap) -> iced::Result {
+pub fn main(series: Vec<SeriesMap>) -> iced::Result {
     // let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     // let icon_path = PathBuf::from(manifest_dir).join("resources/nasa_aquamarine.png");
     //let icon_path = Path::new("./resources/nasa_aquamarine.png");
@@ -21,11 +21,11 @@ pub fn main(series: SeriesMap) -> iced::Result {
         //     .into_rgba8();
         // let (width, height) = image.dimensions();
         let image = image::load_from_memory(ICON_BYTES)
-        .expect("Failed to load icon from memory")
-        .into_rgba8();
+            .expect("Failed to load icon from memory")
+            .into_rgba8();
 
-    let (width, height) = image.dimensions();
-    //let icon_rgba = image.into_raw();
+        let (width, height) = image.dimensions();
+        //let icon_rgba = image.into_raw();
         (image.into_raw(), width, height)
     };
 
@@ -35,8 +35,10 @@ pub fn main(series: SeriesMap) -> iced::Result {
         antialiasing: true,
         ..Default::default()
     };
+
+    let window_size = Size::new(700.0, 350.0);
     let window_settings = window::Settings {
-        size: Size::new(700.0, 350.0),
+        size: window_size,
         icon: Some(icon),
         ..Default::default()
     };
@@ -46,7 +48,7 @@ pub fn main(series: SeriesMap) -> iced::Result {
         .centered()
         .settings(settings)
         .window(window_settings)
-        .run_with(|| PlotApp::new(series))
+        .run_with(move || PlotApp::new(series, window_size))
 }
 
 pub struct PlotApp {
@@ -58,14 +60,15 @@ pub struct PlotApp {
 pub enum Message {
     Tick(Instant),
     WheelScrolled(Point, ScrollDelta),
+    WindowResized(Size),
 }
 
 impl PlotApp {
-    fn new(series: SeriesMap) -> (Self, Task<Message>) {
+    fn new(series: Vec<SeriesMap>, window_size: Size) -> (Self, Task<Message>) {
         (
             Self {
                 state: AppState::default(),
-                canvas: PlotCanvas::new(&series),
+                canvas: PlotCanvas::new(&series, window_size),
             },
             window::get_latest().and_then(window::gain_focus),
         )
@@ -78,6 +81,9 @@ impl PlotApp {
             Message::WheelScrolled(position, delta) => {
                 self.canvas.wheel_scrolled(position, delta);
             }
+            Message::WindowResized(size) => {
+                self.canvas.window_resized(size);
+            }
         }
     }
 
@@ -86,7 +92,16 @@ impl PlotApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        window::frames().map(Message::Tick)
+        // Subscription for frame ticks
+        // let frame_ticks =
+        //     iced::time::every(std::time::Duration::from_millis(16)).map(|_| Message::Tick);
+        let frame_ticks = window::frames().map(Message::Tick);
+        // Subscription for window resize events
+        let window_resizes =
+            window::resize_events().map(|(_id, size)| Message::WindowResized(size));
+
+        // Combine both subscriptions
+        Subscription::batch(vec![frame_ticks, window_resizes])
     }
 }
 

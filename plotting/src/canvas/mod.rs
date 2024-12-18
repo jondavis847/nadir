@@ -9,7 +9,7 @@ use iced::{
     event::Status,
     mouse::{Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
-    Point, Rectangle, Renderer, Theme,
+    Point, Rectangle, Renderer, Size, Theme, Vector,
 };
 
 mod axes;
@@ -19,42 +19,78 @@ mod line;
 #[derive(Debug)]
 pub struct CanvasState {
     theme: PlotTheme,
+    text_size: f32,
 }
 
 impl Default for CanvasState {
     fn default() -> Self {
         let theme = PlotThemes::Dark.palette();
-        Self { theme }
+
+        Self {
+            theme,
+            text_size: 0.1,
+        }
     }
 }
 
 #[derive(Debug, Default)]
 pub struct PlotCanvas {
-    cache: Cache,
+    pub cache: Cache,
     axes: Vec<Axes>,
+    canvas_bounds: Rectangle,
 }
 
 impl PlotCanvas {
-    pub fn new(series_map: &SeriesMap) -> Self {
+    pub fn new(series_map: &Vec<SeriesMap>, window_size: Size) -> Self {
         let mut canvas = Self::default();
+        canvas.canvas_bounds = Rectangle::new(Point::ORIGIN, window_size);
 
-        for series in &series_map.map {
-            // Check if an Axes with the desired location already exists
-            if let Some(axes) = canvas
-                .axes
-                .iter_mut()
-                .find(|axes| axes.location == series.axes)
-            {
-                // If found, add the line to the existing Axes
-                axes.add_line(series, None);
-            } else {
-                // If not found, create a new Axes with the specified location
-                let mut new_axes = Axes::new(series.axes);
-                new_axes.add_line(series, None);
-                canvas.axes.push(new_axes);
+        // get the number of axes columns and rows for the layout
+        let mut nrows = 0;
+        let mut ncols = 0;
+        for entry in series_map {
+            if entry.axes.0 > nrows {
+                nrows = entry.axes.0;
+            }
+            if entry.axes.1 > ncols {
+                ncols = entry.axes.1;
             }
         }
+        let row_height = canvas.canvas_bounds.height / (nrows as f32 + 1.0);
+        let col_width = canvas.canvas_bounds.width / (ncols as f32 + 1.0);
+        let axes_size = Size::new(col_width, row_height);
+
+        for entry in series_map {
+            let (row, col) = entry.axes;
+            let top = row_height * row as f32;
+            let left = col_width * col as f32;
+            let top_left = Point::new(left, top);
+            let axes_bounds = Rectangle::new(top_left, axes_size);
+            let mut axes = Axes::new(entry.axes, axes_bounds);
+
+            for series in &entry.map {
+                axes.add_line(series, None);
+            }
+            canvas.axes.push(axes);
+        }
         canvas
+    }
+
+    pub fn window_resized(&mut self, window_size: Size) {
+        let x_scale = window_size.width / self.canvas_bounds.width;
+        let y_scale = window_size.height / self.canvas_bounds.height;
+
+        for axes in &mut self.axes {
+            axes.bounds.x *= x_scale;
+            axes.bounds.width *= x_scale;
+            axes.bounds.y *= y_scale;
+            axes.bounds.height *= y_scale;
+            axes.axis.x_padding *= x_scale;
+            axes.axis.y_padding *= y_scale;
+        }
+        self.canvas_bounds.width = window_size.width;
+        self.canvas_bounds.height = window_size.height;
+        self.cache.clear();
     }
 
     pub fn wheel_scrolled(&mut self, _point: Point, delta: ScrollDelta) {
@@ -94,30 +130,16 @@ impl Program<Message> for PlotCanvas {
 
             // axes
             for axes in &self.axes {
-                axes.draw(frame, &state.theme);
+                frame.with_save(|frame| {
+                    // move to axis location
+                    frame.translate(axes.bounds.position() - Point::ORIGIN);
+                    // scale down to axes size
+                    let x_scale = axes.bounds.width / frame.width();
+                    let y_scale = axes.bounds.height / frame.height();
+                    frame.scale_nonuniform(Vector::new(x_scale, y_scale));
+                    axes.draw(frame, &state.theme);
+                });
             }
-
-            // // lines
-            // for (i, series) in &self.series.map {
-            //     if series.points.len() > 1 {
-            //         let mut builder = Builder::new();
-            //         builder.move_to(self.series.get_relative_point(&series.points[0], &frame));
-            //         for point in &series.points {
-            //             let point = self.series.get_relative_point(&point, &frame);
-            //             builder.line_to(point);
-            //             builder.move_to(point);
-            //         }
-            //         let path = builder.build();
-            //         frame.stroke(
-            //             &path,
-            //             Stroke {
-            //                 width: 2.0,
-            //                 style: Style::Solid(state.theme.line_colors[*i as usize]),
-            //                 ..Stroke::default()
-            //             },
-            //         )
-            //     };
-            // }
         });
         vec![content]
     }
@@ -138,6 +160,17 @@ impl Program<Message> for PlotCanvas {
                         (Status::Captured, None)
                     }
                 }
+                // mouse::Event::ButtonPressed(button) => {
+                //     match button {
+                //         Button::Left =>
+                //     }
+                // }
+                // mouse::Event::ButtonReleased(button) => {
+
+                // }
+                // mouse::Event::CursorMoved(position) => {
+
+                // }
                 _ => (Status::Captured, None),
             },
             _ => (Status::Ignored, None),

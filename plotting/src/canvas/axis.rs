@@ -2,12 +2,13 @@ use crate::theme::PlotTheme;
 use iced::{
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text},
-    Point, Rectangle, Size, Vector,
+    Point, Size, Vector,
 };
 
 #[derive(Debug)]
 pub struct Axis {
-    pub padding: f32,
+    pub x_padding: f32,
+    pub y_padding: f32,
     pub line_width: f32,
     n_ticks: u32,
     tick_length: f32,
@@ -17,7 +18,8 @@ pub struct Axis {
 impl Default for Axis {
     fn default() -> Self {
         Self {
-            padding: 50.0,
+            x_padding: 30.0,
+            y_padding: 30.0,
             line_width: 5.0,
             n_ticks: 5,
             tick_length: 10.0,
@@ -27,30 +29,23 @@ impl Default for Axis {
 }
 
 impl Axis {
-    pub fn draw(
-        &self,
-        frame: &mut Frame,
-        theme: &PlotTheme,
-        canvas_bounds: &Rectangle,
-        xlim: &(f32, f32),
-        ylim: &(f32, f32),
-    ) {
+    pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme, xlim: &(f32, f32), ylim: &(f32, f32)) {
         // Define constants
-        let padding = self.padding;
-        let canvas_size = canvas_bounds.size();
-        let axes_size = Size::new(
-            canvas_size.width - 2.0 * padding,
-            canvas_size.height - 2.0 * padding,
+        let x_padding = self.x_padding;
+        let y_padding = self.y_padding;
+        let axis_size = Size::new(
+            frame.width() - 2.0 * x_padding,
+            frame.height() - 2.0 * y_padding,
         );
 
-        let axis_bottom_left = Point::new(padding, axes_size.height + padding);
-        let axis_bottom_right = Point::new(axes_size.width + padding, axes_size.height + padding);
-        let axis_top_left = Point::new(padding, padding);
-        let axis_top_right = Point::new(axes_size.width + padding, padding);
+        let axis_bottom_left = Point::new(x_padding, axis_size.height + y_padding);
+        let axis_bottom_right =
+            Point::new(axis_size.width + x_padding, axis_size.height + y_padding);
+        let axis_top_left = Point::new(x_padding, y_padding);
+        let axis_top_right = Point::new(axis_size.width + x_padding, y_padding);
 
         // Draw border lines
         let border_stroke = Stroke::default().with_width(1.0).with_color(theme.border);
-
         let axis_lines = [
             (axis_bottom_left, axis_bottom_right), // x-axis border
             (axis_bottom_left, axis_top_left),     // y-axis border
@@ -201,6 +196,7 @@ impl Axis {
                             horizontal_alignment: Horizontal::Center,
                             position: text_center,
                             vertical_alignment: Vertical::Center,
+                            size: (14.0).into(),
                             ..Text::default()
                         };
 
@@ -222,7 +218,7 @@ impl Axis {
             theme,
             axis_bottom_left,
             axis_bottom_right,
-            axes_size,
+            axis_size,
             *xlim,
             axis_bottom_right.x - axis_bottom_left.x,
             self.n_ticks,
@@ -237,7 +233,7 @@ impl Axis {
             theme,
             axis_bottom_left,
             axis_top_left,
-            axes_size,
+            axis_size,
             *ylim,
             axis_bottom_left.y - axis_top_left.y,
             self.n_ticks,

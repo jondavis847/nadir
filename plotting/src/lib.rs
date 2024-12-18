@@ -1,6 +1,6 @@
 use core::f64;
 use csv::ReaderBuilder;
-use inquire::{Confirm, MultiSelect, Select};
+use inquire::{Confirm, CustomType, MultiSelect, Select};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
@@ -11,39 +11,74 @@ mod theme;
 use series::{Series, SeriesMap};
 
 pub fn main(provided_path: Option<PathBuf>) {
-    let mut series = SeriesMap::new();
+    let mut series = Vec::new();
 
-    let root_path = match provided_path {
-        Some(p) => p,
-        None => std::env::current_dir().expect("could not get current directory"),
-    };
+    let root_path = provided_path
+        .unwrap_or_else(|| std::env::current_dir().expect("could not get current directory"));
 
+    let mut first_pass = true;
+    // axes loop
     loop {
-        let mut path = select_x_source(&root_path);
-        while path.is_dir() {
-            path = select_x_source(&path);
-        }
-        let x_name = select_x_data(&path);
-        let x_data = extract_column(&path, &x_name);
+        let mut map = if first_pass {
+            first_pass = false;
+            SeriesMap::new((0, 0))
+        } else {
+            let this_location = loop {
+                let row: usize = prompt_positive_integer("enter axes layout row (0 based indexing!)");
+                let column: usize = prompt_positive_integer("enter axes layout column (0 based indexing!)");
 
-        let mut path = select_y_source(&root_path);
-        while path.is_dir() {
-            path = select_y_source(&path);
-        }
+                let location = (row, column);
 
-        let y_names = select_y_data(&path);
-        for y_name in y_names {
-            let y_data = extract_column(&path, &y_name);
-            series.insert(Series::new(x_name.clone(), x_data.clone(), y_name, y_data));
-        }
+                if !series
+                    .iter()
+                    .any(|entry: &SeriesMap| entry.axes == location)
+                {
+                    break location; // Found a valid location
+                } else {
+                    println!("Error: axes location {:?} is taken", location);
+                }
+            };
+            SeriesMap::new(this_location)
+        };
+        // series loop
+        loop {
+            let mut path = select_x_source(&root_path);
+            while path.is_dir() {
+                path = select_x_source(&path);
+            }
+            let x_name = select_x_data(&path);
+            let x_data = extract_column(&path, &x_name);
 
-        // Ask the user if they want to add another series
-        let add_another = Confirm::new("add another?").prompt().unwrap_or(false);
+            let mut path = select_y_source(&root_path);
+            while path.is_dir() {
+                path = select_y_source(&path);
+            }
+
+            let y_names = select_y_data(&path);
+            for y_name in y_names {
+                let y_data = extract_column(&path, &y_name);
+                map.insert(Series::new(x_name.clone(), x_data.clone(), y_name, y_data));
+            }
+
+            // Ask the user if they want to add another series
+            let add_another = Confirm::new("add another line?")
+                .with_default(false)
+                .prompt()
+                .unwrap_or(false);
+            if !add_another {
+                break;
+            }
+        }
+        series.push(map);
+        // Ask the user if they want to add another axes
+        let add_another = Confirm::new("add another axes?")
+            .with_default(false)
+            .prompt()
+            .unwrap_or(false);
         if !add_another {
             break;
         }
     }
-
     application::main(series).expect("Application failed to run");
 }
 
@@ -199,4 +234,16 @@ fn extract_column(path: &Path, column_name: &str) -> Vec<f64> {
     }
 
     column_values
+}
+
+fn prompt_positive_integer(prompt_message: &str) -> usize {
+    loop {
+        match CustomType::new(prompt_message)
+            .with_error_message("please enter a positive integer (0 based indexing!)")
+            .prompt()
+        {
+            Ok(value) => break value,
+            Err(err) => println!("Error: {:?}", err),
+        }
+    }
 }
