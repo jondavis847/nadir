@@ -346,14 +346,22 @@ fn get_global_lims(lines: &Vec<Line>) -> Option<((f32, f32), (f32, f32))> {
         }
     }
 
-    if (x_max - x_min).abs() < f32::EPSILON {
+    // logic if the values are 0
+    let delta_x = x_max - x_min;
+    if delta_x.abs() < f32::EPSILON {
         x_max = x_max + 0.5;
         x_min = x_min - 0.5;
     }
 
-    if (y_max - y_min).abs() < f32::EPSILON {
+    let delta_y = y_max - y_min;
+    if (delta_y).abs() < f32::EPSILON {
         y_max = y_max + 0.5;
         y_min = y_min - 0.5;
+    } else {
+        // add padding so curve isnt exactly at top and bottom of axis
+        let padding = delta_y * 0.1;
+        y_max += padding;
+        y_min -= padding;
     }
 
     if found_any_points {

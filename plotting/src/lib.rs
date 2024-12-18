@@ -1,6 +1,6 @@
 use core::f64;
 use csv::ReaderBuilder;
-use inquire::{Confirm, Select};
+use inquire::{Confirm, MultiSelect, Select};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
@@ -19,24 +19,23 @@ pub fn main(provided_path: Option<PathBuf>) {
     };
 
     loop {
-        println!("select x data");
-        let mut path = select_source(&root_path);
+        let mut path = select_x_source(&root_path);
         while path.is_dir() {
-            path = select_source(&path);
+            path = select_x_source(&path);
         }
-        let x_name = prompt_csv_headers(&path).unwrap();
+        let x_name = select_x_data(&path);
         let x_data = extract_column(&path, &x_name);
 
-        println!("select y data:");
-        let mut path = select_source(&root_path);
+        let mut path = select_y_source(&root_path);
         while path.is_dir() {
-            path = select_source(&path);
+            path = select_y_source(&path);
         }
 
-        let y_name = prompt_csv_headers(&path).unwrap();
-        let y_data = extract_column(&path, &y_name);
-
-        series.insert(Series::new(x_name, x_data, y_name, y_data));
+        let y_names = select_y_data(&path);
+        for y_name in y_names {
+            let y_data = extract_column(&path, &y_name);
+            series.insert(Series::new(x_name.clone(), x_data.clone(), y_name, y_data));
+        }
 
         // Ask the user if they want to add another series
         let add_another = Confirm::new("add another?").prompt().unwrap_or(false);
@@ -48,7 +47,25 @@ pub fn main(provided_path: Option<PathBuf>) {
     application::main(series).expect("Application failed to run");
 }
 
-fn select_source(path: &PathBuf) -> PathBuf {
+fn select_x_source(path: &PathBuf) -> PathBuf {
+    let contents = get_contents(path);
+    let choice = Select::new("select x-axis source", contents)
+        .prompt()
+        .expect("source selection failed");
+
+    path.join(choice)
+}
+
+fn select_y_source(path: &PathBuf) -> PathBuf {
+    let contents = get_contents(path);
+    let choice = Select::new("select y-axis source", contents)
+        .prompt()
+        .expect("source selection failed");
+
+    path.join(choice)
+}
+
+fn get_contents(path: &PathBuf) -> Vec<String> {
     let mut folders = Vec::new();
     let mut csvs = Vec::new();
     let mut f2s = Vec::new();
@@ -84,45 +101,49 @@ fn select_source(path: &PathBuf) -> PathBuf {
     contents.append(&mut folders);
     contents.append(&mut csvs);
     contents.append(&mut f2s);
-
-    let choice = Select::new("select source:", contents)
-        .prompt()
-        .expect("source selection failed");
-
-    path.join(choice)
+    contents
 }
 
-fn prompt_csv_headers(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
-    // Check if the path is a file
-    if !path.is_file() {
-        return Err(format!("The path {:?} is not a file.", path).into());
-    }
-
+fn get_csv_headers(path: &Path) -> Vec<String> {
     // Check if the file has a .csv extension
     if path.extension().and_then(|ext| ext.to_str()) != Some("csv") {
-        return Err(format!("The file {:?} does not have a .csv extension.", path).into());
+        panic!("The file {:?} does not have a .csv extension.", path);
     }
 
     // Attempt to open the file
-    let file = File::open(path)?;
+    let file = File::open(path).unwrap();
 
     // Create a CSV reader with headers enabled
     let mut reader = ReaderBuilder::new().has_headers(true).from_reader(file);
 
     // Retrieve the headers
-    let headers = reader
+    reader
         .headers()
-        .map_err(|_| "Could not read headers from the CSV file.")?
+        .map_err(|_| "Could not read headers from the CSV file.")
+        .unwrap()
         .iter()
         .map(|s| s.to_string())
-        .collect::<Vec<String>>();
+        .collect::<Vec<String>>()
+}
+
+fn select_x_data(path: &Path) -> String {
+    let headers = get_csv_headers(path);
 
     // Prompt the user to select a column
-    let choice = Select::new("Select column:", headers)
+    Select::new("select x-axis data:", headers)
         .prompt()
-        .map_err(|_| "Column selection failed.")?;
+        .map_err(|_| "Column selection failed.")
+        .unwrap()
+}
 
-    Ok(choice)
+fn select_y_data(path: &Path) -> Vec<String> {
+    let headers = get_csv_headers(path);
+
+    // Prompt the user to select a column
+    MultiSelect::new("select y-axis data:", headers)
+        .prompt()
+        .map_err(|_| "Column selection failed.")
+        .unwrap()
 }
 
 fn extract_column(path: &Path, column_name: &str) -> Vec<f64> {
