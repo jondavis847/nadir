@@ -2,32 +2,64 @@ mod animator;
 mod scene;
 
 use crate::Message;
+use aerospace::celestial_system::CelestialBodies;
 use animator::Animator;
+use glam::{DQuat, DVec3};
 use iced::{
     alignment, keyboard,
     mouse::ScrollDelta,
     widget::{container, horizontal_space, shader, slider, text, Column, Row, Stack},
     window, Color, Element, Length, Point, Subscription, Task, Theme, Vector,
 };
-
-use multibody::{result::MultibodyResult, MultibodyErrors};
-
+use nadir_3d::mesh::Mesh;
 use scene::Scene;
+
+#[derive(Debug, Default)]
+pub struct AnimationResult {
+    pub sim_time: Vec<f64>,
+    pub meshes: Vec<MeshResult>,
+    pub celestial_meshes: Vec<CelestialResult>,
+}
+
+#[derive(Debug)]
+pub struct MeshResult {
+    pub mesh: Mesh,
+    pub position: Vec<DVec3>,
+    pub attitude: Vec<DQuat>,
+}
+impl MeshResult {
+    fn get_state_at_time_interp(&self, t: f64, time: &Vec<f64>) -> (DQuat, DVec3) {
+        get_state_at_time_interp(t, &time, &self.attitude, &self.position)
+    }
+}
+
+#[derive(Debug)]
+pub struct CelestialResult {
+    pub body: CelestialBodies,
+    pub position: Vec<DVec3>,
+    pub attitude: Vec<DQuat>,
+}
+
+impl CelestialResult {
+    fn get_state_at_time_interp(&self, t: f64, time: &Vec<f64>) -> (DQuat, DVec3) {
+        get_state_at_time_interp(t, &time, &self.attitude, &self.position)
+    }
+}
 
 #[derive(Debug)]
 pub struct AnimationGui {
     state: AnimationState,
-    result: Option<MultibodyResult>,
+    result: AnimationResult,
 }
 
 impl AnimationGui {
-    pub fn new(result: MultibodyResult) -> (Self, Task<Message>) {
+    pub fn new(result: AnimationResult) -> (Self, Task<Message>) {
         let mut state = AnimationState::default();
-        state.initialize(&result).unwrap();
+        state.initialize(&result);
         (
             Self {
                 state,
-                result: Some(result),
+                result: result,
             },
             Task::done(Message::Loaded),
         )
@@ -38,11 +70,7 @@ impl AnimationGui {
 
         match message {
             Message::AnimationTick(instant) => {
-                if self.result.is_some() {
-                    state
-                        .animate(self.result.as_ref().unwrap(), instant)
-                        .unwrap();
-                }
+                state.animate(&self.result, instant);
             }
             Message::CameraFovChanged(value) => state.camera_fov_changed(value),
             Message::CameraRotation(delta) => state.camera_rotated(delta),
@@ -129,30 +157,24 @@ impl Default for AnimationState {
 }
 
 impl AnimationState {
-    pub fn animate(
-        &mut self,
-        result: &MultibodyResult,
-        instant: iced::time::Instant,
-    ) -> Result<(), MultibodyErrors> {
+    pub fn animate(&mut self, result: &AnimationResult, instant: iced::time::Instant) {
         self.animator.update(instant);
+        let t = self.animator.current_time;
+        let time = &result.sim_time;
+        result
+            .meshes
+            .iter()
+            .zip(&mut self.scene.body_meshes)
+            .for_each(|(result, mesh)| {
+                let (q, r) = result.get_state_at_time_interp(t, time);
+                mesh.update(r, q);
+            });
 
-        for mesh in &mut self.scene.body_meshes {
-            let (attitude, position) = result
-                .get_body_state_at_time_interp(&mesh.name, self.animator.current_time as f64)?;
-            let position = glam::dvec3(position[0], position[1], position[2]);
-            let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
-            mesh.update(position, rotation);
-        }
-
-        for (body, mesh) in &mut self.scene.celestial.meshes {
-            let (attitude, position) = result.get_celestial_state_at_time_interp(
-                body.to_body(),
-                self.animator.current_time as f64,
-            )?;
-            let position = glam::dvec3(position[0], position[1], position[2]) * 1e3; //celestial positions in km, convert to m
-            let rotation = glam::dquat(attitude.x, attitude.y, attitude.z, attitude.s);
-            mesh.update(position, rotation);
-        }
+        result.celestial_meshes.iter().for_each(|result| {
+            let (q, r) = result.get_state_at_time_interp(t, time);
+            // celestial position is in km, convert to m;
+            self.scene.celestial.update_body(result.body, 1e3 * r, q);
+        });
 
         // adjust mesh positions so target is at origin and all other meshes are relative to it
         if let Some(index) = self.scene.world_target {
@@ -164,7 +186,6 @@ impl AnimationState {
                 mesh.set_position_from_target(camera_target);
             }
         }
-        Ok(())
     }
 
     pub fn camera_fov_changed(&mut self, value: f32) {
@@ -237,55 +258,22 @@ impl AnimationState {
 
     pub fn right_button_released(&self, _cursor: Point) {}
 
-    pub fn initialize(&mut self, result: &MultibodyResult) -> Result<(), MultibodyErrors> {
+    pub fn initialize(&mut self, result: &AnimationResult) {
         // initialize the multibody bodies
-        for (name, mesh) in &result.bodies {
-            let qx = result
-                .get_component_state(name, "attitude[x]{base}")
-                .unwrap()[0];
-            let qy = result
-                .get_component_state(name, "attitude[y]{base}")
-                .unwrap()[0];
-            let qz = result
-                .get_component_state(name, "attitude[z]{base}")
-                .unwrap()[0];
-            let qw = result
-                .get_component_state(name, "attitude[w]{base}")
-                .unwrap()[0];
-            let rotation = glam::DQuat::from_xyzw(qx, qy, qz, qw);
-
-            let rx = result
-                .get_component_state(name, "position[x]{base}")
-                .unwrap()[0];
-            let ry = result
-                .get_component_state(name, "position[y]{base}")
-                .unwrap()[0];
-            let rz = result
-                .get_component_state(name, "position[z]{base}")
-                .unwrap()[0];
-            let position = glam::dvec3(rx, ry, rz);
-
-            let mut mesh = mesh.clone();
-            mesh.update(position, rotation);
+        for result in &result.meshes {
+            let mut mesh = result.mesh.clone();
+            mesh.update(result.position[0], result.attitude[0]);
             self.scene.body_meshes.push(mesh);
         }
 
-        if let Some(celestial) = &result.celestial {
-            for body in &celestial.bodies {
-                self.scene.celestial.add_body(*body.0);
-
-                // get initial state
-                let r = body.1.r[0];
-                let q = body.1.q[0];
-                // convert to graphics types
-                // position of celestials is in km, convert to m for accurate graphics
-                let position = glam::dvec3(r[0], r[1], r[2]) * 1e3;
-                let orientation = glam::dquat(q.x, q.y, q.z, q.s);
-
-                // update the mesh state and push to scene
-                self.scene
-                    .celestial
-                    .update_body(*body.0, position, orientation);
+        if !result.celestial_meshes.is_empty() {
+            for result in &result.celestial_meshes {
+                self.scene.celestial.add_body(result.body);
+                self.scene.celestial.update_body(
+                    result.body,
+                    result.position[0],
+                    result.attitude[0],
+                );
             }
             self.scene.set_celestial();
         }
@@ -299,7 +287,6 @@ impl AnimationState {
 
         self.animator = animator;
         self.animator.start();
-        Ok(())
     }
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
@@ -310,67 +297,29 @@ impl AnimationState {
 fn get_state_at_time_interp(
     t: f64,
     time: &Vec<f64>,
-    q: &(&Vec<f64>, &Vec<f64>, &Vec<f64>, &Vec<f64>),
-    r: &(&Vec<f64>, &Vec<f64>, &Vec<f64>),
-) -> (Quaternion, Vector3<f64>) {
+    q: &Vec<DQuat>,
+    r: &Vec<DVec3>,
+) -> (DQuat, DVec3) {
     match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
         Ok(i) => {
             // The target is exactly at index i
-            (
-                Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
-                Vector3::new(r.0[i], r.1[i], r.2[i]),
-            )
+            (q[i], r[i])
         }
         Err(i) => {
             if i == 0 {
                 // The target is smaller than the first element
-                (
-                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
-                    Vector3::new(r.0[i], r.1[i], r.2[i]),
-                )
+                (q[i], r[i])
             } else if i == time.len() {
                 // The target is greater than the last element
-                (
-                    Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]),
-                    Vector3::new(r.0[i], r.1[i], r.2[i]),
-                )
+                (q[i], r[i])
             } else {
                 // The target is between elements at i - 1 and i
                 let t_prev = time[i - 1];
                 let t_next = time[i];
-                let interp_factor = (t - t_prev) / (t_next - t_prev); // between 0-1
+                let s = (t - t_prev) / (t_next - t_prev); // between 0-1
 
-                let position_prev = Vector3::new(r.0[i - 1], r.1[i - 1], r.2[i - 1]);
-                let position_next = Vector3::new(r.0[i], r.1[i], r.2[i]);
-                let interp_position = Vector3::lerp(&position_prev, &position_next, interp_factor);
-
-                let attitude_prev = Quaternion::new(q.0[i - 1], q.1[i - 1], q.2[i - 1], q.3[i - 1]);
-                let mut attitude_next = Quaternion::new(q.0[i], q.1[i], q.2[i], q.3[i]);
-
-                // Ensure quaternion continuity
-                if attitude_prev.dot(&attitude_next) < 0.0 {
-                    attitude_next = Quaternion {
-                        x: -attitude_next.x,
-                        y: -attitude_next.y,
-                        z: -attitude_next.z,
-                        s: -attitude_next.s,
-                    };
-                }
-
-                let interp_attitude;
-                if false {
-                    // TODO: fix squad
-                    //if i >= 2 && i < attitude.len() - 1 {
-                    //squad
-                    let q0 = Quaternion::new(q.0[i - 2], q.1[i - 2], q.2[i - 2], q.3[i - 2]);
-                    let q3 = Quaternion::new(q.0[i + 1], q.1[i + 1], q.2[i + 1], q.3[i + 1]);
-                    interp_attitude =
-                        Quaternion::squad(q0, attitude_prev, attitude_next, q3, interp_factor);
-                } else {
-                    //slerp
-                    interp_attitude =
-                        Quaternion::slerp(&attitude_prev, &attitude_next, interp_factor);
-                }
+                let interp_position = r[i - 1].lerp(r[i], s);
+                let interp_attitude = q[i - 1].slerp(q[i], s);
 
                 (interp_attitude, interp_position)
             }

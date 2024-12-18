@@ -63,11 +63,9 @@ pub fn format_duration(duration: Duration) -> String {
     }
 }
 
-pub fn initialize_writer(name: String, path: &PathBuf) -> Writer<BufWriter<File>> {
-    let folder_path = path.join(&name);
-    std::fs::create_dir_all(&folder_path).expect("Failed to create directory");
+pub fn initialize_writer(name: String, path: &PathBuf) -> Writer<BufWriter<File>> {    
     let filename = name.clone() + ".csv";
-    let file = File::create(folder_path.join(filename)).expect("Failed to create file");
+    let file = File::create(path.join(filename)).expect("Failed to create file");
     let buf_writer = BufWriter::new(file);
     Writer::from_writer(buf_writer)
 }

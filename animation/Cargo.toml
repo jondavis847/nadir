@@ -8,6 +8,7 @@ aerospace.workspace = true
 bincode = "1.3.3"
 bytemuck.workspace = true
 color.workspace = true
+csv.workspace = true
 glam.workspace = true
 iced.workspace = true
 image.workspace = true

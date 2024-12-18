@@ -24,7 +24,7 @@ use spice::Spice;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fs::File,
+    fs::{create_dir_all, File},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -411,11 +411,12 @@ impl MultibodySystem {
     pub fn simulate(&mut self, sim_name: &str, tstart: f64, tstop: f64, dt: f64) {
         let start_time = Instant::now();
         match self.validate() {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => panic!("{e}"),
         };
         let (result_path, sim_name) = self.get_result_path_and_sim_name(sim_name);
         // initialize the results writers
+        create_dir_all(&result_path).expect("result folder already exists");
         let mut writers = self.initialize_writers(&result_path);
 
         // sort the bodies and joints based on multibody tree philosophy
@@ -444,13 +445,11 @@ impl MultibodySystem {
                 meshes.insert(body.name.clone(), mesh.clone());
             }
         }
-        
 
         let sim_duration = start_time.elapsed();
-        let sim_duration_str = utilities::format_duration(sim_duration);        
+        let sim_duration_str = utilities::format_duration(sim_duration);
         println!("Simulation '{sim_name}' completed in {sim_duration_str}.");
         // collect meshes from the system into the result so we can use for animation
-        
     }
 
     fn update_body_acceleration(&mut self) {

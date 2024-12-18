@@ -199,9 +199,8 @@ impl Body {
         let writer = initialize_writer(self.name.clone(), &bodies_folder_path);
 
         if let Some(mesh) = &self.mesh {
-            let mesh_file_path = bodies_folder_path.join(self.name.clone()).join("mesh.ron");
+            let mesh_file_path = bodies_folder_path.join(self.name.clone() + ".mesh");
             let mut mesh_file = File::create(mesh_file_path).expect("could not create file");
-
             let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
             mesh_file.write_all(ron_string.as_bytes()).unwrap();
         }

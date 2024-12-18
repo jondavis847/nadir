@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use aerospace::celestial_system::CelestialBodies;
 use color::Color;
+use glam::{DQuat, DVec3};
 use nadir_3d::mesh::{Mesh, MeshPrimitive};
 use nadir_3d::{
     geometry::{ellipsoid::Ellipsoid64, Geometry, GeometryState},
     material::Material,
 };
-use glam::{DQuat, DVec3};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CelestialMeshes {
@@ -27,26 +27,6 @@ pub enum CelestialMeshes {
     Venus,
 }
 
-impl CelestialMeshes {
-    pub fn to_body(&self) -> CelestialBodies {
-        match self {
-            CelestialMeshes::Earth => CelestialBodies::Earth,
-            CelestialMeshes::EarthAtmosphere => CelestialBodies::Earth,
-            CelestialMeshes::Jupiter => CelestialBodies::Jupiter,
-            CelestialMeshes::Mars => CelestialBodies::Mars,
-            CelestialMeshes::Mercury => CelestialBodies::Mercury,
-            CelestialMeshes::Moon => CelestialBodies::Moon,
-            CelestialMeshes::Neptune => CelestialBodies::Neptune,
-            CelestialMeshes::Pluto => CelestialBodies::Pluto,
-            CelestialMeshes::Saturn => CelestialBodies::Saturn,
-            //      CelestialMeshes::SaturnRings => CelestialBodies::Saturn,
-            CelestialMeshes::Sun => CelestialBodies::Sun,
-            CelestialMeshes::SunCorona => CelestialBodies::Sun,
-            CelestialMeshes::Uranus => CelestialBodies::Uranus,
-            CelestialMeshes::Venus => CelestialBodies::Venus,
-        }
-    }
-}
 #[derive(Debug, Default)]
 pub struct CelestialAnimation {
     pub meshes: HashMap<CelestialMeshes, Mesh>,
@@ -180,14 +160,13 @@ impl CelestialAnimation {
                 );
                 let corona_mesh = celestial_mesh(
                     "sun_corona",
-                    sun_radius + corona_radius,
-                    sun_radius + corona_radius,
+                    corona_radius,
+                    corona_radius,
                     Material::Basic {
                         color: Color::WHITE,
                     },
                 );
-                self.meshes
-                    .insert(CelestialMeshes::SunCorona, corona_mesh)
+                self.meshes.insert(CelestialMeshes::SunCorona, corona_mesh)
             }
             CelestialBodies::Uranus => self.meshes.insert(
                 CelestialMeshes::Uranus,
@@ -264,6 +243,10 @@ impl CelestialAnimation {
             }
             CelestialBodies::Sun => {
                 if let Some(body) = self.meshes.get_mut(&CelestialMeshes::Sun) {
+                    body.update(position, rotation);
+                }
+
+                if let Some(body) = self.meshes.get_mut(&CelestialMeshes::SunCorona) {
                     body.update(position, rotation);
                 }
             }

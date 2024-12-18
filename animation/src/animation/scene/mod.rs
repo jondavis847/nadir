@@ -277,7 +277,7 @@ impl Primitive for ScenePrimitive {
             storage.store(MultisampleView(multisampled_texture_view));
         }
 
-        const MAIN_SHADER: &str = include_str!("scene/shaders/main.wgsl");
+        const MAIN_SHADER: &str = include_str!("../scene/shaders/main.wgsl");
 
         if !storage.has::<PipelineLayout>() {
             let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
@@ -312,11 +312,11 @@ impl Primitive for ScenePrimitive {
         //earth
         if let Some(earth) = self.celestial.meshes.get(&CelestialMeshes::Earth) {
             if !storage.has::<EarthPipeline>() {
-                const EARTH_COLOR: &[u8] = include_bytes!("../../resources/earth_color_8K.tif");
+                const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_8K.tif");
                 const EARTH_NIGHT: &[u8] =
-                    include_bytes!("../../resources/earth_nightlights_10K.tif");
-                const EARTH_CLOUDS: &[u8] = include_bytes!("../../resources/earth_clouds_8K.tif");
-                const EARTH_SPEC: &[u8] = include_bytes!("../../resources/earth_spec_8k.tif");
+                    include_bytes!("../../../resources/earth_nightlights_10K.tif");
+                const EARTH_CLOUDS: &[u8] = include_bytes!("../../../resources/earth_clouds_8K.tif");
+                const EARTH_SPEC: &[u8] = include_bytes!("../../../resources/earth_spec_8k.tif");
                 // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
                 let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
@@ -504,7 +504,7 @@ impl Primitive for ScenePrimitive {
                     corona_pipeline.update(queue, &[corona.mesh_gpu]);
                 }
             }
-        }
+        }        
 
         //cuboids
         let cuboids: Vec<MeshGpu> = self
@@ -709,7 +709,7 @@ impl Primitive for ScenePrimitive {
             );
         }
 
-        if let Some(sun_pipeline) = storage.get::<SunPipeline>() {
+        if let Some(sun_pipeline) = storage.get::<SunPipeline>() {            
             let pipeline = &sun_pipeline.pipeline;
             pass.set_pipeline(pipeline);
             pass.set_vertex_buffer(0, sun_pipeline.vertex_buffer.slice(..));

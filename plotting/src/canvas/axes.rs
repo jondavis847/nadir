@@ -85,7 +85,8 @@ impl Axes {
             canvas_points
         };
         let mut legend_counter = 0;
-        for (i, line) in self.lines.iter().enumerate().rev() { // reverse for legend positioning
+        for (i, line) in self.lines.iter().enumerate().rev() {
+            // reverse for legend positioning
             if line.data.len() > 1 {
                 let line_color = if let Some(color) = line.color {
                     color
@@ -223,7 +224,7 @@ impl Axes {
                         }
                     });
 
-                    frame.stroke(&path, Stroke::default().with_color(line_color));                    
+                    frame.stroke(&path, Stroke::default().with_color(line_color));
                 }
 
                 // add a legend entry if there is one
@@ -280,9 +281,7 @@ impl Axes {
     }
 
     pub fn add_line(&mut self, series: &Series, color: Option<Color>) {
-        let label = format!("{}.{}.{}", series.result, series.component, series.state);
-        let line = Line::new(label, series.points.clone(), color, true);
-
+        let line = Line::new(series.y_name.clone(), series.points.clone(), color, true);
         self.lines.push(line);
 
         //update xlim and ylim based on line data

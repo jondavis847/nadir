@@ -150,6 +150,7 @@ dependencies = [
  "bincode",
  "bytemuck",
  "color",
+ "csv",
  "glam 0.29.2",
  "iced",
  "image 0.25.5",
@@ -3876,6 +3877,7 @@ name = "plotting"
 version = "0.0.1"
 dependencies = [
  "bincode",
+ "csv",
  "iced",
  "image 0.25.5",
  "inquire",

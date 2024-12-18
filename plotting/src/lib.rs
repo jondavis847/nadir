@@ -1,204 +1,42 @@
-use bincode::deserialize_from;
 use core::f64;
-use iced::widget::canvas::Frame;
-use iced::Point;
-use inquire::{Confirm, MultiSelect, Select};
-use multibody::result::MultibodyResult;
+use csv::ReaderBuilder;
+use inquire::{Confirm, Select};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 mod application;
 mod canvas;
+mod series;
 mod theme;
-
-#[derive(Debug)]
-pub struct SeriesMap {
-    map: Vec<Series>,
-    xmax: f32,
-    xmin: f32,
-    ymax: f32,
-    ymin: f32,
-}
-
-impl Default for SeriesMap {
-    fn default() -> Self {
-        Self {
-            map: Vec::new(),
-            xmax: -f32::INFINITY,
-            xmin: f32::INFINITY,
-            ymax: -f32::INFINITY,
-            ymin: f32::INFINITY,
-        }
-    }
-}
-
-impl SeriesMap {
-    pub fn new() -> Self {
-        SeriesMap::default()
-    }
-
-    pub fn get_relative_point(&self, point: &Point, frame: &Frame) -> Point {
-        let x = (point.x - self.xmin) / (self.xmax - self.xmin);
-        let y = (point.y - self.ymin) / (self.ymax - self.ymin);
-
-        let center = frame.center();
-        let width = frame.width();
-        let height = frame.height();
-        let left = center.x - width / 2.0;
-        let top = center.y - height / 2.0;
-
-        let x = left + x * width;
-        let y = top + (height - y * height);
-
-        Point::new(x, y)
-    }
-    pub fn insert(&mut self, series: Series) {
-        if let Some((xmin, xmax, ymin, ymax)) = &series.find_boundaries() {
-            if xmin < &self.xmin {
-                self.xmin = *xmin;
-            }
-            if xmax > &self.xmax {
-                self.xmax = *xmax;
-            }
-            if ymin < &self.ymin {
-                self.ymin = *ymin;
-            }
-            if ymax > &self.ymax {
-                self.ymax = *ymax;
-            }
-
-            self.map.push(series);
-        } else {
-            panic!("Could not find data boundaries. Check the data is not corrupted.")
-        };
-    }
-}
-
-#[derive(Debug)]
-pub struct Series {
-    pub result: String,
-    pub component: String,
-    pub state: String,
-    pub points: Vec<Point>,
-    pub axes: (usize, usize), // which axes to plot on, (row,column)
-}
-
-impl Series {
-    fn new(result: String, component: String, state: String, x: Vec<f64>, y: Vec<f64>) -> Self {
-        let points = x
-            .into_iter()
-            .zip(y)
-            .map(|(x, y)| Point::new(x as f32, y as f32))
-            .collect();
-        let axes = (0_usize, 0_usize);
-
-        Self {
-            result,
-            component,
-            state,
-            points,
-            axes,
-        }
-    }
-
-    pub fn find_boundaries(&self) -> Option<(f32, f32, f32, f32)> {
-        if self.points.is_empty() {
-            return None;
-        }
-
-        let mut xmin = f32::INFINITY;
-        let mut xmax = f32::NEG_INFINITY;
-        let mut ymin = f32::INFINITY;
-        let mut ymax = f32::NEG_INFINITY;
-
-        for point in &self.points {
-            if point.x.is_nan() || point.y.is_nan() {
-                continue; // Skip points with NaN coordinates
-            }
-            if point.x < xmin {
-                xmin = point.x;
-            }
-            if point.x > xmax {
-                xmax = point.x;
-            }
-            if point.y < ymin {
-                ymin = point.y;
-            }
-            if point.y > ymax {
-                ymax = point.y;
-            }
-        }
-
-        if xmin == f32::INFINITY
-            || xmax == f32::NEG_INFINITY
-            || ymin == f32::INFINITY
-            || ymax == f32::NEG_INFINITY
-        {
-            None // All points were NaN
-        } else {
-            Some((xmin, xmax, ymin, ymax))
-        }
-    }
-}
+use series::{Series, SeriesMap};
 
 pub fn main(provided_path: Option<PathBuf>) {
     let mut series = SeriesMap::new();
 
-    let path = match provided_path {
+    let root_path = match provided_path {
         Some(p) => p,
-        None => std::env::current_dir().expect("Could not get current directory"),
+        None => std::env::current_dir().expect("could not get current directory"),
     };
 
     loop {
-        // Determine the result folder containing the 'result.ron' file
-        let result_folder = if path.join("result.bin").is_file() {
-            path.clone()
-        } else if path.join("results").is_dir() {
-            let result_folders = get_results(&path.join("results"));
-            if result_folders.is_empty() {
-                panic!("Could not find 'result.bin' in any subfolders or the current folder.");
-            } else {
-                select_folder(result_folders).expect("Selected folder did not exist.")
-            }
-        } else {
-            panic!("Could not find 'result.bin' in any subfolders or the current folder.");
-        };
-
-        let res_path = result_folder.join("result.bin");
-        let res_file = File::open(res_path).unwrap();
-        let result: MultibodyResult = deserialize_from(res_file).unwrap();
-
-        let mut components: Vec<String> = result.result.keys().cloned().collect();
-        components.sort();
-        let component_name = Select::new("component:", components)
-            .prompt()
-            .expect("Component selection failed");
-
-        if let Some(component) = result.result.get(&component_name) {
-            let mut states = component.keys();
-            states.sort();
-            let state_names = MultiSelect::new("state:", states)
-                .prompt()
-                .expect("State selection failed");
-
-            for state_name in &state_names {
-                let x = result.sim_time.clone();
-                let y = component
-                    .get(&state_name)
-                    .expect("State not found in component")
-                    .clone();
-
-                series.insert(Series::new(
-                    result.name.clone(),
-                    component_name.clone(),
-                    state_name.clone(),
-                    x,
-                    y,
-                ));
-            }
-        } else {
-            panic!("Component not found in the result map.");
+        println!("select x data");
+        let mut path = select_source(&root_path);
+        while path.is_dir() {
+            path = select_source(&path);
         }
+        let x_name = prompt_csv_headers(&path).unwrap();
+        let x_data = extract_column(&path, &x_name);
+
+        println!("select y data:");
+        let mut path = select_source(&root_path);
+        while path.is_dir() {
+            path = select_source(&path);
+        }
+
+        let y_name = prompt_csv_headers(&path).unwrap();
+        let y_data = extract_column(&path, &y_name);
+
+        series.insert(Series::new(x_name, x_data, y_name, y_data));
 
         // Ask the user if they want to add another series
         let add_another = Confirm::new("add another?").prompt().unwrap_or(false);
@@ -210,83 +48,134 @@ pub fn main(provided_path: Option<PathBuf>) {
     application::main(series).expect("Application failed to run");
 }
 
-/// Returns a `Vec<String>` containing the names of directories in the specified folder
-/// that contain a file named `result.ron`.
-///
-/// # Arguments
-/// * `result_folder` - A `Path` reference to the folder where the search will be conducted.
-///
-/// # Returns
-/// * A vector of directory names (as `String`) that contain a `result.ron` file.
-///
-/// # Example
-/// If the current folder structure is:
-/// ```
-/// /some_folder
-/// ├── dir1
-/// │   └── result.ron
-/// ├── dir2
-/// │   └── other_file.txt
-/// └── dir3
-///     └── result.ron
-/// ```
-/// The function will return `vec!["dir1", "dir3"]`.
-fn get_results(result_folder: &Path) -> Vec<PathBuf> {
-    // Vector to store the names of directories that contain the `result.ron` file
-    let mut result_directories = Vec::new();
+fn select_source(path: &PathBuf) -> PathBuf {
+    let mut folders = Vec::new();
+    let mut csvs = Vec::new();
+    let mut f2s = Vec::new();
+    // Iterate over the entries in the directory
+    for entry in fs::read_dir(path).expect("could not read directory contents") {
+        let entry = entry.unwrap();
+        let path = entry.path();
 
-    // Attempt to read the contents of the specified directory
-    if let Ok(entries) = fs::read_dir(result_folder) {
-        // Iterate over each entry in the directory
-        for entry in entries {
-            // Ensure the entry was read successfully
-            if let Ok(entry) = entry {
-                // Get the full path of the current entry
-                let path = entry.path();
-
-                // Check if the current entry is a directory
-                if path.is_dir() {
-                    // Construct the path to `result.ron` within this directory
-                    let result_file_path = path.join("result.ron");
-
-                    // Check if the `result.ron` file exists and is a regular file
-                    if result_file_path.is_file() {
-                        // Add the full path of the directory to the results
-                        result_directories.push(path.clone());
-                    }
+        // Check if the entry is a directory
+        if path.is_dir() {
+            if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
+                folders.push(format!("{}\\", folder_name));
+            }
+        }
+        // Check if the entry is a file
+        else if path.is_file() {
+            if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+                // Check for .csv extension
+                if path.extension().and_then(|ext| ext.to_str()) == Some("csv") {
+                    csvs.push(format!("{}", file_name));
+                }
+                // Check for .42 extension
+                else if path.extension().and_then(|ext| ext.to_str()) == Some("42") {
+                    f2s.push(format!("{}", file_name));
                 }
             }
         }
-    } else {
-        // Print an error message if the directory could not be read
-        eprintln!("Could not read directory: {:?}", result_folder);
     }
+    let mut contents = Vec::new();
+    folders.sort();
+    csvs.sort();
+    f2s.sort();
+    contents.append(&mut folders);
+    contents.append(&mut csvs);
+    contents.append(&mut f2s);
 
-    // Return the vector of directories containing `result.ron`
-    result_directories
+    let choice = Select::new("select source:", contents)
+        .prompt()
+        .expect("source selection failed");
+
+    path.join(choice)
 }
 
-fn select_folder(folders: Vec<PathBuf>) -> Option<PathBuf> {
-    // Create a vector of folder names as strings for display in the menu
-    let mut folder_names: Vec<String> = folders
-        .iter()
-        .filter_map(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str().map(|s| s.to_string()))
-        })
-        .collect();
-    folder_names.sort();
-
-    // Use the `Select` prompt to present the folder names to the user
-    let selection = Select::new("result folder:", folder_names).prompt();
-
-    // Match the user's selection to return the corresponding `PathBuf`
-    match selection {
-        Ok(selected_name) => folders.into_iter().find(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .map_or(false, |name| name == selected_name)
-        }),
-        Err(_) => None,
+fn prompt_csv_headers(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    // Check if the path is a file
+    if !path.is_file() {
+        return Err(format!("The path {:?} is not a file.", path).into());
     }
+
+    // Check if the file has a .csv extension
+    if path.extension().and_then(|ext| ext.to_str()) != Some("csv") {
+        return Err(format!("The file {:?} does not have a .csv extension.", path).into());
+    }
+
+    // Attempt to open the file
+    let file = File::open(path)?;
+
+    // Create a CSV reader with headers enabled
+    let mut reader = ReaderBuilder::new().has_headers(true).from_reader(file);
+
+    // Retrieve the headers
+    let headers = reader
+        .headers()
+        .map_err(|_| "Could not read headers from the CSV file.")?
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+
+    // Prompt the user to select a column
+    let choice = Select::new("Select column:", headers)
+        .prompt()
+        .map_err(|_| "Column selection failed.")?;
+
+    Ok(choice)
+}
+
+fn extract_column(path: &Path, column_name: &str) -> Vec<f64> {
+    // Attempt to open the CSV file
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Error opening file {:?}: {}", path, e);
+            return Vec::new();
+        }
+    };
+
+    // Create a CSV reader with headers enabled
+    let mut reader = ReaderBuilder::new().has_headers(true).from_reader(file);
+
+    // Retrieve the headers to find the index of the desired column
+    let headers = match reader.headers() {
+        Ok(headers) => headers,
+        Err(e) => {
+            eprintln!("Error reading CSV headers: {}", e);
+            return Vec::new();
+        }
+    };
+
+    let column_index = match headers.iter().position(|header| header == column_name) {
+        Some(index) => index,
+        None => {
+            eprintln!("Column '{}' not found in CSV headers.", column_name);
+            return Vec::new();
+        }
+    };
+
+    // Collect all values from the specified column and parse them as f64
+    let mut column_values = Vec::new();
+    for result in reader.records() {
+        match result {
+            Ok(record) => {
+                if let Some(value) = record.get(column_index) {
+                    match value.parse::<f64>() {
+                        Ok(parsed_value) => column_values.push(parsed_value),
+                        Err(e) => {
+                            eprintln!("Error parsing value '{}' as f64: {}", value, e);
+                            return Vec::new();
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading CSV record: {}", e);
+                return Vec::new();
+            }
+        }
+    }
+
+    column_values
 }

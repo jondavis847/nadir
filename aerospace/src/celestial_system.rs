@@ -83,15 +83,17 @@ impl CelestialSystem {
         let mut body_writers = Vec::new();
         for body in &self.bodies {
             let mut writer = initialize_writer(body.body.get_name(), &celestial_folder_path);
+            // note i choose the names to be the same as multibody body so i can parse them easier for animation
+            // if you change the names, animation wont work unless you change the column its looking for there
             writer
                 .write_record(&[
-                    "position[x]",
-                    "position[y]",
-                    "position[z]",
-                    "orientation[x]",
-                    "orientation[y]",
-                    "orientation[z]",
-                    "orientation[w]",
+                    "position(base)[x]",
+                    "position(base)[y]",
+                    "position(base)[z]",
+                    "attitude(base)[x]",
+                    "attitude(base)[y]",
+                    "attitude(base)[z]",
+                    "attitude(base)[w]",
                 ])
                 .expect("Failed to write header");
             body_writers.push(writer);
@@ -408,6 +410,23 @@ impl CelestialBodies {
             CelestialBodies::Sun => 695700000.0,
             CelestialBodies::Uranus => 25362000.0,
             CelestialBodies::Venus => 6051800.0,
+        }
+    }
+
+    pub fn from_str(str: &str) -> Option<Self> {
+        match str {
+            "earth" => Some(CelestialBodies::Earth),
+            "jupiter" => Some(CelestialBodies::Jupiter),
+            "mars" => Some(CelestialBodies::Mars),
+            "mercury" => Some(CelestialBodies::Mercury),
+            "moon" => Some(CelestialBodies::Moon),
+            "neptune" => Some(CelestialBodies::Neptune),
+            "pluto" => Some(CelestialBodies::Pluto),
+            "saturn" => Some(CelestialBodies::Saturn),
+            "sun" => Some(CelestialBodies::Sun),
+            "uranus" => Some(CelestialBodies::Uranus),
+            "venus" => Some(CelestialBodies::Venus),
+            _ => None,
         }
     }
 }
