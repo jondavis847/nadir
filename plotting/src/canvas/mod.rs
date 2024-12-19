@@ -107,10 +107,7 @@ impl PlotCanvas {
                 ),
             );
             if axis_bounds.contains(point) {
-                if let Some(start_point) = axes.click_start {
-                    dbg!(&start_point);
-                    dbg!(&point);
-                    dbg!(&axes.xlim);
+                if let Some(start_point) = axes.click_start {                    
                     // determine the value at the start point
                     let sx_start = (start_point.x - axis_bounds.x) / axis_bounds.width;
                     let new_xlim_0 = sx_start * (axes.xlim.1 - axes.xlim.0) + axes.xlim.0;
@@ -122,23 +119,20 @@ impl PlotCanvas {
                     } else {
                         (new_xlim_1, new_xlim_0)
                     };
-
-                    dbg!(&axes.xlim);
-                    dbg!(&axes.ylim);
+                    
                     // remeber point.y start from the top, but ylim is from bottom
                     let sy_start =
-                        (start_point.y - (axis_bounds.y + axis_bounds.height)) / axis_bounds.height;
+                        ((axis_bounds.y + axis_bounds.height) - start_point.y) / axis_bounds.height;
                     let new_ylim_1 = sy_start * (axes.ylim.1 - axes.ylim.0) + axes.ylim.0;
 
                     let sy_end =
-                        (point.y - (axis_bounds.y + axis_bounds.height)) / axis_bounds.height;
+                        ((axis_bounds.y + axis_bounds.height) - point.y) / axis_bounds.height;
                     let new_ylim_0 = sy_end * (axes.ylim.1 - axes.ylim.0) + axes.ylim.0;
                     axes.ylim = if new_ylim_1 > new_ylim_0 {
                         (new_ylim_0, new_ylim_1)
                     } else {
                         (new_ylim_1, new_ylim_0)
-                    };
-                    dbg!(&axes.ylim);
+                    };                 
                 }
             }
             axes.click_start = None;
