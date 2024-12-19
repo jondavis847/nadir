@@ -53,7 +53,6 @@ pub fn main(provided_path: Option<PathBuf>) {
             while path.is_dir() {
                 path = select_y_source(&path);
             }
-
             let y_names = select_y_data(&path);
             for y_name in y_names {
                 let y_data = extract_column(&path, &y_name);
@@ -111,8 +110,8 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
 
         // Check if the entry is a directory
         if path.is_dir() {
-            if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
-                folders.push(format!("{}\\", folder_name));
+            if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {                
+                folders.push(format!("{}", format!("{}{}", folder_name, std::path::MAIN_SEPARATOR)));
             }
         }
         // Check if the entry is a file
@@ -140,7 +139,7 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
 }
 
 fn get_csv_headers(path: &Path) -> Vec<String> {
-    // Check if the file has a .csv extension
+    // Check if the file has a .csv extension    
     if path.extension().and_then(|ext| ext.to_str()) != Some("csv") {
         panic!("The file {:?} does not have a .csv extension.", path);
     }
