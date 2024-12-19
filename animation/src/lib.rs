@@ -60,9 +60,13 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     let mesh_results = get_mesh_result(&bodies_path);
 
     let celestial_path = pwd.join("celestial");
-    let celestial_results = get_celestial_result(&celestial_path);
+    let celestial_results = if celestial_path.is_dir() {
+        get_celestial_result(&celestial_path)
+    }  else {
+        Vec::new()
+    };
 
-    if mesh_results.is_empty() || celestial_results.is_empty() {
+    if mesh_results.is_empty() && celestial_results.is_empty() {
         panic!("no meshes found to animate")
     }
 

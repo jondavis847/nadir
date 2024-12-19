@@ -73,7 +73,7 @@ impl MoonParameters {
 
     pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
-        print!("Getting latest eop file from naif website...");
+        print!("Getting latest moon file from naif website...");
         io::stdout().flush().expect("spice could not flush io");
         let response = reqwest::blocking::get(MoonParameters::MOON_BPC).expect("spice could not perform http get request");
 
