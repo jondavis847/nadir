@@ -59,6 +59,8 @@ pub struct PlotApp {
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
     Tick(Instant),
+    MouseLeftPressed(Point),
+    MouseLeftReleased(Point),
     WheelScrolled(Point, ScrollDelta),
     WindowResized(Size),
 }
@@ -75,15 +77,11 @@ impl PlotApp {
     }
     fn update(&mut self, message: Message) {
         match message {
-            Message::Tick(instant) => {
-                self.state.update(instant);
-            }
-            Message::WheelScrolled(position, delta) => {
-                self.canvas.wheel_scrolled(position, delta);
-            }
-            Message::WindowResized(size) => {
-                self.canvas.window_resized(size);
-            }
+            Message::Tick(instant) => self.state.update(instant),
+            Message::MouseLeftPressed(point) => self.canvas.mouse_left_clicked(point),
+            Message::MouseLeftReleased(point) => self.canvas.mouse_left_released(point),
+            Message::WheelScrolled(position, delta) => self.canvas.wheel_scrolled(position, delta),
+            Message::WindowResized(size) => self.canvas.window_resized(size),
         }
     }
 

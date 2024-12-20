@@ -19,7 +19,7 @@ pub struct Axes {
     pub ylim: (f32, f32),
     lines: Vec<Line>,
     //pub location: (usize, usize),
-    //pub click_start: Option<Point>,
+    pub click_start: Option<Point>,
     pub bounds: Rectangle,
 }
 
@@ -33,7 +33,7 @@ impl Axes {
             // legend: Legend::default(),
             lines: Vec::new(),
             //      location,
-            //click_start: None,
+            click_start: None,
             bounds,
         }
     }

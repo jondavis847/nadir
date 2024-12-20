@@ -7,7 +7,7 @@ use axes::Axes;
 use iced::{
     advanced::mouse,
     event::Status,
-    mouse::{Cursor, ScrollDelta},
+    mouse::{Button, Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
     Point, Rectangle, Renderer, Size, Theme, Vector,
 };
@@ -74,6 +74,76 @@ impl PlotCanvas {
             canvas.axes.push(axes);
         }
         canvas
+    }
+
+    pub fn mouse_left_clicked(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axis_bounds = Rectangle::new(
+                Point::new(
+                    axes.bounds.x + axes.axis.x_padding,
+                    axes.bounds.y + axes.axis.y_padding,
+                ),
+                Size::new(
+                    axes.bounds.width - axes.axis.x_padding * 2.0,
+                    axes.bounds.height - axes.axis.y_padding * 2.0,
+                ),
+            );
+            if axis_bounds.contains(point) {
+                axes.click_start = Some(point);
+            }
+        }
+    }
+
+    pub fn mouse_left_released(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axis_bounds = Rectangle::new(
+                Point::new(
+                    axes.bounds.x + axes.axis.x_padding,
+                    axes.bounds.y + axes.axis.y_padding,
+                ),
+                Size::new(
+                    axes.bounds.width - axes.axis.x_padding * 2.0,
+                    axes.bounds.height - axes.axis.y_padding * 2.0,
+                ),
+            );
+            if axis_bounds.contains(point) {
+                if let Some(start_point) = axes.click_start {
+                    dbg!(&start_point);
+                    dbg!(&point);
+                    dbg!(&axes.xlim);
+                    // determine the value at the start point
+                    let sx_start = (start_point.x - axis_bounds.x) / axis_bounds.width;
+                    let new_xlim_0 = sx_start * (axes.xlim.1 - axes.xlim.0) + axes.xlim.0;
+
+                    let sx_end = (point.x - axis_bounds.x) / axis_bounds.width;
+                    let new_xlim_1 = sx_end * (axes.xlim.1 - axes.xlim.0) + axes.xlim.0;
+                    axes.xlim = if new_xlim_1 > new_xlim_0 {
+                        (new_xlim_0, new_xlim_1)
+                    } else {
+                        (new_xlim_1, new_xlim_0)
+                    };
+
+                    dbg!(&axes.xlim);
+                    dbg!(&axes.ylim);
+                    // remeber point.y start from the top, but ylim is from bottom
+                    let sy_start =
+                        (start_point.y - (axis_bounds.y + axis_bounds.height)) / axis_bounds.height;
+                    let new_ylim_1 = sy_start * (axes.ylim.1 - axes.ylim.0) + axes.ylim.0;
+
+                    let sy_end =
+                        (point.y - (axis_bounds.y + axis_bounds.height)) / axis_bounds.height;
+                    let new_ylim_0 = sy_end * (axes.ylim.1 - axes.ylim.0) + axes.ylim.0;
+                    axes.ylim = if new_ylim_1 > new_ylim_0 {
+                        (new_ylim_0, new_ylim_1)
+                    } else {
+                        (new_ylim_1, new_ylim_0)
+                    };
+                    dbg!(&axes.ylim);
+                }
+            }
+            axes.click_start = None;
+        }
+        self.cache.clear();
     }
 
     pub fn window_resized(&mut self, window_size: Size) {
@@ -160,14 +230,26 @@ impl Program<Message> for PlotCanvas {
                         (Status::Captured, None)
                     }
                 }
-                // mouse::Event::ButtonPressed(button) => {
-                //     match button {
-                //         Button::Left =>
-                //     }
-                // }
-                // mouse::Event::ButtonReleased(button) => {
-
-                // }
+                mouse::Event::ButtonPressed(button) => match button {
+                    Button::Left => {
+                        if let Some(point) = cursor.position() {
+                            (Status::Captured, Some(Message::MouseLeftPressed(point)))
+                        } else {
+                            (Status::Captured, None)
+                        }
+                    }
+                    _ => (Status::Ignored, None),
+                },
+                mouse::Event::ButtonReleased(button) => match button {
+                    Button::Left => {
+                        if let Some(point) = cursor.position() {
+                            (Status::Captured, Some(Message::MouseLeftReleased(point)))
+                        } else {
+                            (Status::Captured, None)
+                        }
+                    }
+                    _ => (Status::Captured, None),
+                },
                 // mouse::Event::CursorMoved(position) => {
 
                 // }
