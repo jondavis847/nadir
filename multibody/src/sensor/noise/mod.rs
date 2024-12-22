@@ -43,6 +43,7 @@ impl Noise {
     pub fn new_seed(&mut self) {
         let seed = rand::thread_rng().gen();
         self.seed = seed;
+        self.rng = SmallRng::seed_from_u64(seed);
     }
 
     pub fn sample(&mut self) -> f64 {
