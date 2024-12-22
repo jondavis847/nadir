@@ -17,6 +17,7 @@ pub fn main(provided_path: Option<PathBuf>) {
         .unwrap_or_else(|| std::env::current_dir().expect("could not get current directory"));
 
     let mut first_pass = true;
+
     // axes loop
     loop {
         let mut map = if first_pass {
@@ -24,8 +25,10 @@ pub fn main(provided_path: Option<PathBuf>) {
             SeriesMap::new((0, 0))
         } else {
             let this_location = loop {
-                let row: usize = prompt_positive_integer("enter axes layout row (0 based indexing!)");
-                let column: usize = prompt_positive_integer("enter axes layout column (0 based indexing!)");
+                let row: usize =
+                    prompt_positive_integer("enter axes layout row (0 based indexing!)");
+                let column: usize =
+                    prompt_positive_integer("enter axes layout column (0 based indexing!)");
 
                 let location = (row, column);
 
@@ -110,8 +113,11 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
 
         // Check if the entry is a directory
         if path.is_dir() {
-            if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {                
-                folders.push(format!("{}", format!("{}{}", folder_name, std::path::MAIN_SEPARATOR)));
+            if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
+                folders.push(format!(
+                    "{}",
+                    format!("{}{}", folder_name, std::path::MAIN_SEPARATOR)
+                ));
             }
         }
         // Check if the entry is a file
@@ -139,7 +145,7 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
 }
 
 fn get_csv_headers(path: &Path) -> Vec<String> {
-    // Check if the file has a .csv extension    
+    // Check if the file has a .csv extension
     if path.extension().and_then(|ext| ext.to_str()) != Some("csv") {
         panic!("The file {:?} does not have a .csv extension.", path);
     }

@@ -19,7 +19,7 @@ mod line;
 #[derive(Debug)]
 pub struct CanvasState {
     theme: PlotTheme,
-    text_size: f32,
+    //text_size: f32,
 }
 
 impl Default for CanvasState {
@@ -28,7 +28,7 @@ impl Default for CanvasState {
 
         Self {
             theme,
-            text_size: 0.1,
+            //text_size: 0.1,
         }
     }
 }

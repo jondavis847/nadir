@@ -46,13 +46,13 @@ impl SeriesMap {
 
 #[derive(Debug)]
 pub struct Series {
-    pub x_name: String,
+    //pub x_name: String,
     pub y_name: String,
     pub points: Vec<Point>,
 }
 
 impl Series {
-    pub fn new(x_name: String, x: Vec<f64>, y_name: String, y: Vec<f64>) -> Self {
+    pub fn new(_x_name: String, x: Vec<f64>, y_name: String, y: Vec<f64>) -> Self {
         let points = x
             .into_iter()
             .zip(y)
@@ -60,7 +60,7 @@ impl Series {
             .collect();
 
         Self {
-            x_name,
+            //x_name,
             y_name,
             points,
         }
