@@ -3,7 +3,6 @@ use aerospace::{
     orbit::KeplerianElements,
 };
 use color::Color;
-use hardware::{rate_gyro::RateGyro, star_tracker::StarTracker};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     body::Body,
@@ -12,8 +11,7 @@ use multibody::{
         Joint,
     },
     sensor::{
-        noise::{gaussian::GaussianNoise, NoiseModels},
-        Sensor,
+        noise::{gaussian::GaussianNoise, NoiseModels}, rate_gyro::RateGyro, star_tracker::StarTracker, Sensor, SensorModel
     },
     system::MultibodySystem,
 };
@@ -25,8 +23,6 @@ use nadir_3d::{
 };
 use time::Time;
 use transforms::Transform;
-
-mod hardware;
 
 fn main() {
     // Create the MultibodySystem
@@ -77,21 +73,27 @@ fn main() {
     let b = Body::new("b", mp).unwrap().with_mesh(mesh);
     sys.add_body(b).unwrap();
 
-    // Add a star tracker and a rate gyro
+    // Add a star tracker
+    let st_model = StarTracker::new()
+        .with_noise(NoiseModels::Gaussian(GaussianNoise::new(
+        0.0,
+        50.0 / 3600.0 * 180.0 / std::f64::consts::PI,
+    )));
     let st = Sensor::new(
         "st",
-        StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
-            0.0,
-            50.0 / 3600.0 * 180.0 / std::f64::consts::PI,
-        ))),
-    );
+        SensorModel::StarTracker(st_model));
     sys.add_sensor(st).unwrap();
-    let imu = Sensor::new(
-        "imu",
-        RateGyro::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
+
+    // Add a rate gyro
+    let imu_model = RateGyro::new()
+        .with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
             1.0 * std::f64::consts::PI / 180.0,
-        ))),
+        )));
+
+    let imu = Sensor::new(
+        "imu",
+        SensorModel::RateGyro(imu_model)
     );
     sys.add_sensor(imu).unwrap();
 

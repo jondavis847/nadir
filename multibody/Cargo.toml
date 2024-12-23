@@ -14,6 +14,7 @@ spatial_algebra.workspace = true
 mass_properties.workspace = true
 utilities.workspace = true
 time.workspace = true
+ambassador.workspace = true
 bincode.workspace = true
 chrono.workspace = true
 csv.workspace = true

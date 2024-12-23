@@ -1,8 +1,11 @@
 pub mod noise;
 
+use ambassador::{delegatable_trait, Delegate};
+use rate_gyro::RateGyro;
+use star_tracker::StarTracker;
 use crate::{
     body::{BodyConnection, BodyRef},
-    MultibodyResult,
+    MultibodyResult, ambassador_impl_MultibodyResult,
 };
 use csv::Writer;
 use serde::{Deserialize, Serialize};
@@ -10,6 +13,9 @@ use utilities::initialize_writer;
 use std::{fmt::Debug, fs::File, io::BufWriter, path::PathBuf};
 use thiserror::Error;
 use transforms::Transform;
+
+pub mod rate_gyro;
+pub mod star_tracker;
 
 #[derive(Debug, Clone, Error)]
 pub enum SensorErrors {
@@ -19,32 +25,25 @@ pub enum SensorErrors {
     AlreadyConnectedToThisBody(String),
 }
 
-#[typetag::serde]
-pub trait SensorModel: CloneSensorModel + Debug + MultibodyResult {
-    fn update(&mut self, connection: &BodyConnection);
-}
-pub trait CloneSensorModel {
-    fn clone_model(&self) -> Box<dyn SensorModel>;
-}
-impl<T> CloneSensorModel for T
-where
-    T: SensorModel + Clone + 'static,
-{
-    fn clone_model(&self) -> Box<dyn SensorModel> {
-        Box::new(self.clone())
-    }
+
+#[derive(Clone, Debug, Serialize, Delegate, Deserialize)]
+#[delegate(SensorModelTrait)]
+#[delegate(MultibodyResult)]
+pub enum SensorModel {
+    RateGyro(RateGyro),
+    StarTracker(StarTracker),
 }
 
-impl Clone for Box<dyn SensorModel> {
-    fn clone(&self) -> Self {
-        self.clone_model()
-    }
+
+#[delegatable_trait]
+pub trait SensorModelTrait: MultibodyResult {
+    fn update(&mut self, connection: &BodyConnection);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Sensor {
     pub name: String,
-    pub model: Box<dyn SensorModel>,
+    pub model: SensorModel,
     connection: Option<BodyConnection>,
 }
 
@@ -65,10 +64,10 @@ impl Sensor {
         Ok(())
     }
 
-    pub fn new(name: &str, model: impl SensorModel + 'static) -> Self {
+    pub fn new(name: &str, model: SensorModel) -> Self {
         Self {
             name: name.to_string(),
-            model: Box::new(model),
+            model,
             connection: None,
         }
     }

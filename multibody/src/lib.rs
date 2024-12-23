@@ -11,6 +11,7 @@ pub mod system;
 use std::{fs::File, io::BufWriter};
 
 use aerospace::celestial_system::CelestialErrors;
+use ambassador::delegatable_trait;
 use base::BaseErrors;
 use body::BodyErrors;
 use csv::Writer;
@@ -63,7 +64,7 @@ pub enum MultibodyErrors {
     SpiceErrors(#[from] SpiceErrors),
 }
 
-
+#[delegatable_trait]
 pub trait MultibodyResult {
     /// Initializes the ResultEntry for storing the sim result for this joint
     fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>);

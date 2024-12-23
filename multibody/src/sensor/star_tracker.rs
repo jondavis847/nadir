@@ -1,11 +1,11 @@
 use std::{fs::File, io::BufWriter};
 
 use csv::Writer;
-use multibody::{
+use crate::{
     body::BodyConnection,
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
-        SensorModel,
+        SensorModelTrait,
     },
     MultibodyResult,
 };
@@ -64,8 +64,7 @@ impl StarTracker {
     }
 }
 
-#[typetag::serde]
-impl SensorModel for StarTracker {
+impl SensorModelTrait for StarTracker {
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let body_to_st = Quaternion::from(&connection.transform.rotation);
