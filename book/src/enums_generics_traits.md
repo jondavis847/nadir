@@ -4,6 +4,8 @@ I spent a lot of time tryign to find the best answer for my program regarding fl
 ## Enums
 Enums end up seeming like the best answer. They retain the strong typing and compile time checks that Rust is known for, and avoids heap allocations of Box, but most importantly for my use case, allow me to make collections of different subtypes. i.e. I can collect all Sensors as an array of Sensors, but have different submodels of Sensors (StarTracker, RateGyro, etc.) in the collection. This is required for multibody dynamics algorithms. 
 
+Another thing that is really nice about enums is I can define associated types for my traits which you can't do for trait objects.
+
 The only con with enums is the boiler plate. I end up with lots of just extra code that looks like this:
 
 ```rust
@@ -42,9 +44,10 @@ impl MultibodyResult for SensorModel {
 }
 ```
 
-It is quite obnoxious, but I do think this is the technically correct answer.
-
+It is quite obnoxious, but I do think this is the technically correct answer. 
 Another con might be extensibility. If a user wants to add their own sensor in a fork, they would have to go update all of this boilerplate to add their new type.
+
+Update: The crate amabassador seems to solve the boilerplate issue.
 
 ## Generics
 Generics are a great option but don't allow me to directly create heterogenous collections of say 
