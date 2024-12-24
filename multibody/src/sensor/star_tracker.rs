@@ -5,7 +5,7 @@ use crate::{
     body::BodyConnection,
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
-        SensorModelTrait,
+        SensorModel,
     },
     MultibodyResult,
 };
@@ -34,7 +34,7 @@ pub struct StarTrackerState {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StarTracker {
     parameters: StarTrackerParameters,
-    state: StarTrackerState,
+    pub state: StarTrackerState,
 }
 
 impl StarTracker {
@@ -64,7 +64,8 @@ impl StarTracker {
     }
 }
 
-impl SensorModelTrait for StarTracker {
+impl SensorModel for StarTracker {
+
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let body_to_st = Quaternion::from(&connection.transform.rotation);

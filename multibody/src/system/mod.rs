@@ -1,22 +1,13 @@
 use crate::{
-    base::{BaseRef, BaseSystems},
-    body::BodyRef,
-    joint::{InnerBody, JointRef, JointStates},
-    solver::rk4::solve_fixed_rk4,
-    MultibodyResult,
+    actuator::ActuatorSystem, base::{BaseRef, BaseSystems}, body::BodyRef, joint::{InnerBody, JointRef, JointStates}, sensor::SensorSystem, software::SoftwareSystem, solver::rk4::solve_fixed_rk4, MultibodyResult
 };
 
 use super::{
-    actuator::Actuator,
     algorithms::MultibodyAlgorithm,
-    base::Base,
-    body::{Body, BodyTrait},
-    joint::Joint,
-    sensor::Sensor,
+    body::Body,    
     MultibodyErrors,
 };
 
-use aerospace::{celestial_system::CelestialSystem, gravity::Gravity};
 use csv::Writer;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
@@ -30,68 +21,57 @@ use std::{
     rc::Rc,
     time::Instant,
 };
-use transforms::Transform;
+
 use utilities::initialize_writer;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MultibodySystem {
-    pub actuators: Vec<Actuator>,
+pub struct MultibodySystem<A,F,S> 
+    where 
+    A: ActuatorSystem,    
+    F: SoftwareSystem,
+    S: SensorSystem,  
+    {
+    pub actuators: Option<A>,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
     pub joints: Vec<JointRef>,
-    pub sensors: Vec<Sensor>,
+    pub sensors: Option<S>,
+    pub software: Option<F>,
     pub spice: Option<Spice>,
 }
 
-impl MultibodySystem {
-    pub fn new() -> Self {
+impl<A,F,S> MultibodySystem<A,F,S> where 
+A: ActuatorSystem,    
+F: SoftwareSystem,
+S: SensorSystem,   {
+    pub fn new<const B: usize, const J: usize>(base: BaseRef, bodies: [BodyRef;B], joints: [JointRef;J]) -> Self {
         Self {
-            actuators: Vec::new(),
+            actuators: None,
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
-            base: Rc::new(RefCell::new(Base::default())),
-            bodies: Vec::new(),
-            joints: Vec::new(),
-            sensors: Vec::new(),
+            base,
+            bodies: bodies.into(),
+            joints: joints.into(),
+            sensors: None,
+            software: None,
             spice: None,
         }
     }
 
-    pub fn add_body(&mut self, body: Body) -> Result<(), MultibodyErrors> {
-        // Return if a component with this name already exists
-        if self.check_name_taken(&body.name) {
-            return Err(MultibodyErrors::NameTaken(body.name));
-        }
-
-        self.bodies.push(Rc::new(RefCell::new(body)));
-        Ok(())
+    pub fn with_actuators(mut self, actuators: A) -> Self {
+        self.actuators = Some(actuators);
+        self
     }
 
-    pub fn add_celestial_system(&mut self, celestial: CelestialSystem) {
-        self.base.borrow_mut().add_celestial_system(celestial);
+    pub fn with_sensors(mut self, sensors: S) -> Self {
+        self.sensors = Some(sensors);
+        self
     }
+    
 
-    pub fn add_joint(&mut self, joint: Joint) -> Result<(), MultibodyErrors> {
-        // Return if a component with this name already exists
-        if self.check_name_taken(&joint.name) {
-            return Err(MultibodyErrors::NameTaken(joint.name));
-        }
-
-        self.joints.push(Rc::new(RefCell::new(joint)));
-        Ok(())
-    }
-
-    pub fn add_sensor(&mut self, sensor: Sensor) -> Result<(), MultibodyErrors> {
-        // Return if a component with this name already exists
-        if self.check_name_taken(&sensor.name) {
-            return Err(MultibodyErrors::NameTaken(sensor.name));
-        }
-
-        self.sensors.push(sensor);
-        Ok(())
-    }
-    pub fn add_gravity(&mut self, gravity: Gravity) -> Result<(), MultibodyErrors> {
-        Ok(self.base.borrow_mut().add_basic_gravity(gravity)?)
+    pub fn with_software(mut self, software: F) -> Self {
+        self.software = Some(software);
+        self
     }
 
     fn write_derivative(&self, dx: &mut JointStates) {
@@ -100,120 +80,21 @@ impl MultibodySystem {
         }
     }
 
-    pub fn connect(
-        &mut self,
-        from_name: &str,
-        to_name: &str,
-        transform: Transform,
-    ) -> Result<(), MultibodyErrors> {
-        // if the base is the 'from' component
-        let base_name = self.base.borrow().name.clone();
-        if base_name == from_name {
-            // look for valid 'to' components (only joints for now)
-            for jointref in &self.joints {
-                let joint_name = jointref.borrow().name.clone();
-                if joint_name == to_name {
-                    jointref
-                        .borrow_mut()
-                        .connect_base(self.base.clone(), transform)?;
-                    self.base.borrow_mut().connect_outer_joint(jointref)?;
-                    return Ok(());
-                }
-                // if no joint found, return TODO: InvalidConnection or ComponentNotFound?
-                return Err(MultibodyErrors::InvalidConnection);
-            }
-        }
-
-        // logic for bodies
-        for bodyref in &self.bodies {
-            let body_name = bodyref.borrow().name.clone();
-            // if the body is the 'from' component
-            if body_name == from_name {
-                // look for valid 'to' components (only joints for now)
-                for jointref in &self.joints {
-                    let joint_name = jointref.borrow().name.clone();
-                    if joint_name == to_name {
-                        jointref
-                            .borrow_mut()
-                            .connect_inner_body(bodyref, transform)?;
-
-                        bodyref.borrow_mut().connect_outer_joint(jointref)?;
-                        return Ok(());
-                    }
-                }
-                // valid connections found
-                return Err(MultibodyErrors::InvalidConnection);
-            }
-
-            // if the body is the 'to' component
-            if body_name == to_name {
-                // look for valid 'to' components (only joints, gravity for now, will need sensor and actuators too)
-
-                // joints
-                for jointref in &self.joints {
-                    let joint_name = jointref.borrow().name.clone();
-                    if joint_name == from_name {
-                        jointref
-                            .borrow_mut()
-                            .connect_outer_body(bodyref, transform)?;
-                        bodyref.borrow_mut().connect_inner_joint(jointref)?;
-                        return Ok(());
-                    }
-                }
-
-                // body specific sensors
-                for sensor in &mut self.sensors {
-                    if sensor.name == from_name {
-                        sensor.connect_to_body(bodyref, transform)?;
-                        return Ok(());
-                    }
-                }
-
-                // no valid connections found
-                return Err(MultibodyErrors::InvalidConnection);
-            }
-        }
-
-        // components were not found
-        return Err(MultibodyErrors::InvalidConnection);
-    }
-
-    fn check_name_taken(&self, name: &str) -> bool {
-        if self.base.borrow().name == name {
-            return true;
-        }
-
-        if self.bodies.iter().any(|body| body.borrow().name == name) {
-            return true;
-        }
-
-        if self.joints.iter().any(|joint| joint.borrow().name == name) {
-            return true;
-        }
-
-        if self.sensors.iter().any(|sensor| sensor.name == name) {
-            return true;
-        }
-
-        if self.actuators.iter().any(|sensor| sensor.name == name) {
-            return true;
-        }
-
-        false
-    }
-
     /// Reorders the bodies and joints appropraitely at the start of the multibody simulation
     fn permute(&mut self) {
         let mut joint_order = Vec::new();
         let mut body_order = Vec::new();
 
         // Helper function to recursively traverse joints and bodies
-        fn traverse_body(
-            sys: &MultibodySystem,
+        fn traverse_body<A,F,S>(
+            sys: &MultibodySystem<A,F,S>,
             body_rc: &Rc<RefCell<Body>>,
             joint_order: &mut Vec<usize>,
             body_order: &mut Vec<usize>,
-        ) {
+        ) where 
+        A: ActuatorSystem,    
+        F: SoftwareSystem,
+        S: SensorSystem,   {
             let body = body_rc.borrow();
             body_order.push(
                 sys.bodies
@@ -508,12 +389,12 @@ impl MultibodySystem {
             joint.calculate_vj();
             joint.model.calculate_tau();
         }
-    }
+    }    
 
     pub fn update_sensors(&mut self) {
-        for sensor in &mut self.sensors {
-            sensor.update()
-        }
+        if let Some(sensors) = &mut self.sensors {
+            sensors.update();
+        }        
     }
 
     fn get_result_path_and_sim_name(&self, sim_name: &str) -> (PathBuf, String) {
@@ -627,12 +508,11 @@ impl MultibodySystem {
             joint_writers.push(writer);
         }
 
-        let mut sensor_writers = Vec::new();
-        for sensor in &self.sensors {
-            let mut writer = sensor.initialize_writer(results_path);
-            sensor.model.initialize_result(&mut writer);
-            sensor_writers.push(writer);
-        }
+        let sensor_writers = if let Some(sensors) = &self.sensors {
+            sensors.initialize_writers(results_path)
+        } else {
+            Vec::new()
+        };
 
         let celestial_writers = match &self.base.borrow().system {
             BaseSystems::Basic(_) => None,
@@ -663,10 +543,9 @@ impl MultibodySystem {
             .iter()
             .zip(&mut writers.joint_writers)
             .for_each(|(joint, writer)| joint.borrow().model.write_result_file(writer));
-        self.sensors
-            .iter()
-            .zip(&mut writers.sensor_writers)
-            .for_each(|(sensor, writer)| sensor.model.write_result_file(writer));
+        if let Some(sensors) = &self.sensors {
+            sensors.write_result_files(&mut writers.sensor_writers);
+        }
         match &self.base.borrow().system {
             BaseSystems::Basic(_) => {}
             BaseSystems::Celestial(celestial) => {

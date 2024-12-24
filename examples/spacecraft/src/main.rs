@@ -1,19 +1,19 @@
+use std::{cell::RefCell, rc::Rc};
+
 use aerospace::{
     celestial_system::{CelestialBodies, CelestialSystem},
     orbit::KeplerianElements,
 };
 use color::Color;
+use hardware::SpacecraftSensors;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    body::Body,
-    joint::{
+    base::{Base, BaseSystems}, body::{Body, BodyTrait}, joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
-    },
-    sensor::{
-        noise::{gaussian::GaussianNoise, NoiseModels}, rate_gyro::RateGyro, star_tracker::StarTracker, Sensor, SensorModel
-    },
-    system::MultibodySystem,
+    }, sensor::{
+        noise::{gaussian::GaussianNoise, NoiseModels}, rate_gyro::RateGyro, star_tracker::StarTracker, Sensor,
+    }, system::MultibodySystem
 };
 
 use nadir_3d::{
@@ -21,14 +21,15 @@ use nadir_3d::{
     material::Material,
     mesh::Mesh,
 };
+use software::SpacecraftSoftware;
 use time::Time;
 use transforms::Transform;
 
-fn main() {
-    // Create the MultibodySystem
-    // sys is will be created with nothing but a default base
-    let mut sys = MultibodySystem::new();
+mod hardware;
+mod software;
 
+fn main() {
+    
     // Create the CelestialSystem which contains the planetary models
     // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
     let epoch = Time::now().unwrap();
@@ -39,7 +40,8 @@ fn main() {
     celestial
         .add_body(CelestialBodies::Moon, false, false)
         .unwrap();
-    sys.add_celestial_system(celestial);
+    
+    let base = Base::new("base", BaseSystems::Celestial(celestial));
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
@@ -50,8 +52,7 @@ fn main() {
         .with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
-    let f = Joint::new("f", f_model).unwrap();
-    sys.add_joint(f).unwrap();
+    let f = Rc::new(RefCell::new(Joint::new("f", f_model).unwrap()));
 
     // Create the main body of the spacecraft
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);
@@ -70,41 +71,48 @@ fn main() {
         texture: None,
     };
 
-    let b = Body::new("b", mp).unwrap().with_mesh(mesh);
-    sys.add_body(b).unwrap();
+    let b = Rc::new(RefCell::new(Body::new("b", mp).unwrap().with_mesh(mesh)));
 
-    // Add a star tracker
-    let st_model = StarTracker::new()
+    // Add a star tracker    
+    let mut st = Sensor::new(
+        "st",
+        StarTracker::new()
         .with_noise(NoiseModels::Gaussian(GaussianNoise::new(
         0.0,
         50.0 / 3600.0 * 180.0 / std::f64::consts::PI,
-    )));
-    let st = Sensor::new(
-        "st",
-        SensorModel::StarTracker(st_model));
-    sys.add_sensor(st).unwrap();
+    ))));
+    
 
     // Add a rate gyro
-    let imu_model = RateGyro::new()
+    let mut imu = Sensor::new(
+        "imu",
+        RateGyro::new()
         .with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
             1.0 * std::f64::consts::PI / 180.0,
-        )));
-
-    let imu = Sensor::new(
-        "imu",
-        SensorModel::RateGyro(imu_model)
+        )))
     );
-    sys.add_sensor(imu).unwrap();
+    
 
     // Connect the components together.
     // Connections are made by the components names.
     // The direction of the connection matters - (from,to)
-    sys.connect("base", "f", Transform::IDENTITY).unwrap();
-    sys.connect("f", "b", Transform::IDENTITY).unwrap();
-    sys.connect("st", "b", Transform::IDENTITY).unwrap();
-    sys.connect("imu", "b", Transform::IDENTITY).unwrap();
+    base.borrow_mut().connect_outer_joint(&f);
+    f.borrow_mut().connect_base(&base, Transform::IDENTITY);
+    b.borrow_mut().connect_inner_joint(&f);
+    f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY);
 
+    st.connect_to_body(&b, Transform::IDENTITY);
+    imu.connect_to_body(&b, Transform::IDENTITY);
+
+    let sensor_system = SpacecraftSensors {
+        st, imu,
+    };
+
+    let software = SpacecraftSoftware::default();
+
+    // Create the system
+    let mut sys = MultibodySystem::new(base,[b],[f]).with_sensors(sensor_system).with_software(software);
     // Run the simulation
     sys.simulate("", 0.0, 7000.0, 1.0);
 }

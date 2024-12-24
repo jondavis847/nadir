@@ -2,9 +2,9 @@ pub mod actuator;
 pub mod algorithms;
 pub mod base;
 pub mod body;
-//pub mod component;
 pub mod joint;
 pub mod sensor;
+pub mod software;
 pub mod solver;
 pub mod system;
 

@@ -5,7 +5,7 @@ use crate::{
     body::BodyConnection,
     sensor::{
         noise::{Noise, NoiseModels},
-        SensorModelTrait,
+        SensorModel,
     },
     MultibodyResult,
 };
@@ -33,7 +33,7 @@ pub struct RateGyroState {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RateGyro {
     parameters: RateGyroParameters,
-    state: RateGyroState,
+    pub state: RateGyroState,
 }
 
 impl RateGyro {
@@ -61,7 +61,7 @@ impl RateGyro {
     }
 }
 
-impl SensorModelTrait for RateGyro {
+impl SensorModel for RateGyro {
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let rotation = connection.transform.rotation;

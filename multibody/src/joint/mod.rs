@@ -154,12 +154,12 @@ impl Joint {
         self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
     }
 
-    pub fn connect_base(&mut self, base: BaseRef, transform: Transform) -> Result<(), JointErrors> {
+    pub fn connect_base(&mut self, base: &BaseRef, transform: Transform) -> Result<(), JointErrors> {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
         } else {
             self.connections.inner_body =
-                Some(InnerBody::Base(BaseConnection::new(base, transform)));
+                Some(InnerBody::Base(BaseConnection::new(Rc::clone(base), transform)));
             self.cache.transforms.jif_from_ib = SpatialTransform(transform);
             self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
         }

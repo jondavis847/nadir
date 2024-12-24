@@ -1,11 +1,8 @@
 pub mod noise;
 
-use ambassador::{delegatable_trait, Delegate};
-use rate_gyro::RateGyro;
-use star_tracker::StarTracker;
 use crate::{
     body::{BodyConnection, BodyRef},
-    MultibodyResult, ambassador_impl_MultibodyResult,
+    MultibodyResult,
 };
 use csv::Writer;
 use serde::{Deserialize, Serialize};
@@ -25,29 +22,18 @@ pub enum SensorErrors {
     AlreadyConnectedToThisBody(String),
 }
 
-
-#[derive(Clone, Debug, Serialize, Delegate, Deserialize)]
-#[delegate(SensorModelTrait)]
-#[delegate(MultibodyResult)]
-pub enum SensorModel {
-    RateGyro(RateGyro),
-    StarTracker(StarTracker),
-}
-
-
-#[delegatable_trait]
-pub trait SensorModelTrait: MultibodyResult {
+pub trait SensorModel: MultibodyResult {
     fn update(&mut self, connection: &BodyConnection);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Sensor {
+pub struct Sensor<T> where T: SensorModel {
     pub name: String,
-    pub model: SensorModel,
+    pub model: T,
     connection: Option<BodyConnection>,
 }
 
-impl Sensor {
+impl<T> Sensor<T> where T: SensorModel {
     pub fn connect_to_body(
         &mut self,
         body: &BodyRef,
@@ -64,7 +50,7 @@ impl Sensor {
         Ok(())
     }
 
-    pub fn new(name: &str, model: SensorModel) -> Self {
+    pub fn new(name: &str, model: T) -> Self where T: SensorModel {
         Self {
             name: name.to_string(),
             model,
@@ -87,5 +73,26 @@ impl Sensor {
 
         // Initialize writer using the updated path
         initialize_writer(self.name.clone(), &sensor_folder_path)
+    }
+}
+
+
+pub trait SensorSystem: Serialize {
+    fn update(&mut self);
+    fn initialize_writers(&self, path: &PathBuf) -> Vec<Writer<BufWriter<File>>>;
+    fn write_result_files(&self, writers: &mut Vec<Writer<BufWriter<File>>>);
+}
+
+// this lets the sensors be optional in sys
+impl SensorSystem for () {
+    fn update(&mut self) {
+        
+    }
+    fn initialize_writers(&self, _path: &PathBuf) -> Vec<Writer<BufWriter<File>>> {
+        Vec::new()
+    }
+
+    fn write_result_files(&self, _writers: &mut Vec<Writer<BufWriter<File>>>) {
+        
     }
 }

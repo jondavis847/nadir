@@ -1,16 +1,18 @@
 use crate::{
-    joint::JointStates,
-    system::{MultibodySystem, ResultWriters},
-    MultibodyErrors,
+    actuator::ActuatorSystem, joint::JointStates, sensor::SensorSystem, software::SoftwareSystem, system::{MultibodySystem, ResultWriters}, MultibodyErrors
 };
 
-pub fn solve_fixed_rk4(
-    sys: &mut MultibodySystem,
+pub fn solve_fixed_rk4<A,F,S>(
+    sys: &mut MultibodySystem<A,F,S>,
     tstart: f64,
     tstop: f64,
     mut dt: f64,
     writers: &mut ResultWriters,
-) -> Result<(), MultibodyErrors> {
+) -> Result<(), MultibodyErrors> 
+where 
+A: ActuatorSystem, 
+F: SoftwareSystem, 
+S: SensorSystem{
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };

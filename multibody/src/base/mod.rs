@@ -40,17 +40,13 @@ pub struct Base {
     pub outer_joints: Vec<Weak<RefCell<Joint>>>,
 }
 
-impl Default for Base {
-    fn default() -> Self {
-        Self {
-            name: "base".to_string(),
-            system: BaseSystems::Basic(None),
-            outer_joints: Vec::new(),
-        }
-    }
-}
-
 impl Base {
+    pub fn new(name: &str, system: BaseSystems) -> BaseRef {
+        Rc::new(RefCell::new(Base {
+            name: name.to_string(), system, outer_joints: Vec::new()
+        }))
+    }
+
     pub fn add_celestial_system(&mut self, celestial: CelestialSystem) {
         self.system = BaseSystems::Celestial(celestial);
     }
