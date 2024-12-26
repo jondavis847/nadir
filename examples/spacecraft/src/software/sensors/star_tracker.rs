@@ -1,4 +1,4 @@
-use multibody::sensor::star_tracker::StarTracker;
+use crate::hardware::sensors::star_tracker::StarTracker;
 use rotations::prelude::Quaternion;
 use serde::{Deserialize,Serialize};
 

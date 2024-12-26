@@ -11,9 +11,6 @@ use std::{fmt::Debug, fs::File, io::BufWriter, path::PathBuf};
 use thiserror::Error;
 use transforms::Transform;
 
-pub mod rate_gyro;
-pub mod star_tracker;
-
 #[derive(Debug, Clone, Error)]
 pub enum SensorErrors {
     #[error("sensor '{0}' is already connected to body '{1}'")]
@@ -81,18 +78,4 @@ pub trait SensorSystem: Serialize {
     fn update(&mut self);
     fn initialize_writers(&self, path: &PathBuf) -> Vec<Writer<BufWriter<File>>>;
     fn write_result_files(&self, writers: &mut Vec<Writer<BufWriter<File>>>);
-}
-
-// this lets the sensors be optional in sys
-impl SensorSystem for () {
-    fn update(&mut self) {
-        
-    }
-    fn initialize_writers(&self, _path: &PathBuf) -> Vec<Writer<BufWriter<File>>> {
-        Vec::new()
-    }
-
-    fn write_result_files(&self, _writers: &mut Vec<Writer<BufWriter<File>>>) {
-        
-    }
 }

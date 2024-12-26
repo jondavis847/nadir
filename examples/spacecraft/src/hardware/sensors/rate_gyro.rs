@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufWriter};
 
 use csv::Writer;
-use crate::{
+use multibody::{
     body::BodyConnection,
     sensor::{
         noise::{Noise, NoiseModels},

@@ -1,0 +1,143 @@
+use std::{fs::File, io::BufWriter};
+
+use csv::Writer;
+use multibody::{
+    body::BodyConnection,
+    sensor::{
+        noise::{Noise, NoiseModels},
+        SensorModel,
+    },
+    MultibodyResult,
+};
+use nalgebra::Vector3;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct Parameters {
+    delay: Option<f64>,
+    position_noise: Option<[Noise; 3]>,
+    velocity_noise: Option<[Noise; 3]>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct State {    
+    pub position: Vector3<f64>,
+    pub velocity: Vector3<f64>,
+    position_noise: Option<Vector3<f64>>,
+    velocity_noise: Option<Vector3<f64>>,
+}
+
+/// A simple GPS with gaussian white noise & constant delay
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Gps {
+    parameters: Parameters,
+    pub state: State,
+}
+
+impl Gps {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[allow(dead_code)]
+    pub fn with_delay(mut self, delay: f64) -> Self {
+        self.parameters.delay = Some(delay);
+        self
+    }
+
+    pub fn with_noise_position(mut self, noise: NoiseModels) -> Self {
+        let noise = Noise::new(noise);
+        let mut noise1 = noise.clone();
+        let mut noise2 = noise.clone();
+        let mut noise3 = noise.clone();
+        noise1.new_seed();
+        noise2.new_seed();
+        noise3.new_seed();
+        let noise = [noise1, noise2, noise3];
+        self.parameters.position_noise = Some(noise);
+        self
+    }
+
+    pub fn with_noise_velocity(mut self, noise: NoiseModels) -> Self {
+        let noise = Noise::new(noise);
+        let mut noise1 = noise.clone();
+        let mut noise2 = noise.clone();
+        let mut noise3 = noise.clone();
+        noise1.new_seed();
+        noise2.new_seed();
+        noise3.new_seed();
+        let noise = [noise1, noise2, noise3];
+        self.parameters.velocity_noise = Some(noise);
+        self
+    }
+}
+
+impl SensorModel for Gps {
+    fn update(&mut self, connection: &BodyConnection) {
+        let body = connection.body.borrow();
+        let true_position = body.state.position_base;
+        let true_velocity = body.state.velocity_base;
+
+        if let Some(noise_model) = &mut self.parameters.position_noise {
+            let noise1 = noise_model[0].sample();
+            let noise2 = noise_model[1].sample();
+            let noise3 = noise_model[2].sample();
+            let noise = Vector3::new(noise1, noise2, noise3);
+            self.state.position_noise = Some(noise);
+            self.state.position = true_position + noise;
+        } else {
+            self.state.position = true_position;
+        }
+
+        if let Some(noise_model) = &mut self.parameters.velocity_noise {
+            let noise1 = noise_model[0].sample();
+            let noise2 = noise_model[1].sample();
+            let noise3 = noise_model[2].sample();
+            let noise = Vector3::new(noise1, noise2, noise3);
+            self.state.velocity_noise = Some(noise);
+            self.state.velocity = true_velocity + noise;
+        } else {
+            self.state.velocity = true_velocity;
+        }        
+    }
+}
+
+impl MultibodyResult for Gps {
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {    
+        writer
+            .write_record(&[
+                "position[x]",
+                "position[y]",
+                "position[z]",                    
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",                    
+                "position_noise[x]",
+                "position_noise[y]",
+                "position_noise[z]",
+                "velocity_noise[x]",
+                "velocity_noise[y]",
+                "velocity_noise[z]",
+            ])
+            .expect("Failed to write header");        
+    }
+
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {        
+        writer
+            .write_record(&[
+                self.state.position[0].to_string(),
+                self.state.position[1].to_string(),
+                self.state.position[2].to_string(),
+                self.state.velocity[0].to_string(),
+                self.state.velocity[1].to_string(),
+                self.state.velocity[2].to_string(),
+                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[0].to_string()),
+                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[1].to_string()),
+                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),
+                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[0].to_string()),
+                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[1].to_string()),
+                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),                
+            ])
+            .expect("Failed to write gps result file");        
+    }
+}

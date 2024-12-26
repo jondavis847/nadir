@@ -5,14 +5,14 @@ use aerospace::{
     orbit::KeplerianElements,
 };
 use color::Color;
-use hardware::SpacecraftSensors;
+use hardware::{SpacecraftActuators, SpacecraftSensors};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::{Base, BaseSystems}, body::{Body, BodyTrait}, joint::{
+    actuator::{reaction_wheel::ReactionWheel, Actuator}, base::{Base, BaseSystems}, body::{Body, BodyTrait}, joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
     }, sensor::{
-        noise::{gaussian::GaussianNoise, NoiseModels}, rate_gyro::RateGyro, star_tracker::StarTracker, Sensor,
+        noise::{gaussian::GaussianNoise, NoiseModels}, Sensor,
     }, system::MultibodySystem
 };
 
@@ -21,7 +21,8 @@ use nadir_3d::{
     material::Material,
     mesh::Mesh,
 };
-use software::SpacecraftSoftware;
+use hardware::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker};
+use software::{SpacecraftFsw, SpacecraftSoftware};
 use time::Time;
 use transforms::Transform;
 
@@ -73,6 +74,13 @@ fn main() {
 
     let b = Rc::new(RefCell::new(Body::new("b", mp).unwrap().with_mesh(mesh)));
 
+    let mut gps = Sensor::new("gps", Gps::new().with_noise_position(NoiseModels::Gaussian(GaussianNoise::new(
+        0.0,
+        50.0,
+    ))).with_noise_velocity(NoiseModels::Gaussian(GaussianNoise::new(
+        0.0,
+        1.0,
+    ))));
     // Add a star tracker    
     let mut st = Sensor::new(
         "st",
@@ -92,6 +100,22 @@ fn main() {
             1.0 * std::f64::consts::PI / 180.0,
         )))
     );
+
+    // Create the reaction wheels
+    let mut rw1 = Actuator::new("rw1",ReactionWheel::new(0.25, 0.4).unwrap());
+    let mut rw2 = Actuator::new("rw2",ReactionWheel::new(0.25, 0.4).unwrap());
+    let mut rw3 = Actuator::new("rw3",ReactionWheel::new(0.25, 0.4).unwrap());
+    let mut rw4 = Actuator::new("rw4",ReactionWheel::new(0.25, 0.4).unwrap());
+    
+
+    rw1.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    rw2.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    rw3.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    rw4.connect_to_body(&b, Transform::IDENTITY).unwrap();
+
+    let actuator_system = SpacecraftActuators {
+        rw: [rw1, rw2, rw3, rw4],
+    };
     
 
     // Connect the components together.
@@ -102,17 +126,18 @@ fn main() {
     b.borrow_mut().connect_inner_joint(&f);
     f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY);
 
+    gps.connect_to_body(&b, Transform::IDENTITY);
     st.connect_to_body(&b, Transform::IDENTITY);
     imu.connect_to_body(&b, Transform::IDENTITY);
 
     let sensor_system = SpacecraftSensors {
-        st, imu,
+        gps, st, imu,
     };
 
-    let software = SpacecraftSoftware::default();
+    let software = SpacecraftFsw::default();    
 
     // Create the system
-    let mut sys = MultibodySystem::new(base,[b],[f]).with_sensors(sensor_system).with_software(software);
+    let mut sys = MultibodySystem::new(base,[b],[f]).with_sensors(sensor_system).with_software(software).with_actuators(actuator_system);
     // Run the simulation
     sys.simulate("", 0.0, 7000.0, 1.0);
 }

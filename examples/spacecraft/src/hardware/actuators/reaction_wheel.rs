@@ -1,8 +1,12 @@
-use nalgebra::Vector3;
+use std::{fs::File, io::BufWriter};
+
+use csv::Writer;
+use multibody::{actuator::ActuatorModel, body::BodyConnection, MultibodyResult};
+use nalgebra::{Vector3, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
+use spatial_algebra::Force;
 use thiserror::Error;
-use transforms::Transform;
 
 #[derive(Debug, Error)]
 pub enum ReactionWheelErrors {
@@ -60,8 +64,7 @@ struct ReactionWheelParameters {
     misalignment: Option<Rotation>,
     torque_constant: Option<f64>,
     torque_max: f64,
-    torque_speed_curve: Option<TorqueSpeedCurve>,
-    transform: Transform,
+    torque_speed_curve: Option<TorqueSpeedCurve>,    
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -84,13 +87,11 @@ pub struct ReactionWheel {
 impl ReactionWheel {
     pub fn new(        
         inertia: f64,
-        torque_max: f64,
-        transform: Transform,
+        torque_max: f64,        
     ) -> Result<Self, ReactionWheelErrors> {
         let parameters = ReactionWheelParameters {
             inertia,
             torque_max,
-            transform,
             friction: None,
             torque_constant: None,
             delay: None,
@@ -146,24 +147,31 @@ impl ReactionWheel {
         self
     }
 
-    pub fn process_command(
+    
+}
+
+impl ActuatorModel for ReactionWheel {
+    type Command = ReactionWheelCommands;
+    fn process_command(
         &mut self,
-        command: ReactionWheelCommands,
-    ) -> Result<(), ReactionWheelErrors> {
+        command: &ReactionWheelCommands,
+        connection: &BodyConnection,
+    ){
         // Determine initial torque based on command type
         let mut torque = match command {
             ReactionWheelCommands::Current(current) => {
                 if let Some(kt) = &self.parameters.torque_constant {
                     kt * current
                 } else {
-                    return Err(ReactionWheelErrors::NeedKtForCurrentCommanding);
+                    eprintln!("Need torque constant (kt) to process current command. Doing nothing");
+                    0.0
                 }
             }
             ReactionWheelCommands::Speed(target_speed) => {
                 // Simple proportional control: full torque in the direction needed to reach target
-                if self.state.velocity < target_speed {
+                if self.state.velocity < *target_speed {
                     self.parameters.torque_max
-                } else if self.state.velocity > target_speed {
+                } else if self.state.velocity > *target_speed {
                     -self.parameters.torque_max
                 } else {
                     0.0
@@ -196,21 +204,62 @@ impl ReactionWheel {
         }
 
         // Update state
+        let transform = &connection.transform;
         self.state.torque = torque;
-        self.state.torque_body = self
-            .parameters
-            .transform
+        self.state.torque_body = transform
             .rotation
             .transform(Vector3::new(0.0, 0.0, torque));
-        self.state.momentum_body = self.parameters.transform.rotation.transform(Vector3::new(
+        self.state.momentum_body = transform.rotation.transform(Vector3::new(
             0.0,
             0.0,
             self.state.momentum,
         ));
         self.state.acceleration = torque / self.parameters.inertia;
+        
+    }
 
-        Ok(())
+    fn get_force_body(&self) -> Force {
+        Force::from(Vector6::new(self.state.torque_body[0],self.state.torque_body[1],self.state.torque_body[2], 0.0,0.0,0.0))
     }
 }
 
-pub struct ReactionWheelResult(pub Vec<ReactionWheelState>);
+impl MultibodyResult for ReactionWheel {    
+    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+    
+        writer
+            .write_record(&[
+                "acceleration",
+                "current",
+                "momentum(wheel)",
+                "momentum(body)[x]",
+                "momentum(body)[y]",
+                "momentum(body)[z]",
+                "velocity",
+                "torque(wheel)",
+                "torque(body)[x]",
+                "torque(body)[y]",
+                "torque(body)[z]",                    
+            ])
+            .expect("Failed to write header");
+        
+    }
+
+    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {        
+        writer
+            .write_record(&[
+                self.state.acceleration.to_string(),
+                self.state.current.to_string(),
+                self.state.momentum.to_string(),
+                self.state.momentum_body[0].to_string(),
+                self.state.momentum_body[1].to_string(),
+                self.state.momentum_body[2].to_string(),
+                self.state.velocity.to_string(),
+                self.state.torque.to_string(),
+                self.state.torque_body[0].to_string(),
+                self.state.torque_body[1].to_string(),
+                self.state.torque_body[2].to_string(),
+            ])
+            .expect("Failed to write rate gyro result file");
+    }
+}
+
