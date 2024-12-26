@@ -3,6 +3,7 @@ use rotations::{
     prelude::{EulerAngles, EulerSequence},
     Rotation, RotationTrait,
 };
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use thiserror::Error;
 use time::{Time, TimeSystem};
@@ -18,7 +19,7 @@ pub enum OrbitErrors {
     KeplerMaxIters,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub enum OrbitType {
     Circular,
     Elliptical,
@@ -43,7 +44,7 @@ impl From<KeplerianElements> for Orbit {
 /// This struct contains the orbital parameters necessary to describe an object's orbit
 /// around a central body, based on the Keplerian model. It includes elements such as the
 /// semi-major axis, eccentricity, inclination, RAAN, argument of periapsis, and anomalies.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct KeplerianElements {
     pub epoch: Time,
     /// Gravitational parameter of the central body (in m^3/s^2).
@@ -339,7 +340,7 @@ impl KeplerianElements {
             _ => self.anomaly_to_nu(new_anomaly),
         };
 
-        let mut new_kep = *self;
+        let mut new_kep = self.clone();
         new_kep.true_anomaly = new_true_anomaly;
 
         Ok(new_kep)

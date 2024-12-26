@@ -70,6 +70,14 @@ impl RotationMatrix {
     pub fn get_value(&self) -> Matrix3<f64> {
         self.0
     }
+
+    pub fn from_cols(v1: Vector3<f64>,v2: Vector3<f64>,v3: Vector3<f64> ) -> Result<Self, RotationMatrixError> {
+        RotationMatrix::new(
+            v1[0], v2[0], v3[0],
+            v1[1], v2[1], v3[1],
+            v1[2], v2[2], v3[2],
+        )
+    }
 }
 
 impl From<Matrix3<f64>> for RotationMatrix {

@@ -4,15 +4,15 @@ use serde::{Deserialize,Serialize};
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 pub struct StarTrackerFsw {
-    state: State,
+    pub state: State,
     parameters: Parameters,
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 struct State {
-    q_st: Quaternion,
-    q_body: Quaternion,
-    valid: bool,
+    pub q_st: Quaternion,
+    pub q_body: Quaternion,
+    pub valid: bool,
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]

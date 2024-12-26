@@ -11,16 +11,18 @@ use multibody::{
 };
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use time::Time;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct Parameters {
     delay: Option<f64>,
     position_noise: Option<[Noise; 3]>,
     velocity_noise: Option<[Noise; 3]>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct State {    
+    pub time: Time,
     pub position: Vector3<f64>,
     pub velocity: Vector3<f64>,
     position_noise: Option<Vector3<f64>>,
@@ -28,17 +30,13 @@ pub struct State {
 }
 
 /// A simple GPS with gaussian white noise & constant delay
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Gps {
     parameters: Parameters,
     pub state: State,
 }
 
 impl Gps {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     #[allow(dead_code)]
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);

@@ -5,9 +5,9 @@ use star_tracker::StarTrackerFsw;
 
 use crate::hardware::sensors::SpacecraftSensors;
 
-mod gps;
-mod imu;
-mod star_tracker;
+pub mod gps;
+pub mod imu;
+pub mod star_tracker;
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 pub struct SensorFsw {

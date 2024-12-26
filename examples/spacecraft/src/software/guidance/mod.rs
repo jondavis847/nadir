@@ -1,8 +1,14 @@
-use nalgebra::Vector3;
+use rotations::prelude::{Quaternion, RotationMatrix};
 use serde::{Deserialize, Serialize};
 
-use super::sensors::SensorFsw;
+use super::navigation::NavigationFsw;
 
+#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+enum TargetMode {
+    #[default]
+    Nadir,
+    Sun,
+}
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 pub struct GuidanceFsw {
@@ -12,26 +18,29 @@ pub struct GuidanceFsw {
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 struct Parameters {
-    // Control gains
-    k_p: f64,
-    k_i: f64,
-    k_d: f64,    
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,Default)]
 struct State {
-    error: Vector3<f64>,
-    integral: Vector3<f64>,
-    derivative: Vector3<f64>,
+    target_attitude: Quaternion,
+    target_mode: TargetMode,
 }
 
 impl GuidanceFsw {
-    pub fn run(&mut self, sensors: &SensorFsw) {
-        let error = sensors.st.error;
-        self.state.error = error;
-        self.state.integral += error;
-        self.state.derivative = error - self.state.error;
-        let control = self.parameters.k_p * error + self.parameters.k_i * self.state.integral + self.parameters.k_d * self.state.derivative;
-        // send control to actuators
+    pub fn run(&mut self, nav: &NavigationFsw) {
+        self.state.target_attitude = match self.state.target_mode {
+            TargetMode::Nadir => {
+                // create frame for x in velocity vector, z nadir, y completes
+                let x = nav.od.state.velocity.normalize();
+                let z = -nav.od.state.position.normalize();
+                let y = z.cross(&x);
+                let m = match RotationMatrix::from_cols(x,y,z) {
+                        Ok(m) => m,
+                        Err(_) => unimplemented!("better error handling for guidance")
+                };
+                Quaternion::from(&m)
+            }
+            _ => unimplemented!("implement other targeting modes")
+        }
     }
 }
