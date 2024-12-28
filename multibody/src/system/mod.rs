@@ -1,5 +1,5 @@
 use crate::{
-    actuator::ActuatorSystem, base::{BaseRef, BaseSystems}, body::BodyRef, joint::{InnerBody, JointRef, JointStates}, sensor::SensorSystem, software::SoftwareSystem, solver::rk4::solve_fixed_rk4, MultibodyResult
+    actuator::ActuatorSystem, base::{BaseRef, BaseSystems}, body::BodyRef, joint::{InnerBody, JointRef, JointStates}, sensor::SensorSystem, software::SoftwareSystem, solver::rk4::solve_fixed_rk4
 };
 
 use super::{
@@ -8,7 +8,7 @@ use super::{
     MultibodyErrors,
 };
 
-use csv::Writer;
+use nadir_result::{NadirResult,ResultManager};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spice::Spice;
@@ -16,61 +16,61 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     fs::{create_dir_all, File},
-    io::{BufWriter, Write},
+    io::Write,
     path::{Path, PathBuf},
     rc::Rc,
     time::Instant,
 };
 
-use utilities::initialize_writer;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MultibodySystem<A,F,S> 
+pub struct MultibodySystem<A=(),F=(),S=()> 
     where 
     A: ActuatorSystem,    
     F: SoftwareSystem,
     S: SensorSystem,  
     {
-    pub actuators: Option<A>,
+    pub actuators: A,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
     pub joints: Vec<JointRef>,
-    pub sensors: Option<S>,
-    pub software: Option<F>,
+    pub sensors: S,
+    pub software: F,
     pub spice: Option<Spice>,
+    pub sim_time_id: Option<u32>,
 }
 
 impl<A,F,S> MultibodySystem<A,F,S> where 
 A: ActuatorSystem,    
-F: SoftwareSystem,
+F: SoftwareSystem<Actuators = A, Sensors = S>,
 S: SensorSystem,   {
-    pub fn new<const B: usize, const J: usize>(base: BaseRef, bodies: [BodyRef;B], joints: [JointRef;J]) -> Self {
+    pub fn new<const B: usize, const J: usize>(base: BaseRef, bodies: [BodyRef;B], joints: [JointRef;J], sensors: S, software: F, actuators:A) -> Self {
         Self {
-            actuators: None,
+            actuators,
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base,
             bodies: bodies.into(),
             joints: joints.into(),
-            sensors: None,
-            software: None,
+            sensors,
+            software,
             spice: None,
+            sim_time_id: None,
         }
     }
 
     pub fn with_actuators(mut self, actuators: A) -> Self {
-        self.actuators = Some(actuators);
+        self.actuators = actuators;
         self
     }
 
     pub fn with_sensors(mut self, sensors: S) -> Self {
-        self.sensors = Some(sensors);
+        self.sensors = sensors;
         self
     }
     
 
     pub fn with_software(mut self, software: F) -> Self {
-        self.software = Some(software);
+        self.software = software;
         self
     }
 
@@ -261,6 +261,10 @@ S: SensorSystem,   {
         self.write_derivative(dx);
     }
 
+    pub fn run_software(&mut self) {        
+        self.software.run(&self.sensors, &mut self.actuators);         
+    }
+
     pub fn save(&self, path: &Path) {
         let path = path.join("system.ron");
 
@@ -296,9 +300,9 @@ S: SensorSystem,   {
             Err(e) => panic!("{e}"),
         };
         let (result_path, sim_name) = self.get_result_path_and_sim_name(sim_name);
-        // initialize the results writers
-        create_dir_all(&result_path).expect("result folder already exists");
-        let mut writers = self.initialize_writers(&result_path);
+        // initialize the result manager
+        create_dir_all(&result_path).expect("result folder already exists");        
+        let mut results = self.initialize_writers(result_path);    
 
         // sort the bodies and joints based on multibody tree philosophy
         self.permute();
@@ -313,7 +317,7 @@ S: SensorSystem,   {
         self.update_sensors();
 
         // solve the multibody system
-        match solve_fixed_rk4(self, tstart, tstop, dt, &mut writers) {
+        match solve_fixed_rk4(self, tstart, tstop, dt, &mut results) {
             Ok(_) => {}
             Err(e) => eprintln!("{e}"),
         }
@@ -391,10 +395,8 @@ S: SensorSystem,   {
         }
     }    
 
-    pub fn update_sensors(&mut self) {
-        if let Some(sensors) = &mut self.sensors {
-            sensors.update();
-        }        
+    pub fn update_sensors(&mut self) {        
+        self.sensors.update();        
     }
 
     fn get_result_path_and_sim_name(&self, sim_name: &str) -> (PathBuf, String) {
@@ -488,105 +490,55 @@ S: SensorSystem,   {
         Ok(())
     }
 
-    fn initialize_writers(&self, results_path: &PathBuf) -> ResultWriters {
-        let mut sim_time_writer = initialize_writer("sim_time".to_string(), results_path);
-        sim_time_writer.write_record(&["sim_time(sec)"]).unwrap();
+    fn initialize_writers(&mut self, results_path: PathBuf) -> ResultManager {
+        let mut results = ResultManager::new(results_path.clone());
+        let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
+        self.sim_time_id = Some(id);
+        
+        for body in &self.bodies {
+            let mut body = body.borrow_mut();
+            body.new_result(&mut results);            
+        }
 
-        let mut body_writers = Vec::new();
+        for joint in &self.joints {
+            let mut joint = joint.borrow_mut();
+            joint.new_result(&mut results);
+        }
+        
+        self.sensors.initialize_results(&mut results);
+        self.actuators.initialize_results(&mut results);
+        self.software.initialize_results(&mut results);        
+
+        match &mut self.base.borrow_mut().system {
+            BaseSystems::Basic(_) => {},
+            BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results)
+        }
+        results
+    }
+
+    pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {        
+        if let Some(id) = self.sim_time_id {
+            results.write_record(id, &[t.to_string()]);
+        }
+        
+        
         for body in &self.bodies {
             let body = body.borrow();
-            let mut writer = body.initialize_writer(results_path);
-            body.initialize_result(&mut writer);
-            body_writers.push(writer);
+            body.write_result(results);
         }
 
-        let mut joint_writers = Vec::new();
         for joint in &self.joints {
             let joint = joint.borrow();
-            let mut writer = joint.initialize_writer(results_path);
-            joint.model.initialize_result(&mut writer);
-            joint_writers.push(writer);
-        }
+            joint.write_result(results);
+        }        
+        
+        self.sensors.write_results(results);        
+        self.actuators.write_results(results);
+        self.software.write_results(results);
 
-        let sensor_writers = if let Some(sensors) = &self.sensors {
-            sensors.initialize_writers(results_path)
-        } else {
-            Vec::new()
-        };
-
-        let celestial_writers = match &self.base.borrow().system {
-            BaseSystems::Basic(_) => None,
-            BaseSystems::Celestial(celestial) => Some(celestial.initialize_writers(&results_path)),
-        };
-
-        ResultWriters {
-            sim_time_writer,
-            body_writers,
-            joint_writers,
-            sensor_writers,
-            actuator_writers: Vec::new(),
-            celestial_writers,
-        }
-    }
-
-    pub fn write_result_files(&self, t: f64, writers: &mut ResultWriters) {
-        // add initial conditions to results storage
-        writers
-            .sim_time_writer
-            .write_record(&[t.to_string()])
-            .expect("could not write record");
-        self.bodies
-            .iter()
-            .zip(&mut writers.body_writers)
-            .for_each(|(body, writer)| body.borrow().write_result_file(writer));
-        self.joints
-            .iter()
-            .zip(&mut writers.joint_writers)
-            .for_each(|(joint, writer)| joint.borrow().model.write_result_file(writer));
-        if let Some(sensors) = &self.sensors {
-            sensors.write_result_files(&mut writers.sensor_writers);
-        }
         match &self.base.borrow().system {
             BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => {
-                if let Some(writer) = &mut writers.celestial_writers {
-                    celestial.write_result_file(writer);
-                }
-            }
-        }
-    }
-}
-
-pub struct ResultWriters {
-    sim_time_writer: Writer<BufWriter<File>>,
-    body_writers: Vec<Writer<BufWriter<File>>>,
-    joint_writers: Vec<Writer<BufWriter<File>>>,
-    sensor_writers: Vec<Writer<BufWriter<File>>>,
-    actuator_writers: Vec<Writer<BufWriter<File>>>,
-    celestial_writers: Option<(Writer<BufWriter<File>>, Vec<Writer<BufWriter<File>>>)>,
-}
-
-impl ResultWriters {
-    pub fn flush(&mut self) {
-        self.sim_time_writer.flush().unwrap();
-        self.body_writers
-            .iter_mut()
-            .for_each(|writer| writer.flush().unwrap());
-        self.joint_writers
-            .iter_mut()
-            .for_each(|writer| writer.flush().unwrap());
-        self.sensor_writers
-            .iter_mut()
-            .for_each(|writer| writer.flush().unwrap());
-        self.actuator_writers
-            .iter_mut()
-            .for_each(|writer| writer.flush().unwrap());
-        if let Some(writer) = &mut self.celestial_writers {
-            writer.0.flush().unwrap();
-            writer
-                .1
-                .iter_mut()
-                .for_each(|writer| writer.flush().unwrap());
+            BaseSystems::Celestial(celestial) => celestial.write_results(results)
         }
     }
 }

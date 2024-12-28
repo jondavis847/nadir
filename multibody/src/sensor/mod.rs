@@ -1,13 +1,9 @@
 pub mod noise;
 
-use crate::{
-    body::{BodyConnection, BodyRef},
-    MultibodyResult,
-};
-use csv::Writer;
+use crate::body::{BodyConnection, BodyRef};
+use nadir_result::{NadirResult, ResultManager};
 use serde::{Deserialize, Serialize};
-use utilities::initialize_writer;
-use std::{fmt::Debug, fs::File, io::BufWriter, path::PathBuf};
+use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
 
@@ -19,8 +15,10 @@ pub enum SensorErrors {
     AlreadyConnectedToThisBody(String),
 }
 
-pub trait SensorModel: MultibodyResult {
+pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
+    fn result_headers(&self) -> &[&str];    
+    fn result_content(&self, id: u32, results: &mut ResultManager);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -28,6 +26,7 @@ pub struct Sensor<T> where T: SensorModel {
     pub name: String,
     pub model: T,
     connection: Option<BodyConnection>,
+    result_id: Option<u32>,
 }
 
 impl<T> Sensor<T> where T: SensorModel {
@@ -52,30 +51,45 @@ impl<T> Sensor<T> where T: SensorModel {
             name: name.to_string(),
             model,
             connection: None,
+            result_id: None,
         }
     }
 
     pub fn update(&mut self) {
         self.model.update(&self.connection.as_ref().unwrap());
     }
+}
 
-    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
-        // Define the sensor subfolder folder path
-        let sensor_folder_path = result_folder_path.join("sensors");
+impl<T> NadirResult for Sensor<T> where T: SensorModel {
+    fn new_result(&mut self,results: &mut ResultManager) {
+         // Define the sensor subfolder folder path
+         let sensor_folder_path = results.result_path.join("sensors");
 
-        // Check if the folder exists, if not, create it
-        if !sensor_folder_path.exists() {
-            std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
-        }
+         // Check if the folder exists, if not, create it
+         if !sensor_folder_path.exists() {
+             std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
+         }
+ 
+         // Initialize writer using the updated path
+         let id = results.new_writer(&self.name, &sensor_folder_path, self.model.result_headers());
+         self.result_id = Some(id);
+    }
 
-        // Initialize writer using the updated path
-        initialize_writer(self.name.clone(), &sensor_folder_path)
+    fn write_result(&self,results: &mut ResultManager) {
+        if let Some(id) = self.result_id {
+            self.model.result_content(id,results);            
+        }    
     }
 }
 
-
 pub trait SensorSystem: Serialize {
     fn update(&mut self);
-    fn initialize_writers(&self, path: &PathBuf) -> Vec<Writer<BufWriter<File>>>;
-    fn write_result_files(&self, writers: &mut Vec<Writer<BufWriter<File>>>);
+    fn initialize_results(&mut self, results: &mut ResultManager);
+    fn write_results(&self, results: &mut ResultManager);
+}
+
+impl SensorSystem for () {
+    fn update(&mut self) {}
+    fn initialize_results(&mut self, _results: &mut ResultManager) {}
+    fn write_results(&self, _results: &mut ResultManager) {}
 }

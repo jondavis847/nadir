@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 csv.workspace = true
 nalgebra.workspace = true
+nadir_result.workspace = true
 serde.workspace = true
 rotations.workspace = true
 spice.workspace = true

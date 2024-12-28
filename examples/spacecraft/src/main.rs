@@ -5,10 +5,10 @@ use aerospace::{
     orbit::KeplerianElements,
 };
 use color::Color;
-use hardware::{SpacecraftActuators, SpacecraftSensors};
+use hardware::{actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},sensors::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker, SpacecraftSensors}};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    actuator::{reaction_wheel::ReactionWheel, Actuator}, base::{Base, BaseSystems}, body::{Body, BodyTrait}, joint::{
+    actuator::Actuator, base::{Base, BaseSystems}, body::{Body, BodyTrait}, joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
     }, sensor::{
@@ -21,8 +21,7 @@ use nadir_3d::{
     material::Material,
     mesh::Mesh,
 };
-use hardware::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker};
-use software::{SpacecraftFsw, SpacecraftSoftware};
+use software::SpacecraftFsw;
 use time::Time;
 use transforms::Transform;
 
@@ -102,10 +101,10 @@ fn main() {
     );
 
     // Create the reaction wheels
-    let mut rw1 = Actuator::new("rw1",ReactionWheel::new(0.25, 0.4).unwrap());
-    let mut rw2 = Actuator::new("rw2",ReactionWheel::new(0.25, 0.4).unwrap());
-    let mut rw3 = Actuator::new("rw3",ReactionWheel::new(0.25, 0.4).unwrap());
-    let mut rw4 = Actuator::new("rw4",ReactionWheel::new(0.25, 0.4).unwrap());
+    let mut rw1 = Actuator::new("rw1",ReactionWheel::new(0.25, 0.4,0.0).unwrap());
+    let mut rw2 = Actuator::new("rw2",ReactionWheel::new(0.25, 0.4,0.0).unwrap());
+    let mut rw3 = Actuator::new("rw3",ReactionWheel::new(0.25, 0.4,0.0).unwrap());
+    let mut rw4 = Actuator::new("rw4",ReactionWheel::new(0.25, 0.4,0.0).unwrap());
     
 
     rw1.connect_to_body(&b, Transform::IDENTITY).unwrap();
@@ -121,14 +120,14 @@ fn main() {
     // Connect the components together.
     // Connections are made by the components names.
     // The direction of the connection matters - (from,to)
-    base.borrow_mut().connect_outer_joint(&f);
-    f.borrow_mut().connect_base(&base, Transform::IDENTITY);
-    b.borrow_mut().connect_inner_joint(&f);
-    f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY);
+    base.borrow_mut().connect_outer_joint(&f).unwrap();
+    f.borrow_mut().connect_base(&base, Transform::IDENTITY).unwrap();
+    b.borrow_mut().connect_inner_joint(&f).unwrap();
+    f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY).unwrap();
 
-    gps.connect_to_body(&b, Transform::IDENTITY);
-    st.connect_to_body(&b, Transform::IDENTITY);
-    imu.connect_to_body(&b, Transform::IDENTITY);
+    gps.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    st.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    imu.connect_to_body(&b, Transform::IDENTITY).unwrap();
 
     let sensor_system = SpacecraftSensors {
         gps, st, imu,
@@ -137,7 +136,7 @@ fn main() {
     let software = SpacecraftFsw::default();    
 
     // Create the system
-    let mut sys = MultibodySystem::new(base,[b],[f]).with_sensors(sensor_system).with_software(software).with_actuators(actuator_system);
+    let mut sys = MultibodySystem::new(base,[b],[f],sensor_system,software,actuator_system);
     // Run the simulation
     sys.simulate("", 0.0, 7000.0, 1.0);
 }

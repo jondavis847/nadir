@@ -1,4 +1,5 @@
 use aerospace::{celestial_system::CelestialBodies, orbit::KeplerianElements};
+use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use time::{Time, TimeSystem};
@@ -9,10 +10,11 @@ use crate::software::sensors::gps::GpsFsw;
 pub struct OrbitDetermination {
     pub state: State,
     parameters: Parameters,
+    result_id: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct State {
+pub struct State {
     pub position: Vector3<f64>,
     pub velocity: Vector3<f64>,
     orbit: KeplerianElements,
@@ -32,10 +34,14 @@ impl Default for State {
             CelestialBodies::Earth,
         );
         let (position, velocity) = orbit.get_rv();
+
+        //TODO: impl vallado luni solar for fsw
+        let sun_position = Vector3::zeros();
         Self {
             position,
             velocity,
             orbit,
+            sun_position
         }
     }
 }
@@ -59,5 +65,42 @@ impl OrbitDetermination {
         } else {
             unimplemented!("need to implement orbit propagator")
         }
+    }
+}
+
+impl NadirResult for OrbitDetermination {
+    fn new_result(&mut self,results: &mut ResultManager) {
+         // Define the actuator subfolder folder path
+         let fsw_folder_path = results.result_path.join("software");
+
+         // Check if the folder exists, if not, create it
+         if !fsw_folder_path.exists() {
+             std::fs::create_dir_all(&fsw_folder_path).expect("Failed to create fsw folder");
+         }
+ 
+         // Initialize writer using the updated path
+         let headers = [
+            "position[x]",
+            "position[y]",
+            "position[z]",
+            "velocity[x]",
+            "velocity[y]",
+            "velocity[z]",            
+            ];
+         let id = results.new_writer("fsw_nav_od", &fsw_folder_path, &headers);
+         self.result_id = Some(id);        
+    }
+
+    fn write_result(&self,results: &mut ResultManager) {
+        if let Some(id) = self.result_id {
+            results.write_record(id, &[
+                self.state.position[0].to_string(),
+                self.state.position[1].to_string(),
+                self.state.position[2].to_string(),
+                self.state.velocity[0].to_string(),
+                self.state.velocity[1].to_string(),
+                self.state.velocity[2].to_string(),
+            ]);
+        }        
     }
 }

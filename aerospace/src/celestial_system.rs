@@ -2,7 +2,8 @@ use crate::{
     geomag::GeoMagnetism,
     gravity::{Gravity, GravityTrait, NewtownianGravity},
 };
-use csv::Writer;
+
+use nadir_result::ResultManager;
 use nalgebra::Vector3;
 use rotations::{
     prelude::{EulerAngles, EulerSequence, Quaternion},
@@ -10,11 +11,16 @@ use rotations::{
 };
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies, SpiceErrors};
-use utilities::initialize_writer;
 
-use std::{f64::consts::PI, fs::File, io::BufWriter, path::PathBuf};
+use std::f64::consts::PI;
 use thiserror::Error;
 use time::Time;
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CelestialEpoch {
+    time: Time,
+    result_id: Option<u32>,
+}
 
 #[derive(Debug, Error)]
 pub enum CelestialErrors {
@@ -33,7 +39,7 @@ pub enum CelestialErrors {
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CelestialSystem {
-    pub epoch: Time,
+    pub epoch: CelestialEpoch,
     pub bodies: Vec<CelestialBody>,
     pub spice: Option<Spice>,
 }
@@ -45,6 +51,10 @@ impl CelestialSystem {
         let bodies = vec![sun];
         // for now lets default to having spice, in the future add analytical ephem
         let spice = Some(Spice::from_local()?);
+        let epoch = CelestialEpoch {
+            time: epoch,
+            result_id: None,
+        };
         Ok(Self {
             epoch,
             bodies,
@@ -55,7 +65,7 @@ impl CelestialSystem {
     pub fn update(&mut self, t: f64) -> Result<(), CelestialErrors> {
         if let Some(spice) = &mut self.spice {
             // t is sim time in seconds
-            let current_epoch = self.epoch + t;
+            let current_epoch = self.epoch.time + t;
             let current_epoch = current_epoch.to_system(time::TimeSystem::TT);
             for body in self.bodies.iter_mut() {
                 body.update(current_epoch, spice)?;
@@ -68,11 +78,11 @@ impl CelestialSystem {
 
     /// returns a tuple of bufwriters, the first element is the epoch writer, the second element is a Vec of the writers for the bodies
     pub fn initialize_writers(
-        &self,
-        result_folder_path: &PathBuf,
-    ) -> (Writer<BufWriter<File>>, Vec<Writer<BufWriter<File>>>) {
+        &mut self,
+        result: &mut ResultManager,
+    ) {
         // Define the celestial subfolder folder path
-        let celestial_folder_path = result_folder_path.join("celestial");
+        let celestial_folder_path = result.result_path.join("celestial");
 
         // Check if the folder exists, if not, create it
         if !celestial_folder_path.exists() {
@@ -80,50 +90,44 @@ impl CelestialSystem {
                 .expect("Failed to create celestial folder");
         }
 
-        let mut body_writers = Vec::new();
-        for body in &self.bodies {
-            let mut writer = initialize_writer(body.body.get_name(), &celestial_folder_path);
+        for body in &mut self.bodies {
+            let headers = [
+                "position(base)[x]",
+                "position(base)[y]",
+                "position(base)[z]",
+                "attitude(base)[x]",
+                "attitude(base)[y]",
+                "attitude(base)[z]",
+                "attitude(base)[w]",
+            ];
+            let id = result.new_writer(&body.body.get_name(), &celestial_folder_path, &headers);
+            body.result_id = Some(id);
             // note i choose the names to be the same as multibody body so i can parse them easier for animation
-            // if you change the names, animation wont work unless you change the column its looking for there
-            writer
-                .write_record(&[
-                    "position(base)[x]",
-                    "position(base)[y]",
-                    "position(base)[z]",
-                    "attitude(base)[x]",
-                    "attitude(base)[y]",
-                    "attitude(base)[z]",
-                    "attitude(base)[w]",
-                ])
-                .expect("Failed to write header");
-            body_writers.push(writer);
+            // if you change the names, animation wont work unless you change the column its looking for there            
         }
-        let mut epoch_writer = initialize_writer("epoch".to_string(), &celestial_folder_path);
-        epoch_writer
-            .write_record(&["sec_since_j2k", "julian_date"])
-            .unwrap();
-        (epoch_writer, body_writers)
+
+        let epoch_headers = ["sec_since_j2k", "julian_date"];
+        let id = result.new_writer("epoch", &celestial_folder_path, &epoch_headers);
+        self.epoch.result_id = Some(id);
     }
 
-    pub fn write_result_file(
+    pub fn write_results(
         &self,
-        writers: &mut (Writer<BufWriter<File>>, Vec<Writer<BufWriter<File>>>),
+        results: &mut ResultManager,
     ) {
         // update the epoch based on sim time
-        let epoch_writer = &mut writers.0;
-        epoch_writer
-            .write_record(&[
-                self.epoch.get_seconds_j2k().to_string(),
-                self.epoch.get_jd().to_string(),
-            ])
-            .expect("could not write to result file");
+        if let Some(id) = &self.epoch.result_id {
+            results.write_record(*id, &[
+                self.epoch.time.get_seconds_j2k().to_string(),
+                self.epoch.time.get_jd().to_string(),
+            ]);
+        }
 
-        self.bodies
-            .iter()
-            .zip(&mut writers.1)
-            .for_each(|(body, writer)| {
-                writer
-                    .write_record(&[
+        for body in &self.bodies {
+            if let Some(id) = &body.result_id {
+                results.write_record(
+                    *id,
+                    &[
                         body.position[0].to_string(),
                         body.position[1].to_string(),
                         body.position[2].to_string(),
@@ -131,9 +135,10 @@ impl CelestialSystem {
                         body.orientation.y.to_string(),
                         body.orientation.z.to_string(),
                         body.orientation.s.to_string(),
-                    ])
-                    .expect("could not write to result file");
-            });
+                    ],
+                );
+            }
+        }
     }
 
     pub fn set_geomag(
@@ -237,6 +242,7 @@ pub struct CelestialBody {
     pub orientation: Quaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
     pub geomag: Option<GeoMagnetism>,
+    pub result_id: Option<u32>,
 }
 
 impl CelestialBody {
@@ -251,6 +257,7 @@ impl CelestialBody {
             orientation: Quaternion::IDENTITY,
             gravity,
             geomag,
+            result_id: None,
         }
     }
 

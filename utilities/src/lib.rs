@@ -1,10 +1,5 @@
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::BufWriter;
-use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-use csv::Writer;
 
 pub fn format_number(value: f64) -> String {
     if !(1e-2..=1e4).contains(&value) {
@@ -63,12 +58,6 @@ pub fn format_duration(duration: Duration) -> String {
     }
 }
 
-pub fn initialize_writer(name: String, path: &PathBuf) -> Writer<BufWriter<File>> {    
-    let filename = name.clone() + ".csv";
-    let file = File::create(path.join(filename)).expect("Failed to create file");
-    let buf_writer = BufWriter::new(file);
-    Writer::from_writer(buf_writer)
-}
 
 /// Combines two vectors of strings and returns a vector containing only the unique strings,
 /// preserving the order of their first appearance.

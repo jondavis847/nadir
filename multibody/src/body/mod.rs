@@ -1,14 +1,12 @@
-use crate::{
-    joint::{Joint, JointRef},
-    MultibodyResult,
-};
+use crate::joint::{Joint, JointRef};
 use aerospace::{
     celestial_system::CelestialSystem,
     gravity::{Gravity, GravityTrait},
 };
-use csv::Writer;
+
 use mass_properties::MassProperties;
 use nadir_3d::mesh::Mesh;
+use nadir_result::{NadirResult, ResultManager};
 use nalgebra::{Vector3, Vector6};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{quaternion::Quaternion, RotationTrait};
@@ -17,13 +15,11 @@ use spatial_algebra::{Force, SpatialTransform};
 use std::{
     cell::RefCell,
     fs::File,
-    io::{BufWriter, Write},
-    path::PathBuf,
+    io::Write,
     rc::{Rc, Weak},
 };
 use thiserror::Error;
 use transforms::Transform;
-use utilities::initialize_writer;
 
 #[derive(Clone, Debug, Error)]
 pub enum BodyErrors {
@@ -52,6 +48,7 @@ pub struct Body {
     pub outer_joints: Vec<Weak<RefCell<Joint>>>, // id of joint in system.joints, joint contains the transform information
     #[serde(skip)]
     pub state: BodyState,
+    result_id: Option<u32>,
 }
 
 impl Body {
@@ -74,6 +71,7 @@ impl Body {
             name: name.to_string(),
             outer_joints: Vec::new(),
             state: BodyState::default(),
+            result_id: None,
         })
     }
 
@@ -185,72 +183,63 @@ impl Body {
         self.state.position_base = body_from_base.translation.vec();
         self.state.attitude_base = Quaternion::from(&body_from_base.rotation);
     }
+}
 
-    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
-        // Define the bodies subfolder folder path
-        let bodies_folder_path = result_folder_path.join("bodies");
+impl NadirResult for Body {
+    fn new_result(&mut self,results: &mut ResultManager) {
+        let bodies_folder = results.result_path.join("bodies");
 
         // Check if the folder exists, if not, create it
-        if !bodies_folder_path.exists() {
-            std::fs::create_dir_all(&bodies_folder_path).expect("Failed to create bodies folder");
+        if !bodies_folder.exists() {
+            std::fs::create_dir_all(&bodies_folder).expect("Failed to create bodies folder");
         }
 
-        // Initialize writer using the updated path
-        let writer = initialize_writer(self.name.clone(), &bodies_folder_path);
+        let id = results.new_writer(&self.name, &bodies_folder, &[
+            "acceleration(base)[x]",
+            "acceleration(base)[y]",
+            "acceleration(base)[z]",
+            "acceleration(body)[x]",
+            "acceleration(body)[y]",
+            "acceleration(body)[z]",
+            "angular_accel(body)[x]",
+            "angular_accel(body)[y]",
+            "angular_accel(body)[z]",
+            "angular_rate(body)[x]",
+            "angular_rate(body)[y]",
+            "angular_rate(body)[z]",
+            "attitude(base)[x]",
+            "attitude(base)[y]",
+            "attitude(base)[z]",
+            "attitude(base)[w]",
+            "external_force(body)[x]",
+            "external_force(body)[y]",
+            "external_force(body)[z]",
+            "external_torque(body)[x]",
+            "external_torque(body)[y]",
+            "external_torque(body)[z]",
+            "position(base)[x]",
+            "position(base)[y]",
+            "position(base)[z]",
+            "velocity(base)[x]",
+            "velocity(base)[y]",
+            "velocity(base)[z]",
+            "velocity(body)[x]",
+            "velocity(body)[y]",
+            "velocity(body)[z]",
+        ]);
+        self.result_id = Some(id);  
 
+        // also need to write the meshes for animation
         if let Some(mesh) = &self.mesh {
-            let mesh_file_path = bodies_folder_path.join(self.name.clone() + ".mesh");
+            let mesh_file_path = bodies_folder.join(self.name.clone() + ".mesh");
             let mut mesh_file = File::create(mesh_file_path).expect("could not create file");
             let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
             mesh_file.write_all(ron_string.as_bytes()).unwrap();
-        }
-        writer
+        }      
     }
-}
-
-impl MultibodyResult for Body {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        // Initialize first row header info for the file
-        writer
-            .write_record(&[
-                "acceleration(base)[x]",
-                "acceleration(base)[y]",
-                "acceleration(base)[z]",
-                "acceleration(body)[x]",
-                "acceleration(body)[y]",
-                "acceleration(body)[z]",
-                "angular_accel(body)[x]",
-                "angular_accel(body)[y]",
-                "angular_accel(body)[z]",
-                "angular_rate(body)[x]",
-                "angular_rate(body)[y]",
-                "angular_rate(body)[z]",
-                "attitude(base)[x]",
-                "attitude(base)[y]",
-                "attitude(base)[z]",
-                "attitude(base)[w]",
-                "external_force(body)[x]",
-                "external_force(body)[y]",
-                "external_force(body)[z]",
-                "external_torque(body)[x]",
-                "external_torque(body)[y]",
-                "external_torque(body)[z]",
-                "position(base)[x]",
-                "position(base)[y]",
-                "position(base)[z]",
-                "velocity(base)[x]",
-                "velocity(base)[y]",
-                "velocity(base)[z]",
-                "velocity(body)[x]",
-                "velocity(body)[y]",
-                "velocity(body)[z]",
-            ])
-            .expect("Failed to write header");
-    }
-
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&[
+    fn write_result(&self,results: &mut ResultManager) {
+        if let Some(id) = self.result_id {
+            results.write_record(id, &[
                 self.state.acceleration_base[0].to_string(),
                 self.state.acceleration_base[1].to_string(),
                 self.state.acceleration_base[2].to_string(),
@@ -282,8 +271,8 @@ impl MultibodyResult for Body {
                 self.state.velocity_body[0].to_string(),
                 self.state.velocity_body[1].to_string(),
                 self.state.velocity_body[2].to_string(),
-            ])
-            .expect("could not write file");
+            ]);
+        }        
     }
 }
 

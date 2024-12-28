@@ -28,14 +28,14 @@ impl SensorModelTrait for SensorModel {
 }
 
 impl MultibodyResult for SensorModel {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
+    fn initialize_result(&self, writer: &mut ResultWriter) {
         match self {
             SensorModel::RateGyro(sensor) => sensor.initialize_result(writer),
             SensorModel::StarTracker(sensor) => sensor.initialize_result(writer),
         }
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
+    fn write_result_file(&self, writer: &mut ResultWriter) {
         match self {
             SensorModel::RateGyro(sensor) => sensor.write_result_file(writer),
             SensorModel::StarTracker(sensor) => sensor.write_result_file(writer),

@@ -3,21 +3,17 @@ use crate::{
         articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
         recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters}, MultibodyResult,
+    joint::{joint_transforms::JointTransforms, JointParameters},
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use csv::Writer;
 use mass_properties::{CenterOfMass, MassProperties};
+use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::{
-    fs::File,
-    io::BufWriter,
-    ops::{AddAssign, MulAssign},
-};
+use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 
 use super::{JointCache, JointModel, JointRef, JointStateVector};
@@ -357,43 +353,40 @@ impl JointModel for Floating {
         transforms.jif_from_jof = transforms.jof_from_jif.inv();
         transforms.update(inner_joint);
     }
-}
 
-impl MultibodyResult for Floating {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&[
-                "acceleration[x]",
-                "acceleration[y]",
-                "acceleration[z]",
-                "angular_accel[x]",
-                "angular_accel[y]",
-                "angular_accel[z]",
-                "angular_rate[x]",
-                "angular_rate[y]",
-                "angular_rate[z]",
-                "attitude[x]",
-                "attitude[y]",
-                "attitude[z]",
-                "attitude[w]",
-                "position[x]",
-                "position[y]",
-                "position[z]",
-                "tau_rotation[x]",
-                "tau_rotation[y]",
-                "tau_rotation[z]",
-                "tau_translation[x]",
-                "tau_translation[y]",
-                "tau_translation[z]",
-                "velocity[x]",
-                "velocity[y]",
-                "velocity[z]",
-            ])
-            .expect("Failed to write header");
+    fn result_headers(&self) -> &[&str] {
+        &[
+            "acceleration[x]",
+            "acceleration[y]",
+            "acceleration[z]",
+            "angular_accel[x]",
+            "angular_accel[y]",
+            "angular_accel[z]",
+            "angular_rate[x]",
+            "angular_rate[y]",
+            "angular_rate[z]",
+            "attitude[x]",
+            "attitude[y]",
+            "attitude[z]",
+            "attitude[w]",
+            "position[x]",
+            "position[y]",
+            "position[z]",
+            "tau_rotation[x]",
+            "tau_rotation[y]",
+            "tau_rotation[z]",
+            "tau_translation[x]",
+            "tau_translation[y]",
+            "tau_translation[z]",
+            "velocity[x]",
+            "velocity[y]",
+            "velocity[z]",
+        ]
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer.write_record(&[
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        results.write_record(id, 
+        &[
             self.cache.q_ddot[3].to_string(),
             self.cache.q_ddot[4].to_string(),
             self.cache.q_ddot[5].to_string(),
@@ -419,7 +412,7 @@ impl MultibodyResult for Floating {
             self.state.v[0].to_string(),
             self.state.v[1].to_string(),
             self.state.v[2].to_string(),
-        ]).expect("could not write floating result file");
+        ]);
     }
 }
 

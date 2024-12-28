@@ -1,13 +1,9 @@
-use std::{fs::File, io::BufWriter};
-
-use csv::Writer;
 use multibody::{
     body::BodyConnection,
     sensor::{
         noise::{Noise, NoiseModels},
         SensorModel,
     },
-    MultibodyResult,
 };
 use nalgebra::Vector3;
 use rotations::RotationTrait;
@@ -78,48 +74,34 @@ impl SensorModel for RateGyro {
             self.state.measurement = sensor_rate;
         }
     }
-}
 
-impl MultibodyResult for RateGyro {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        if let Some(_) = &self.parameters.noise {
-            writer
-                .write_record(&[
-                    "measurement[x]",
-                    "measurement[y]",
-                    "measurement[z]",
-                    "noise[x]",
-                    "noise[y]",
-                    "noise[z]",
-                ])
-                .expect("Failed to write header");
+    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
+        if let Some(noise) = &self.state.noise {
+            results.write_record(id,
+            &[
+            self.state.measurement[0].to_string(),
+            self.state.measurement[1].to_string(),
+            self.state.measurement[2].to_string(),
+            noise[0].to_string(),
+            noise[1].to_string(),
+            noise[2].to_string(),
+        ]);
         } else {
-            writer
-                .write_record(&["measurement[x]", "measurement[y]", "measurement[z]"])
-                .expect("Failed to write header");
+            results.write_record(id,
+            &[
+            self.state.measurement[0].to_string(),
+            self.state.measurement[1].to_string(),
+            self.state.measurement[2].to_string(),
+        ]);
         }
+        
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        if let Some(noise) = &self.state.noise {
-            writer
-                .write_record(&[
-                    self.state.measurement[0].to_string(),
-                    self.state.measurement[1].to_string(),
-                    self.state.measurement[2].to_string(),
-                    noise[0].to_string(),
-                    noise[1].to_string(),
-                    noise[2].to_string(),
-                ])
-                .expect("Failed to write rate gyro result file");
+    fn result_headers(&self) -> &[&str] {
+        if let Some(_) = &self.parameters.noise {
+            &["measurement[x]", "measurement[y]", "measurement[z]", "noise[x]", "noise[y]", "noise[z]"]
         } else {
-            writer
-                .write_record(&[
-                    self.state.measurement[0].to_string(),
-                    self.state.measurement[1].to_string(),
-                    self.state.measurement[2].to_string(),
-                ])
-                .expect("Failed to write rate gyro result file");
+            &["measurement[x]", "measurement[y]", "measurement[z]"]
         }
     }
 }

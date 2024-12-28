@@ -1,13 +1,9 @@
-use std::{fs::File, io::BufWriter};
-
-use csv::Writer;
 use multibody::{
     body::BodyConnection,
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
         SensorModel,
     },
-    MultibodyResult,
 };
 
 use rotations::{prelude::Quaternion, Rotation};
@@ -84,36 +80,31 @@ impl SensorModel for StarTracker {
         } // else keep as identity from initialization
         self.state.measurement = sensor_attitude;
     }
-}
 
-impl MultibodyResult for StarTracker {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&[
-                "measurement[x]",
-                "measurement[y]",
-                "measurement[z]",
-                "measurement[w]",
-                "noise[x]",
-                "noise[y]",
-                "noise[z]",
-                "noise[w]",
-            ])
-            .expect("Failed to write header");
+    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
+        let content = &[
+            self.state.measurement.x.to_string(),
+            self.state.measurement.y.to_string(),
+            self.state.measurement.z.to_string(),
+            self.state.measurement.s.to_string(),
+            self.state.noise.x.to_string(),
+            self.state.noise.y.to_string(),
+            self.state.noise.z.to_string(),
+            self.state.noise.s.to_string(),
+        ];
+        results.write_record(id, content);
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&[
-                self.state.measurement.x.to_string(),
-                self.state.measurement.y.to_string(),
-                self.state.measurement.z.to_string(),
-                self.state.measurement.s.to_string(),
-                self.state.noise.x.to_string(),
-                self.state.noise.y.to_string(),
-                self.state.noise.z.to_string(),
-                self.state.noise.s.to_string(),
-            ])
-            .expect("could not write star tracker result file");
+    fn result_headers(&self) -> &[&str] {
+        &[
+            "measurement[x]",
+            "measurement[y]",
+            "measurement[z]",
+            "measurement[w]",
+            "noise[x]",
+            "noise[y]",
+            "noise[z]",
+            "noise[w]",
+        ]
     }
 }

@@ -2,20 +2,16 @@ use crate::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm, recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters}, MultibodyResult,
+    joint::{joint_transforms::JointTransforms, JointParameters},
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
-use csv::Writer;
 use mass_properties::MassProperties;
+use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::{
-    fs::File,
-    io::BufWriter,
-    ops::{AddAssign, MulAssign},
-};
+use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 
 use super::{JointCache, JointModel, JointRef, JointStateVector};
@@ -128,22 +124,19 @@ impl JointModel for Prismatic {
         transforms.jif_from_jof = transforms.jof_from_jif.inv();
         transforms.update(inner_joint)
     }
-}
 
-impl MultibodyResult for Prismatic {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&["position", "velocity", "acceleration", "tau"])
-            .expect("Failed to write header");
+    fn result_headers(&self) -> &[&str] {
+        &["position", "velocity", "acceleration", "tau"]
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer.write_record(&[
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        results.write_record(id, 
+        &[
             self.state.position.to_string(),
             self.state.velocity.to_string(),
             self.cache.q_ddot.to_string(),
             self.cache.tau.to_string(),
-        ]).expect("could not write prismatic result file");
+        ]);
     }
 }
 

@@ -1,13 +1,9 @@
-use std::{fs::File, io::BufWriter};
-
-use csv::Writer;
 use multibody::{
     body::BodyConnection,
     sensor::{
         noise::{Noise, NoiseModels},
         SensorModel,
     },
-    MultibodyResult,
 };
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
@@ -37,6 +33,22 @@ pub struct Gps {
 }
 
 impl Gps {
+    pub fn new() -> Self {
+        Self {
+            parameters: Parameters {
+                delay: None,
+                position_noise: None,
+                velocity_noise: None,
+            },
+            state: State {
+                time: Time::from_sec_j2k(0.0,time::TimeSystem::GPS),
+                position: Vector3::zeros(),
+                velocity: Vector3::zeros(),
+                position_noise: None,
+                velocity_noise: None,
+            },
+        }
+    }
     #[allow(dead_code)]
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);
@@ -98,31 +110,10 @@ impl SensorModel for Gps {
             self.state.velocity = true_velocity;
         }        
     }
-}
 
-impl MultibodyResult for Gps {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {    
-        writer
-            .write_record(&[
-                "position[x]",
-                "position[y]",
-                "position[z]",                    
-                "velocity[x]",
-                "velocity[y]",
-                "velocity[z]",                    
-                "position_noise[x]",
-                "position_noise[y]",
-                "position_noise[z]",
-                "velocity_noise[x]",
-                "velocity_noise[y]",
-                "velocity_noise[z]",
-            ])
-            .expect("Failed to write header");        
-    }
-
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {        
-        writer
-            .write_record(&[
+    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
+        results.write_record(id, 
+        &[
                 self.state.position[0].to_string(),
                 self.state.position[1].to_string(),
                 self.state.position[2].to_string(),
@@ -134,8 +125,24 @@ impl MultibodyResult for Gps {
                 self.state.position_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),
                 self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[0].to_string()),
                 self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[1].to_string()),
-                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),                
-            ])
-            .expect("Failed to write gps result file");        
+                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),
+            ]);
+    }
+
+    fn result_headers(&self) -> &[&str] {
+        &[
+            "position[x]",
+            "position[y]",
+            "position[z]",                    
+            "velocity[x]",
+            "velocity[y]",
+            "velocity[z]",                    
+            "position_noise[x]",
+            "position_noise[y]",
+            "position_noise[z]",
+            "velocity_noise[x]",
+            "velocity_noise[y]",
+            "velocity_noise[z]",
+        ]
     }
 }

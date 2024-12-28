@@ -7,21 +7,17 @@ use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     base::{BaseConnection, BaseRef},
-    body::{BodyConnection, BodyRef}, MultibodyResult,
+    body::{BodyConnection, BodyRef},
 };
-use csv::Writer;
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
+use nadir_result::{NadirResult, ResultManager};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use utilities::initialize_writer;
 use std::{
     cell::RefCell,
     fmt::Debug,
-    fs::File,
-    io::BufWriter,
     ops::{AddAssign, MulAssign},
-    path::PathBuf,
     rc::Rc,
 };
 use thiserror::Error;
@@ -45,7 +41,7 @@ pub type JointRef = Rc<RefCell<Joint>>;
 
 #[typetag::serde]
 pub trait JointModel:
-    CloneJointModel + Debug + MultibodyResult + ArticulatedBodyAlgorithm
+    CloneJointModel + Debug + ArticulatedBodyAlgorithm
 {
     fn calculate_joint_inertia(
         &mut self,
@@ -72,6 +68,8 @@ pub trait JointModel:
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     );
+    fn result_headers(&self) -> &[&str];
+    fn result_content(&self, id: u32, results: &mut ResultManager);
 }
 pub trait CloneJointModel {
     fn clone_model(&self) -> Box<dyn JointModel>;
@@ -100,6 +98,7 @@ pub struct Joint {
     pub cache: JointCache,
     #[serde(skip)]
     pub inner_joint: Option<JointRef>, //index of the parent joint
+    result_id: Option<u32>,
 }
 
 impl Joint {
@@ -138,6 +137,7 @@ impl Joint {
             connections: JointConnection::default(),
             cache: JointCache::default(),
             inner_joint: None,
+            result_id: None,
         })
     }
     /// Calculates the mass properties about the joint given mass properties at the outer body
@@ -216,18 +216,27 @@ impl Joint {
         self.model
             .update_transforms(&mut self.cache.transforms, &self.inner_joint);
     }
+}
 
-    pub fn initialize_writer(&self, result_folder_path: &PathBuf) -> Writer<BufWriter<File>> {
+impl NadirResult for Joint {
+    fn new_result(&mut self,results: &mut ResultManager) {
         // Define the joints subfolder folder path
-        let joints_folder_path = result_folder_path.join("joints");
-
+        let joints_folder_path = results.result_path.join("joints");
         // Check if the folder exists, if not, create it
         if !joints_folder_path.exists() {
             std::fs::create_dir_all(&joints_folder_path).expect("Failed to create bodies folder");
         }
+        // Get the headers from the joint model
+        let headers = self.model.result_headers();
+        // Create the writer and assign its id
+        let id = results.new_writer(&self.name.clone(), &joints_folder_path, headers);
+        self.result_id = Some(id);
+    }    
 
-        // Initialize writer using the updated path
-        initialize_writer(self.name.clone(), &joints_folder_path)
+    fn write_result(&self, results: &mut ResultManager) {
+        if let Some(id) = self.result_id {
+            self.model.result_content(id, results);
+        }        
     }
 }
 

@@ -1,12 +1,12 @@
+use std::{cell::RefCell, rc::Rc};
+
 use color::Color;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    body::Body,
-    joint::{
+    base::Base, body::{Body, BodyTrait}, joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
-    },
-    system::MultibodySystem,
+    }, system::MultibodySystem
 };
 
 use nadir_3d::{
@@ -17,19 +17,18 @@ use nadir_3d::{
 use transforms::Transform;
 
 fn main() {
-    // Create the MultibodySystem
-    // sys is will be created with nothing but a default base
-    let mut sys = MultibodySystem::new();
+    let base = Base::new("base", multibody::base::BaseSystems::Basic(None));
+
+    // create a floating joint
     let state = FloatingState::new()
         .with_rates([1.0, 0.0, 1.0].into())
         .with_velocity([0.0, 1.0, 0.0].into());
 
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
-    let f = Joint::new("f", f_model).unwrap();
-    sys.add_joint(f).unwrap();
-
-    // Create the main body of the spacecraft
+    let f = Rc::new(RefCell::new(Joint::new("f", f_model).unwrap()));
+    
+    // Create the a body
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(1000.0, cm, inertia).unwrap();
@@ -46,14 +45,21 @@ fn main() {
         texture: None,
     };
 
-    let b = Body::new("b", mp).unwrap().with_mesh(mesh);
-    sys.add_body(b).unwrap();
+    let b = Rc::new(RefCell::new(Body::new("b", mp).unwrap().with_mesh(mesh)));
 
     // Connect the components together.
     // Connections are made by the components names.
     // The direction of the connection matters - (from,to)
-    sys.connect("base", "f", Transform::IDENTITY).unwrap();
-    sys.connect("f", "b", Transform::IDENTITY).unwrap();
+    // base.borrow_mut().connect_outer_joint(&f);
+    // f.borrow_mut().connect_base(&base,Transform::IDENTITY);
+    // f.borrow_mut().connect_outer_body(&b,Transform::IDENTITY);
+    // b.borrow_mut().connect_inner_joint(&f);
+    base.borrow_mut().connect_outer_joint(&f).unwrap();
+    f.borrow_mut().connect_base(&base, Transform::IDENTITY).unwrap();
+    b.borrow_mut().connect_inner_joint(&f).unwrap();
+    f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY).unwrap();
+
+    let mut sys = MultibodySystem::new(base, [b], [f], (), (), ());
     // Run the simulation
     sys.simulate("", 0.0, 10.0, 0.1);
 }

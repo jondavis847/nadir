@@ -12,6 +12,7 @@ nadir_3d.workspace = true
 rotations.workspace = true
 spatial_algebra.workspace = true
 mass_properties.workspace = true
+nadir_result.workspace = true
 utilities.workspace = true
 time.workspace = true
 ambassador.workspace = true

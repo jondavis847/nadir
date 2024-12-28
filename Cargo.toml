@@ -22,7 +22,7 @@ members = [
     "spice", 
     "transforms", 
     "utilities",
-    "time", "plotting", 
+    "time", "plotting", "nadir_result", 
 ]
 resolver = "2"
 
@@ -36,6 +36,7 @@ mass_properties = {path = "mass_properties"}
 multibody = {path = "multibody"}  
 nadir = {path = "nadir"}  
 nadir_3d = {path = "nadir_3d"} 
+nadir_result = {path = "nadir_result"}
 plotting = {path = "plotting"}
 rotations = {path = "rotations"} 
 software = {path = "software"} 

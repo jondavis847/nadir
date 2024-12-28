@@ -1,5 +1,7 @@
+use nadir_result::ResultManager;
+
 use crate::{
-    actuator::ActuatorSystem, joint::JointStates, sensor::SensorSystem, software::SoftwareSystem, system::{MultibodySystem, ResultWriters}, MultibodyErrors
+    actuator::ActuatorSystem, joint::JointStates, sensor::SensorSystem, software::SoftwareSystem, system::MultibodySystem, MultibodyErrors
 };
 
 pub fn solve_fixed_rk4<A,F,S>(
@@ -7,11 +9,11 @@ pub fn solve_fixed_rk4<A,F,S>(
     tstart: f64,
     tstop: f64,
     mut dt: f64,
-    writers: &mut ResultWriters,
+    results: &mut ResultManager,
 ) -> Result<(), MultibodyErrors> 
 where 
 A: ActuatorSystem, 
-F: SoftwareSystem, 
+F: SoftwareSystem<Actuators = A, Sensors = S>,
 S: SensorSystem{
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
@@ -43,7 +45,7 @@ S: SensorSystem{
     // RUN THE RK4 LOOP
     for _ in 0..result_length {
         // update sensors
-        sys.sensors.iter_mut().for_each(|sensor| sensor.update());
+        sys.sensors.update();
 
         // logic to change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {
@@ -59,12 +61,13 @@ S: SensorSystem{
         sys.run(&mut k1, &tmp, t);
         //dbg!(&k1);
 
-        // update the results vectors here since we just updated all secondary states based on integrated state 'x'
+        // run software and update the results vectors here since we just updated all secondary states based on integrated state 'x'
         // NOTE: This may not be true for all solvers! This just saves us one function call
         // If not, call sys.run one more time before or after the stages to update
         // (or only call what's needed to update secondary states instead of sys.run)
         // add initial conditions to results storage
-        sys.write_result_files(t, writers);
+        sys.run_software();
+        sys.write_result_files(t, results);
 
         //println!("k2");
         // calculate k2 = f(x + 0.5*k1 , t + 0.5dt)
@@ -105,8 +108,8 @@ S: SensorSystem{
 
         t += dt;
     }
-    // flush the writers
-    writers.flush();
 
+    results.flush();
+    
     Ok(())
 }

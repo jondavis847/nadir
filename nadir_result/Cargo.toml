@@ -1,0 +1,10 @@
+[package]
+name = "nadir_result"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ambassador.workspace = true
+csv.workspace = true

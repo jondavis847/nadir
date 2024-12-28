@@ -1,10 +1,10 @@
 use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    joint::{joint_transforms::JointTransforms, JointModel, JointParameters}, MultibodyResult,
+    joint::{joint_transforms::JointTransforms, JointModel, JointParameters},
 };
 use coordinate_systems::CoordinateSystem;
-use csv::Writer;
 use mass_properties::MassProperties;
+use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
@@ -12,11 +12,7 @@ use rotations::{
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::{
-    fs::File,
-    io::BufWriter,
-    ops::{AddAssign, MulAssign},
-};
+use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
 
@@ -68,22 +64,6 @@ impl Revolute {
             state,
             ..Default::default()
         }
-    }
-
-    pub fn initialize_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&["theta", "omega", "alpha", "tau"])
-            .expect(&format!("could not write to file"));
-    }
-    pub fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&[
-                self.state.theta.to_string(),
-                self.state.omega.to_string(),
-                self.cache.q_ddot.to_string(),
-                self.cache.tau.to_string(),
-            ])
-            .expect(&format!("could not write to file"));
     }
 }
 
@@ -144,22 +124,20 @@ impl JointModel for Revolute {
         transforms.jif_from_jof = transforms.jof_from_jif.inv();
         transforms.update(inner_joint)
     }
-}
 
-impl MultibodyResult for Revolute {
-    fn initialize_result(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer
-            .write_record(&["theta", "omega", "alpha", "tau"])
-            .expect("Failed to write header");
+
+    fn result_headers(&self) -> &[&str] {
+        &["theta", "omega", "alpha", "tau"]
     }
 
-    fn write_result_file(&self, writer: &mut Writer<BufWriter<File>>) {
-        writer.write_record(&[
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        results.write_record(id, 
+        &[
             self.state.theta.to_string(),
             self.state.omega.to_string(),
             self.cache.q_ddot.to_string(),
             self.cache.tau.to_string(),
-        ]).expect("could not write revolute result file");
+        ]);
     }
 }
 
