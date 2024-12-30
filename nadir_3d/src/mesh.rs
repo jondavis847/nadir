@@ -1,9 +1,9 @@
-use glam::{Mat3, Mat4, DQuat, DVec3};
-use iced::widget::shader::wgpu;
-use serde::{Deserialize, Serialize};
 use super::geometry::{Geometry, GeometryState, GeometryTrait};
 use super::material::Material;
 use super::texture::Texture;
+use glam::{DQuat, DVec3, Mat3, Mat4};
+use iced::widget::shader::wgpu;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Mesh {
@@ -32,8 +32,8 @@ pub struct MeshGpu {
     normal: Mat3,         // 9 * 4 = 36 bytes
     color: [f32; 4],      // 16 bytes
     material: u32,        // 4
-    specular_power: f32,  // 4   
-    _padding: f32, 
+    specular_power: f32,  // 4
+    _padding: f32,
 }
 
 impl MeshGpu {
@@ -74,8 +74,8 @@ impl From<&Mesh> for MeshGpu {
             normal: transforms.normal_matrix,
             color: color.into(),
             material,
-            specular_power,      
-            _padding: 0.0,      
+            specular_power,
+            _padding: 0.0,
         }
     }
 }
@@ -101,8 +101,8 @@ impl From<&Mesh> for MeshPrimitive {
             normal: transforms.normal_matrix,
             color: color.into(),
             material,
-            specular_power,  
-            _padding: 0.0,          
+            specular_power,
+            _padding: 0.0,
         };
 
         MeshPrimitive {

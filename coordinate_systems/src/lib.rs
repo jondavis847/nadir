@@ -1,5 +1,5 @@
 use nalgebra::Vector3;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub mod cartesian;
 pub mod cylindrical;

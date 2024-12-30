@@ -41,7 +41,7 @@ impl Default for State {
             position,
             velocity,
             orbit,
-            sun_position
+            sun_position,
         }
     }
 }
@@ -69,38 +69,41 @@ impl OrbitDetermination {
 }
 
 impl NadirResult for OrbitDetermination {
-    fn new_result(&mut self,results: &mut ResultManager) {
-         // Define the actuator subfolder folder path
-         let fsw_folder_path = results.result_path.join("software");
+    fn new_result(&mut self, results: &mut ResultManager) {
+        // Define the actuator subfolder folder path
+        let fsw_folder_path = results.result_path.join("software");
 
-         // Check if the folder exists, if not, create it
-         if !fsw_folder_path.exists() {
-             std::fs::create_dir_all(&fsw_folder_path).expect("Failed to create fsw folder");
-         }
- 
-         // Initialize writer using the updated path
-         let headers = [
+        // Check if the folder exists, if not, create it
+        if !fsw_folder_path.exists() {
+            std::fs::create_dir_all(&fsw_folder_path).expect("Failed to create fsw folder");
+        }
+
+        // Initialize writer using the updated path
+        let headers = [
             "position[x]",
             "position[y]",
             "position[z]",
             "velocity[x]",
             "velocity[y]",
-            "velocity[z]",            
-            ];
-         let id = results.new_writer("fsw_nav_od", &fsw_folder_path, &headers);
-         self.result_id = Some(id);        
+            "velocity[z]",
+        ];
+        let id = results.new_writer("fsw_nav_od", &fsw_folder_path, &headers);
+        self.result_id = Some(id);
     }
 
-    fn write_result(&self,results: &mut ResultManager) {
+    fn write_result(&self, results: &mut ResultManager) {
         if let Some(id) = self.result_id {
-            results.write_record(id, &[
-                self.state.position[0].to_string(),
-                self.state.position[1].to_string(),
-                self.state.position[2].to_string(),
-                self.state.velocity[0].to_string(),
-                self.state.velocity[1].to_string(),
-                self.state.velocity[2].to_string(),
-            ]);
-        }        
+            results.write_record(
+                id,
+                &[
+                    self.state.position[0].to_string(),
+                    self.state.position[1].to_string(),
+                    self.state.position[2].to_string(),
+                    self.state.velocity[0].to_string(),
+                    self.state.velocity[1].to_string(),
+                    self.state.velocity[2].to_string(),
+                ],
+            );
+        }
     }
 }

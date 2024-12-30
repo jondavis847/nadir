@@ -58,7 +58,6 @@ pub fn format_duration(duration: Duration) -> String {
     }
 }
 
-
 /// Combines two vectors of strings and returns a vector containing only the unique strings,
 /// preserving the order of their first appearance.
 ///

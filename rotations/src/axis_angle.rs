@@ -1,7 +1,6 @@
-use nalgebra::Vector3;
 use crate::quaternion::Quaternion;
+use nalgebra::Vector3;
 use thiserror::Error;
-
 
 use crate::RotationTrait;
 

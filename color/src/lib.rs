@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug,Clone,Copy,Eq,PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ColorMode {
     Preset,
     Rgba,
@@ -55,7 +55,6 @@ impl Color {
         b: 0.0,
         a: 1.0,
     };
-
 
     pub const WHITE: Self = Self {
         r: 1.0,

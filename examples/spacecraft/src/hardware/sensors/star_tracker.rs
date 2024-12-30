@@ -61,7 +61,6 @@ impl StarTracker {
 }
 
 impl SensorModel for StarTracker {
-
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let body_to_st = Quaternion::from(&connection.transform.rotation);

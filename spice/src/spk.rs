@@ -2,19 +2,19 @@ use super::{
     daf::{DafData, Segment},
     SpiceErrors,
 };
-use crate::{SpiceBodies, SpiceFileTypes, check_naif};
+use crate::{check_naif, SpiceBodies, SpiceFileTypes};
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SpiceSpk{
+pub struct SpiceSpk {
     daf: DafData,
     last_modified: String,
 }
 
 impl SpiceSpk {
-
-    const SPK_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp";
+    const SPK_BPC: &'static str =
+        "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp";
 
     pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
         check_naif(SpiceSpk::SPK_BPC, self.last_modified.clone())
@@ -32,7 +32,8 @@ impl SpiceSpk {
         let start = std::time::Instant::now();
         print!("Getting latest spk file from naif website...");
         io::stdout().flush().expect("spice could not flush io");
-        let response = reqwest::blocking::get(SpiceSpk::SPK_BPC).expect("spice could not make http get request");
+        let response = reqwest::blocking::get(SpiceSpk::SPK_BPC)
+            .expect("spice could not make http get request");
 
         // Get the Last-Modified header if it exists
         let last_modified = response

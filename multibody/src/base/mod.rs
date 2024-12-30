@@ -43,7 +43,9 @@ pub struct Base {
 impl Base {
     pub fn new(name: &str, system: BaseSystems) -> BaseRef {
         Rc::new(RefCell::new(Base {
-            name: name.to_string(), system, outer_joints: Vec::new()
+            name: name.to_string(),
+            system,
+            outer_joints: Vec::new(),
         }))
     }
 

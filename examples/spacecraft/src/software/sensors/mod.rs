@@ -1,8 +1,8 @@
 use gps::GpsFsw;
 use imu::RateGyroFsw;
+use nadir_result::{NadirResult, ResultManager};
 use serde::{Deserialize, Serialize};
 use star_tracker::StarTrackerFsw;
-use nadir_result::{NadirResult, ResultManager};
 
 use crate::hardware::sensors::SpacecraftSensors;
 
@@ -10,15 +10,15 @@ pub mod gps;
 pub mod imu;
 pub mod star_tracker;
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SensorFsw {
     pub gps: GpsFsw,
     pub imu: RateGyroFsw,
-    pub st: StarTrackerFsw    
+    pub st: StarTrackerFsw,
 }
 
 impl SensorFsw {
-    pub fn run(&mut self, sensors: &SpacecraftSensors) {        
+    pub fn run(&mut self, sensors: &SpacecraftSensors) {
         self.gps.run(&sensors.gps.model);
         self.imu.run(&sensors.imu.model);
         self.st.run(&sensors.st.model);

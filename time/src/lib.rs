@@ -1,9 +1,9 @@
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::{
     ops::{Add, Sub},
     time::Duration,
 };
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const JD_J2000: f64 = 2451545.0;
@@ -11,7 +11,7 @@ pub const SEC_PER_DAY: f64 = 86400.0;
 pub const DAYS_PER_CENTURY: f64 = 36525.0;
 
 pub mod prelude {
-    pub use crate::{Time,TimeSystem,TimeFormat,TimeErrors};
+    pub use crate::{Time, TimeErrors, TimeFormat, TimeSystem};
 }
 
 //https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/latest_leapseconds.tls
@@ -53,7 +53,7 @@ pub enum TimeErrors {
     #[error("Invalid UTC time")]
     InvalidUtcTime,
     #[error("Invalid date time")]
-    NaiveDateTimeError,    
+    NaiveDateTimeError,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, Eq)]
@@ -71,7 +71,6 @@ pub enum TimeFormat {
     DayOfYear,
     JulianDate,
     SecondsSinceJ2000,
-
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
@@ -100,8 +99,12 @@ impl Time {
         let float_seconds = (doy - day) * 86400.0;
         let seconds = float_seconds.floor();
         let nanoseconds = ((float_seconds - seconds) * 1e9).round();
-        let time = NaiveTime::from_num_seconds_from_midnight_opt(seconds as u32, nanoseconds as u32).unwrap();
-        let datetime = NaiveDate::from_yo_opt(year, day as u32).unwrap().and_time(time);
+        let time =
+            NaiveTime::from_num_seconds_from_midnight_opt(seconds as u32, nanoseconds as u32)
+                .unwrap();
+        let datetime = NaiveDate::from_yo_opt(year, day as u32)
+            .unwrap()
+            .and_time(time);
 
         Self::from_datetime(datetime, system)
     }
@@ -232,7 +235,6 @@ impl Sub<Time> for Time {
         self.value.0 - rhs.value.0
     }
 }
-
 
 // will be accuruate for 285 million years at f64 precision
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]

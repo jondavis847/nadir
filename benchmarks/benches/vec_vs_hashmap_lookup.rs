@@ -1,10 +1,9 @@
 // running this, Vec was 4 ns, HashMap was 10 ns... we should just use HashMaps
 
-
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use uuid::Uuid;
 use nalgebra::Vector3;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct A {

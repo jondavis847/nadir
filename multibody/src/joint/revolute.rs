@@ -1,6 +1,7 @@
 use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
     joint::{joint_transforms::JointTransforms, JointModel, JointParameters},
+    solver::SimStateVector,
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
@@ -16,7 +17,7 @@ use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
 
-use super::{JointCache, JointRef, JointStateVector};
+use super::{JointCache, JointRef};
 #[derive(Debug, Copy, Clone, Error)]
 pub enum RevoluteErrors {}
 
@@ -96,16 +97,16 @@ impl JointModel for Revolute {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut JointStateVector, _transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
         derivative.0[0] = self.state.omega;
         derivative.0[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> JointStateVector {
-        JointStateVector(vec![self.state.theta, self.state.omega])
+    fn state_vector_init(&self) -> SimStateVector {
+        SimStateVector(vec![self.state.theta, self.state.omega])
     }
 
-    fn state_vector_read(&mut self, state: &JointStateVector) {
+    fn state_vector_read(&mut self, state: &SimStateVector) {
         self.state.theta = state.0[0];
         self.state.omega = state.0[1];
     }
@@ -125,19 +126,20 @@ impl JointModel for Revolute {
         transforms.update(inner_joint)
     }
 
-
     fn result_headers(&self) -> &[&str] {
         &["theta", "omega", "alpha", "tau"]
     }
 
     fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(id, 
-        &[
-            self.state.theta.to_string(),
-            self.state.omega.to_string(),
-            self.cache.q_ddot.to_string(),
-            self.cache.tau.to_string(),
-        ]);
+        results.write_record(
+            id,
+            &[
+                self.state.theta.to_string(),
+                self.state.omega.to_string(),
+                self.cache.q_ddot.to_string(),
+                self.cache.tau.to_string(),
+            ],
+        );
     }
 }
 

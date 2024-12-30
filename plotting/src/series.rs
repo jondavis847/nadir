@@ -11,7 +11,7 @@ pub struct SeriesMap {
 }
 
 impl SeriesMap {
-    pub fn new(axes: (usize,usize)) -> Self {
+    pub fn new(axes: (usize, usize)) -> Self {
         Self {
             map: Vec::new(),
             xmax: -f32::INFINITY,

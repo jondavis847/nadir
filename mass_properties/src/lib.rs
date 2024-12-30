@@ -1,4 +1,7 @@
-use std::{error::Error, fmt::{self, Display}};
+use std::{
+    error::Error,
+    fmt::{self, Display},
+};
 
 use nalgebra::{Matrix3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -208,10 +211,9 @@ impl From<Matrix3<f64>> for Inertia {
     }
 }
 
-
 /// Enum representing possible errors when creating or modifying `MassProperties`.
 #[derive(Debug)]
-pub enum MassPropertiesErrors {    
+pub enum MassPropertiesErrors {
     InertiaErrors(InertiaErrors),
     MassLessThanOrEqualToZero,
 }
@@ -220,7 +222,9 @@ impl Display for MassPropertiesErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InertiaErrors(e) => writeln!(f, "Inertia Error: {e}"),
-            Self::MassLessThanOrEqualToZero => writeln!(f, "Mass cannot be less than or equal to zero."),            
+            Self::MassLessThanOrEqualToZero => {
+                writeln!(f, "Mass cannot be less than or equal to zero.")
+            }
         }
     }
 }
@@ -235,7 +239,6 @@ pub struct MassProperties {
     pub mass: f64,
     pub inertia: Inertia,
 }
-
 
 impl Default for MassProperties {
     fn default() -> Self {

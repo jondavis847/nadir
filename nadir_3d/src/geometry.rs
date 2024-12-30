@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glam::{Mat3, Mat4, DQuat, DVec3};
+use glam::{DQuat, DVec3, Mat3, Mat4};
 use serde::{Deserialize, Serialize};
 
 pub mod cuboid;
@@ -8,7 +8,7 @@ pub mod cuboid;
 pub mod ellipsoid;
 
 use cuboid::Cuboid;
-use ellipsoid::{Ellipsoid16,Ellipsoid32,Ellipsoid64};
+use ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64};
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Geometry {
@@ -51,5 +51,5 @@ impl GeometryTrait for Geometry {
             Geometry::Ellipsoid32(geometry) => geometry.get_mesh_transform(state),
             Geometry::Ellipsoid64(geometry) => geometry.get_mesh_transform(state),
         }
-    }    
+    }
 }

@@ -44,7 +44,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut array_vec_3: ArrayVec<BodyNoString, 100> = ArrayVec::new();
     let mut vec_3 = Vec::new();
     let mut array_vec_3_5: ArrayVec<BodyNoString, 5> = ArrayVec::new();
-    let array_3_5 = [body,body,body,body,body];
+    let array_3_5 = [body, body, body, body, body];
     for _i in 0..3 {
         array_vec_3.push(body.clone());
         vec_3.push(body.clone());

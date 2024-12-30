@@ -1,14 +1,16 @@
 use crate::{
-    actuator::ActuatorSystem, base::{BaseRef, BaseSystems}, body::BodyRef, joint::{InnerBody, JointRef, JointStates}, sensor::SensorSystem, software::SoftwareSystem, solver::rk4::solve_fixed_rk4
+    actuator::ActuatorSystem,
+    base::{BaseRef, BaseSystems},
+    body::BodyRef,
+    joint::{InnerBody, JointRef},
+    sensor::SensorSystem,
+    software::SoftwareSystem,
+    solver::{rk4::solve_fixed_rk4, SimStates},
 };
 
-use super::{
-    algorithms::MultibodyAlgorithm,
-    body::Body,    
-    MultibodyErrors,
-};
+use super::{algorithms::MultibodyAlgorithm, body::Body, MultibodyErrors};
 
-use nadir_result::{NadirResult,ResultManager};
+use nadir_result::{NadirResult, ResultManager};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spice::Spice;
@@ -23,12 +25,12 @@ use std::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MultibodySystem<A=(),F=(),S=()> 
-    where 
-    A: ActuatorSystem,    
+pub struct MultibodySystem<A = (), F = (), S = ()>
+where
+    A: ActuatorSystem,
     F: SoftwareSystem,
-    S: SensorSystem,  
-    {
+    S: SensorSystem,
+{
     pub actuators: A,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseRef,
@@ -40,11 +42,20 @@ pub struct MultibodySystem<A=(),F=(),S=()>
     pub sim_time_id: Option<u32>,
 }
 
-impl<A,F,S> MultibodySystem<A,F,S> where 
-A: ActuatorSystem,    
-F: SoftwareSystem<Actuators = A, Sensors = S>,
-S: SensorSystem,   {
-    pub fn new<const B: usize, const J: usize>(base: BaseRef, bodies: [BodyRef;B], joints: [JointRef;J], sensors: S, software: F, actuators:A) -> Self {
+impl<A, F, S> MultibodySystem<A, F, S>
+where
+    A: ActuatorSystem,
+    F: SoftwareSystem<Actuators = A, Sensors = S>,
+    S: SensorSystem,
+{
+    pub fn new<const B: usize, const J: usize>(
+        base: BaseRef,
+        bodies: [BodyRef; B],
+        joints: [JointRef; J],
+        sensors: S,
+        software: F,
+        actuators: A,
+    ) -> Self {
         Self {
             actuators,
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
@@ -67,17 +78,17 @@ S: SensorSystem,   {
         self.sensors = sensors;
         self
     }
-    
 
     pub fn with_software(mut self, software: F) -> Self {
         self.software = software;
         self
     }
 
-    fn write_derivative(&self, dx: &mut JointStates) {
+    fn write_derivative(&self, dx: &mut SimStates) {
         for (i, joint) in self.joints.iter().enumerate() {
             joint.borrow().state_derivative(&mut dx.0[i]);
         }
+        self.actuators.state_derivative(dx);
     }
 
     /// Reorders the bodies and joints appropraitely at the start of the multibody simulation
@@ -86,15 +97,16 @@ S: SensorSystem,   {
         let mut body_order = Vec::new();
 
         // Helper function to recursively traverse joints and bodies
-        fn traverse_body<A,F,S>(
-            sys: &MultibodySystem<A,F,S>,
+        fn traverse_body<A, F, S>(
+            sys: &MultibodySystem<A, F, S>,
             body_rc: &Rc<RefCell<Body>>,
             joint_order: &mut Vec<usize>,
             body_order: &mut Vec<usize>,
-        ) where 
-        A: ActuatorSystem,    
-        F: SoftwareSystem,
-        S: SensorSystem,   {
+        ) where
+            A: ActuatorSystem,
+            F: SoftwareSystem,
+            S: SensorSystem,
+        {
             let body = body_rc.borrow();
             body_order.push(
                 sys.bodies
@@ -166,12 +178,12 @@ S: SensorSystem,   {
         }
     }
 
-    pub fn run(&mut self, dx: &mut JointStates, x: &JointStates, t: f64) {
+    pub fn run(&mut self, dx: &mut SimStates, x: &SimStates, t: f64) {
         self.set_state(x); // write the integrated states back in to the joints
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-                                   // self.update_actuators(); // run the actuators after software has produced commands and before updating forces on the body
+        self.actuators.update(); // run the actuators before updating forces on the body
         self.update_forces(); // update forces after body states for position based gravity calcs
 
         match self.algorithm {
@@ -261,8 +273,8 @@ S: SensorSystem,   {
         self.write_derivative(dx);
     }
 
-    pub fn run_software(&mut self) {        
-        self.software.run(&self.sensors, &mut self.actuators);         
+    pub fn run_software(&mut self) {
+        self.software.run(&self.sensors, &mut self.actuators);
     }
 
     pub fn save(&self, path: &Path) {
@@ -287,10 +299,11 @@ S: SensorSystem,   {
         }
     }
 
-    fn set_state(&mut self, states: &JointStates) {
+    fn set_state(&mut self, states: &SimStates) {
         for (i, joint) in self.joints.iter().enumerate() {
             joint.borrow_mut().model.state_vector_read(&states.0[i]);
         }
+        self.actuators.state_vector_read(states);
     }
 
     pub fn simulate(&mut self, sim_name: &str, tstart: f64, tstop: f64, dt: f64) {
@@ -301,8 +314,8 @@ S: SensorSystem,   {
         };
         let (result_path, sim_name) = self.get_result_path_and_sim_name(sim_name);
         // initialize the result manager
-        create_dir_all(&result_path).expect("result folder already exists");        
-        let mut results = self.initialize_writers(result_path);    
+        create_dir_all(&result_path).expect("result folder already exists");
+        let mut results = self.initialize_writers(result_path);
 
         // sort the bodies and joints based on multibody tree philosophy
         self.permute();
@@ -356,6 +369,8 @@ S: SensorSystem,   {
     }
 
     fn update_forces(&mut self) {
+        // forces wee already reset and updated from actuators in self.actuators.update()
+        // TODO: i dont like this, too inconsistnet, do the updating here
         for bodyrc in self.bodies.iter_mut() {
             let mut body = bodyrc.borrow_mut();
             let inner_joint_weak = body.inner_joint.as_mut().unwrap();
@@ -393,10 +408,10 @@ S: SensorSystem,   {
             joint.calculate_vj();
             joint.model.calculate_tau();
         }
-    }    
+    }
 
-    pub fn update_sensors(&mut self) {        
-        self.sensors.update();        
+    pub fn update_sensors(&mut self) {
+        self.sensors.update();
     }
 
     fn get_result_path_and_sim_name(&self, sim_name: &str) -> (PathBuf, String) {
@@ -494,34 +509,33 @@ S: SensorSystem,   {
         let mut results = ResultManager::new(results_path.clone());
         let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
         self.sim_time_id = Some(id);
-        
+
         for body in &self.bodies {
             let mut body = body.borrow_mut();
-            body.new_result(&mut results);            
+            body.new_result(&mut results);
         }
 
         for joint in &self.joints {
             let mut joint = joint.borrow_mut();
             joint.new_result(&mut results);
         }
-        
+
         self.sensors.initialize_results(&mut results);
         self.actuators.initialize_results(&mut results);
-        self.software.initialize_results(&mut results);        
+        self.software.initialize_results(&mut results);
 
         match &mut self.base.borrow_mut().system {
-            BaseSystems::Basic(_) => {},
-            BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results)
+            BaseSystems::Basic(_) => {}
+            BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results),
         }
         results
     }
 
-    pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {        
+    pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {
         if let Some(id) = self.sim_time_id {
             results.write_record(id, &[t.to_string()]);
         }
-        
-        
+
         for body in &self.bodies {
             let body = body.borrow();
             body.write_result(results);
@@ -530,15 +544,15 @@ S: SensorSystem,   {
         for joint in &self.joints {
             let joint = joint.borrow();
             joint.write_result(results);
-        }        
-        
-        self.sensors.write_results(results);        
+        }
+
+        self.sensors.write_results(results);
         self.actuators.write_results(results);
         self.software.write_results(results);
 
         match &self.base.borrow().system {
             BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => celestial.write_results(results)
+            BaseSystems::Celestial(celestial) => celestial.write_results(results),
         }
     }
 }

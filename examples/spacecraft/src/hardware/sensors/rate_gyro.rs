@@ -77,29 +77,39 @@ impl SensorModel for RateGyro {
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
         if let Some(noise) = &self.state.noise {
-            results.write_record(id,
-            &[
-            self.state.measurement[0].to_string(),
-            self.state.measurement[1].to_string(),
-            self.state.measurement[2].to_string(),
-            noise[0].to_string(),
-            noise[1].to_string(),
-            noise[2].to_string(),
-        ]);
+            results.write_record(
+                id,
+                &[
+                    self.state.measurement[0].to_string(),
+                    self.state.measurement[1].to_string(),
+                    self.state.measurement[2].to_string(),
+                    noise[0].to_string(),
+                    noise[1].to_string(),
+                    noise[2].to_string(),
+                ],
+            );
         } else {
-            results.write_record(id,
-            &[
-            self.state.measurement[0].to_string(),
-            self.state.measurement[1].to_string(),
-            self.state.measurement[2].to_string(),
-        ]);
+            results.write_record(
+                id,
+                &[
+                    self.state.measurement[0].to_string(),
+                    self.state.measurement[1].to_string(),
+                    self.state.measurement[2].to_string(),
+                ],
+            );
         }
-        
     }
 
     fn result_headers(&self) -> &[&str] {
         if let Some(_) = &self.parameters.noise {
-            &["measurement[x]", "measurement[y]", "measurement[z]", "noise[x]", "noise[y]", "noise[z]"]
+            &[
+                "measurement[x]",
+                "measurement[y]",
+                "measurement[z]",
+                "noise[x]",
+                "noise[y]",
+                "noise[z]",
+            ]
         } else {
             &["measurement[x]", "measurement[y]", "measurement[z]"]
         }

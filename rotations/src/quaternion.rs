@@ -554,13 +554,12 @@ impl From<&RotationMatrix> for Quaternion {
 }
 
 impl From<&AxisAngle> for Quaternion {
-    fn from(axis_angle: &AxisAngle) ->Self {
-        
+    fn from(axis_angle: &AxisAngle) -> Self {
         let half_angle = axis_angle.angle / 2.0;
         let s = half_angle.sin();
         let c = half_angle.cos();
 
-        Quaternion::new(            
+        Quaternion::new(
             s * axis_angle.axis[0],
             s * axis_angle.axis[1],
             s * axis_angle.axis[2],

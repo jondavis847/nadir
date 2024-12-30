@@ -1,4 +1,4 @@
-use multibody::{actuator::ActuatorModel, body::BodyConnection};
+use multibody::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
 use nalgebra::{Vector3, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
@@ -6,10 +6,7 @@ use spatial_algebra::Force;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ReactionWheelErrors {
-    #[error("torque constant is not specified but is required for current commanding")]
-    NeedKtForCurrentCommanding,
-}
+pub enum ReactionWheelErrors {}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum ReactionWheelCommands {
@@ -61,12 +58,12 @@ struct ReactionWheelParameters {
     misalignment: Option<Rotation>,
     torque_constant: Option<f64>,
     torque_max: f64,
-    torque_speed_curve: Option<TorqueSpeedCurve>,    
+    torque_speed_curve: Option<TorqueSpeedCurve>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ReactionWheelState {
-    acceleration: f64,           //rad/sec^2
+    acceleration: f64, //rad/sec^2
     pub command: ReactionWheelCommands,
     current: f64,                // A
     momentum: f64,               //Nms
@@ -91,18 +88,17 @@ impl ReactionWheelState {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct ReactionWheel {    
+pub struct ReactionWheel {
     parameters: ReactionWheelParameters,
     pub state: ReactionWheelState,
 }
 
 impl ReactionWheel {
-    pub fn new(        
+    pub fn new(
         inertia: f64,
-        torque_max: f64,     
-        initial_momentum: f64,   
+        torque_max: f64,
+        initial_momentum: f64,
     ) -> Result<Self, ReactionWheelErrors> {
         let parameters = ReactionWheelParameters {
             inertia,
@@ -113,17 +109,17 @@ impl ReactionWheel {
             misalignment: None,
             torque_speed_curve: None,
         };
-        Ok(Self {            
+        Ok(Self {
             parameters,
             state: ReactionWheelState::new(initial_momentum),
         })
     }
-
+    #[allow(dead_code)]
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);
         self
     }
-
+    #[allow(dead_code)]
     pub fn with_friction(
         mut self,
         stiction: f64,
@@ -142,17 +138,17 @@ impl ReactionWheel {
         self.parameters.friction = Some(friction);
         self
     }
-
+    #[allow(dead_code)]
     pub fn with_misalignment(mut self, misalignment: Rotation) -> Self {
         self.parameters.misalignment = Some(misalignment);
         self
     }
-
+    #[allow(dead_code)]
     pub fn with_torque_constant(mut self, torque_constant: f64) -> Self {
         self.parameters.torque_constant = Some(torque_constant);
         self
     }
-
+    #[allow(dead_code)]
     pub fn with_torque_speed_curve(mut self, knee_speed: f64, max_speed: f64) -> Self {
         let torque_speed_curve = TorqueSpeedCurve {
             knee_speed,
@@ -161,23 +157,20 @@ impl ReactionWheel {
         self.parameters.torque_speed_curve = Some(torque_speed_curve);
         self
     }
-
-    
 }
 
 impl ActuatorModel for ReactionWheel {
     type Command = ReactionWheelCommands;
-    fn update(
-        &mut self,        
-        connection: &BodyConnection,
-    ){
+    fn update(&mut self, connection: &mut BodyConnection) {
         // Determine initial torque based on command type
         let mut torque = match self.state.command {
             ReactionWheelCommands::Current(current) => {
                 if let Some(kt) = &self.parameters.torque_constant {
                     kt * current
                 } else {
-                    eprintln!("Need torque constant (kt) to process current command. Doing nothing");
+                    eprintln!(
+                        "Need torque constant (kt) to process current command. Doing nothing"
+                    );
                     0.0
                 }
             }
@@ -220,25 +213,33 @@ impl ActuatorModel for ReactionWheel {
         // Update state
         let transform = &connection.transform;
         self.state.torque = torque;
+        // equal and opposite
         self.state.torque_body = transform
             .rotation
-            .transform(Vector3::new(0.0, 0.0, torque));
-        self.state.momentum_body = transform.rotation.transform(Vector3::new(
-            0.0,
-            0.0,
-            self.state.momentum,
-        ));
+            .transform(Vector3::new(0.0, 0.0, -torque));
+        self.state.momentum_body =
+            transform
+                .rotation
+                .transform(Vector3::new(0.0, 0.0, self.state.momentum));
         self.state.acceleration = torque / self.parameters.inertia;
-        
-    }
 
-    fn get_force_body(&self) -> Force {
-        Force::from(Vector6::new(self.state.torque_body[0],self.state.torque_body[1],self.state.torque_body[2], 0.0,0.0,0.0))
+        // Update body
+        let mut body = connection.body.borrow_mut();
+        body.state.internal_momentum_body += self.state.momentum_body;
+        body.state.actuator_force_body += Force::from(Vector6::new(
+            self.state.torque_body[0],
+            self.state.torque_body[1],
+            self.state.torque_body[2],
+            0.0,
+            0.0,
+            0.0,
+        ));
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(id, 
-        &[
+        results.write_record(
+            id,
+            &[
                 self.state.acceleration.to_string(),
                 self.state.current.to_string(),
                 self.state.momentum.to_string(),
@@ -250,7 +251,8 @@ impl ActuatorModel for ReactionWheel {
                 self.state.torque_body[0].to_string(),
                 self.state.torque_body[1].to_string(),
                 self.state.torque_body[2].to_string(),
-            ]);
+            ],
+        );
     }
 
     fn result_headers(&self) -> &[&str] {
@@ -267,5 +269,17 @@ impl ActuatorModel for ReactionWheel {
             "torque(body)[y]",
             "torque(body)[z]",
         ]
+    }
+
+    fn state_derivative(&self, derivative: &mut SimStateVector) {
+        derivative.0[0] = self.state.acceleration;
+    }
+
+    fn state_vector_init(&self) -> SimStateVector {
+        SimStateVector(vec![self.state.acceleration])
+    }
+
+    fn state_vector_read(&mut self, state: &SimStateVector) {
+        self.state.velocity += state.0[0];
     }
 }

@@ -77,10 +77,7 @@ impl CelestialSystem {
     }
 
     /// returns a tuple of bufwriters, the first element is the epoch writer, the second element is a Vec of the writers for the bodies
-    pub fn initialize_writers(
-        &mut self,
-        result: &mut ResultManager,
-    ) {
+    pub fn initialize_writers(&mut self, result: &mut ResultManager) {
         // Define the celestial subfolder folder path
         let celestial_folder_path = result.result_path.join("celestial");
 
@@ -103,7 +100,7 @@ impl CelestialSystem {
             let id = result.new_writer(&body.body.get_name(), &celestial_folder_path, &headers);
             body.result_id = Some(id);
             // note i choose the names to be the same as multibody body so i can parse them easier for animation
-            // if you change the names, animation wont work unless you change the column its looking for there            
+            // if you change the names, animation wont work unless you change the column its looking for there
         }
 
         let epoch_headers = ["sec_since_j2k", "julian_date"];
@@ -111,16 +108,16 @@ impl CelestialSystem {
         self.epoch.result_id = Some(id);
     }
 
-    pub fn write_results(
-        &self,
-        results: &mut ResultManager,
-    ) {
+    pub fn write_results(&self, results: &mut ResultManager) {
         // update the epoch based on sim time
         if let Some(id) = &self.epoch.result_id {
-            results.write_record(*id, &[
-                self.epoch.time.get_seconds_j2k().to_string(),
-                self.epoch.time.get_jd().to_string(),
-            ]);
+            results.write_record(
+                *id,
+                &[
+                    self.epoch.time.get_seconds_j2k().to_string(),
+                    self.epoch.time.get_jd().to_string(),
+                ],
+            );
         }
 
         for body in &self.bodies {

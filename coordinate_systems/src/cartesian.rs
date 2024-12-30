@@ -1,6 +1,6 @@
 use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
 use nalgebra::Vector3;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, Neg};
 
 /// Represents a point in Cartesian coordinates.

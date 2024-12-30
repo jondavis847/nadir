@@ -2,7 +2,7 @@ use std::ops::Neg;
 
 #[derive(Debug)]
 pub enum AlignedAxesErrors {
-    InvalidCombo
+    InvalidCombo,
 }
 
 impl std::fmt::Display for AlignedAxesErrors {
@@ -68,10 +68,9 @@ pub struct AlignedAxes {
 
 impl AlignedAxes {
     pub fn new(mut primary: AxisPair, mut secondary: AxisPair) -> Result<Self, AlignedAxesErrors> {
-
         // check that primary and secondary axes are not the same
         if primary.new == secondary.new || primary.old == secondary.new {
-            return Err(AlignedAxesErrors::InvalidCombo)
+            return Err(AlignedAxesErrors::InvalidCombo);
         }
 
         // convert old negative axes to positive axes to make converting to rotations easier

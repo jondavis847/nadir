@@ -9,6 +9,11 @@ pub struct Line {
 
 impl Line {
     pub fn new(label: String, data: Vec<Point>, color: Option<Color>, legend: bool) -> Self {
-        Self { label, data, color, legend }
+        Self {
+            label,
+            data,
+            color,
+            legend,
+        }
     }
 }

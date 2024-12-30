@@ -39,7 +39,7 @@ pub enum Message {
     WindowResized(Size),
 }
 
-pub fn main(result_path: Option<PathBuf>) -> iced::Result {    
+pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     let pwd = match result_path {
         Some(path) => path,
         None => std::env::current_dir().unwrap(),
@@ -62,7 +62,7 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     let celestial_path = pwd.join("celestial");
     let celestial_results = if celestial_path.is_dir() {
         get_celestial_result(&celestial_path)
-    }  else {
+    } else {
         Vec::new()
     };
 

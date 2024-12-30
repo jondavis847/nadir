@@ -1,10 +1,10 @@
 use rand::rngs::SmallRng;
-use rand_distr::{Distribution,Normal};
+use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 
 use super::NoiseTrait;
 
-#[derive(Debug,Clone,Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct GaussianNoise {
     dist: Normal<f64>,
 }

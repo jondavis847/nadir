@@ -23,7 +23,11 @@ impl Ellipsoid {
     }
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
-            vec3(self.radius_x as f32, self.radius_y  as f32, self.radius_z  as f32),
+            vec3(
+                self.radius_x as f32,
+                self.radius_y as f32,
+                self.radius_z as f32,
+            ),
             Quat::from_xyzw(
                 state.rotation.x as f32,
                 state.rotation.y as f32,

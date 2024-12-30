@@ -4,6 +4,7 @@ use crate::{
         recursive_newton_euler::RneCache,
     },
     joint::{joint_transforms::JointTransforms, JointParameters},
+    solver::SimStateVector,
 };
 use aerospace::orbit::Orbit;
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
@@ -16,7 +17,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 
-use super::{JointCache, JointModel, JointRef, JointStateVector};
+use super::{JointCache, JointModel, JointRef};
 
 #[derive(Debug, Copy, Clone)]
 pub enum FloatingErrors {}
@@ -269,7 +270,7 @@ impl JointModel for Floating {
         6
     }
 
-    fn state_derivative(&self, dx: &mut JointStateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, dx: &mut SimStateVector, transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
         // due to quaternion kinematic equations
         let q = self.state.q;
@@ -306,7 +307,7 @@ impl JointModel for Floating {
         dx.0[12] = self.cache.q_ddot[5];
     }
 
-    fn state_vector_init(&self) -> JointStateVector {
+    fn state_vector_init(&self) -> SimStateVector {
         let state = vec![
             self.state.q.x,
             self.state.q.y,
@@ -322,10 +323,10 @@ impl JointModel for Floating {
             self.state.v[1],
             self.state.v[2],
         ];
-        JointStateVector(state)
+        SimStateVector(state)
     }
 
-    fn state_vector_read(&mut self, state: &JointStateVector) {
+    fn state_vector_read(&mut self, state: &SimStateVector) {
         // need to normalize the integrated quaternion
         let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3]).normalize();
         self.state.q = q;
@@ -385,34 +386,36 @@ impl JointModel for Floating {
     }
 
     fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(id, 
-        &[
-            self.cache.q_ddot[3].to_string(),
-            self.cache.q_ddot[4].to_string(),
-            self.cache.q_ddot[5].to_string(),
-            self.cache.q_ddot[0].to_string(),
-            self.cache.q_ddot[1].to_string(),
-            self.cache.q_ddot[2].to_string(),
-            self.state.w[0].to_string(),
-            self.state.w[1].to_string(),
-            self.state.w[2].to_string(),
-            self.state.q.x.to_string(),
-            self.state.q.y.to_string(),
-            self.state.q.z.to_string(),
-            self.state.q.s.to_string(),
-            self.state.r[0].to_string(),
-            self.state.r[1].to_string(),
-            self.state.r[2].to_string(),
-            self.cache.tau[0].to_string(),
-            self.cache.tau[1].to_string(),
-            self.cache.tau[2].to_string(),
-            self.cache.tau[3].to_string(),
-            self.cache.tau[4].to_string(),
-            self.cache.tau[5].to_string(),
-            self.state.v[0].to_string(),
-            self.state.v[1].to_string(),
-            self.state.v[2].to_string(),
-        ]);
+        results.write_record(
+            id,
+            &[
+                self.cache.q_ddot[3].to_string(),
+                self.cache.q_ddot[4].to_string(),
+                self.cache.q_ddot[5].to_string(),
+                self.cache.q_ddot[0].to_string(),
+                self.cache.q_ddot[1].to_string(),
+                self.cache.q_ddot[2].to_string(),
+                self.state.w[0].to_string(),
+                self.state.w[1].to_string(),
+                self.state.w[2].to_string(),
+                self.state.q.x.to_string(),
+                self.state.q.y.to_string(),
+                self.state.q.z.to_string(),
+                self.state.q.s.to_string(),
+                self.state.r[0].to_string(),
+                self.state.r[1].to_string(),
+                self.state.r[2].to_string(),
+                self.cache.tau[0].to_string(),
+                self.cache.tau[1].to_string(),
+                self.cache.tau[2].to_string(),
+                self.cache.tau[3].to_string(),
+                self.cache.tau[4].to_string(),
+                self.cache.tau[5].to_string(),
+                self.state.v[0].to_string(),
+                self.state.v[1].to_string(),
+                self.state.v[2].to_string(),
+            ],
+        );
     }
 }
 

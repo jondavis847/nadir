@@ -17,7 +17,7 @@ struct Parameters {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct State {    
+pub struct State {
     pub time: Time,
     pub position: Vector3<f64>,
     pub velocity: Vector3<f64>,
@@ -41,7 +41,7 @@ impl Gps {
                 velocity_noise: None,
             },
             state: State {
-                time: Time::from_sec_j2k(0.0,time::TimeSystem::GPS),
+                time: Time::from_sec_j2k(0.0, time::TimeSystem::GPS),
                 position: Vector3::zeros(),
                 velocity: Vector3::zeros(),
                 position_noise: None,
@@ -108,35 +108,55 @@ impl SensorModel for Gps {
             self.state.velocity = true_velocity + noise;
         } else {
             self.state.velocity = true_velocity;
-        }        
+        }
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(id, 
-        &[
+        results.write_record(
+            id,
+            &[
                 self.state.position[0].to_string(),
                 self.state.position[1].to_string(),
                 self.state.position[2].to_string(),
                 self.state.velocity[0].to_string(),
                 self.state.velocity[1].to_string(),
                 self.state.velocity[2].to_string(),
-                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[0].to_string()),
-                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[1].to_string()),
-                self.state.position_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),
-                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[0].to_string()),
-                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[1].to_string()),
-                self.state.velocity_noise.as_ref().map_or("".to_string(), |v| v[2].to_string()),
-            ]);
+                self.state
+                    .position_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[0].to_string()),
+                self.state
+                    .position_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[1].to_string()),
+                self.state
+                    .position_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[2].to_string()),
+                self.state
+                    .velocity_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[0].to_string()),
+                self.state
+                    .velocity_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[1].to_string()),
+                self.state
+                    .velocity_noise
+                    .as_ref()
+                    .map_or("".to_string(), |v| v[2].to_string()),
+            ],
+        );
     }
 
     fn result_headers(&self) -> &[&str] {
         &[
             "position[x]",
             "position[y]",
-            "position[z]",                    
+            "position[z]",
             "velocity[x]",
             "velocity[y]",
-            "velocity[z]",                    
+            "velocity[z]",
             "position_noise[x]",
             "position_noise[y]",
             "position_noise[z]",

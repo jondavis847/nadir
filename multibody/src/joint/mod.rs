@@ -8,18 +8,16 @@ use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     base::{BaseConnection, BaseRef},
     body::{BodyConnection, BodyRef},
+    solver::SimStateVector,
 };
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
 use nadir_result::{NadirResult, ResultManager};
+use nalgebra::Vector6;
+use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
-use std::{
-    cell::RefCell,
-    fmt::Debug,
-    ops::{AddAssign, MulAssign},
-    rc::Rc,
-};
+use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, SpatialTransform, Velocity};
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 
@@ -40,9 +38,7 @@ pub enum JointErrors {
 pub type JointRef = Rc<RefCell<Joint>>;
 
 #[typetag::serde]
-pub trait JointModel:
-    CloneJointModel + Debug + ArticulatedBodyAlgorithm
-{
+pub trait JointModel: CloneJointModel + Debug + ArticulatedBodyAlgorithm {
     fn calculate_joint_inertia(
         &mut self,
         mass_properties: &MassProperties,
@@ -56,11 +52,11 @@ pub trait JointModel:
     /// Used to populate elements in the mass matrix and state arrays        
     fn ndof(&self) -> u32;
     /// Populates derivative with the appropriate values for the joint state derivative
-    fn state_derivative(&self, derivative: &mut JointStateVector, transforms: &JointTransforms);
+    fn state_derivative(&self, derivative: &mut SimStateVector, transforms: &JointTransforms);
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> JointStateVector;
+    fn state_vector_init(&self) -> SimStateVector;
     /// Reads a state vector into the joint state
-    fn state_vector_read(&mut self, state: &JointStateVector);
+    fn state_vector_read(&mut self, state: &SimStateVector);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
     fn update_transforms(
@@ -114,7 +110,18 @@ impl Joint {
         c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
         c.aba.c = c.v.cross_motion(c.vj); // + cj
         c.aba.inertia_articulated = c.inertia;
-        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v) - c.f;
+
+        // from eulers equation, p_big_a is w x H - T,
+        // but H in the joint is H in the body transformed to the joint.
+        // H in the body is Hs = Hb + Hi, where Hb is wI of the body. 
+        // need to add in Hi, which is momentum of internally rotating components
+        let body = self.connections.outer_body.as_ref().unwrap().body.borrow();
+        let h_i = {
+            let h = c.transforms.jof_from_ob.0.rotation.transform(body.state.angular_momentum_body);
+            Momentum::from(Vector6::new(h[0],h[1],h[2],0.0,0.0,0.0))
+        };
+
+        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v + h_i) - c.f;
     }
 
     pub fn aba_second_pass(&mut self) {
@@ -154,12 +161,18 @@ impl Joint {
         self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
     }
 
-    pub fn connect_base(&mut self, base: &BaseRef, transform: Transform) -> Result<(), JointErrors> {
+    pub fn connect_base(
+        &mut self,
+        base: &BaseRef,
+        transform: Transform,
+    ) -> Result<(), JointErrors> {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
         } else {
-            self.connections.inner_body =
-                Some(InnerBody::Base(BaseConnection::new(Rc::clone(base), transform)));
+            self.connections.inner_body = Some(InnerBody::Base(BaseConnection::new(
+                Rc::clone(base),
+                transform,
+            )));
             self.cache.transforms.jif_from_ib = SpatialTransform(transform);
             self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
         }
@@ -207,7 +220,7 @@ impl Joint {
         Ok(())
     }
 
-    pub fn state_derivative(&self, derivative: &mut JointStateVector) {
+    pub fn state_derivative(&self, derivative: &mut SimStateVector) {
         self.model
             .state_derivative(derivative, &self.cache.transforms);
     }
@@ -219,7 +232,7 @@ impl Joint {
 }
 
 impl NadirResult for Joint {
-    fn new_result(&mut self,results: &mut ResultManager) {
+    fn new_result(&mut self, results: &mut ResultManager) {
         // Define the joints subfolder folder path
         let joints_folder_path = results.result_path.join("joints");
         // Check if the folder exists, if not, create it
@@ -231,12 +244,12 @@ impl NadirResult for Joint {
         // Create the writer and assign its id
         let id = results.new_writer(&self.name.clone(), &joints_folder_path, headers);
         self.result_id = Some(id);
-    }    
+    }
 
     fn write_result(&self, results: &mut ResultManager) {
         if let Some(id) = self.result_id {
             self.model.result_content(id, results);
-        }        
+        }
     }
 }
 
@@ -262,39 +275,6 @@ pub struct JointParameters {
 
 impl JointParameters {
     //pub fn with_constant_force
-}
-
-#[derive(Debug, Clone)]
-pub struct JointStateVector(Vec<f64>);
-impl MulAssign<f64> for JointStateVector {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.0.iter_mut().for_each(|state| *state *= rhs);
-    }
-}
-impl AddAssign<&Self> for JointStateVector {
-    fn add_assign(&mut self, rhs: &Self) {
-        self.0
-            .iter_mut()
-            .zip(rhs.0.iter()) // Use `iter()` to iterate immutably over `rhs`
-            .for_each(|(left, right)| *left += right);
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct JointStates(pub Vec<JointStateVector>);
-
-impl MulAssign<f64> for JointStates {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.0.iter_mut().for_each(|state| *state *= rhs);
-    }
-}
-impl AddAssign<&Self> for JointStates {
-    fn add_assign(&mut self, rhs: &Self) {
-        self.0
-            .iter_mut()
-            .zip(rhs.0.iter())
-            .for_each(|(left, right)| *left += right);
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]

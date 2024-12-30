@@ -162,7 +162,6 @@ impl Sub<MotionVector> for MotionVector {
 pub struct Velocity(pub MotionVector);
 
 impl Velocity {
-
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
         self.0.vector()
@@ -402,6 +401,13 @@ impl Force {
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
         self.0.translation()
+    }
+
+    pub fn zeros() -> Self {
+        Self(ForceVector(SpatialVector::new(
+            Vector3::zeros(),
+            Vector3::zeros(),
+        )))
     }
 }
 

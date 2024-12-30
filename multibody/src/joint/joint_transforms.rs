@@ -1,5 +1,4 @@
-
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
 
 use super::JointRef;
@@ -55,8 +54,8 @@ impl JointTransforms {
         if let Some(inner_joint) = inner_joint {
             let ij_transforms = &inner_joint.borrow().cache.transforms;
             let ij_ob_from_ij_jof = ij_transforms.ob_from_jof;
-            let ij_jof_from_base = ij_transforms.jof_from_base;        
-            // this joints inner body is the parent joints outer body            
+            let ij_jof_from_base = ij_transforms.jof_from_base;
+            // this joints inner body is the parent joints outer body
             jof_from_ij_jof = self.jof_from_jif * self.jif_from_ib * ij_ob_from_ij_jof;
             ij_jof_from_jof = jof_from_ij_jof.inv();
             jof_from_base = jof_from_ij_jof * ij_jof_from_base;

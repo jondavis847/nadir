@@ -1,17 +1,16 @@
-
 pub mod gps;
 pub mod rate_gyro;
 pub mod star_tracker;
 
 use gps::Gps;
 use multibody::sensor::{Sensor, SensorSystem};
+use nadir_result::NadirResult;
 use rate_gyro::RateGyro;
 use serde::{Deserialize, Serialize};
 use star_tracker::StarTracker;
-use nadir_result::NadirResult;
 
-#[derive(Debug,Clone,Deserialize,Serialize)]
-pub struct SpacecraftSensors{
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SpacecraftSensors {
     pub gps: Sensor<Gps>,
     pub st: Sensor<StarTracker>,
     pub imu: Sensor<RateGyro>,

@@ -1,7 +1,7 @@
 use super::{cartesian::Cartesian, cylindrical::Cylindrical};
-use std::ops::{Add, Neg};
-use serde::{Serialize, Deserialize};
 use nalgebra::Vector3;
+use serde::{Deserialize, Serialize};
+use std::ops::{Add, Neg};
 /// Represents a point in spherical coordinates. Relative to a Cartesian x-y-z coordinate system,
 /// azimuth is the right hand rotation angle about +z where +x is 0, and inclination is the angle
 /// from the +z axis.

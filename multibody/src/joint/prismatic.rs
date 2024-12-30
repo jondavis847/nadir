@@ -3,6 +3,7 @@ use crate::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm, recursive_newton_euler::RneCache,
     },
     joint::{joint_transforms::JointTransforms, JointParameters},
+    solver::SimStateVector,
 };
 use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
@@ -14,7 +15,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
 
-use super::{JointCache, JointModel, JointRef, JointStateVector};
+use super::{JointCache, JointModel, JointRef};
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
@@ -97,16 +98,16 @@ impl JointModel for Prismatic {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut JointStateVector, _transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
         derivative.0[0] = self.state.velocity;
         derivative.0[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> JointStateVector {
-        JointStateVector(vec![self.state.position, self.state.velocity])
+    fn state_vector_init(&self) -> SimStateVector {
+        SimStateVector(vec![self.state.position, self.state.velocity])
     }
 
-    fn state_vector_read(&mut self, state: &JointStateVector) {
+    fn state_vector_read(&mut self, state: &SimStateVector) {
         self.state.position = state.0[0];
         self.state.velocity = state.0[1];
     }
@@ -130,13 +131,15 @@ impl JointModel for Prismatic {
     }
 
     fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(id, 
-        &[
-            self.state.position.to_string(),
-            self.state.velocity.to_string(),
-            self.cache.q_ddot.to_string(),
-            self.cache.tau.to_string(),
-        ]);
+        results.write_record(
+            id,
+            &[
+                self.state.position.to_string(),
+                self.state.velocity.to_string(),
+                self.cache.q_ddot.to_string(),
+                self.cache.tau.to_string(),
+            ],
+        );
     }
 }
 

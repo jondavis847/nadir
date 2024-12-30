@@ -1,31 +1,34 @@
 use nadir_result::ResultManager;
 
 use crate::{
-    actuator::ActuatorSystem, joint::JointStates, sensor::SensorSystem, software::SoftwareSystem, system::MultibodySystem, MultibodyErrors
+    actuator::ActuatorSystem, sensor::SensorSystem, software::SoftwareSystem,
+    system::MultibodySystem, MultibodyErrors,
 };
 
-pub fn solve_fixed_rk4<A,F,S>(
-    sys: &mut MultibodySystem<A,F,S>,
+use super::SimStates;
+
+pub fn solve_fixed_rk4<A, F, S>(
+    sys: &mut MultibodySystem<A, F, S>,
     tstart: f64,
     tstop: f64,
     mut dt: f64,
     results: &mut ResultManager,
-) -> Result<(), MultibodyErrors> 
-where 
-A: ActuatorSystem, 
-F: SoftwareSystem<Actuators = A, Sensors = S>,
-S: SensorSystem{
+) -> Result<(), MultibodyErrors>
+where
+    A: ActuatorSystem,
+    F: SoftwareSystem<Actuators = A, Sensors = S>,
+    S: SensorSystem,
+{
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };
 
-    // Create a vec of JointStates as the initial integration state
-    let x0 = JointStates(
-        sys.joints
-            .iter()
-            .map(|joint| joint.borrow().model.state_vector_init())
-            .collect(),
-    );
+    // Create the vec of SimStates as the initial integration state
+    let mut x0 = SimStates(Vec::new());
+    for joint in sys.joints.iter() {
+        x0.0.push(joint.borrow().model.state_vector_init());
+    }
+    sys.actuators.state_vector_init(&mut x0);
 
     // define some variables
     let mut half_dt = dt / 2.0;
@@ -110,6 +113,6 @@ S: SensorSystem{
     }
 
     results.flush();
-    
+
     Ok(())
 }

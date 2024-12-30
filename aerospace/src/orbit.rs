@@ -19,7 +19,7 @@ pub enum OrbitErrors {
     KeplerMaxIters,
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum OrbitType {
     Circular,
     Elliptical,
@@ -44,7 +44,7 @@ impl From<KeplerianElements> for Orbit {
 /// This struct contains the orbital parameters necessary to describe an object's orbit
 /// around a central body, based on the Keplerian model. It includes elements such as the
 /// semi-major axis, eccentricity, inclination, RAAN, argument of periapsis, and anomalies.
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeplerianElements {
     pub epoch: Time,
     /// Gravitational parameter of the central body (in m^3/s^2).

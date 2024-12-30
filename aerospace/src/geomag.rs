@@ -1,6 +1,6 @@
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug,Clone,Deserialize,Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum GeoMagnetism {
-    IGRF
+    IGRF,
 }

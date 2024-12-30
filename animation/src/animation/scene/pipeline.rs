@@ -1,5 +1,5 @@
-use nadir_3d::{mesh::MeshGpu, vertex::Vertex};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
+use nadir_3d::{mesh::MeshGpu, vertex::Vertex};
 
 //pub mod buffer;
 pub mod uniforms;
@@ -28,7 +28,7 @@ impl Pipeline {
         vertices: Vec<Vertex>,
         meshes: &[MeshGpu],
         sample_count: u32,
-    ) -> Self {        
+    ) -> Self {
         let vertex_label = format!("{label}.vertex.buffer");
         let instance_label = format!("{label}.instance.buffer");
         let shader_label = format!("{label}.shader");
@@ -46,7 +46,7 @@ impl Pipeline {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&instance_label),
             contents: bytemuck::cast_slice(&meshes),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,            
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -62,14 +62,14 @@ impl Pipeline {
                 entry_point: "vs_main",
                 buffers: &[Vertex::desc(), MeshGpu::desc()],
             },
-            primitive: wgpu::PrimitiveState::default(),            
+            primitive: wgpu::PrimitiveState::default(),
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
-            }),            
+            }),
             multisample: wgpu::MultisampleState {
                 count: sample_count,
                 mask: !0,
@@ -89,7 +89,7 @@ impl Pipeline {
                         alpha: wgpu::BlendComponent {
                             src_factor: wgpu::BlendFactor::SrcAlpha,
                             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,//Max,
+                            operation: wgpu::BlendOperation::Add, //Max,
                         },
                     }),
                     write_mask: wgpu::ColorWrites::ALL,
@@ -109,16 +109,8 @@ impl Pipeline {
         }
     }
 
-    pub fn update(
-        &mut self,        
-        queue: &wgpu::Queue,        
-        meshes: &[MeshGpu],        
-    ) {        
-        queue.write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(meshes),
-        );
+    pub fn update(&mut self, queue: &wgpu::Queue, meshes: &[MeshGpu]) {
+        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(meshes));
     }
     /*
     pub fn render<'a>(

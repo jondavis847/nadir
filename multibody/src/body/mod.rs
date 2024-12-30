@@ -182,11 +182,17 @@ impl Body {
         let body_from_base = base_from_body.0.inv();
         self.state.position_base = body_from_base.translation.vec();
         self.state.attitude_base = Quaternion::from(&body_from_base.rotation);
+
+        // reset actuator force and environment force to be updated later
+        self.state.actuator_force_body = Force::zeros();
+        self.state.environments_force_body = Force::zeros();
+        self.state.internal_momentum_body = Vector3::zeros();
+        //self.state.internal_torque_body = Vector3::zeros();
     }
 }
 
 impl NadirResult for Body {
-    fn new_result(&mut self,results: &mut ResultManager) {
+    fn new_result(&mut self, results: &mut ResultManager) {
         let bodies_folder = results.result_path.join("bodies");
 
         // Check if the folder exists, if not, create it
@@ -194,40 +200,44 @@ impl NadirResult for Body {
             std::fs::create_dir_all(&bodies_folder).expect("Failed to create bodies folder");
         }
 
-        let id = results.new_writer(&self.name, &bodies_folder, &[
-            "acceleration(base)[x]",
-            "acceleration(base)[y]",
-            "acceleration(base)[z]",
-            "acceleration(body)[x]",
-            "acceleration(body)[y]",
-            "acceleration(body)[z]",
-            "angular_accel(body)[x]",
-            "angular_accel(body)[y]",
-            "angular_accel(body)[z]",
-            "angular_rate(body)[x]",
-            "angular_rate(body)[y]",
-            "angular_rate(body)[z]",
-            "attitude(base)[x]",
-            "attitude(base)[y]",
-            "attitude(base)[z]",
-            "attitude(base)[w]",
-            "external_force(body)[x]",
-            "external_force(body)[y]",
-            "external_force(body)[z]",
-            "external_torque(body)[x]",
-            "external_torque(body)[y]",
-            "external_torque(body)[z]",
-            "position(base)[x]",
-            "position(base)[y]",
-            "position(base)[z]",
-            "velocity(base)[x]",
-            "velocity(base)[y]",
-            "velocity(base)[z]",
-            "velocity(body)[x]",
-            "velocity(body)[y]",
-            "velocity(body)[z]",
-        ]);
-        self.result_id = Some(id);  
+        let id = results.new_writer(
+            &self.name,
+            &bodies_folder,
+            &[
+                "acceleration(base)[x]",
+                "acceleration(base)[y]",
+                "acceleration(base)[z]",
+                "acceleration(body)[x]",
+                "acceleration(body)[y]",
+                "acceleration(body)[z]",
+                "angular_accel(body)[x]",
+                "angular_accel(body)[y]",
+                "angular_accel(body)[z]",
+                "angular_rate(body)[x]",
+                "angular_rate(body)[y]",
+                "angular_rate(body)[z]",
+                "attitude(base)[x]",
+                "attitude(base)[y]",
+                "attitude(base)[z]",
+                "attitude(base)[w]",
+                "external_force(body)[x]",
+                "external_force(body)[y]",
+                "external_force(body)[z]",
+                "external_torque(body)[x]",
+                "external_torque(body)[y]",
+                "external_torque(body)[z]",
+                "position(base)[x]",
+                "position(base)[y]",
+                "position(base)[z]",
+                "velocity(base)[x]",
+                "velocity(base)[y]",
+                "velocity(base)[z]",
+                "velocity(body)[x]",
+                "velocity(body)[y]",
+                "velocity(body)[z]",
+            ],
+        );
+        self.result_id = Some(id);
 
         // also need to write the meshes for animation
         if let Some(mesh) = &self.mesh {
@@ -235,44 +245,47 @@ impl NadirResult for Body {
             let mut mesh_file = File::create(mesh_file_path).expect("could not create file");
             let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
             mesh_file.write_all(ron_string.as_bytes()).unwrap();
-        }      
+        }
     }
-    fn write_result(&self,results: &mut ResultManager) {
+    fn write_result(&self, results: &mut ResultManager) {
         if let Some(id) = self.result_id {
-            results.write_record(id, &[
-                self.state.acceleration_base[0].to_string(),
-                self.state.acceleration_base[1].to_string(),
-                self.state.acceleration_base[2].to_string(),
-                self.state.acceleration_body[0].to_string(),
-                self.state.acceleration_body[1].to_string(),
-                self.state.acceleration_body[2].to_string(),
-                self.state.angular_accel_body[0].to_string(),
-                self.state.angular_accel_body[1].to_string(),
-                self.state.angular_accel_body[2].to_string(),
-                self.state.angular_rate_body[0].to_string(),
-                self.state.angular_rate_body[1].to_string(),
-                self.state.angular_rate_body[2].to_string(),
-                self.state.attitude_base.x.to_string(),
-                self.state.attitude_base.y.to_string(),
-                self.state.attitude_base.z.to_string(),
-                self.state.attitude_base.s.to_string(),
-                self.state.external_force_body[0].to_string(),
-                self.state.external_force_body[1].to_string(),
-                self.state.external_force_body[2].to_string(),
-                self.state.external_torque_body[0].to_string(),
-                self.state.external_torque_body[1].to_string(),
-                self.state.external_torque_body[2].to_string(),
-                self.state.position_base[0].to_string(),
-                self.state.position_base[1].to_string(),
-                self.state.position_base[2].to_string(),
-                self.state.velocity_base[0].to_string(),
-                self.state.velocity_base[1].to_string(),
-                self.state.velocity_base[2].to_string(),
-                self.state.velocity_body[0].to_string(),
-                self.state.velocity_body[1].to_string(),
-                self.state.velocity_body[2].to_string(),
-            ]);
-        }        
+            results.write_record(
+                id,
+                &[
+                    self.state.acceleration_base[0].to_string(),
+                    self.state.acceleration_base[1].to_string(),
+                    self.state.acceleration_base[2].to_string(),
+                    self.state.acceleration_body[0].to_string(),
+                    self.state.acceleration_body[1].to_string(),
+                    self.state.acceleration_body[2].to_string(),
+                    self.state.angular_accel_body[0].to_string(),
+                    self.state.angular_accel_body[1].to_string(),
+                    self.state.angular_accel_body[2].to_string(),
+                    self.state.angular_rate_body[0].to_string(),
+                    self.state.angular_rate_body[1].to_string(),
+                    self.state.angular_rate_body[2].to_string(),
+                    self.state.attitude_base.x.to_string(),
+                    self.state.attitude_base.y.to_string(),
+                    self.state.attitude_base.z.to_string(),
+                    self.state.attitude_base.s.to_string(),
+                    self.state.external_force_body[0].to_string(),
+                    self.state.external_force_body[1].to_string(),
+                    self.state.external_force_body[2].to_string(),
+                    self.state.external_torque_body[0].to_string(),
+                    self.state.external_torque_body[1].to_string(),
+                    self.state.external_torque_body[2].to_string(),
+                    self.state.position_base[0].to_string(),
+                    self.state.position_base[1].to_string(),
+                    self.state.position_base[2].to_string(),
+                    self.state.velocity_base[0].to_string(),
+                    self.state.velocity_base[1].to_string(),
+                    self.state.velocity_base[2].to_string(),
+                    self.state.velocity_body[0].to_string(),
+                    self.state.velocity_body[1].to_string(),
+                    self.state.velocity_body[2].to_string(),
+                ],
+            );
+        }
     }
 }
 
@@ -312,10 +325,14 @@ pub struct BodyState {
     pub gravity_force_base: Vector3<f64>,
     pub gravity_force_body: Vector3<f64>,
     pub external_spatial_force_body: Force, //used for calculations
-    pub external_force_body: Vector3<f64>,  //use for reporting
-    pub external_torque_body: Vector3<f64>, //use for reporting
+    pub external_force_body: Vector3<f64>,
+    pub external_torque_body: Vector3<f64>,
+    //pub internal_torque_body: Vector3<f64>,
+    pub internal_momentum_body: Vector3<f64>,
     pub angular_momentum_body: Vector3<f64>,
+    pub angular_momentum_system_body: Vector3<f64>,
     pub angular_momentum_base: Vector3<f64>,
+    pub angular_momentum_system_base: Vector3<f64>,
     pub linear_momentum_body: Vector3<f64>,
     pub linear_momentum_base: Vector3<f64>,
 }

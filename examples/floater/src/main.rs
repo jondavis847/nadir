@@ -3,10 +3,13 @@ use std::{cell::RefCell, rc::Rc};
 use color::Color;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base, body::{Body, BodyTrait}, joint::{
+    base::Base,
+    body::{Body, BodyTrait},
+    joint::{
         floating::{Floating, FloatingParameters, FloatingState},
         Joint,
-    }, system::MultibodySystem
+    },
+    system::MultibodySystem,
 };
 
 use nadir_3d::{
@@ -27,7 +30,7 @@ fn main() {
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
     let f = Rc::new(RefCell::new(Joint::new("f", f_model).unwrap()));
-    
+
     // Create the a body
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
@@ -55,9 +58,13 @@ fn main() {
     // f.borrow_mut().connect_outer_body(&b,Transform::IDENTITY);
     // b.borrow_mut().connect_inner_joint(&f);
     base.borrow_mut().connect_outer_joint(&f).unwrap();
-    f.borrow_mut().connect_base(&base, Transform::IDENTITY).unwrap();
+    f.borrow_mut()
+        .connect_base(&base, Transform::IDENTITY)
+        .unwrap();
     b.borrow_mut().connect_inner_joint(&f).unwrap();
-    f.borrow_mut().connect_outer_body(&b, Transform::IDENTITY).unwrap();
+    f.borrow_mut()
+        .connect_outer_body(&b, Transform::IDENTITY)
+        .unwrap();
 
     let mut sys = MultibodySystem::new(base, [b], [f], (), (), ());
     // Run the simulation

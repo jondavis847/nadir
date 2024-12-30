@@ -4,12 +4,12 @@ pub mod euler_angles;
 pub mod quaternion;
 pub mod rotation_matrix;
 
-use std::ops::Mul;
 use aligned_axes::AlignedAxes;
 use axis_angle::AxisAngle;
 use euler_angles::{EulerAngles, EulerSequence};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use std::ops::Mul;
 
 use quaternion::Quaternion;
 use rotation_matrix::RotationMatrix;

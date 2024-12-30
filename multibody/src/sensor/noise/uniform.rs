@@ -1,10 +1,10 @@
 use rand::rngs::SmallRng;
-use rand_distr::{Distribution,Uniform};
+use rand_distr::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
 
 use super::NoiseTrait;
 
-#[derive(Debug,Clone,Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct UniformNoise {
     dist: Uniform<f64>,
 }

@@ -1,7 +1,5 @@
-use nadir_3d::{
-    mesh::MeshGpu, vertex::Vertex,
-};
 use iced::widget::shader::wgpu::{self, util::DeviceExt, PipelineLayout};
+use nadir_3d::{mesh::MeshGpu, vertex::Vertex};
 
 // earth and earth atmosphere require their own pipelines since they have their own custom shaders
 

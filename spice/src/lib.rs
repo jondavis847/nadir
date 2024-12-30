@@ -211,15 +211,16 @@ impl Spice {
     }
 
     pub fn save_spice_data(&self) -> Result<(), SpiceErrors> {
-        if let Some(mut path) = config_dir() {            
+        if let Some(mut path) = config_dir() {
             path.push("nadir");
             if !path.is_dir() {
                 fs::create_dir_all(&path).expect("could not create nadir directory in config dir");
             }
             path.push("spice.data");
-            let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct            
+            let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
             let mut file = File::create(path).expect("spice could not open file");
-            file.write_all(&encoded).expect("spice could not write file"); // Write the serialized data to a file
+            file.write_all(&encoded)
+                .expect("spice could not write file"); // Write the serialized data to a file
             Ok(())
         } else {
             Err(SpiceErrors::CantOpenConfigDir.into())
@@ -395,7 +396,10 @@ impl DataTypes {
 
 fn check_naif(url: &str, local: String) -> Result<bool, SpiceErrors> {
     let client = Client::new();
-    let response = client.head(url).send().expect("spice could not send http request");
+    let response = client
+        .head(url)
+        .send()
+        .expect("spice could not send http request");
     if let Some(last_modified) = response.headers().get("last-modified") {
         let remote_date = last_modified.to_str().unwrap().to_string();
         if remote_date == local {

@@ -17,19 +17,25 @@ pub enum SensorErrors {
 
 pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
-    fn result_headers(&self) -> &[&str];    
+    fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Sensor<T> where T: SensorModel {
+pub struct Sensor<T>
+where
+    T: SensorModel,
+{
     pub name: String,
     pub model: T,
     connection: Option<BodyConnection>,
     result_id: Option<u32>,
 }
 
-impl<T> Sensor<T> where T: SensorModel {
+impl<T> Sensor<T>
+where
+    T: SensorModel,
+{
     pub fn connect_to_body(
         &mut self,
         body: &BodyRef,
@@ -46,7 +52,10 @@ impl<T> Sensor<T> where T: SensorModel {
         Ok(())
     }
 
-    pub fn new(name: &str, model: T) -> Self where T: SensorModel {
+    pub fn new(name: &str, model: T) -> Self
+    where
+        T: SensorModel,
+    {
         Self {
             name: name.to_string(),
             model,
@@ -60,25 +69,28 @@ impl<T> Sensor<T> where T: SensorModel {
     }
 }
 
-impl<T> NadirResult for Sensor<T> where T: SensorModel {
-    fn new_result(&mut self,results: &mut ResultManager) {
-         // Define the sensor subfolder folder path
-         let sensor_folder_path = results.result_path.join("sensors");
+impl<T> NadirResult for Sensor<T>
+where
+    T: SensorModel,
+{
+    fn new_result(&mut self, results: &mut ResultManager) {
+        // Define the sensor subfolder folder path
+        let sensor_folder_path = results.result_path.join("sensors");
 
-         // Check if the folder exists, if not, create it
-         if !sensor_folder_path.exists() {
-             std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
-         }
- 
-         // Initialize writer using the updated path
-         let id = results.new_writer(&self.name, &sensor_folder_path, self.model.result_headers());
-         self.result_id = Some(id);
+        // Check if the folder exists, if not, create it
+        if !sensor_folder_path.exists() {
+            std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
+        }
+
+        // Initialize writer using the updated path
+        let id = results.new_writer(&self.name, &sensor_folder_path, self.model.result_headers());
+        self.result_id = Some(id);
     }
 
-    fn write_result(&self,results: &mut ResultManager) {
+    fn write_result(&self, results: &mut ResultManager) {
         if let Some(id) = self.result_id {
-            self.model.result_content(id,results);            
-        }    
+            self.model.result_content(id, results);
+        }
     }
 }
 

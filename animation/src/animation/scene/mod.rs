@@ -1,11 +1,3 @@
-use nadir_3d::{
-    geometry::{
-        cuboid::Cuboid,
-        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
-        Geometry,
-    },
-    mesh::{Mesh, MeshGpu, MeshPrimitive},
-};
 use glam::{DVec3, Vec3};
 use iced::{
     advanced::Shell,
@@ -19,13 +11,21 @@ use iced::{
     },
     Color, Point, Rectangle, Size,
 };
+use nadir_3d::{
+    geometry::{
+        cuboid::Cuboid,
+        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
+        Geometry,
+    },
+    mesh::{Mesh, MeshGpu, MeshPrimitive},
+};
 
 use image::{load_from_memory, GenericImageView};
 
 pub mod camera;
 pub mod earth_pipeline;
-pub mod sun_pipeline;
 pub mod pipeline;
+pub mod sun_pipeline;
 
 use camera::Camera;
 use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
@@ -33,7 +33,7 @@ use pipeline::{
     uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
     Ellipsoid64Pipeline, Pipeline,
 };
-use sun_pipeline::{SunPipeline, CoronaPipeline};
+use sun_pipeline::{CoronaPipeline, SunPipeline};
 
 use crate::{
     celestial::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
@@ -65,8 +65,7 @@ impl Default for Scene {
     }
 }
 impl Scene {
-    pub fn set_celestial(&mut self) {        
-
+    pub fn set_celestial(&mut self) {
         self.world_target = if !self.body_meshes.is_empty() {
             Some(0)
         } else {
@@ -147,7 +146,7 @@ impl ScenePrimitive {
             .iter()
             .for_each(|mesh| meshes.push(MeshPrimitive::from(mesh)));
 
-        let celestial = CelestialPrimitives::from(&scene.celestial);        
+        let celestial = CelestialPrimitives::from(&scene.celestial);
         let uniforms = Uniforms::new(scene, bounds);
 
         Self {
@@ -161,13 +160,13 @@ impl ScenePrimitive {
 
 impl Primitive for ScenePrimitive {
     fn prepare(
-        &self,        
+        &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,        
+        format: wgpu::TextureFormat,
         storage: &mut Storage,
-        _bounds: &Rectangle,        
-        viewport: &Viewport
+        _bounds: &Rectangle,
+        viewport: &Viewport,
     ) {
         // a new sceneprimitive is created each animation tick with updated values
         // this creates and stores bindgroups in storage on the first call to prepare
@@ -178,11 +177,11 @@ impl Primitive for ScenePrimitive {
             Some(size) if *size != current_viewport_size => {
                 storage.store(current_viewport_size);
                 true
-            },
+            }
             None => {
                 storage.store(current_viewport_size);
                 false
-            },
+            }
             _ => false,
         };
 
@@ -235,7 +234,7 @@ impl Primitive for ScenePrimitive {
         }
 
         // Create and store the depth_view
-        if !storage.has::<DepthView>()  || resize {
+        if !storage.has::<DepthView>() || resize {
             let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("depth.texture"),
                 size: wgpu::Extent3d {
@@ -256,7 +255,7 @@ impl Primitive for ScenePrimitive {
             storage.store(DepthView(depth_view));
         }
 
-        if !storage.has::<MultisampleView>()  ||  resize {
+        if !storage.has::<MultisampleView>() || resize {
             // create the antialiasing textureview
             let multisampled_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("multisampled.color.texture"),
@@ -315,7 +314,8 @@ impl Primitive for ScenePrimitive {
                 const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_8K.tif");
                 const EARTH_NIGHT: &[u8] =
                     include_bytes!("../../../resources/earth_nightlights_10K.tif");
-                const EARTH_CLOUDS: &[u8] = include_bytes!("../../../resources/earth_clouds_8K.tif");
+                const EARTH_CLOUDS: &[u8] =
+                    include_bytes!("../../../resources/earth_clouds_8K.tif");
                 const EARTH_SPEC: &[u8] = include_bytes!("../../../resources/earth_spec_8k.tif");
                 // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
@@ -470,7 +470,7 @@ impl Primitive for ScenePrimitive {
             }
         }
 
-        if let Some(sun) = self.celestial.meshes.get(&CelestialMeshes::Sun) {            
+        if let Some(sun) = self.celestial.meshes.get(&CelestialMeshes::Sun) {
             if !storage.has::<SunPipeline>() {
                 let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(SunPipeline::new(
@@ -488,7 +488,7 @@ impl Primitive for ScenePrimitive {
             }
         }
 
-        if let Some(corona) = self.celestial.meshes.get(&CelestialMeshes::SunCorona) {            
+        if let Some(corona) = self.celestial.meshes.get(&CelestialMeshes::SunCorona) {
             if !storage.has::<CoronaPipeline>() {
                 let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(CoronaPipeline::new(
@@ -504,7 +504,7 @@ impl Primitive for ScenePrimitive {
                     corona_pipeline.update(queue, &[corona.mesh_gpu]);
                 }
             }
-        }        
+        }
 
         //cuboids
         let cuboids: Vec<MeshGpu> = self
@@ -631,7 +631,7 @@ impl Primitive for ScenePrimitive {
         //     }
         // }
 
-        if !ellipsoid64s.is_empty() {            
+        if !ellipsoid64s.is_empty() {
             if !storage.has::<Ellipsoid64Pipeline>() {
                 let layout = &storage.get::<PipelineLayout>().unwrap().0;
                 storage.store(Ellipsoid64Pipeline(Pipeline::new(
@@ -657,9 +657,8 @@ impl Primitive for ScenePrimitive {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         storage: &Storage,
-        target: &wgpu::TextureView,        
+        target: &wgpu::TextureView,
         viewport: &Rectangle<u32>,
-        
     ) {
         // unpack the depth_view and uniform_bind_group from storage
         let depth_view = &storage.get::<DepthView>().unwrap().0;
@@ -709,15 +708,12 @@ impl Primitive for ScenePrimitive {
             );
         }
 
-        if let Some(sun_pipeline) = storage.get::<SunPipeline>() {            
+        if let Some(sun_pipeline) = storage.get::<SunPipeline>() {
             let pipeline = &sun_pipeline.pipeline;
             pass.set_pipeline(pipeline);
             pass.set_vertex_buffer(0, sun_pipeline.vertex_buffer.slice(..));
             pass.set_vertex_buffer(1, sun_pipeline.instance_buffer.slice(..));
-            pass.draw(
-                0..sun_pipeline.n_vertices,
-                0..sun_pipeline.n_instances,
-            );
+            pass.draw(0..sun_pipeline.n_vertices, 0..sun_pipeline.n_instances);
         }
 
         // render atmosphere first so its always covered

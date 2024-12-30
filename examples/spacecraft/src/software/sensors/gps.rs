@@ -1,17 +1,17 @@
 use crate::hardware::sensors::gps::Gps;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use time::Time;
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct GpsFsw {
     pub state: State,
     parameters: Parameters,
     result_id: Option<u32>,
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
     pub time: Time,
     pub position: Vector3<f64>,
@@ -22,63 +22,66 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         State {
-            time: Time::from_sec_j2k(0.0,time::TimeSystem::TAI),
+            time: Time::from_sec_j2k(0.0, time::TimeSystem::TAI),
             position: Vector3::zeros(),
-            velocity: Vector3::zeros(), 
+            velocity: Vector3::zeros(),
             valid: false,
         }
-    }    
+    }
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
-struct Parameters {    
-}
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+struct Parameters {}
 
 impl GpsFsw {
     pub fn run(&mut self, gps: &Gps) {
         self.state.time = gps.state.time;
         self.state.position = gps.state.position;
-        self.state.velocity = gps.state.velocity;        
+        self.state.velocity = gps.state.velocity;
         self.state.valid = true;
     }
 }
 
 impl NadirResult for GpsFsw {
-    fn new_result(&mut self,results: &mut ResultManager) {
-         // Define the actuator subfolder folder path
-         let fsw_folder_path = results.result_path.join("software");
+    fn new_result(&mut self, results: &mut ResultManager) {
+        // Define the actuator subfolder folder path
+        let fsw_folder_path = results.result_path.join("software");
 
-         // Check if the folder exists, if not, create it
-         if !fsw_folder_path.exists() {
-             std::fs::create_dir_all(&fsw_folder_path).expect("Failed to create fsw folder");
-         }
- 
-         // Initialize writer using the updated path
-         let headers = [
-            "time(jd)", 
-            "position(j2k)[x]", 
-            "position(j2k)[y]", 
-            "position(j2k)[z]", 
+        // Check if the folder exists, if not, create it
+        if !fsw_folder_path.exists() {
+            std::fs::create_dir_all(&fsw_folder_path).expect("Failed to create fsw folder");
+        }
+
+        // Initialize writer using the updated path
+        let headers = [
+            "time(jd)",
+            "position(j2k)[x]",
+            "position(j2k)[y]",
+            "position(j2k)[z]",
             "velocity(j2k)[x]",
             "velocity(j2k)[y]",
             "velocity(j2k)[z]",
-            "valid"];
-         let id = results.new_writer("fsw_gps", &fsw_folder_path, &headers);
-         self.result_id = Some(id);        
+            "valid",
+        ];
+        let id = results.new_writer("fsw_gps", &fsw_folder_path, &headers);
+        self.result_id = Some(id);
     }
 
-    fn write_result(&self,results: &mut ResultManager) {
+    fn write_result(&self, results: &mut ResultManager) {
         if let Some(id) = self.result_id {
-            results.write_record(id, &[
-                self.state.time.get_datetime().to_string(),
-                self.state.position.x.to_string(),
-                self.state.position.y.to_string(),
-                self.state.position.z.to_string(),
-                self.state.velocity.x.to_string(),
-                self.state.velocity.y.to_string(),
-                self.state.velocity.z.to_string(),
-                self.state.valid.to_string(),            
-            ]);
-        }        
+            results.write_record(
+                id,
+                &[
+                    self.state.time.get_datetime().to_string(),
+                    self.state.position.x.to_string(),
+                    self.state.position.y.to_string(),
+                    self.state.position.z.to_string(),
+                    self.state.velocity.x.to_string(),
+                    self.state.velocity.y.to_string(),
+                    self.state.velocity.z.to_string(),
+                    self.state.valid.to_string(),
+                ],
+            );
+        }
     }
 }

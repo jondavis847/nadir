@@ -5,25 +5,24 @@ use serde::{Deserialize, Serialize};
 
 use super::navigation::NavigationFsw;
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 enum TargetMode {
     #[default]
     Nadir,
     Sun,
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct GuidanceFsw {
     parameters: Parameters,
     pub state: State,
     result_id: Option<u32>,
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
-struct Parameters {
-}
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+struct Parameters {}
 
-#[derive(Clone,Debug,Serialize,Deserialize,Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct State {
     pub target_attitude: Quaternion,
     pub target_rate: Vector3<f64>,
@@ -38,29 +37,28 @@ impl GuidanceFsw {
                 let x = nav.od.state.velocity.normalize();
                 let z = -nav.od.state.position.normalize();
                 let y = z.cross(&x);
-                let m = match RotationMatrix::from_cols(x,y,z) {
-                        Ok(m) => m,
-                        Err(_) => unimplemented!("better error handling for guidance")
+                let m = match RotationMatrix::from_cols(x, y, z) {
+                    Ok(m) => m,
+                    Err(_) => unimplemented!("better error handling for guidance"),
                 };
                 Quaternion::from(&m)
             }
-            _ => unimplemented!("implement other targeting modes")
+            _ => unimplemented!("implement other targeting modes"),
         };
 
         self.state.target_rate = match self.state.target_mode {
             TargetMode::Nadir => {
                 // for our spacecraft, orbit rate is about the -y-axis in the body frame
                 let earth_rate = 2.0 * std::f64::consts::PI / 86400.0;
-                Vector3::new(0.0,-earth_rate,0.0)
+                Vector3::new(0.0, -earth_rate, 0.0)
             }
-            _ => Vector3::zeros()
+            _ => Vector3::zeros(),
         };
-        
     }
 }
 
 impl NadirResult for GuidanceFsw {
-    fn new_result(&mut self,results: &mut ResultManager) {
+    fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
         let fsw_folder_path = results.result_path.join("software");
 
@@ -71,30 +69,32 @@ impl NadirResult for GuidanceFsw {
 
         // Initialize writer using the updated path
         let headers = [
-           "target_attitude[x]",
-           "target_attitude[y]",
-           "target_attitude[z]",
-           "target_attitude[w]",
-           "target_rate[x]",
-           "target_rate[y]",
-           "target_rate[z]",
-           ];
+            "target_attitude[x]",
+            "target_attitude[y]",
+            "target_attitude[z]",
+            "target_attitude[w]",
+            "target_rate[x]",
+            "target_rate[y]",
+            "target_rate[z]",
+        ];
         let id = results.new_writer("fsw_guid", &fsw_folder_path, &headers);
-        self.result_id = Some(id);        
-   }
+        self.result_id = Some(id);
+    }
 
-   fn write_result(&self,results: &mut ResultManager) {
-       if let Some(id) = self.result_id {
-           results.write_record(id, &[
-            self.state.target_attitude.x.to_string(),
-            self.state.target_attitude.y.to_string(),
-            self.state.target_attitude.z.to_string(),
-            self.state.target_attitude.s.to_string(),
-            self.state.target_rate[0].to_string(),
-            self.state.target_rate[1].to_string(),
-            self.state.target_rate[2].to_string(),
-           ]);
-       }        
-   }
+    fn write_result(&self, results: &mut ResultManager) {
+        if let Some(id) = self.result_id {
+            results.write_record(
+                id,
+                &[
+                    self.state.target_attitude.x.to_string(),
+                    self.state.target_attitude.y.to_string(),
+                    self.state.target_attitude.z.to_string(),
+                    self.state.target_attitude.s.to_string(),
+                    self.state.target_rate[0].to_string(),
+                    self.state.target_rate[1].to_string(),
+                    self.state.target_rate[2].to_string(),
+                ],
+            );
+        }
+    }
 }
-

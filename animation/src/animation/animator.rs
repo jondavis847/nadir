@@ -21,7 +21,7 @@ impl Animator {
     }
 
     pub fn start(&mut self) {
-        self.instant = iced::time::Instant::now();        
+        self.instant = iced::time::Instant::now();
     }
 
     pub fn update(&mut self, instant: iced::time::Instant) {

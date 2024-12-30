@@ -28,7 +28,8 @@ impl EarthParameters {
         let start = std::time::Instant::now();
         print!("Getting latest eop file from naif website...");
         io::stdout().flush().expect("spice could not flush io");
-        let response = reqwest::blocking::get(EarthParameters::EARTH_BPC).expect("spice could not http get");
+        let response =
+            reqwest::blocking::get(EarthParameters::EARTH_BPC).expect("spice could not http get");
 
         // Get the Last-Modified header if it exists
         let last_modified = response
@@ -64,8 +65,8 @@ pub struct MoonParameters {
 }
 
 impl MoonParameters {
-
-    const MOON_BPC: &'static str = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc";
+    const MOON_BPC: &'static str =
+        "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/moon_pa_de440_200625.bpc";
 
     pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
         check_naif(MoonParameters::MOON_BPC, self.last_modified.clone())
@@ -75,7 +76,8 @@ impl MoonParameters {
         let start = std::time::Instant::now();
         print!("Getting latest moon file from naif website...");
         io::stdout().flush().expect("spice could not flush io");
-        let response = reqwest::blocking::get(MoonParameters::MOON_BPC).expect("spice could not perform http get request");
+        let response = reqwest::blocking::get(MoonParameters::MOON_BPC)
+            .expect("spice could not perform http get request");
 
         // Get the Last-Modified header if it exists
         let last_modified = response
