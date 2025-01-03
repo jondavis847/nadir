@@ -42,7 +42,9 @@ impl Default for Parameters {
 
 impl ReactionWheelFsw {
     pub fn run(&mut self, control: &ControlFsw, rw: &mut [Actuator<ReactionWheel>; 4]) {
-        let wheel_torque_commands = self.parameters.body_to_wheel * control.state.torque_cmd_body;
+        // wheel torque commands need to be equal and oppositie of body torque commmands, so negative sign
+
+        let wheel_torque_commands = self.parameters.body_to_wheel * (-control.state.torque_cmd_body);
 
         // Find the maximum absolute wheel torque
         let max_torque = {
@@ -65,12 +67,12 @@ impl ReactionWheelFsw {
         for i in 0..4 {
             self.state.wheel_torque_commands[i] = scaling_factor * wheel_torque_commands[i];
             self.state.wheel_current_commands[i] =
-                self.parameters.kt[i] * self.state.wheel_torque_commands[i];
+                self.state.wheel_torque_commands[i] / self.parameters.kt[i] ;
         }
 
         for (i, wheel) in rw.iter_mut().enumerate() {
             wheel.model.state.command =
-                ReactionWheelCommands::Torque(self.state.wheel_current_commands[i]);
+                ReactionWheelCommands::Torque(self.state.wheel_torque_commands[i]);
         }
     }
 }

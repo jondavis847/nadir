@@ -31,7 +31,7 @@ use nadir_3d::{
     mesh::Mesh,
 };
 use rotations::{
-    prelude::{AlignedAxes, Axis, AxisPair},
+    prelude::{AlignedAxes, Axis, AxisPair, Quaternion},
     Rotation,
 };
 use software::SpacecraftFsw;
@@ -58,9 +58,10 @@ fn main() {
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
     let orbit =
-        KeplerianElements::new(8e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
+        KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
     let state = FloatingState::new()
         .with_rates([0.0, 0.0, 0.0].into())
+        .with_attitude(Quaternion::new(-0.4,0.5,-0.5,0.5))
         .with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
@@ -96,7 +97,7 @@ fn main() {
         "st",
         StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
-            50.0 / 3600.0 * std::f64::consts::PI / 180.0 ,
+            0.0 * 50.0 / 3600.0 * std::f64::consts::PI / 180.0 ,
         ))),
     );
 
@@ -105,15 +106,15 @@ fn main() {
         "imu",
         RateGyro::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
-            1.0e-3 * std::f64::consts::PI / 180.0,
+            0.0 * 1.0e-3 * std::f64::consts::PI / 180.0,
         ))),
     );
 
     // Create the reaction wheels
-    let mut rw1 = Actuator::new("rw1", ReactionWheel::new(0.25, 0.4, 0.0).unwrap());
-    let mut rw2 = Actuator::new("rw2", ReactionWheel::new(0.25, 0.4, 0.0).unwrap());
-    let mut rw3 = Actuator::new("rw3", ReactionWheel::new(0.25, 0.4, 0.0).unwrap());
-    let mut rw4 = Actuator::new("rw4", ReactionWheel::new(0.25, 0.4, 0.0).unwrap());
+    let mut rw1 = Actuator::new("rw1", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
+    let mut rw2 = Actuator::new("rw2", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
+    let mut rw3 = Actuator::new("rw3", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
+    let mut rw4 = Actuator::new("rw4", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
 
     let rw1_transform = Transform::new(
         Rotation::from(
@@ -174,5 +175,5 @@ fn main() {
     // Create the system
     let mut sys = MultibodySystem::new(base, [b], [f], sensor_system, software, actuator_system);
     // Run the simulation
-    sys.simulate("", 0.0, 20.0, 0.2);
+    sys.simulate("", 0.0, 1000.0, 0.1);
 }

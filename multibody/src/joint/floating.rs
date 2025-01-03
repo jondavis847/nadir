@@ -45,6 +45,13 @@ impl FloatingState {
     }
 
     pub fn with_attitude(mut self, q: Quaternion) -> Self {
+        // r is provided and stored in state in the jif
+        // v is in the jof though so need to transform it based on q
+        let old_q = self.q;
+        // rotate velocity back to jif first since that's what it was provided as
+        self.v = old_q.inv().transform(self.v);
+        // rotate v by the new q
+        self.v = q.transform(self.v);
         self.q = q;
         self
     }
@@ -60,7 +67,9 @@ impl FloatingState {
     }
 
     pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
-        self.v = v;
+        // this assumes that velocity is provided in the jif frame, but it needs to be jof
+        let v_jof = self.q.transform(v);
+        self.v = v_jof;
         self
     }
 
@@ -68,8 +77,7 @@ impl FloatingState {
         let (r, v) = match orbit {
             Orbit::Keplerian(kep) => kep.get_rv(),
         };
-        self.r = r;
-        self.v = v;
+        self = self.with_position(r).with_velocity(v);        
         self
     }
 }

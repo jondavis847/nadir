@@ -235,6 +235,12 @@ impl NadirResult for Body {
                 "velocity(body)[x]",
                 "velocity(body)[y]",
                 "velocity(body)[z]",
+                "actuator_torque(body)[x]",
+                "actuator_torque(body)[y]",
+                "actuator_torque(body)[z]",
+                "actuator_force(body)[x]",
+                "actuator_force(body)[y]",
+                "actuator_force(body)[z]",
             ],
         );
         self.result_id = Some(id);
@@ -283,6 +289,12 @@ impl NadirResult for Body {
                     self.state.velocity_body[0].to_string(),
                     self.state.velocity_body[1].to_string(),
                     self.state.velocity_body[2].to_string(),
+                    self.state.actuator_force_body.rotation()[0].to_string(),
+                    self.state.actuator_force_body.rotation()[1].to_string(),
+                    self.state.actuator_force_body.rotation()[2].to_string(),                    
+                    self.state.actuator_force_body.translation()[0].to_string(),
+                    self.state.actuator_force_body.translation()[1].to_string(),
+                    self.state.actuator_force_body.translation()[2].to_string(),                    
                 ],
             );
         }

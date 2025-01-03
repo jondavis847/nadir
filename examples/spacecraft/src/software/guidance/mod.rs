@@ -49,7 +49,7 @@ impl GuidanceFsw {
         self.state.target_rate = match self.state.target_mode {
             TargetMode::Nadir => {
                 // for our spacecraft, orbit rate is about the -y-axis in the body frame
-                let earth_rate = 2.0 * std::f64::consts::PI / 86400.0;
+                let earth_rate = 2.0 * std::f64::consts::PI / (100.0 * 60.0);
                 Vector3::new(0.0, -earth_rate, 0.0)
             }
             _ => Vector3::zeros(),
