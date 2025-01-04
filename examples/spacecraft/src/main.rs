@@ -97,7 +97,7 @@ fn main() {
         "st",
         StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
-            0.0 * 50.0 / 3600.0 * std::f64::consts::PI / 180.0,
+            50.0 / 3600.0 * std::f64::consts::PI / 180.0,
         ))),
     );
 
@@ -106,7 +106,7 @@ fn main() {
         "imu",
         RateGyro::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
-            0.0 * 1.0e-3 * std::f64::consts::PI / 180.0,
+            1.0e-3 * std::f64::consts::PI / 180.0,
         ))),
     );
 

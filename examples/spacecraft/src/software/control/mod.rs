@@ -1,9 +1,6 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::{
-    prelude::{EulerAngles, Quaternion},
-    RotationTrait,
-};
+use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
 use super::{guidance::GuidanceFsw, navigation::NavigationFsw};
@@ -28,9 +25,9 @@ struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Parameters {
-            k_p: 1.0,
-            k_i: 0.0,
-            k_d: 0.0,
+            k_p: 0.01,
+            k_i: 0.00001,
+            k_d: 0.1,
             anti_windup: 0.0175,
             moi: [1000.0, 1000.0, 1000.0],
         }
@@ -58,13 +55,13 @@ impl ControlFsw {
         let target_attitude = guid.state.target_attitude.normalize();
 
         // Compute the error quaternion: q_error = q_current.inv() * q_target
-        let q_error = current_attitude.inv() * target_attitude.normalize();
+        let q_error = (current_attitude * target_attitude.inv()).normalize();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
         let q_error = if q_error.s < 0.0 { -q_error } else { q_error };
 
         // Compute the attitude error vector (scaled by 2 for small angles)
-        self.state.attitude_error = Vector3::new(q_error.x * 2.0, q_error.y * 2.0, q_error.z * 2.0);
+        self.state.attitude_error = Vector3::new(q_error.x, q_error.y, q_error.z);
 
         // Rate Error
         self.state.rate_error = nav.ad.state.rates - guid.state.target_rate;
@@ -82,8 +79,8 @@ impl ControlFsw {
         for i in 0..3 {
             self.state.torque_cmd_body[i] = self.parameters.moi[i]
                 * (-self.parameters.k_p * self.state.attitude_error[i]
-                    + self.parameters.k_i * self.state.integral_error[i]
-                    + self.parameters.k_d * self.state.rate_error[i]);
+                    - self.parameters.k_i * self.state.integral_error[i]
+                    - self.parameters.k_d * self.state.rate_error[i]);
         }
     }
 }
