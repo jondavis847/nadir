@@ -113,12 +113,17 @@ impl Joint {
 
         // from eulers equation, p_big_a is w x H - T,
         // but H in the joint is H in the body transformed to the joint.
-        // H in the body is Hs = Hb + Hi, where Hb is wI of the body. 
+        // H in the body is Hs = Hb + Hi, where Hb is wI of the body.
         // need to add in Hi, which is momentum of internally rotating components
         let body = self.connections.outer_body.as_ref().unwrap().body.borrow();
         let h_i = {
-            let h = c.transforms.jof_from_ob.0.rotation.transform(body.state.angular_momentum_body);
-            Momentum::from(Vector6::new(h[0],h[1],h[2],0.0,0.0,0.0))
+            let h = c
+                .transforms
+                .jof_from_ob
+                .0
+                .rotation
+                .transform(body.state.angular_momentum_body);
+            Momentum::from(Vector6::new(h[0], h[1], h[2], 0.0, 0.0, 0.0))
         };
 
         c.aba.p_big_a = c.v.cross_force(c.inertia * c.v + h_i) - c.f;

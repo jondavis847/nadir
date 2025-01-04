@@ -1,6 +1,9 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::{prelude::{EulerAngles, Quaternion}, RotationTrait};
+use rotations::{
+    prelude::{EulerAngles, Quaternion},
+    RotationTrait,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{guidance::GuidanceFsw, navigation::NavigationFsw};
@@ -58,11 +61,7 @@ impl ControlFsw {
         let q_error = current_attitude.inv() * target_attitude.normalize();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
-        let q_error = if q_error.s < 0.0 {
-            -q_error
-        } else {
-            q_error
-        };
+        let q_error = if q_error.s < 0.0 { -q_error } else { q_error };
 
         // Compute the attitude error vector (scaled by 2 for small angles)
         self.state.attitude_error = Vector3::new(q_error.x * 2.0, q_error.y * 2.0, q_error.z * 2.0);
@@ -82,7 +81,7 @@ impl ControlFsw {
         // Torque Command
         for i in 0..3 {
             self.state.torque_cmd_body[i] = self.parameters.moi[i]
-                * ( -self.parameters.k_p * self.state.attitude_error[i]
+                * (-self.parameters.k_p * self.state.attitude_error[i]
                     + self.parameters.k_i * self.state.integral_error[i]
                     + self.parameters.k_d * self.state.rate_error[i]);
         }

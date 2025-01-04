@@ -61,7 +61,7 @@ fn main() {
         KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 3.14, epoch, CelestialBodies::Earth);
     let state = FloatingState::new()
         .with_rates([0.0, 0.0, 0.0].into())
-        .with_attitude(Quaternion::new(-0.4,0.5,-0.5,0.5))
+        .with_attitude(Quaternion::new(-0.4, 0.5, -0.5, 0.5))
         .with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
@@ -97,7 +97,7 @@ fn main() {
         "st",
         StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
             0.0,
-            0.0 * 50.0 / 3600.0 * std::f64::consts::PI / 180.0 ,
+            0.0 * 50.0 / 3600.0 * std::f64::consts::PI / 180.0,
         ))),
     );
 

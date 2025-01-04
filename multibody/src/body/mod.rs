@@ -291,10 +291,10 @@ impl NadirResult for Body {
                     self.state.velocity_body[2].to_string(),
                     self.state.actuator_force_body.rotation()[0].to_string(),
                     self.state.actuator_force_body.rotation()[1].to_string(),
-                    self.state.actuator_force_body.rotation()[2].to_string(),                    
+                    self.state.actuator_force_body.rotation()[2].to_string(),
                     self.state.actuator_force_body.translation()[0].to_string(),
                     self.state.actuator_force_body.translation()[1].to_string(),
-                    self.state.actuator_force_body.translation()[2].to_string(),                    
+                    self.state.actuator_force_body.translation()[2].to_string(),
                 ],
             );
         }

@@ -77,7 +77,7 @@ impl FloatingState {
         let (r, v) = match orbit {
             Orbit::Keplerian(kep) => kep.get_rv(),
         };
-        self = self.with_position(r).with_velocity(v);        
+        self = self.with_position(r).with_velocity(v);
         self
     }
 }
