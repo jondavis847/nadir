@@ -1,12 +1,11 @@
 [package]
-name = "nadir"
+name = "gravity"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-clap.workspace = true
-animation.workspace = true
-plotting.workspace = true
-plotting_egui.workspace = true
+approx.workspace = true
+nalgebra.workspace = true
+utilities.workspace = true

@@ -1,12 +1,12 @@
 [package]
-name = "nadir"
+name = "plotting_egui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-clap.workspace = true
-animation.workspace = true
-plotting.workspace = true
-plotting_egui.workspace = true
+csv.workspace = true
+eframe.workspace = true
+egui_plot.workspace = true
+inquire.workspace = true

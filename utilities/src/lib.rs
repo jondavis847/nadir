@@ -116,3 +116,26 @@ pub fn unique_strings_alphabetical(vec1: Vec<String>, vec2: Vec<String>) -> Vec<
     result.sort();
     result
 }
+
+pub fn assert_equal(left: f64, right:f64) {
+    let max = left.abs().max(right.abs());
+    let rel_diff = (left-right).abs()/max;
+    assert!(rel_diff < 1e-9)
+}
+
+use num_traits::{PrimInt, Unsigned, One};
+
+pub fn factorial<T>(n: T) -> T
+where
+    T: PrimInt + Unsigned + One,
+{
+    // Initialize the result as one
+    let mut result = T::one();
+    // Iterate from one to n, inclusive
+    let mut i = T::one();
+    while i <= n {
+        result = result * i;
+        i = i + T::one();
+    }
+    result
+}

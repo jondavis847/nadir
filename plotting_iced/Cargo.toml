@@ -1,0 +1,14 @@
+[package]
+name = "plotting_iced"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+csv.workspace = true
+inquire.workspace = true
+iced.workspace = true
+image.workspace = true
+plotters.workspace = true
+plotters-iced.workspace = true
