@@ -76,8 +76,6 @@ impl SphericalHarmonics {
         let ax = tmp1 * x - tmp2 * y;
         let ay = tmp1 * y + tmp2 * x;
         let az = partial_r * z / r + xy * partial_lat / r.powi(2);
-
-        dbg!(&self.legendre.p);
         
         Vector3::new(ax, ay, az)
     }

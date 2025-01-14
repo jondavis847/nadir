@@ -120,7 +120,13 @@ pub fn unique_strings_alphabetical(vec1: Vec<String>, vec2: Vec<String>) -> Vec<
 pub fn assert_equal(left: f64, right:f64) {
     let max = left.abs().max(right.abs());
     let rel_diff = (left-right).abs()/max;
-    assert!(rel_diff < 1e-9)
+    assert!(
+        rel_diff < 1e-9,
+        "Assertion failed: left ({}) and right ({}) are not approximately equal. Relative difference: {}",
+        left,
+        right,
+        rel_diff
+    );
 }
 
 use num_traits::{PrimInt, Unsigned, One};
