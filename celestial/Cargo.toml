@@ -1,15 +1,17 @@
 [package]
-name = "gravity"
+name = "celestial"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-approx.workspace = true
-legendre.workspace = true
+aerospace.workspace = true
+gravity.workspace = true
+nadir_result.workspace = true
 nalgebra.workspace = true
+rotations.workspace = true
 serde.workspace = true
-spherical_harmonics.workspace = true
+spice.workspace = true
 thiserror.workspace = true
-utilities.workspace = true
+time.workspace = true

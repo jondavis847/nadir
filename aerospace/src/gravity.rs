@@ -288,7 +288,7 @@ impl GravityTrait for EGM96Gravity {
             let slambda = lambda.sin();
             let clambda = lambda.cos();
             sm_lambda[0] = 0.0;
-            cm_lambda[0] = 1.0; 
+            cm_lambda[0] = 1.0;
             sm_lambda[1] = slambda;
             cm_lambda[1] = clambda;
             for m in 2..=max_deg {

@@ -1,17 +1,24 @@
-use utilities::factorial;
+use thiserror::Error;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum LegendreNormalization {
     FourPi,
+    #[default]
     Full,
-    None,
-    Schmidt,
-    SchmidtQuasi,
-    Standard,
+    Unnormalized,
 }
+
+#[derive(Error, Debug)]
+pub enum LegendreErrors {
+    #[error("order must be less than or equal to degree")]
+    OrderGreaterThanDegree,
+    #[error("value must be between -1 and 1 inclusive")]
+    ValueOutOfRange,
+}
+
 /// Calculates legendre functions
-/// Automatically implements the Condon-Shortley convention
-#[derive(Debug, Clone)]
+/// // just need default so we can deserialize, will get reinitialized after that
+#[derive(Debug, Clone, Default)]
 pub struct Legendre {
     pub p: Vec<Vec<f64>>,
     pub dp: Option<Vec<Vec<f64>>>,
@@ -23,31 +30,33 @@ pub struct Legendre {
 }
 
 impl Legendre {
-    pub fn new(degree: usize, order: usize) -> Self {
-        if degree < order {
-            panic!("Legendre polynomial degree must be >= order")
+    pub fn new(degree: usize, order: usize) -> Result<Self, LegendreErrors> {
+        if order > degree {
+            return Err(LegendreErrors::OrderGreaterThanDegree);
         }
+
         let mut p = vec![vec![0.0; order + 1]; degree + 1];
-        // p00 is always 1.0 and this way we never have to set it again
         p[0][0] = 1.0;
 
         // populate norm with all 1's to start. updated in with_normalization
         let mut norm = vec![vec![0.0; order + 1]; degree + 1];
         for l in 0..=degree {
             for m in 0..=l {
-                norm[l][m] = 1.0
+                if m <= order {
+                    norm[l][m] = 1.0
+                }
             }
         }
 
-        Self {
+        Ok(Self {
             p,
             dp: None,
             degree,
             order,
             condon_shortley: false,
-            normalization: LegendreNormalization::None,
+            normalization: LegendreNormalization::Unnormalized,
             norm,
-        }
+        })
     }
 
     /// just preallocates at construction
@@ -74,29 +83,20 @@ impl Legendre {
     pub fn with_normalization(mut self, norm: LegendreNormalization) -> Self {
         // precomute norm factors for l and m
         for l in 0..=self.degree {
+            let lf = l as f64;
             for m in 0..=l {
+                let mf = m as f64;
                 self.norm[l][m] = match norm {
+                    LegendreNormalization::Unnormalized => 1.0,
                     LegendreNormalization::FourPi => {
-                        todo!()
+                        let delta = if m == 0 { 0.0 } else { 1.0 };
+                        ((2.0 - delta) * (2.0 * lf + 1.0) * factorial(lf - mf) / factorial(lf + mf))
+                            .sqrt()
                     }
-                    LegendreNormalization::None => 1.0,
                     LegendreNormalization::Full => {
-                        let num = (2 * l + 1) * factorial(l - m);
-                        let denom = 2 * factorial(l + m);
-                        (num as f64 / denom as f64).sqrt()
-                    }
-                    LegendreNormalization::Schmidt => {
-                        let delta: usize = if m == 0 { 1 } else { 0 };
-
-                        let num = 2 * l + 1;
-                        let denom = 2 * (2 - delta);
-                        (num as f64 / denom as f64).sqrt()
-                    }
-                    LegendreNormalization::SchmidtQuasi => {
-                        todo!()
-                    }
-                    LegendreNormalization::Standard => {
-                        todo!()
+                        let k = if m == 0 { 1.0 } else { 2.0 };
+                        (k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
+                            .sqrt()
                     }
                 };
 
@@ -110,7 +110,11 @@ impl Legendre {
         self
     }
 
-    pub fn calculate(&mut self, x: f64) {
+    pub fn calculate(&mut self, x: f64) -> Result<(), LegendreErrors> {
+        if !(x >= -1.0 && x <= 1.0) {
+            return Err(LegendreErrors::ValueOutOfRange);
+        }
+
         // first couple values, p[0][0] is always 1.0 from initialization
         self.p[1][0] = x;
         self.p[1][1] = (1.0 - x * x).sqrt();
@@ -156,13 +160,28 @@ impl Legendre {
             for l in 1..=self.degree {
                 let lf = l as f64;
                 for m in 0..=l {
-                    let mf = m as f64;
-                    dp[l][m] =
-                        ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / (1.0 - x * x);
+                    if m <= self.order {
+                        let mf = m as f64;
+                        dp[l][m] =
+                            ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / (1.0 - x * x);
+                    }
                 }
             }
         }
+
+        Ok(())
     }
+}
+// factorial needs to bef64 for legendre or we over flow at like order,degree 10,10.
+pub fn factorial(n: f64) -> f64 {
+    let mut result = 1.0;
+    let mut i = 1.0;
+    while i <= n + 0.1 {
+        //0.1 for some margin since f64! and not int64!
+        result = result * i;
+        i += 1.0;
+    }
+    result
 }
 
 #[cfg(test)]
@@ -172,8 +191,8 @@ mod tests {
 
     #[test]
     fn test_legendre_1() {
-        let mut legendre = Legendre::new(18, 18);
-        legendre.calculate(0.5);
+        let mut legendre = Legendre::new(18, 18).unwrap();
+        legendre.calculate(0.5).unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.5);
@@ -193,8 +212,8 @@ mod tests {
 
     #[test]
     fn test_legendre_2() {
-        let mut legendre = Legendre::new(50, 50);
-        legendre.calculate(-0.99);
+        let mut legendre = Legendre::new(50, 50).unwrap();
+        legendre.calculate(-0.99).unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], -0.99);
@@ -213,8 +232,8 @@ mod tests {
 
     #[test]
     fn test_legendre_condon_shortley() {
-        let mut legendre = Legendre::new(10, 10).with_condon_shortley();
-        legendre.calculate(0.5);
+        let mut legendre = Legendre::new(10, 10).unwrap().with_condon_shortley();
+        legendre.calculate(0.5).unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.5);
@@ -234,9 +253,10 @@ mod tests {
     #[test]
     fn test_legendre_normalization_full() {
         let mut legendre = Legendre::new(10, 10)
+            .unwrap()
             .with_normalization(LegendreNormalization::Full)
             .with_condon_shortley();
-        legendre.calculate(0.5);
+        legendre.calculate(0.5).unwrap();
 
         assert_equal(legendre.p[0][0], 0.7071067811865476);
         assert_equal(legendre.p[1][0], 0.6123724356957945);
@@ -248,15 +268,15 @@ mod tests {
     }
 
     #[test]
-    fn test_legendre_normalization_schmidt() {
+    fn test_legendre_normalization_four_pi() {
         let mut legendre = Legendre::new(10, 10)
-            .with_normalization(LegendreNormalization::Schmidt)
-            .with_condon_shortley();
-        legendre.calculate(0.5);
+            .unwrap()
+            .with_normalization(LegendreNormalization::FourPi);
+        legendre.calculate(0.5).unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.8660254037844386);
-        assert_equal(legendre.p[1][1], -1.5);
+        assert_equal(legendre.p[1][1], 1.5);
         assert_equal(legendre.p[2][2], 1.4523687548277808);
         assert_equal(legendre.p[6][6], 1.0217072515428407);
         assert_equal(legendre.p[10][0], -0.8625718403480759);
