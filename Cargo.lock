@@ -130,6 +130,7 @@ name = "aerospace"
 version = "0.0.1"
 dependencies = [
  "approx",
+ "celestial",
  "csv",
  "interp",
  "nadir_result",
@@ -254,6 +255,7 @@ dependencies = [
  "aerospace",
  "bincode",
  "bytemuck",
+ "celestial",
  "color",
  "csv",
  "glam 0.29.2",
@@ -869,7 +871,6 @@ dependencies = [
 name = "celestial"
 version = "0.0.1"
 dependencies = [
- "aerospace",
  "gravity",
  "nadir_result",
  "nalgebra",
@@ -1518,6 +1519,7 @@ version = "0.0.1"
 dependencies = [
  "aerospace",
  "color",
+ "gravity",
  "mass_properties",
  "multibody",
  "nadir_3d",
@@ -3591,10 +3593,12 @@ dependencies = [
  "aerospace",
  "ambassador",
  "bincode",
+ "celestial",
  "chrono",
  "clap",
  "coordinate_systems",
  "csv",
+ "gravity",
  "mass_properties",
  "nadir_3d",
  "nadir_result",
@@ -5415,6 +5419,7 @@ name = "spacecraft"
 version = "0.0.1"
 dependencies = [
  "aerospace",
+ "celestial",
  "color",
  "csv",
  "mass_properties",

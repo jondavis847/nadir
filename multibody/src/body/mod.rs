@@ -1,8 +1,6 @@
 use crate::joint::{Joint, JointRef};
-use aerospace::{
-    celestial_system::CelestialSystem,
-    gravity::{Gravity, GravityTrait},
-};
+use celestial::CelestialSystem;
+use gravity::Gravity;
 
 use mass_properties::MassProperties;
 use nadir_3d::mesh::Mesh;
@@ -80,8 +78,8 @@ impl Body {
         self
     }
 
-    pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &Gravity) {
-        let g_vec = gravity.calculate(self.state.position_base);
+    pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &mut Gravity) {
+        let g_vec = gravity.calculate(self.state.position_base).unwrap();
 
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm
@@ -98,7 +96,7 @@ impl Body {
     pub fn calculate_gravity_celestial(
         &mut self,
         body_from_base: &SpatialTransform,
-        celestial: &CelestialSystem,
+        celestial: &mut CelestialSystem,
     ) {
         let g_vec = celestial.calculate_gravity(self.state.position_base);
 

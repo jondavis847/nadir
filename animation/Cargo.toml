@@ -7,6 +7,7 @@ edition.workspace = true
 aerospace.workspace = true
 bincode = "1.3.3"
 bytemuck.workspace = true
+celestial.workspace = true
 color.workspace = true
 csv.workspace = true
 glam.workspace = true

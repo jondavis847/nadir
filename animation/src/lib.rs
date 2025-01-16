@@ -1,4 +1,4 @@
-use aerospace::celestial_system::CelestialBodies;
+use celestial::CelestialBodies;
 use csv::ReaderBuilder;
 use glam::{dquat, dvec3, DQuat, DVec3};
 use nadir_3d::mesh::Mesh;
@@ -6,7 +6,7 @@ use ron::from_str;
 use std::path::{Path, PathBuf};
 
 mod animation;
-mod celestial;
+mod celestial_animation;
 //mod mouse;
 
 use animation::{AnimationGui, AnimationResult, CelestialResult, MeshResult};

@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 aerospace.workspace = true
+celestial.workspace = true
 color.workspace = true
 csv.workspace = true
 mass_properties.workspace = true

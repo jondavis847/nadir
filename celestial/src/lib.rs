@@ -1,4 +1,3 @@
-use aerospace::geomag::GeoMagnetism;
 use gravity::{newtonian::NewtonianGravity, Gravity, GravityModel};
 
 use nadir_result::ResultManager;
@@ -45,7 +44,7 @@ pub struct CelestialSystem {
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
         // make sure there's at least a sun for animation
-        let sun = CelestialBody::new(CelestialBodies::Sun, None, None);
+        let sun = CelestialBody::new(CelestialBodies::Sun, None); //, None);
         let bodies = vec![sun];
         // for now lets default to having spice, in the future add analytical ephem
         let spice = Some(Spice::from_local()?);
@@ -136,18 +135,18 @@ impl CelestialSystem {
         }
     }
 
-    pub fn set_geomag(
-        &mut self,
-        body: CelestialBodies,
-        b: Option<GeoMagnetism>,
-    ) -> Result<(), CelestialErrors> {
-        if let Some(celestial_body) = self.bodies.iter_mut().find(|cb| cb.body == body) {
-            celestial_body.geomag = b;
-            Ok(())
-        } else {
-            Err(CelestialErrors::BodyNotFoundInCelestialSystem)
-        }
-    }
+    // pub fn set_geomag(
+    //     &mut self,
+    //     body: CelestialBodies,
+    //     b: Option<GeoMagnetism>,
+    // ) -> Result<(), CelestialErrors> {
+    //     if let Some(celestial_body) = self.bodies.iter_mut().find(|cb| cb.body == body) {
+    //         celestial_body.geomag = b;
+    //         Ok(())
+    //     } else {
+    //         Err(CelestialErrors::BodyNotFoundInCelestialSystem)
+    //     }
+    // }
 
     pub fn set_gravity(
         &mut self,
@@ -179,11 +178,10 @@ impl CelestialSystem {
             None
         };
 
-        let geomag_option = None; // for now
+        //let geomag_option = None; // for now
 
         // Create and add the celestial body
-        self.bodies
-            .push(CelestialBody::new(body, gravity_option, geomag_option));
+        self.bodies.push(CelestialBody::new(body, gravity_option)); //, geomag_option));
 
         Ok(())
     }
@@ -236,7 +234,7 @@ pub struct CelestialBody {
     pub position: Vector3<f64>,  // icrf
     pub orientation: Quaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
-    pub geomag: Option<GeoMagnetism>,
+    //pub geomag: Option<GeoMagnetism>,
     pub result_id: Option<u32>,
 }
 
@@ -244,14 +242,14 @@ impl CelestialBody {
     pub fn new(
         body: CelestialBodies,
         gravity: Option<Gravity>,
-        geomag: Option<GeoMagnetism>,
+        //  geomag: Option<GeoMagnetism>,
     ) -> Self {
         Self {
             body,
             position: Vector3::zeros(),
             orientation: Quaternion::IDENTITY,
             gravity,
-            geomag,
+            //geomag,
             result_id: None,
         }
     }

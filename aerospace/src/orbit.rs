@@ -8,7 +8,7 @@ use std::f64::consts::PI;
 use thiserror::Error;
 use time::{Time, TimeSystem};
 
-use crate::celestial_system::CelestialBodies;
+use celestial::CelestialBodies;
 
 /// Tolerance for determining if orbit is elliptical/circular/parabolic/hyperbolic
 const ORBIT_EPSILON: f64 = 1e-8;

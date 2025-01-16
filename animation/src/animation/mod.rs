@@ -2,8 +2,8 @@ mod animator;
 mod scene;
 
 use crate::Message;
-use aerospace::celestial_system::CelestialBodies;
 use animator::Animator;
+use celestial::CelestialBodies;
 use glam::{DQuat, DVec3};
 use iced::{
     alignment, keyboard,

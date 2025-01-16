@@ -36,7 +36,7 @@ use pipeline::{
 use sun_pipeline::{CoronaPipeline, SunPipeline};
 
 use crate::{
-    celestial::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
+    celestial_animation::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
     Message,
 };
 

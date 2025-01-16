@@ -380,7 +380,7 @@ where
             // get transforms
             let transforms = &inner_joint.cache.transforms;
             // calculate gravity for the outer body
-            match &self.base.borrow().system {
+            match &mut self.base.borrow_mut().system {
                 BaseSystems::Basic(gravity) => {
                     if let Some(gravity) = gravity {
                         body.calculate_gravity(&transforms.ob_from_base, gravity);

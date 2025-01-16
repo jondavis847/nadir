@@ -6,7 +6,6 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aerospace.workspace = true
 gravity.workspace = true
 nadir_result.workspace = true
 nalgebra.workspace = true

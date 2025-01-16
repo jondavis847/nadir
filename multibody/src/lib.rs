@@ -8,9 +8,9 @@ pub mod software;
 pub mod solver;
 pub mod system;
 
-use aerospace::celestial_system::CelestialErrors;
 use base::BaseErrors;
 use body::BodyErrors;
+use celestial::CelestialErrors;
 use joint::{revolute::RevoluteErrors, JointErrors};
 use sensor::SensorErrors;
 use spice::SpiceErrors;

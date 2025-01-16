@@ -6,10 +6,10 @@ use std::{
 use crate::joint::{Joint, JointRef};
 
 use super::body::{BodyErrors, BodyTrait};
-use aerospace::{
-    celestial_system::{CelestialErrors, CelestialSystem},
-    gravity::Gravity,
-};
+
+use celestial::{CelestialErrors, CelestialSystem};
+use gravity::Gravity;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use transforms::Transform;

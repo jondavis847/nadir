@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+celestial.workspace = true
 csv.workspace = true
 nalgebra.workspace = true
 nadir_result.workspace = true

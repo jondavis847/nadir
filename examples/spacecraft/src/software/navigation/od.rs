@@ -1,4 +1,5 @@
-use aerospace::{celestial_system::CelestialBodies, orbit::KeplerianElements};
+use aerospace::orbit::KeplerianElements;
+use celestial::CelestialBodies;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};

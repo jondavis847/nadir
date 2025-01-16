@@ -9,8 +9,10 @@ pub struct ConstantGravity {
 }
 
 impl ConstantGravity {
-    pub fn new(g: Vector3<f64>) -> Self {
-        Self { g }
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self {
+            g: Vector3::new(x, y, z),
+        }
     }
 }
 

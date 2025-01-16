@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use aerospace::celestial_system::CelestialBodies;
+use celestial::CelestialBodies;
 use color::Color;
 use glam::{DQuat, DVec3};
 use nadir_3d::mesh::{Mesh, MeshPrimitive};

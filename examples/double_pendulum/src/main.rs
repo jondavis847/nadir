@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use aerospace::gravity::{ConstantGravity, Gravity};
 use color::Color;
+use gravity::{constant::ConstantGravity, Gravity};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
     base::Base,

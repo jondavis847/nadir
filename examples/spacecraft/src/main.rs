@@ -1,9 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use aerospace::{
-    celestial_system::{CelestialBodies, CelestialSystem},
-    orbit::KeplerianElements,
-};
+use aerospace::orbit::KeplerianElements;
+use celestial::{CelestialBodies, CelestialSystem};
 use color::Color;
 use hardware::{
     actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},
