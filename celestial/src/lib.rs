@@ -382,7 +382,7 @@ impl CelestialBodies {
     /// Return the gravitional parameter for the body in m^3/sec^2
     pub fn get_mu(&self) -> f64 {
         match self {
-            CelestialBodies::Earth => 3.986004418e14,
+            CelestialBodies::Earth => 3.986004415e14, //WGS84
             CelestialBodies::Jupiter => 1.26686534e17,
             CelestialBodies::Mars => 4.282837e13,
             CelestialBodies::Mercury => 2.2032e13,
@@ -399,7 +399,7 @@ impl CelestialBodies {
     /// Returns the volumetric radius (average of polar and equatorial) of the body in m
     pub fn get_radius(&self) -> f64 {
         match self {
-            CelestialBodies::Earth => 6378137.0,
+            CelestialBodies::Earth => 6.3781363e6, // WGS84
             CelestialBodies::Jupiter => 69911000.0,
             CelestialBodies::Mars => 3389500.0,
             CelestialBodies::Mercury => 2439700.0,
