@@ -5422,6 +5422,7 @@ dependencies = [
  "celestial",
  "color",
  "csv",
+ "gravity",
  "mass_properties",
  "multibody",
  "nadir_3d",

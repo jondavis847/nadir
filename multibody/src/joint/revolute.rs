@@ -48,7 +48,7 @@ impl MulAssign<f64> for RevoluteState {
     }
 }
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
-pub struct RevoluteParameters(JointParameters);
+pub struct RevoluteParameters(pub JointParameters);
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Revolute {

@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 
 use aerospace::orbit::KeplerianElements;
 use celestial::{CelestialBodies, CelestialSystem};
 use color::Color;
+use gravity::{egm::EgmGravity, Gravity};
 use hardware::{
     actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},
     sensors::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker, SpacecraftSensors},
@@ -14,7 +15,8 @@ use multibody::{
     body::{Body, BodyTrait},
     joint::{
         floating::{Floating, FloatingParameters, FloatingState},
-        Joint,
+        revolute::{Revolute, RevoluteParameters, RevoluteState},
+        Joint, JointParameters,
     },
     sensor::{
         noise::{gaussian::GaussianNoise, NoiseModels},
@@ -34,7 +36,10 @@ use rotations::{
 };
 use software::SpacecraftFsw;
 use time::Time;
-use transforms::{prelude::CoordinateSystem, Transform};
+use transforms::{
+    prelude::{Cartesian, CoordinateSystem},
+    Transform,
+};
 
 mod hardware;
 mod software;
@@ -49,6 +54,16 @@ fn main() {
         .unwrap();
     celestial
         .add_body(CelestialBodies::Moon, false, false)
+        .unwrap();
+
+    // change earth gravity from default newtonian to egm2008
+    let egm2008 = Gravity::Egm(
+        EgmGravity::new(gravity::egm::EgmModel::Egm2008, 7, 7)
+            .unwrap()
+            .with_newtonian(),
+    );
+    celestial
+        .set_gravity(CelestialBodies::Earth, Some(egm2008))
         .unwrap();
 
     let base = Base::new("base", BaseSystems::Celestial(celestial));
@@ -68,20 +83,112 @@ fn main() {
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(1000.0, cm, inertia).unwrap();
-    let geometry = Geometry::Cuboid(Cuboid::new(1.0, 1.0, 1.0));
+    let geometry = Geometry::Cuboid(Cuboid::new(3.0, 2.0, 2.0));
     let material = Material::Phong {
-        color: Color::GREEN,
+        color: Color::new(0.5, 0.5, 0.5, 1.0),
         specular_power: 32.0,
     };
     let mesh = Mesh {
-        name: "b".to_string(),
+        name: "bus".to_string(),
         geometry,
         material,
         state: GeometryState::default(),
         texture: None,
     };
 
-    let b = Rc::new(RefCell::new(Body::new("b", mp).unwrap().with_mesh(mesh)));
+    let bus = Rc::new(RefCell::new(Body::new("bus", mp).unwrap().with_mesh(mesh)));
+
+    // Create the solar array panels of the spacecraft
+    //sa1
+    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
+    let mp = MassProperties::new(100.0, cm, inertia).unwrap();
+    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
+    let material = Material::Phong {
+        color: Color::new(0.05, 0.05, 0.05, 1.0),
+        specular_power: 32.0,
+    };
+    let mesh = Mesh {
+        name: "sa1".to_string(),
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    };
+
+    let sa1 = Rc::new(RefCell::new(Body::new("sa1", mp).unwrap().with_mesh(mesh)));
+
+    //sa2
+    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
+    let mp = MassProperties::new(100.0, cm, inertia).unwrap();
+    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
+    let material = Material::Phong {
+        color: Color::new(0.05, 0.05, 0.05, 1.05),
+        specular_power: 32.0,
+    };
+    let mesh = Mesh {
+        name: "sa2".to_string(),
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    };
+
+    let sa2 = Rc::new(RefCell::new(Body::new("sa2", mp).unwrap().with_mesh(mesh)));
+
+    //sa3
+    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
+    let mp = MassProperties::new(100.0, cm, inertia).unwrap();
+    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
+    let material = Material::Phong {
+        color: Color::new(0.05, 0.05, 0.05, 1.0),
+        specular_power: 32.0,
+    };
+    let mesh = Mesh {
+        name: "sa3".to_string(),
+        geometry,
+        material,
+        state: GeometryState::default(),
+        texture: None,
+    };
+
+    let sa3 = Rc::new(RefCell::new(Body::new("sa3", mp).unwrap().with_mesh(mesh)));
+
+    // create solar array hinges
+    // hinge 1
+    let p = RevoluteParameters(JointParameters {
+        constant_force: 0.0,
+        damping: 100.0,
+        equilibrium: 0.0,
+        spring_constant: 10.0,
+    });
+    let x = RevoluteState::new(PI / 2.0, 0.0);
+    let hinge1 = Rc::new(RefCell::new(
+        Joint::new("hinge1", Revolute::new(p, x)).unwrap(),
+    ));
+
+    // hinge 2
+    let p = RevoluteParameters(JointParameters {
+        constant_force: 0.0,
+        damping: 100.0,
+        equilibrium: 0.0,
+        spring_constant: 10.0,
+    });
+    let x = RevoluteState::new(-3.14, 0.0);
+    let hinge2 = Rc::new(RefCell::new(
+        Joint::new("hinge2", Revolute::new(p, x)).unwrap(),
+    ));
+
+    // hinge 3
+    let p = RevoluteParameters(JointParameters {
+        constant_force: 0.0,
+        damping: 100.0,
+        equilibrium: 0.0,
+        spring_constant: 10.0,
+    });
+    let x = RevoluteState::new(3.14, 0.0);
+    let hinge3 = Rc::new(RefCell::new(
+        Joint::new("hinge3", Revolute::new(p, x)).unwrap(),
+    ));
 
     let mut gps = Sensor::new(
         "gps",
@@ -113,6 +220,10 @@ fn main() {
     let mut rw3 = Actuator::new("rw3", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
     let mut rw4 = Actuator::new("rw4", ReactionWheel::new(0.25, 0.5, 0.0).unwrap());
 
+    // Connect the components together.
+    // Connections are made by the components names.
+    // The direction of the connection matters - (from,to)
+
     let rw1_transform = Transform::new(
         Rotation::from(
             &AlignedAxes::new(
@@ -140,37 +251,101 @@ fn main() {
     // not using rw4 yet. zero'd out in calcs
     let rw4_transform = Transform::new(Rotation::IDENTITY, CoordinateSystem::ZERO);
 
-    rw1.connect_to_body(&b, rw1_transform).unwrap();
-    rw2.connect_to_body(&b, rw2_transform).unwrap();
-    rw3.connect_to_body(&b, rw3_transform).unwrap();
-    rw4.connect_to_body(&b, rw4_transform).unwrap();
+    rw1.connect_to_body(&bus, rw1_transform).unwrap();
+    rw2.connect_to_body(&bus, rw2_transform).unwrap();
+    rw3.connect_to_body(&bus, rw3_transform).unwrap();
+    rw4.connect_to_body(&bus, rw4_transform).unwrap();
 
     let actuator_system = SpacecraftActuators {
         rw: [rw1, rw2, rw3, rw4],
     };
 
-    // Connect the components together.
-    // Connections are made by the components names.
-    // The direction of the connection matters - (from,to)
     base.borrow_mut().connect_outer_joint(&f).unwrap();
     f.borrow_mut()
         .connect_base(&base, Transform::IDENTITY)
         .unwrap();
-    b.borrow_mut().connect_inner_joint(&f).unwrap();
+    bus.borrow_mut().connect_inner_joint(&f).unwrap();
     f.borrow_mut()
-        .connect_outer_body(&b, Transform::IDENTITY)
+        .connect_outer_body(&bus, Transform::IDENTITY)
         .unwrap();
 
-    gps.connect_to_body(&b, Transform::IDENTITY).unwrap();
-    st.connect_to_body(&b, Transform::IDENTITY).unwrap();
-    imu.connect_to_body(&b, Transform::IDENTITY).unwrap();
+    let bus_h1 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, 1.0, -1.0)),
+    );
+    bus.borrow_mut().connect_outer_joint(&hinge1).unwrap();
+    hinge1
+        .borrow_mut()
+        .connect_inner_body(&bus, bus_h1)
+        .unwrap();
+
+    let h1_sa1 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, -1.0, 0.05)),
+    );
+    sa1.borrow_mut().connect_inner_joint(&hinge1).unwrap();
+    hinge1
+        .borrow_mut()
+        .connect_outer_body(&sa1, h1_sa1)
+        .unwrap();
+
+    let sa1_h2 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, 1.0, -0.05)),
+    );
+    sa1.borrow_mut().connect_outer_joint(&hinge2).unwrap();
+    hinge2
+        .borrow_mut()
+        .connect_inner_body(&sa1, sa1_h2)
+        .unwrap();
+
+    let h2_sa2 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, -1.0, -0.05)),
+    );
+    sa2.borrow_mut().connect_inner_joint(&hinge2).unwrap();
+    hinge2
+        .borrow_mut()
+        .connect_outer_body(&sa2, h2_sa2)
+        .unwrap();
+
+    let sa2_h3 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, 1.0, 0.05)),
+    );
+    sa2.borrow_mut().connect_outer_joint(&hinge3).unwrap();
+    hinge3
+        .borrow_mut()
+        .connect_inner_body(&sa2, sa2_h3)
+        .unwrap();
+
+    let h3_sa3 = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::Cartesian(Cartesian::new(0.0, -1.0, 0.05)),
+    );
+    sa3.borrow_mut().connect_inner_joint(&hinge3).unwrap();
+    hinge3
+        .borrow_mut()
+        .connect_outer_body(&sa3, h3_sa3)
+        .unwrap();
+
+    gps.connect_to_body(&bus, Transform::IDENTITY).unwrap();
+    st.connect_to_body(&bus, Transform::IDENTITY).unwrap();
+    imu.connect_to_body(&bus, Transform::IDENTITY).unwrap();
 
     let sensor_system = SpacecraftSensors { gps, st, imu };
 
     let software = SpacecraftFsw::default();
 
     // Create the system
-    let mut sys = MultibodySystem::new(base, [b], [f], sensor_system, software, actuator_system);
+    let mut sys = MultibodySystem::new(
+        base,
+        [bus, sa1, sa2, sa3],
+        [f, hinge1, hinge2, hinge3],
+        sensor_system,
+        software,
+        actuator_system,
+    );
     // Run the simulation
-    sys.simulate("", 0.0, 10000.0, 1.0);
+    sys.simulate("", 0.0, 10000.0, 0.1);
 }
