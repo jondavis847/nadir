@@ -3,7 +3,7 @@ use gravity::{newtonian::NewtonianGravity, Gravity, GravityModel};
 use nadir_result::ResultManager;
 use nalgebra::Vector3;
 use rotations::{
-    prelude::{EulerAngles, EulerSequence, Quaternion},
+    prelude::{EulerAngles, EulerSequence, UnitQuaternion},
     RotationTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ impl CelestialSystem {
                         body.orientation.x.to_string(),
                         body.orientation.y.to_string(),
                         body.orientation.z.to_string(),
-                        body.orientation.s.to_string(),
+                        body.orientation.w.to_string(),
                     ],
                 );
             }
@@ -231,8 +231,8 @@ impl CelestialSystem {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CelestialBody {
     pub body: CelestialBodies,
-    pub position: Vector3<f64>,  // icrf
-    pub orientation: Quaternion, // icrf to itrf
+    pub position: Vector3<f64>,      // icrf
+    pub orientation: UnitQuaternion, // icrf to itrf
     pub gravity: Option<Gravity>,
     //pub geomag: Option<GeoMagnetism>,
     pub result_id: Option<u32>,
@@ -247,7 +247,7 @@ impl CelestialBody {
         Self {
             body,
             position: Vector3::zeros(),
-            orientation: Quaternion::IDENTITY,
+            orientation: UnitQuaternion::IDENTITY,
             gravity,
             //geomag,
             result_id: None,
@@ -287,7 +287,7 @@ impl CelestialBody {
             CelestialBodies::Venus => {
                 from_planet_fact_sheet(272.76, 0.0, 61.414, 0.0, -5832.6, jdc, sec_j2k)
             }
-            _ => Quaternion::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
+            _ => UnitQuaternion::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
         };
 
         Ok(())
@@ -302,32 +302,34 @@ fn from_planet_fact_sheet(
     hrs_in_day: f64,
     julian_centuries: f64,
     sec_j2k: f64,
-) -> Quaternion {
+) -> UnitQuaternion {
     // j2000 orientation
     let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
     let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
-    let initial_orientation = Quaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation =
+        UnitQuaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = hrs_in_day * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Quaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        UnitQuaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 
-fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> Quaternion {
+fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> UnitQuaternion {
     // j2000 orientation
     let n = (357.85 + 52.316 * julian_centuries) * PI / 180.0;
     let ra = (299.36 + 0.70 * n.sin()) * PI / 180.0;
     let dec = (43.46 - 0.51 * n.cos()) * PI / 180.0;
-    let initial_orientation = Quaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation =
+        UnitQuaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
     // current orientation based on epoch
     let day = 16.11 * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
     let orientation_from_rotation =
-        Quaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+        UnitQuaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
     orientation_from_rotation * initial_orientation
 }
 

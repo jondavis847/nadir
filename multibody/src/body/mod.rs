@@ -7,7 +7,7 @@ use nadir_3d::mesh::Mesh;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::{Vector3, Vector6};
 use ron::ser::{to_string_pretty, PrettyConfig};
-use rotations::{quaternion::Quaternion, RotationTrait};
+use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
 use std::{
@@ -179,7 +179,7 @@ impl Body {
         self.state.angular_rate_body = *body_v.rotation();
         let body_from_base = base_from_body.0.inv();
         self.state.position_base = body_from_base.translation.vec();
-        self.state.attitude_base = Quaternion::from(&body_from_base.rotation);
+        self.state.attitude_base = UnitQuaternion::from(&body_from_base.rotation);
 
         // reset actuator force and environment force to be updated later
         self.state.actuator_force_body = Force::zeros();
@@ -271,7 +271,7 @@ impl NadirResult for Body {
                     self.state.attitude_base.x.to_string(),
                     self.state.attitude_base.y.to_string(),
                     self.state.attitude_base.z.to_string(),
-                    self.state.attitude_base.s.to_string(),
+                    self.state.attitude_base.w.to_string(),
                     self.state.external_force_body[0].to_string(),
                     self.state.external_force_body[1].to_string(),
                     self.state.external_force_body[2].to_string(),
@@ -327,7 +327,7 @@ pub struct BodyState {
     pub velocity_body: Vector3<f64>,
     pub acceleration_base: Vector3<f64>,
     pub acceleration_body: Vector3<f64>,
-    pub attitude_base: Quaternion,
+    pub attitude_base: UnitQuaternion,
     pub angular_rate_body: Vector3<f64>,
     pub angular_accel_body: Vector3<f64>,
     pub actuator_force_body: Force,

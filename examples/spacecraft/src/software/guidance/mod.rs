@@ -1,6 +1,6 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::prelude::{Quaternion, RotationMatrix};
+use rotations::prelude::{RotationMatrix, UnitQuaternion};
 use serde::{Deserialize, Serialize};
 
 use super::navigation::NavigationFsw;
@@ -24,7 +24,7 @@ struct Parameters {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct State {
-    pub target_attitude: Quaternion,
+    pub target_attitude: UnitQuaternion,
     pub target_rate: Vector3<f64>,
     target_mode: TargetMode,
 }
@@ -41,7 +41,7 @@ impl GuidanceFsw {
                     Ok(m) => m,
                     Err(_) => unimplemented!("better error handling for guidance"),
                 };
-                Quaternion::from(&m)
+                UnitQuaternion::from(&m)
             }
             _ => unimplemented!("implement other targeting modes"),
         };
@@ -89,7 +89,7 @@ impl NadirResult for GuidanceFsw {
                     self.state.target_attitude.x.to_string(),
                     self.state.target_attitude.y.to_string(),
                     self.state.target_attitude.z.to_string(),
-                    self.state.target_attitude.s.to_string(),
+                    self.state.target_attitude.w.to_string(),
                     self.state.target_rate[0].to_string(),
                     self.state.target_rate[1].to_string(),
                     self.state.target_rate[2].to_string(),

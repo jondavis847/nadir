@@ -159,7 +159,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use rotations::{
         euler_angles::{EulerAngles, EulerSequence},
-        quaternion::Quaternion,
+        prelude::UnitQuaternion,
     };
     use std::f64::consts::PI;
     const TOL: f64 = 1e-12;
@@ -180,16 +180,16 @@ mod tests {
         let transform2 = Transform::new(rotation2, translation2.into());
 
         let result = transform2 * transform1;
-        let result_rotation = Quaternion::from(&result.rotation);
+        let result_rotation = UnitQuaternion::from(&result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
-        let expected_rotation = Quaternion::from(expected_angles);
+        let expected_rotation = UnitQuaternion::from(expected_angles);
         let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.s, expected_rotation.s, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.w, expected_rotation.w, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);
@@ -222,16 +222,16 @@ mod tests {
         let transform3 = Transform::new(rotation3, translation3.into());
 
         let result = transform3 * (transform2 * transform1);
-        let result_rotation = Quaternion::from(&result.rotation);
+        let result_rotation = UnitQuaternion::from(&result.rotation);
         let result_translation = Cartesian::from(result.translation);
 
-        let expected_rotation = Quaternion::from(expected_angles);
+        let expected_rotation = UnitQuaternion::from(expected_angles);
         let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.s, expected_rotation.s, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.w, expected_rotation.w, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
         assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);

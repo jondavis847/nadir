@@ -65,7 +65,7 @@ fn main() {
                     println!("  x: {}", q.x);
                     println!("  y: {}", q.y);
                     println!("  z: {}", q.z);
-                    println!("  w: {}", q.s);
+                    println!("  w: {}", q.w);
                 }
                 Err(e) => {
                     dbg!(e);

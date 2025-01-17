@@ -1,7 +1,7 @@
 use crate::hardware::sensors::rate_gyro::RateGyro;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::{prelude::Quaternion, RotationTrait};
+use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -20,7 +20,7 @@ pub struct State {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 struct Parameters {
-    imu_to_body: Quaternion,
+    imu_to_body: UnitQuaternion,
 }
 
 impl RateGyroFsw {

@@ -131,7 +131,7 @@ impl RotationTrait for EulerAngles {
     ///
     /// The rotated vector.
     fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
-        let quat = Quaternion::from(self);
+        let quat = UnitQuaternion::from(self);
         quat.rotate(v)
     }
 
@@ -145,7 +145,7 @@ impl RotationTrait for EulerAngles {
     ///
     /// The transformed vector.
     fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
-        let quat = Quaternion::from(self);
+        let quat = UnitQuaternion::from(self);
         quat.transform(v)
     }
 
@@ -202,12 +202,12 @@ impl RotationTrait for EulerAngles {
 
 impl From<&Quaternion> for EulerAngles {
     fn from(q: &Quaternion) -> Self {
-        let q = if q.s < 0.0 { -(*q) } else { *q };
+        let q = if q.w < 0.0 { -(*q) } else { *q };
 
         let q = q.normalize();
 
         // we assume ZYX rotation
-        let w = q.s;
+        let w = q.w;
         let x = q.x;
         let y = q.y;
         let z = q.z;

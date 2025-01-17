@@ -1,4 +1,4 @@
-use crate::quaternion::Quaternion;
+use crate::prelude::UnitQuaternion;
 use nalgebra::Vector3;
 use thiserror::Error;
 
@@ -42,12 +42,12 @@ impl RotationTrait for AxisAngle {
     }
 
     fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
-        let quaternion = Quaternion::from(self);
+        let quaternion = UnitQuaternion::from(self);
         quaternion.rotate(v)
     }
 
     fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
-        let quaternion = Quaternion::from(self);
+        let quaternion = UnitQuaternion::from(self);
         quaternion.transform(v)
     }
 }

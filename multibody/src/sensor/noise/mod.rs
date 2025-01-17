@@ -4,7 +4,7 @@ pub mod uniform;
 use gaussian::GaussianNoise;
 use nalgebra::Vector3;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use rotations::{axis_angle::AxisAngle, prelude::Quaternion};
+use rotations::{axis_angle::AxisAngle, quaternion::UnitQuaternion};
 use serde::{Deserialize, Serialize};
 use uniform::UniformNoise;
 
@@ -97,7 +97,7 @@ impl QuaternionNoise {
         }
     }
 
-    pub fn sample(&mut self) -> Quaternion {
+    pub fn sample(&mut self) -> UnitQuaternion {
         // Generate a small random angle for the noise
         let noise_angle = self.magnitude_noise.sample();
 
@@ -111,7 +111,7 @@ impl QuaternionNoise {
         // Create a noise quaternion from the random axis and noise angle
         // unwrap should be safe since we call .normalize()
         let noise_axis_angle = AxisAngle::new(noise_angle, random_axis).unwrap();
-        Quaternion::from(&noise_axis_angle)
+        UnitQuaternion::from(&noise_axis_angle)
     }
 }
 

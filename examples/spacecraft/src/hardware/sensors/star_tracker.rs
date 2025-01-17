@@ -6,7 +6,7 @@ use multibody::{
     },
 };
 
-use rotations::{prelude::Quaternion, Rotation};
+use rotations::{prelude::UnitQuaternion, Rotation};
 use serde::{Deserialize, Serialize};
 
 /// Constant parameters for the simple star tracker sensor
@@ -21,8 +21,8 @@ struct StarTrackerParameters {
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct StarTrackerState {
-    noise: Quaternion,
-    pub measurement: Quaternion,
+    noise: UnitQuaternion,
+    pub measurement: UnitQuaternion,
 }
 
 /// A star tracker attitude sensor with gaussian white noise & constant delay
@@ -63,12 +63,12 @@ impl StarTracker {
 impl SensorModel for StarTracker {
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
-        let body_to_st = Quaternion::from(&connection.transform.rotation);
+        let body_to_st = UnitQuaternion::from(&connection.transform.rotation);
         // Get the truth attitude
         let mut sensor_attitude = body_to_st * body.state.attitude_base;
         // Apply optional misalignment
         if let Some(misalignment) = &self.parameters.misalignment {
-            sensor_attitude = Quaternion::from(misalignment) * sensor_attitude;
+            sensor_attitude = UnitQuaternion::from(misalignment) * sensor_attitude;
         }
 
         // Apply optional noise
@@ -85,11 +85,11 @@ impl SensorModel for StarTracker {
             self.state.measurement.x.to_string(),
             self.state.measurement.y.to_string(),
             self.state.measurement.z.to_string(),
-            self.state.measurement.s.to_string(),
+            self.state.measurement.w.to_string(),
             self.state.noise.x.to_string(),
             self.state.noise.y.to_string(),
             self.state.noise.z.to_string(),
-            self.state.noise.s.to_string(),
+            self.state.noise.w.to_string(),
         ];
         results.write_record(id, content);
     }

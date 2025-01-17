@@ -55,16 +55,7 @@ fn main() {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(
-        6.4e6,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        3.14,
-        epoch,
-        CelestialBodies::Earth,
-    );
+    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let state = FloatingState::new()
         .with_rates([0.0, 0.0, 0.0].into())
         .with_attitude(Quaternion::new(-0.4, 0.5, -0.5, 0.5))
@@ -181,5 +172,5 @@ fn main() {
     // Create the system
     let mut sys = MultibodySystem::new(base, [b], [f], sensor_system, software, actuator_system);
     // Run the simulation
-    sys.simulate("", 0.0, 15000.0, 1.0);
+    sys.simulate("", 0.0, 10000.0, 1.0);
 }

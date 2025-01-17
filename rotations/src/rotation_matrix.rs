@@ -98,7 +98,7 @@ impl From<&Rotation> for RotationMatrix {
     }
 }
 
-impl From<&Quaternion> for RotationMatrix {
+impl From<&UnitQuaternion> for RotationMatrix {
     /// Converts a `Quaternion` into a `RotationMatrix`.
     ///
     /// # Arguments
@@ -108,8 +108,8 @@ impl From<&Quaternion> for RotationMatrix {
     /// # Returns
     ///
     /// A new `RotationMatrix` representing the rotation defined by the quaternion.
-    fn from(q: &Quaternion) -> Self {
-        let s = q.s;
+    fn from(q: &UnitQuaternion) -> Self {
+        let s = q.w;
         let x = q.x;
         let y = q.y;
         let z = q.z;

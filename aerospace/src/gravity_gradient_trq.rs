@@ -29,14 +29,14 @@ mod tests {
     use super::*;
     //const TOL: f64 = 10e-12;
     use approx::assert_relative_eq;
-    use rotations::quaternion::Quaternion;
+    use rotations::prelude::UnitQuaternion;
 
     #[test]
     fn test_gravity_gradient() {
         let g = GravGradientTrq {};
         let _mu = EARTH_MU;
         let position = Vector3::new(-821562.9892, -906648.2064, -6954665.433); // from XINA (for PACE)
-        let q = Quaternion::new(-0.053748871, -0.067546444, -0.994337304, -0.061982758); // from XINA (for PACE)
+        let q = UnitQuaternion::new(-0.053748871, -0.067546444, -0.994337304, -0.061982758); // from XINA (for PACE)
         let q_rot = RotationMatrix::from(&q);
 
         let a_f2i = RotationMatrix::new(

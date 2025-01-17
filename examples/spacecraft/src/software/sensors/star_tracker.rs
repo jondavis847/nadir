@@ -1,6 +1,6 @@
 use crate::hardware::sensors::star_tracker::StarTracker;
 use nadir_result::{NadirResult, ResultManager};
-use rotations::prelude::Quaternion;
+use rotations::prelude::UnitQuaternion;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -12,14 +12,14 @@ pub struct StarTrackerFsw {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct State {
-    pub q_st: Quaternion,
-    pub q_body: Quaternion,
+    pub q_st: UnitQuaternion,
+    pub q_body: UnitQuaternion,
     pub valid: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 struct Parameters {
-    st_to_body: Quaternion,
+    st_to_body: UnitQuaternion,
 }
 
 impl StarTrackerFsw {
@@ -64,11 +64,11 @@ impl NadirResult for StarTrackerFsw {
                     self.state.q_st.x.to_string(),
                     self.state.q_st.y.to_string(),
                     self.state.q_st.z.to_string(),
-                    self.state.q_st.s.to_string(),
+                    self.state.q_st.w.to_string(),
                     self.state.q_body.x.to_string(),
                     self.state.q_body.y.to_string(),
                     self.state.q_body.z.to_string(),
-                    self.state.q_body.s.to_string(),
+                    self.state.q_body.w.to_string(),
                     self.state.valid.to_string(),
                 ],
             );

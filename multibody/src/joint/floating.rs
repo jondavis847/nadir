@@ -11,7 +11,10 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::{CenterOfMass, MassProperties};
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
-use rotations::{euler_angles::EulerAngles, quaternion::Quaternion, Rotation, RotationTrait};
+use rotations::{
+    euler_angles::EulerAngles, prelude::UnitQuaternion, quaternion::Quaternion, Rotation,
+    RotationTrait,
+};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
@@ -47,12 +50,13 @@ impl FloatingState {
     pub fn with_attitude(mut self, q: Quaternion) -> Self {
         // r is provided and stored in state in the jif
         // v is in the jof though so need to transform it based on q
-        let old_q = self.q;
+        let q = UnitQuaternion::from(&q);
+        let old_q = UnitQuaternion::from(&self.q);
         // rotate velocity back to jif first since that's what it was provided as
         self.v = old_q.inv().transform(self.v);
         // rotate v by the new q
         self.v = q.transform(self.v);
-        self.q = q;
+        self.q = Quaternion::from(&q);
         self
     }
 
@@ -68,7 +72,8 @@ impl FloatingState {
 
     pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
         // this assumes that velocity is provided in the jif frame, but it needs to be jof
-        let v_jof = self.q.transform(v);
+        let q = UnitQuaternion::from(&self.q);
+        let v_jof = q.transform(v);
         self.v = v_jof;
         self
     }
@@ -284,7 +289,7 @@ impl JointModel for Floating {
         let q = self.state.q;
         // Markley eq 3.20 & 2.88
         let tmp = Matrix4x3::new(
-            q.s, -q.z, q.y, q.z, q.s, -q.x, -q.y, q.x, q.s, -q.x, -q.y, -q.z,
+            q.w, -q.z, q.y, q.z, q.w, -q.x, -q.y, q.x, q.w, -q.x, -q.y, -q.z,
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
 
@@ -303,7 +308,7 @@ impl JointModel for Floating {
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;
         dx.0[2] = dq.z;
-        dx.0[3] = dq.s;
+        dx.0[3] = dq.w;
         dx.0[4] = v_jif[0];
         dx.0[5] = v_jif[1];
         dx.0[6] = v_jif[2];
@@ -320,7 +325,7 @@ impl JointModel for Floating {
             self.state.q.x,
             self.state.q.y,
             self.state.q.z,
-            self.state.q.s,
+            self.state.q.w,
             self.state.r[0],
             self.state.r[1],
             self.state.r[2],
@@ -354,7 +359,7 @@ impl JointModel for Floating {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     ) {
-        let rotation = Rotation::from(&self.state.q);
+        let rotation = Rotation::from(&UnitQuaternion::from(&self.state.q));
         let translation = Cartesian::from(self.state.r); // r is already jif to jof
         let transform = Transform::new(rotation, translation.into());
 
@@ -409,7 +414,7 @@ impl JointModel for Floating {
                 self.state.q.x.to_string(),
                 self.state.q.y.to_string(),
                 self.state.q.z.to_string(),
-                self.state.q.s.to_string(),
+                self.state.q.w.to_string(),
                 self.state.r[0].to_string(),
                 self.state.r[1].to_string(),
                 self.state.r[2].to_string(),

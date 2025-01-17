@@ -1,6 +1,5 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
 use super::{guidance::GuidanceFsw, navigation::NavigationFsw};
@@ -58,7 +57,7 @@ impl ControlFsw {
         let q_error = (current_attitude * target_attitude.inv()).normalize();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
-        let q_error = if q_error.s < 0.0 { -q_error } else { q_error };
+        let q_error = if q_error.w < 0.0 { -q_error } else { q_error };
 
         // Compute the attitude error vector (scaled by 2 for small angles)
         self.state.attitude_error = Vector3::new(q_error.x, q_error.y, q_error.z);

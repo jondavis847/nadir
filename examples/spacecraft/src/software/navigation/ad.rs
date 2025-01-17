@@ -1,7 +1,7 @@
 use crate::software::sensors::{imu::RateGyroFsw, star_tracker::StarTrackerFsw};
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use rotations::prelude::Quaternion;
+use rotations::prelude::UnitQuaternion;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -29,7 +29,7 @@ enum RateSource {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct State {
-    pub attitude: Quaternion,
+    pub attitude: UnitQuaternion,
     attitude_source: AttitudeSource,
     pub rates: Vector3<f64>,
     rate_source: RateSource,
@@ -86,7 +86,7 @@ impl NadirResult for AttitudeDetermination {
                     self.state.attitude.x.to_string(),
                     self.state.attitude.y.to_string(),
                     self.state.attitude.z.to_string(),
-                    self.state.attitude.s.to_string(),
+                    self.state.attitude.w.to_string(),
                     self.state.rates[0].to_string(),
                     self.state.rates[1].to_string(),
                     self.state.rates[2].to_string(),

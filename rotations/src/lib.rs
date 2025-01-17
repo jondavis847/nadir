@@ -8,6 +8,7 @@ use aligned_axes::AlignedAxes;
 use axis_angle::AxisAngle;
 use euler_angles::{EulerAngles, EulerSequence};
 use nalgebra::Vector3;
+use prelude::UnitQuaternion;
 use serde::{Deserialize, Serialize};
 use std::ops::Mul;
 
@@ -55,7 +56,7 @@ pub trait RotationTrait {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Rotation {
     EulerAngles(EulerAngles),
-    Quaternion(Quaternion),
+    Quaternion(UnitQuaternion),
     RotationMatrix(RotationMatrix),
 }
 
@@ -66,15 +67,15 @@ impl Default for Rotation {
     ///
     /// The default `Rotation`, which is a quaternion representing no rotation.
     fn default() -> Self {
-        Rotation::Quaternion(Quaternion::identity().normalize())
+        Rotation::IDENTITY
     }
 }
 
 impl Rotation {
-    pub const IDENTITY: Self = Rotation::Quaternion(Quaternion::IDENTITY);
+    pub const IDENTITY: Self = Rotation::Quaternion(UnitQuaternion::IDENTITY);
 }
 
-impl From<&Quaternion> for Rotation {
+impl From<&UnitQuaternion> for Rotation {
     /// Converts Quaternion to a Rotation.
     ///
     /// # Arguments
@@ -84,8 +85,8 @@ impl From<&Quaternion> for Rotation {
     /// # Returns
     ///
     /// A new `Rotation` instance representing the quaternion.
-    fn from(quaternion: &Quaternion) -> Self {
-        Rotation::Quaternion(quaternion.normalize()) // normalize since a rotation should be a unit quaternion
+    fn from(q: &UnitQuaternion) -> Self {
+        Rotation::Quaternion(*q) // normalize since a rotation should be a unit quaternion
     }
 }
 
@@ -115,8 +116,8 @@ impl From<&EulerAngles> for Rotation {
     ///
     /// A new `Rotation` instance representing the converted quaternion.
     fn from(euler: &EulerAngles) -> Self {
-        let quaternion = Quaternion::from(euler);
-        Rotation::Quaternion(quaternion)
+        let q = UnitQuaternion::from(euler);
+        Rotation::Quaternion(q)
     }
 }
 
@@ -134,7 +135,7 @@ impl From<&AlignedAxes> for Rotation {
     fn from(aligned_axes: &AlignedAxes) -> Self {
         //let rotation_matrix = RotationMatrix::from(aligned_axes);
         //Rotation::RotationMatrix(rotation_matrix)
-        Rotation::Quaternion(Quaternion::from(&RotationMatrix::from(aligned_axes)))
+        Rotation::Quaternion(UnitQuaternion::from(&RotationMatrix::from(aligned_axes)))
     }
 }
 
@@ -156,8 +157,8 @@ impl Mul<Rotation> for Rotation {
                 Rotation::RotationMatrix(lhs * rhs)
             }
             (lhs, rhs) => {
-                let q_lhs = Quaternion::from(&lhs);
-                let q_rhs = Quaternion::from(&rhs);
+                let q_lhs = UnitQuaternion::from(&lhs);
+                let q_rhs = UnitQuaternion::from(&rhs);
                 Rotation::Quaternion(q_lhs * q_rhs)
             }
         }
@@ -208,6 +209,6 @@ impl RotationTrait for Rotation {
     }
 
     fn identity() -> Self {
-        Rotation::Quaternion(Quaternion::identity())
+        Rotation::IDENTITY
     }
 }
