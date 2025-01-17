@@ -62,7 +62,7 @@ fn main() {
             } else {
                 std::env::current_dir().unwrap()
             };
-            plotting::main(Some(result_path));
+            plotting_egui::main(Some(result_path));
         }
     }
 }

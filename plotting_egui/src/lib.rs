@@ -15,14 +15,58 @@ struct NadirPlots {
 impl eframe::App for NadirPlots {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui_plot::Plot::new("plot")
-                .legend(Legend::default())
-                .show(ui, |plot_ui| {
-                    for series_map in &self.series_maps {
-                        for series in &series_map.map {
-                            let line =
-                                egui_plot::Line::new(series.points.clone()).name(&series.y_name);
-                            plot_ui.line(line);
+            // Determine the layout dimensions based on the maximum row and column in `axes`
+            let max_row = self
+                .series_maps
+                .iter()
+                .map(|map| map.axes.0)
+                .max()
+                .unwrap_or(0);
+            let max_col = self
+                .series_maps
+                .iter()
+                .map(|map| map.axes.1)
+                .max()
+                .unwrap_or(0);
+
+            let spacing = 10.0 as f32;
+            // Compute plot size based on the panel size and grid dimensions
+            let available_size = ui.available_size();
+            let plot_width =
+                available_size.x / (max_col as f32 + 1.0) - spacing * max_col as f32 + spacing;
+            let plot_height =
+                available_size.y / (max_row as f32 + 1.0) - spacing * max_row as f32 + spacing;
+
+            // Create a dynamic grid layout
+            egui::Grid::new("dynamic_grid")
+                .spacing([10.0, 10.0]) // Adjust spacing as needed
+                .show(ui, |ui| {
+                    for row in 0..=max_row {
+                        for col in 0..=max_col {
+                            // Find the SeriesMap corresponding to this grid cell
+                            if let Some(series_map) =
+                                self.series_maps.iter().find(|map| map.axes == (row, col))
+                            {
+                                ui.vertical(|ui| {
+                                    // Render the plot for this SeriesMap with computed size
+                                    egui_plot::Plot::new(format!("plot_{}_{}", row, col))
+                                        .legend(Legend::default())
+                                        .width(plot_width) // Set plot width
+                                        .height(plot_height) // Set plot height
+                                        .show(ui, |plot_ui| {
+                                            for series in &series_map.map {
+                                                let line =
+                                                    egui_plot::Line::new(series.points.clone())
+                                                        .name(&series.y_name);
+                                                plot_ui.line(line);
+                                            }
+                                        });
+                                });
+                            } else {
+                                // Placeholder for empty grid cells
+                                ui.label(" ");
+                            }
+                            ui.end_row();
                         }
                     }
                 });
