@@ -184,7 +184,6 @@ mod tests {
         let result_translation = Cartesian::from(result.translation);
 
         let expected_rotation = UnitQuaternion::from(expected_angles);
-        let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
@@ -226,7 +225,6 @@ mod tests {
         let result_translation = Cartesian::from(result.translation);
 
         let expected_rotation = UnitQuaternion::from(expected_angles);
-        let expected_translation = expected_translation;
 
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;

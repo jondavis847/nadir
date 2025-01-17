@@ -9,20 +9,10 @@ pub enum SphericalHarmonicsErrors {
     LegendreErrors(#[from] LegendreErrors),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SphericalHarmonics {
     order: usize,
     legendre: Legendre,
-}
-
-// default is just required so we can deserialize, it will need to get reinitialized after that
-impl Default for SphericalHarmonics {
-    fn default() -> Self {
-        Self {
-            order: 0,
-            legendre: Legendre::default(),
-        }
-    }
 }
 
 impl SphericalHarmonics {
@@ -62,8 +52,7 @@ impl SphericalHarmonics {
             } else {
                 y.atan2(x)
             };
-            let lon = lon % (2.0 * PI);
-            lon
+            lon % (2.0 * PI)
         };
 
         self.legendre.calculate(z / r)?; // z/r = latgc.sin()
