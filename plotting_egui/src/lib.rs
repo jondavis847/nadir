@@ -141,10 +141,14 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
         // Check if the entry is a directory
         if path.is_dir() {
             if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
-                folders.push(format!(
-                    "{}",
-                    format!("{}{}", folder_name, std::path::MAIN_SEPARATOR)
-                ));
+                if let Ok(metadata) = fs::metadata(&path) {
+                    if let Ok(modified_time) = metadata.modified() {
+                        folders.push((
+                            format!("{}{}", folder_name, std::path::MAIN_SEPARATOR),
+                            modified_time,
+                        ));
+                    }
+                }
             }
         }
         // Check if the entry is a file
@@ -162,12 +166,14 @@ fn get_contents(path: &PathBuf) -> Vec<String> {
         }
     }
     let mut contents = Vec::new();
-    folders.sort();
+    // Sort folders by their modification dates (descending)
+    folders.sort_by(|a, b| b.1.cmp(&a.1));
+    let mut sorted_folders: Vec<String> = folders.into_iter().map(|(name, _)| name).collect();
     csvs.sort();
     f2s.sort();
-    contents.append(&mut folders);
     contents.append(&mut csvs);
     contents.append(&mut f2s);
+    contents.append(&mut sorted_folders);
     contents
 }
 

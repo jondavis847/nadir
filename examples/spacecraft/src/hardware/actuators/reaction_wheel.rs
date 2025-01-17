@@ -280,7 +280,7 @@ impl ActuatorModel for ReactionWheel {
     }
 
     fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.velocity += state.0[0];
+        self.state.velocity = state.0[0];
         self.state.momentum = self.state.velocity * self.parameters.inertia;
     }
 }

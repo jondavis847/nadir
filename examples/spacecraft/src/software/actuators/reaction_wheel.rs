@@ -58,7 +58,7 @@ impl ReactionWheelFsw {
             max_torque
         };
 
-        // Determine if scaling is needed
+        // Determine if scaling is needed to maintain body torque direction
         let scaling_factor = if max_torque > self.parameters.max_torque {
             self.parameters.max_torque / max_torque
         } else {

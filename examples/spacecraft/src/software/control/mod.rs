@@ -26,7 +26,7 @@ impl Default for Parameters {
         Parameters {
             k_p: 0.01,
             k_i: 0.00001,
-            k_d: 0.1,
+            k_d: 0.5,
             anti_windup: 0.0175,
             moi: [1000.0, 1000.0, 1000.0],
         }
