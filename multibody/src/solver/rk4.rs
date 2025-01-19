@@ -1,11 +1,11 @@
 use nadir_result::ResultManager;
 
+use super::SimStates;
 use crate::{
     actuator::ActuatorSystem, sensor::SensorSystem, software::SoftwareSystem,
     system::MultibodySystem, MultibodyErrors,
 };
-
-use super::SimStates;
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub fn solve_fixed_rk4<A, F, S>(
     sys: &mut MultibodySystem<A, F, S>,
@@ -46,7 +46,15 @@ where
     let result_length = ((tstop - tstart) / dt).floor() as usize + 1;
 
     // RUN THE RK4 LOOP
+    let progress_bar = ProgressBar::new(result_length as u64);
+    progress_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.cyan} [{elapsed_precise}] {bar:40.cyan/black} {percent}%")
+            .unwrap()
+            .progress_chars("=> "),
+    );
     for _ in 0..result_length {
+        progress_bar.inc(1);
         // update sensors
         sys.sensors.update();
 
@@ -113,6 +121,7 @@ where
     }
 
     results.flush();
+    progress_bar.finish();
 
     Ok(())
 }
