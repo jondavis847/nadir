@@ -325,7 +325,10 @@ where
             let mut joint = jointref.borrow_mut();
             joint.update_transforms();
             joint.calculate_joint_inertia();
+            joint.calculate_vj();
+            joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
         }
+
         self.update_body_states();
         self.update_sensors();
 
