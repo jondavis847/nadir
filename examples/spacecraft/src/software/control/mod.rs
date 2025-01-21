@@ -24,9 +24,9 @@ struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Parameters {
-            k_p: 0.01,
-            k_i: 0.00001,
-            k_d: 10.0,
+            k_p: 1.0,
+            k_i: 0.001,
+            k_d: 200.0,
             anti_windup: 0.0175,
             moi: [1000.0, 1000.0, 1000.0],
         }
@@ -67,7 +67,7 @@ impl ControlFsw {
 
         // Integral Error
         for i in 0..3 {
-            if self.state.attitude_error[i] < self.parameters.anti_windup {
+            if self.state.attitude_error[i].abs() < self.parameters.anti_windup {
                 self.state.integral_error[i] += self.state.attitude_error[i];
             } else {
                 self.state.integral_error[i] = 0.0;
