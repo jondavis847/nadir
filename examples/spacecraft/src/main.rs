@@ -347,5 +347,5 @@ fn main() {
         actuator_system,
     );
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 0.1);
+    sys.simulate("", 0.0, 1000.0, 10.0);
 }

@@ -109,6 +109,7 @@ impl Quaternion {
     pub fn normalize(&self) -> Self {
         let mag = self.dot(self).sqrt();
         if mag < f64::EPSILON {
+            dbg!(self);
             panic!("attemped to normalized Quaternion with zero mag")
         }
         Quaternion::new(self.x / mag, self.y / mag, self.z / mag, self.w / mag)

@@ -1,14 +1,16 @@
 [package]
-name = "gravity"
+name = "magnetics"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-approx.workspace = true
+chrono.workspace = true
 legendre.workspace = true
 nalgebra.workspace = true
 serde.workspace = true
+spherical_harmonics.workspace = true
 thiserror.workspace = true
+time.workspace = true
 utilities.workspace = true

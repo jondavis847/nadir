@@ -2425,7 +2425,6 @@ dependencies = [
  "legendre",
  "nalgebra",
  "serde",
- "spherical_harmonics",
  "thiserror 2.0.9",
  "utilities",
 ]
@@ -3480,6 +3479,20 @@ dependencies = [
  "float_next_after",
  "lyon_path",
  "num-traits",
+]
+
+[[package]]
+name = "magnetics"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "legendre",
+ "nalgebra",
+ "serde",
+ "spherical_harmonics",
+ "thiserror 2.0.9",
+ "time",
+ "utilities",
 ]
 
 [[package]]

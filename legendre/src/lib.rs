@@ -5,6 +5,7 @@ pub enum LegendreNormalization {
     FourPi,
     #[default]
     Full,
+    Schmidt,
     Unnormalized,
 }
 
@@ -97,6 +98,10 @@ impl Legendre {
                         let k = if m == 0 { 1.0 } else { 2.0 };
                         (k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
                             .sqrt()
+                    }
+                    LegendreNormalization::Schmidt => {
+                        let delta = if m == 0 { 0.0 } else { 1.0 };
+                        ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
                     }
                 };
 

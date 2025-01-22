@@ -25,7 +25,7 @@ members = [
     "time", 
     "plotting", 
     "plotting_egui",
-    "nadir_result", "gravity", "legendre", "spherical_harmonics", "celestial", 
+    "nadir_result", "gravity", "legendre", "spherical_harmonics", "celestial", "magnetics", 
 ]
 resolver = "2"
 

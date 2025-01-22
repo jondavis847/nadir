@@ -36,7 +36,6 @@ impl SphericalHarmonics {
         c: &Vec<Vec<f64>>,
         s: &Vec<Vec<f64>>,
         re: f64,
-        mu: f64,
     ) -> Result<[f64; 3], SphericalHarmonicsErrors> {
         let x = r_ecef[0];
         let y = r_ecef[1];
@@ -79,9 +78,9 @@ impl SphericalHarmonics {
             }
         }
 
-        partial_r *= -mu / r.powi(2);
-        partial_lat *= mu / r;
-        partial_lon *= mu / r;
+        partial_r *= -1.0 / r.powi(2);
+        partial_lat *= 1.0 / r;
+        partial_lon *= 1.0 / r;
 
         let tmp1 = partial_r / r - z * partial_lat / (r.powi(2) * xy);
         let tmp2 = partial_lon / (xy * xy);
