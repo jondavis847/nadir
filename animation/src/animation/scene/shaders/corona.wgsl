@@ -56,6 +56,11 @@ fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
     let world_pos = transformation_matrix * vec4<f32>(vertex.position, 1.0);
     let normal = normalize(normal_matrix * vertex.normal);
 
+    // Compute logarithmic depth
+    let far_plane = 1e12;
+    let view_depth = length(uniforms.camera_pos.xyz - world_pos.xyz);
+    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+
     var out: VertexOutput;
     out.clip_pos = uniforms.projection * world_pos;
     out.uv = vertex.uv;
@@ -69,8 +74,7 @@ fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
 }
 
 struct FragmentOutput {
-    @location(0) color: vec4<f32>,
-    @builtin(frag_depth) depth: f32,
+    @location(0) color: vec4<f32>,    
 }
 
 @fragment
@@ -93,15 +97,10 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // Apply fade to scatter color
     let final_color = scatter_color * fade_factor;
     //let final_color = scatter_color * adjusted_fade;
-
-    // Compute logarithmic depth
-    let far_plane = 1e12;
-    let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
-    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+    
 
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, 0.05);    
-    out.depth = log_depth;
+    out.color = vec4<f32>(final_color, 0.02);        
 
     return out;
 }
