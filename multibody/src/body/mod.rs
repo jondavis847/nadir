@@ -79,7 +79,7 @@ impl Body {
     }
 
     pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &mut Gravity) {
-        let g_vec = gravity.calculate(self.state.position_base).unwrap();
+        let g_vec = gravity.calculate(&self.state.position_base).unwrap();
 
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm
@@ -98,7 +98,7 @@ impl Body {
         body_from_base: &SpatialTransform,
         celestial: &mut CelestialSystem,
     ) {
-        let g_vec = celestial.calculate_gravity(self.state.position_base);
+        let g_vec = celestial.calculate_gravity(&self.state.position_base);
 
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm

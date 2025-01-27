@@ -1,5 +1,6 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
+use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
 use super::{guidance::GuidanceFsw, navigation::NavigationFsw};
@@ -24,10 +25,10 @@ struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Parameters {
-            k_p: 1.0,
-            k_i: 0.001,
-            k_d: 200.0,
-            anti_windup: 0.0175,
+            k_p: 0.005,
+            k_i: 0.000005, //we account for dt in the gain, since i might change dt when testing in sim
+            k_d: 0.5,
+            anti_windup: 0.0075,
             moi: [1000.0, 1000.0, 1000.0],
         }
     }
@@ -43,18 +44,12 @@ pub struct State {
 
 impl ControlFsw {
     pub fn run(&mut self, nav: &NavigationFsw, guid: &GuidanceFsw) {
-        // // Attitude Error
-        // let q_error = (nav.ad.state.attitude.inv() * guid.state.target_attitude).normalize();
-        // let ea = EulerAngles::from(&q_error); //321 rotation
-        // self.state.attitude_error = Vector3::new(ea.phi, ea.theta, ea.psi);
-        // self.state.attitude_error = Vector3::new(q_error.x, q_error.y, q_error.z) * 2.0;
-
         // Ensure quaternions are normalized
-        let current_attitude = nav.ad.state.attitude.normalize();
-        let target_attitude = guid.state.target_attitude.normalize();
+        let current_attitude = nav.ad.state.attitude;
+        let target_attitude = guid.state.target_attitude;
 
         // Compute the error quaternion: q_error = q_current.inv() * q_target
-        let q_error = (current_attitude * target_attitude.inv()).normalize();
+        let q_error = current_attitude * target_attitude.inv();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
         let q_error = if q_error.w < 0.0 { -q_error } else { q_error };

@@ -5,30 +5,28 @@ edition.workspace = true
 
 [dependencies]
 aerospace.workspace = true
-celestial.workspace = true
-gravity.workspace = true
-spice.workspace = true
-transforms.workspace = true
-coordinate_systems.workspace = true
-nadir_3d.workspace = true
-rotations.workspace = true
-spatial_algebra.workspace = true
-mass_properties.workspace = true
-nadir_result.workspace = true
-utilities.workspace = true
-time.workspace = true
 ambassador.workspace = true
 bincode.workspace = true
+celestial.workspace = true
 chrono.workspace = true
-csv.workspace = true
-nalgebra.workspace = true
 clap.workspace = true
-ron.workspace = true
-serde.workspace = true
+coordinate_systems.workspace = true
+csv.workspace = true
+gravity.workspace = true
+indicatif.workspace = true
+mass_properties.workspace = true
+nadir_3d.workspace = true
+nadir_result.workspace = true
+nalgebra.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
+ron.workspace = true
+rotations.workspace = true
+serde.workspace = true
+spatial_algebra.workspace = true
+spice.workspace = true
 thiserror.workspace = true
+time.workspace = true
+transforms.workspace = true
 typetag.workspace = true
-
-[features]
-dhat-heap = []
+utilities.workspace = true

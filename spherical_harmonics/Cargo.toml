@@ -6,5 +6,7 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+coordinate_systems.workspace = true
 legendre.workspace = true
+nalgebra.workspace = true
 thiserror.workspace = true

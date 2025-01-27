@@ -23,7 +23,7 @@ pub enum Gravity {
 }
 
 impl Gravity {
-    pub fn calculate(&mut self, r: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
+    pub fn calculate(&mut self, r: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
         match self {
             Gravity::Constant(g) => g.calculate(r),
             Gravity::Newtonian(g) => g.calculate(r),
@@ -35,5 +35,5 @@ impl Gravity {
 pub trait GravityModel {
     // input r is position vector in the central body's fixed (rotating) frame
     // returns gravitational acceleration perturbation in the central body's fixed (rotating) frame
-    fn calculate(&mut self, r: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors>;
+    fn calculate(&mut self, r: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors>;
 }

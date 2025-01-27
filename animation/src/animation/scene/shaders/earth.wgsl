@@ -59,19 +59,24 @@ fn vs_main(vertex: Vertex, earth: Earth) -> Output {
     let normal = normalize(normal_matrix * vertex.normal);
     let tangent = normalize(normal_matrix * vertex.tangent);
 
+    // Compute logarithmic depth
+    let far_plane = 1e12;
+    let view_depth = length(uniforms.camera_pos.xyz - world_pos.xyz);
+    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+
     var out: Output;
-    out.clip_pos = uniforms.projection * world_pos;
+    out.clip_pos = uniforms.projection * world_pos;    
+    out.clip_pos.z = log_depth * out.clip_pos.w;
     out.uv = vertex.uv;
     out.world_pos = world_pos.xyz;
     out.normal = normal;
-    out.tangent = tangent;
+    out.tangent = tangent;    
 
     return out;
 }
 
 struct FragOutput {
-    @location(0) color: vec4<f32>,
-    @builtin(frag_depth) depth: f32,
+    @location(0) color: vec4<f32>,    
 }
 
 @fragment
@@ -104,7 +109,7 @@ fn fs_main(in: Output) -> FragOutput {
     var specular = vec3<f32>(0.0);
 
     if specular_factor > 0.0 {
-        specular_factor = pow(specular_factor, 100.0);
+        specular_factor = pow(specular_factor, 120.0);
         let spec_map_value = textureSample(earth_spec, earth_sampler, in.uv).rgb;        
         specular = uniforms.light_color.rgb * specular_factor * spec_map_value;
     } 
@@ -115,15 +120,9 @@ fn fs_main(in: Output) -> FragOutput {
 
     // Combine results
     let result = diffuse + final_specular;
-    
-    // Compute the logarithmic depth
-    let far_plane = 1.1e13; // Adjust this value according to your far plane distance
-    let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
-    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
 
     var out: FragOutput;
-    out.color = vec4<f32>(result, 1.0);    
-    out.depth = log_depth;
+    out.color = vec4<f32>(result, 1.0);       
 
     return out;
 }

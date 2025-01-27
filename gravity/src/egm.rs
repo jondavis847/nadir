@@ -1,4 +1,6 @@
-use legendre::{factorial, LegendreNormalization};
+use std::f64::consts::PI;
+
+use legendre::{factorial, Legendre, LegendreErrors, LegendreNormalization};
 use nalgebra::Vector3;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -9,8 +11,10 @@ use crate::{GravityErrors, GravityModel};
 
 #[derive(Debug, Error)]
 pub enum EgmErrors {
-    #[error("SphericalHarmonicsError: {0}")]
+    #[error("SphericalError: {0}")]
     SphericalHarmonicsError(#[from] SphericalHarmonicsErrors),
+    #[error("LegendreError: {0}")]
+    LegendreError(#[from] LegendreErrors),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -28,10 +32,8 @@ pub struct EgmGravity {
     add_newtonian: bool,
     #[serde(skip)]
     spherical_harmonics: SphericalHarmonics,
-    #[serde(skip)]
-    pub c: Vec<Vec<f64>>,
-    #[serde(skip)]
-    pub s: Vec<Vec<f64>>,
+    c: Vec<Vec<f64>>,
+    s: Vec<Vec<f64>>,
 }
 
 impl EgmGravity {
@@ -45,6 +47,7 @@ impl EgmGravity {
         let (c, s) = Self::parse_file(&model, degree, order);
         let spherical_harmonics =
             SphericalHarmonics::new(degree, order)?.with_normalization(LegendreNormalization::Full);
+
         Ok(Self {
             model,
             degree,
@@ -117,24 +120,22 @@ impl EgmGravity {
 }
 
 impl GravityModel for EgmGravity {
-    fn calculate(&mut self, r: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
-        match self
+    fn calculate(&mut self, r_ecef: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
+        let mut a = self
             .spherical_harmonics
-            .calculate(r.into(), &self.c, &self.s, Self::RE, Self::MU)
-        {
-            Ok(a_pert) => {
-                let mut a = Vector3::new(a_pert[0], a_pert[1], a_pert[2]);
-                if self.add_newtonian {
-                    a += -r * Self::MU / r.norm().powi(3)
-                };
-                if self.add_centrifugal {
-                    let we = Vector3::from(Self::WE);
-                    a += we.cross(&we.cross(&r));
-                };
-                Ok(a)
-            }
-            Err(e) => Err(EgmErrors::SphericalHarmonicsError(e).into()),
-        }
+            .calculate_from_cartesian(r_ecef, Self::MU / Self::RE, Self::RE, &self.c, &self.s)
+            .map_err(|e| GravityErrors::EgmErrors(e.into()))?;
+
+        let r = r_ecef.norm();
+        if self.add_newtonian {
+            a += -r_ecef * Self::MU / r.powi(3);
+        };
+        if self.add_centrifugal {
+            let we = Vector3::from(Self::WE);
+            a += we.cross(&we.cross(&r_ecef));
+        };
+
+        Ok(a)
     }
 }
 
@@ -243,20 +244,20 @@ impl<'de> Deserialize<'de> for EgmGravity {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use utilities::assert_equal;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use utilities::assert_equal;
 
-//     #[test]
-//     fn test_egm96_1() {
-//         let re = [6.4e6, 0.0, 0.0];
+    #[test]
+    fn test_egm96_1() {
+        let re = [7e6, 0.0, 0.0];
 
-//         let mut g = EGM96::new(1, 1).unwrap();
-//         let a = g.calculate(re).unwrap();
-//         dbg!(a);
-//         //assert_equal(a[0], 0.0);
-//         //assert_equal(a[1], -1.3778135992666715e-5);
-//         //assert_equal(a[2], -9.808708996195295e-6);
-//     }
-// }
+        let mut g = EgmGravity::new(EgmModel::Egm96, 2, 2).unwrap();
+        let a = g.calculate(&re.into()).unwrap();
+        dbg!(a);
+        //assert_equal(a[0], 0.0);
+        //assert_equal(a[1], -1.3778135992666715e-5);
+        //assert_equal(a[2], -9.808708996195295e-6);
+    }
+}

@@ -39,7 +39,6 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
-
     let transformation_matrix = mat4x4<f32>(
         instance.matrix_0,
         instance.matrix_1,
@@ -56,8 +55,14 @@ fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
     let world_pos = transformation_matrix * vec4<f32>(vertex.position, 1.0);
     let normal = normalize(normal_matrix * vertex.normal);
 
+    // Compute logarithmic depth
+    let far_plane = 1e12;
+    let view_depth = length(uniforms.camera_pos.xyz - world_pos.xyz);
+    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+
     var out: VertexOutput;
-    out.clip_pos = uniforms.projection * world_pos;
+    out.clip_pos = uniforms.projection * world_pos;    
+    out.clip_pos.z = log_depth * out.clip_pos.w;
     out.uv = vertex.uv;
     out.world_pos = world_pos.xyz;
     out.normal = normal;
@@ -67,29 +72,27 @@ fn vs_main(vertex: Vertex, instance: Instance) -> VertexOutput {
 
     return out;
 }
+
 struct FragmentOutput {
     @location(0) color: vec4<f32>,
-    @builtin(frag_depth) depth: f32,
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-
     var final_color: vec3<f32>;
 
     if in.material_type > 0 {        
-        // phong shading
-
+        // Phong shading
         let ambient = in.color.rgb * 0.05;
 
         let light_dir = normalize(uniforms.light_pos - in.world_pos);
         let view_dir = normalize(uniforms.camera_pos.xyz - in.world_pos);
 
-        // Diffuse lighting (Lambertian reflectance)
+        // Diffuse lighting
         let diff = max(dot(in.normal, light_dir), 0.0);
         let diffuse = diff * in.color.rgb * uniforms.light_color.rgb;
 
-        // Specular lighting (Phong reflection model)
+        // Specular lighting
         let light_reflect = normalize(reflect(-light_dir, in.normal));
         var specular_factor = dot(view_dir, light_reflect);    
         var specular = vec3<f32>(0.0);
@@ -103,18 +106,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         final_color = ambient + diffuse + specular;
 
     } else {
-        // just basic color
+        // Basic color
         final_color = in.color.rgb;
-    };
-   
-   
-    // Compute the logarithmic depth
-    let far_plane = 1e12; // Adjust this value according to your far plane distance
-    let view_depth = length(uniforms.camera_pos.xyz - in.world_pos);
-    let log_depth = log2(view_depth + 1.0) / log2(far_plane + 1.0);
+    }
 
     var out: FragmentOutput;
     out.color = vec4<f32>(final_color, in.color[3]);    
-    out.depth = log_depth;
     return out;    
 }

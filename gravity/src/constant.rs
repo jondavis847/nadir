@@ -17,7 +17,7 @@ impl ConstantGravity {
 }
 
 impl GravityModel for ConstantGravity {
-    fn calculate(&mut self, _position: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
+    fn calculate(&mut self, _position: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
         Ok(self.g)
     }
 }

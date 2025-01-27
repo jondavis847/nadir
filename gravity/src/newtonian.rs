@@ -15,7 +15,7 @@ impl NewtonianGravity {
 }
 
 impl GravityModel for NewtonianGravity {
-    fn calculate(&mut self, position: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
+    fn calculate(&mut self, position: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
         let position_mag = position.magnitude();
         if position_mag < 0.1 {
             println!("WARNING! division by zero on gravity!");

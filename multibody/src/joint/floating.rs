@@ -267,7 +267,6 @@ impl JointModel for Floating {
             - p.zt.damping * self.state.v[2];
     }
 
-    // !!!!note!!!! this must convert state.v, which is in the jif frome, to vj, which is in the jof frame
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(
             self.state.w[0],
