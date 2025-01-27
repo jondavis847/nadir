@@ -9,6 +9,7 @@ rust-version.workspace = true
 chrono.workspace = true
 legendre.workspace = true
 nalgebra.workspace = true
+rotations.workspace = true
 serde.workspace = true
 spherical_harmonics.workspace = true
 thiserror.workspace = true

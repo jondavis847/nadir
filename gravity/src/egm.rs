@@ -4,12 +4,15 @@ use legendre::{factorial, Legendre, LegendreErrors, LegendreNormalization};
 use nalgebra::Vector3;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+use spherical_harmonics::{SphericalHarmonics, SphericalHarmonicsErrors};
 use thiserror::Error;
 
 use crate::{GravityErrors, GravityModel};
 
 #[derive(Debug, Error)]
 pub enum EgmErrors {
+    #[error("SphericalError: {0}")]
+    SphericalHarmonicsError(#[from] SphericalHarmonicsErrors),
     #[error("LegendreError: {0}")]
     LegendreError(#[from] LegendreErrors),
 }
@@ -28,11 +31,9 @@ pub struct EgmGravity {
     add_centrifugal: bool,
     add_newtonian: bool,
     #[serde(skip)]
-    legendre: Legendre,
-    #[serde(skip)]
-    pub c: Vec<Vec<f64>>,
-    #[serde(skip)]
-    pub s: Vec<Vec<f64>>,
+    spherical_harmonics: SphericalHarmonics,
+    c: Vec<Vec<f64>>,
+    s: Vec<Vec<f64>>,
 }
 
 impl EgmGravity {
@@ -44,13 +45,14 @@ impl EgmGravity {
 
     pub fn new(model: EgmModel, degree: usize, order: usize) -> Result<Self, EgmErrors> {
         let (c, s) = Self::parse_file(&model, degree, order);
-        let legendre =
-            Legendre::new(degree, order)?.with_normalization(LegendreNormalization::Full);
+        let spherical_harmonics =
+            SphericalHarmonics::new(degree, order)?.with_normalization(LegendreNormalization::Full);
+
         Ok(Self {
             model,
             degree,
             order,
-            legendre,
+            spherical_harmonics,
             c,
             s,
             add_newtonian: false,
@@ -118,63 +120,13 @@ impl EgmGravity {
 }
 
 impl GravityModel for EgmGravity {
-    fn calculate(&mut self, r_ecef: Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
-        let x = r_ecef[0];
-        let y = r_ecef[1];
-        let z = r_ecef[2];
-        let r = r_ecef.magnitude();
-        let xy = (x * x + y * y).sqrt();
-        let rer = Self::RE / r;
-
-        let latgc = (z / r).asin();
-        let lon = {
-            let lon = if xy < 1e-9 {
-                y.signum() * PI * 0.5
-            } else {
-                y.atan2(x)
-            };
-            lon % (2.0 * PI)
-        };
-
-        self.legendre
-            .calculate(z / r)
+    fn calculate(&mut self, r_ecef: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
+        let mut a = self
+            .spherical_harmonics
+            .calculate_from_cartesian(r_ecef, Self::MU / Self::RE, Self::RE, &self.c, &self.s)
             .map_err(|e| GravityErrors::EgmErrors(e.into()))?;
 
-        let mut partial_r = 0.0;
-        let mut partial_lat = 0.0;
-        let mut partial_lon = 0.0;
-
-        let p = &self.legendre.p;
-
-        for l in 2..=self.order {
-            let rerl = rer.powi(l as i32);
-            for m in 0..=l {
-                let mf = m as f64;
-
-                let clm = (mf * lon).cos();
-                let slm = (mf * lon).sin();
-
-                partial_r +=
-                    rerl * (l as f64 + 1.0) * p[l][m] * (self.c[l][m] * clm + self.s[l][m] * slm);
-                partial_lat += rerl
-                    * (p[l][m + 1] - mf * latgc.tan() * p[l][m])
-                    * (self.c[l][m] * clm + self.s[l][m] * slm);
-                partial_lon += rerl * mf * p[l][m] * (self.s[l][m] * clm - self.c[l][m] * slm);
-            }
-        }
-
-        partial_r *= -Self::MU / r.powi(2);
-        partial_lat *= Self::MU / r;
-        partial_lon *= Self::MU / r;
-
-        let tmp1 = partial_r / r - z * partial_lat / (r.powi(2) * xy);
-        let tmp2 = partial_lon / (xy * xy);
-
-        let ax = tmp1 * x - tmp2 * y;
-        let ay = tmp1 * y + tmp2 * x;
-        let az = partial_r * z / r + xy * partial_lat / r.powi(2);
-
-        let mut a = Vector3::new(ax, ay, az);
+        let r = r_ecef.norm();
         if self.add_newtonian {
             a += -r_ecef * Self::MU / r.powi(3);
         };
@@ -261,7 +213,7 @@ impl<'de> Deserialize<'de> for EgmGravity {
 
                 // Reinitialize fields after deserialization
                 let (c, s) = EgmGravity::parse_file(&model, degree, order);
-                let legendre = Legendre::new(degree, order)
+                let spherical_harmonics = SphericalHarmonics::new(degree, order)
                     .map_err(de::Error::custom)?
                     .with_normalization(LegendreNormalization::Full);
 
@@ -271,7 +223,7 @@ impl<'de> Deserialize<'de> for EgmGravity {
                     order,
                     add_centrifugal,
                     add_newtonian,
-                    legendre,
+                    spherical_harmonics,
                     c,
                     s,
                 })
@@ -292,20 +244,20 @@ impl<'de> Deserialize<'de> for EgmGravity {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use utilities::assert_equal;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use utilities::assert_equal;
 
-//     #[test]
-//     fn test_egm96_1() {
-//         let re = [6.4e6, 0.0, 0.0];
+    #[test]
+    fn test_egm96_1() {
+        let re = [7e6, 0.0, 0.0];
 
-//         let mut g = EGM96::new(1, 1).unwrap();
-//         let a = g.calculate(re).unwrap();
-//         dbg!(a);
-//         //assert_equal(a[0], 0.0);
-//         //assert_equal(a[1], -1.3778135992666715e-5);
-//         //assert_equal(a[2], -9.808708996195295e-6);
-//     }
-// }
+        let mut g = EgmGravity::new(EgmModel::Egm96, 2, 2).unwrap();
+        let a = g.calculate(&re.into()).unwrap();
+        dbg!(a);
+        //assert_equal(a[0], 0.0);
+        //assert_equal(a[1], -1.3778135992666715e-5);
+        //assert_equal(a[2], -9.808708996195295e-6);
+    }
+}

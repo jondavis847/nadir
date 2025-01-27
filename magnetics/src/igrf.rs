@@ -1,10 +1,9 @@
-use std::f64::consts::PI;
-
 use chrono::Datelike;
-use legendre::{Legendre, LegendreErrors, LegendreNormalization};
+use legendre::{LegendreErrors, LegendreNormalization};
 use nalgebra::Vector3;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+use spherical_harmonics::{SphericalHarmonics, SphericalHarmonicsErrors};
 use thiserror::Error;
 use time::Time;
 
@@ -12,6 +11,8 @@ use time::Time;
 pub enum IgrfErrors {
     #[error("LegendreError: {0}")]
     LegendreError(#[from] LegendreErrors),
+    #[error("SphericalHarmonicsError: {0}")]
+    SphericalHarmonicsError(#[from] SphericalHarmonicsErrors),
     #[error("could not parse igrf file")]
     ParseError,
     #[error("out of bounds index of epoch array")]
@@ -30,7 +31,7 @@ pub struct Igrf {
     degree: usize,
     order: usize,
     #[serde(skip)]
-    legendre: Legendre,
+    spherical_harmonics: SphericalHarmonics,
     #[serde(skip)]
     g: IgrfCoeffs,
     #[serde(skip)]
@@ -130,7 +131,7 @@ impl Igrf {
             initial_year,
             degree,
             order,
-            legendre: Legendre::new(degree + 1, order + 1)?
+            spherical_harmonics: SphericalHarmonics::new(degree, order)?
                 .with_normalization(LegendreNormalization::Schmidt),
             g: IgrfCoeffs(g_coeffs),
             h: IgrfCoeffs(h_coeffs),
@@ -233,64 +234,15 @@ impl Igrf {
         // calculate g and h based on interp or extrap
         self.calculate_gh(decimal_year)?;
 
-        let x = r_ecef[0];
-        let y = r_ecef[1];
-        let z = r_ecef[2];
-        let r = r_ecef.magnitude();
-        let xy = (x * x + y * y).sqrt();
-        let rer = Self::RE / r;
+        let b = self.spherical_harmonics.calculate_from_cartesian(
+            r_ecef,
+            Self::RE,
+            Self::RE,
+            &self.g_cache,
+            &self.h_cache,
+        )?;
 
-        let latgc = (z / r).asin();
-        let lon = {
-            let lon = if xy < 1e-9 {
-                y.signum() * PI * 0.5
-            } else {
-                y.atan2(x)
-            };
-            lon % (2.0 * PI)
-        };
-
-        self.legendre.calculate(z / r)?;
-
-        let mut partial_r = 0.0;
-        let mut partial_lat = 0.0;
-        let mut partial_lon = 0.0;
-
-        let p = &self.legendre.p;
-        let g = &self.g_cache;
-        let h = &self.h_cache;
-
-        for l in 1..=self.order {
-            for m in 0..=l {
-                let mf = m as f64;
-
-                let clm = (mf * lon).cos();
-                let slm = (mf * lon).sin();
-
-                partial_r += (rer).powi(l as i32 + 2)
-                    * (l as f64 + 1.0)
-                    * p[l][m]
-                    * (g[l][m] * clm + h[l][m] * slm);
-                partial_lat += -rer.powi(l as i32 + 1)
-                    * (p[l][m + 1] - mf * latgc.tan() * p[l][m])
-                    * (g[l][m] * clm + h[l][m] * slm);
-                partial_lon +=
-                    -rer.powi(l as i32 + 1) * mf * p[l][m] * (h[l][m] * clm - g[l][m] * slm);
-            }
-        }
-
-        partial_r *= Self::RE;
-        partial_lat *= Self::RE;
-        partial_lon *= Self::RE;
-
-        let tmp1 = partial_r / r - z * partial_lat / (r.powi(2) * xy);
-        let tmp2 = partial_lon / (xy * xy);
-
-        let bx = tmp1 * x - tmp2 * y;
-        let by = tmp1 * y + tmp2 * x;
-        let bz = partial_r * z / r + xy * partial_lat / r.powi(2);
-
-        Ok(Vector3::new(bx, by, bz))
+        Ok(b)
     }
 }
 
@@ -379,10 +331,10 @@ mod tests {
 
     #[test]
     fn test_igrf_1() {
-        let r = Vector3::new(0.0, 7e6, 0.0);
-        let t = Time::from_ymdhms(2024, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
+        let r = Vector3::new(7e6, 0.0, 0.0);
+        let t = Time::from_ymdhms(2005, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
 
-        let mut igrf = Igrf::new(1, 1, &t).unwrap();
+        let mut igrf = Igrf::new(2, 2, &t).unwrap();
         let b = igrf.calculate(&r, &t).unwrap();
 
         dbg!(b);

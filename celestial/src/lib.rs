@@ -192,7 +192,7 @@ impl CelestialSystem {
 
     /// calculates gravity based on all bodies in the celestial system with a gravity model
     /// position is in the gcrf/j2000 frame
-    pub fn calculate_gravity(&mut self, position: Vector3<f64>) -> Vector3<f64> {
+    pub fn calculate_gravity(&mut self, position: &Vector3<f64>) -> Vector3<f64> {
         let mut g_final = Vector3::zeros();
 
         for body in &mut self.bodies {
@@ -202,8 +202,8 @@ impl CelestialSystem {
                     if let Some(gravity) = &mut body.gravity {
                         match gravity {
                             Gravity::Egm(gravity) => {
-                                let position_itrf = body.orientation.rotate(position);
-                                let g_itrf = gravity.calculate(position_itrf).unwrap();
+                                let position_itrf = body.orientation.rotate(*position);
+                                let g_itrf = gravity.calculate(&position_itrf).unwrap();
                                 let g_gcrf = body.orientation.transform(g_itrf);
                                 g_final += g_gcrf;
                             }

@@ -86,24 +86,27 @@ impl Legendre {
         for l in 0..=self.degree {
             let lf = l as f64;
             for m in 0..=l {
-                let mf = m as f64;
-                self.norm[l][m] = match norm {
-                    LegendreNormalization::Unnormalized => 1.0,
-                    LegendreNormalization::FourPi => {
-                        let delta = if m == 0 { 0.0 } else { 1.0 };
-                        ((2.0 - delta) * (2.0 * lf + 1.0) * factorial(lf - mf) / factorial(lf + mf))
+                if m <= self.order {
+                    let mf = m as f64;
+                    self.norm[l][m] = match norm {
+                        LegendreNormalization::Unnormalized => 1.0,
+                        LegendreNormalization::FourPi => {
+                            let delta = if m == 0 { 0.0 } else { 1.0 };
+                            ((2.0 - delta) * (2.0 * lf + 1.0) * factorial(lf - mf)
+                                / factorial(lf + mf))
                             .sqrt()
-                    }
-                    LegendreNormalization::Full => {
-                        let k = if m == 0 { 1.0 } else { 2.0 };
-                        (k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
-                            .sqrt()
-                    }
-                    LegendreNormalization::Schmidt => {
-                        let delta = if m == 0 { 0.0 } else { 1.0 };
-                        ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
-                    }
-                };
+                        }
+                        LegendreNormalization::Full => {
+                            let k = if m == 0 { 1.0 } else { 2.0 };
+                            (k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
+                                .sqrt()
+                        }
+                        LegendreNormalization::Schmidt => {
+                            let delta = if m == 0 { 0.0 } else { 1.0 };
+                            ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
+                        }
+                    };
+                }
 
                 // lump condon-shortley factor into the norm
                 if self.condon_shortley {
@@ -120,12 +123,12 @@ impl Legendre {
             return Err(LegendreErrors::ValueOutOfRange);
         }
 
+        let one_minus_x_2 = 1.0 - x * x;
         // first couple values, p[0][0] is always 1.0 from initialization
-        self.p[1][0] = x;
-        self.p[1][1] = (1.0 - x * x).sqrt();
 
-        if let Some(dp) = &mut self.dp {
-            dp[1][1] = x / (1.0 - x * x).sqrt();
+        self.p[1][0] = x;
+        if self.order > 0 {
+            self.p[1][1] = one_minus_x_2.sqrt();
         }
 
         for l in 2..=self.degree {
@@ -168,7 +171,7 @@ impl Legendre {
                     if m <= self.order {
                         let mf = m as f64;
                         dp[l][m] =
-                            ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / (1.0 - x * x);
+                            ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / one_minus_x_2;
                     }
                 }
             }

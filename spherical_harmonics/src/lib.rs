@@ -1,6 +1,7 @@
 use std::f64::consts::PI;
 
 use legendre::{Legendre, LegendreErrors, LegendreNormalization};
+use nalgebra::Vector3;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -11,16 +12,21 @@ pub enum SphericalHarmonicsErrors {
 
 #[derive(Clone, Debug, Default)]
 pub struct SphericalHarmonics {
+    degree: usize,
     order: usize,
     legendre: Legendre,
+    cml: Vec<f64>, // preallocation for cos(m lon)
+    sml: Vec<f64>, // preallocation for sin(m lon)
 }
 
 impl SphericalHarmonics {
     pub fn new(degree: usize, order: usize) -> Result<Self, SphericalHarmonicsErrors> {
-        // +1 since using Vallados method, which require P[l][m+1]
         Ok(Self {
+            degree,
             order,
-            legendre: Legendre::new(degree + 1, order + 1)?.with_derivatives(),
+            legendre: Legendre::new(degree, order)?.with_derivatives(),
+            cml: vec![0.0; order + 1],
+            sml: vec![0.0; order + 1],
         })
     }
 
@@ -30,66 +36,100 @@ impl SphericalHarmonics {
     }
 
     /// returns the gradient of V
-    pub fn calculate(
+    pub fn calculate_from_colatitude(
         &mut self,
-        r_ecef: [f64; 3],
+        r: f64,
+        colat: f64,
+        lon: f64,
+        k: f64,
+        a: f64,
         c: &Vec<Vec<f64>>,
         s: &Vec<Vec<f64>>,
-        re: f64,
-    ) -> Result<[f64; 3], SphericalHarmonicsErrors> {
-        let x = r_ecef[0];
-        let y = r_ecef[1];
-        let z = r_ecef[2];
-        let r = (x * x + y * y + z * z).sqrt();
-        let xy = (x * x + y * y).sqrt();
-        let rer = re / r;
+    ) -> Result<Vector3<f64>, SphericalHarmonicsErrors> {
+        // we calculate trig functions in a recursion since it's faster than using cos and sin on each element
+        let cml = &mut self.cml;
+        let sml = &mut self.sml;
 
-        let latgc = (z / r).asin();
-        let lon = {
-            let lon = if xy < 1e-9 {
-                y.signum() * PI * 0.5
-            } else {
-                y.atan2(x)
-            };
-            lon % (2.0 * PI)
-        };
-
-        self.legendre.calculate(z / r)?; // z/r = latgc.sin()
+        cml[0] = 1.0;
+        sml[0] = 0.0;
+        if self.order > 0 {
+            cml[1] = lon.cos();
+            sml[1] = lon.sin();
+            if self.order > 1 {
+                for m in 2..=self.order {
+                    cml[m] = cml[m - 1] * cml[1] - sml[m - 1] * sml[1];
+                    sml[m] = sml[m - 1] * cml[1] + cml[m - 1] * sml[1];
+                }
+            }
+        }
+        self.legendre.calculate(colat.cos())?;
 
         let mut partial_r = 0.0;
         let mut partial_lat = 0.0;
         let mut partial_lon = 0.0;
 
         let p = &self.legendre.p;
+        let dp = match &self.legendre.dp {
+            Some(dp) => dp,
+            None => unreachable!("derivatives always initiliazed in new"),
+        };
 
-        for l in 2..=self.order {
-            let rerl = rer.powi(l as i32);
+        let ar = a / r;
+        let mut arl = ar;
+        for l in 1..=self.degree {
+            arl *= ar;
             for m in 0..=l {
-                let mf = m as f64;
-
-                let clm = (mf * lon).cos();
-                let slm = (mf * lon).sin();
-
-                partial_r += rerl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * clm + s[l][m] * slm);
-                partial_lat += rerl
-                    * (p[l][m + 1] - mf * latgc.tan() * p[l][m])
-                    * (c[l][m] * clm + s[l][m] * slm);
-                partial_lon += rerl * mf * p[l][m] * (s[l][m] * clm - c[l][m] * slm);
+                if m <= self.order {
+                    let mf = m as f64;
+                    dbg!(dp[l][m]);
+                    partial_r +=
+                        -arl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
+                    partial_lat += arl * dp[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
+                    partial_lon += arl * mf * p[l][m] * (s[l][m] * cml[m] - c[l][m] * sml[m]);
+                }
             }
         }
+        let kar = k * a / r;
 
-        partial_r *= -1.0 / r.powi(2);
-        partial_lat *= 1.0 / r;
-        partial_lon *= 1.0 / r;
+        partial_r *= kar / r;
+        partial_lat *= kar;
+        partial_lon *= kar;
 
-        let tmp1 = partial_r / r - z * partial_lat / (r.powi(2) * xy);
-        let tmp2 = partial_lon / (xy * xy);
+        let ar = partial_r;
+        let alat = partial_lat / r;
+        let alon = partial_lon / (r * colat.sin());
 
-        let ax = tmp1 * x - tmp2 * y;
-        let ay = tmp1 * y + tmp2 * x;
-        let az = partial_r * z / r + xy * partial_lat / r.powi(2);
+        // negative since -grad(V)
+        Ok(-Vector3::new(ar, alat, alon))
+    }
 
-        Ok([ax, ay, az])
+    pub fn calculate_from_cartesian(
+        &mut self,
+        r_ecef: &Vector3<f64>,
+        k: f64,
+        a: f64,
+        c: &Vec<Vec<f64>>,
+        s: &Vec<Vec<f64>>,
+    ) -> Result<Vector3<f64>, SphericalHarmonicsErrors> {
+        let x = r_ecef[0];
+        let y = r_ecef[1];
+        let z = r_ecef[2];
+        let r = (x * x + y * y + z * z).sqrt();
+
+        let colat = (z / r).acos();
+        let lon = y.atan2(x);
+
+        let a_spherical = self.calculate_from_colatitude(r, colat, lon, k, a, c, s)?;
+
+        dbg!(a_spherical);
+        let ar = a_spherical[0];
+        let alat = a_spherical[1];
+        let alon = a_spherical[2];
+
+        let ax = (ar * colat.sin() + alat * colat.cos()) * lon.cos() - alon * lon.sin();
+        let ay = (ar * colat.sin() + alat * colat.cos()) * lon.sin() + alon * lon.cos();
+        let az = ar * colat.cos() - alat * colat.sin();
+        Ok(Vector3::new(ax, ay, az))
     }
 }
 

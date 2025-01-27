@@ -2425,6 +2425,7 @@ dependencies = [
  "legendre",
  "nalgebra",
  "serde",
+ "spherical_harmonics",
  "thiserror 2.0.9",
  "utilities",
 ]
@@ -3488,6 +3489,7 @@ dependencies = [
  "chrono",
  "legendre",
  "nalgebra",
+ "rotations",
  "serde",
  "spherical_harmonics",
  "thiserror 2.0.9",
@@ -5515,7 +5517,9 @@ dependencies = [
 name = "spherical_harmonics"
 version = "0.0.1"
 dependencies = [
+ "coordinate_systems",
  "legendre",
+ "nalgebra",
  "thiserror 2.0.9",
 ]
 
