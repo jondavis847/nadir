@@ -3,7 +3,6 @@ use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 use aerospace::orbit::KeplerianElements;
 use celestial::{CelestialBodies, CelestialSystem};
 use color::Color;
-use gravity::{egm::EgmGravity, Gravity};
 use hardware::{
     actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},
     sensors::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker, SpacecraftSensors},
@@ -56,33 +55,28 @@ fn main() {
         .add_body(CelestialBodies::Moon, false, false)
         .unwrap();
 
-    // change earth gravity from default newtonian to egm2008
-    let egm2008 = Gravity::Egm(
-        EgmGravity::new(gravity::egm::EgmModel::Egm2008, 7, 7)
-            .unwrap()
-            .with_newtonian(),
-    );
-    celestial
-        .set_gravity(CelestialBodies::Earth, Some(egm2008))
-        .unwrap();
-
+    // Create the base reference frame of the system and add the CelestialSystem
     let base = Base::new("base", BaseSystems::Celestial(celestial));
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(7e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let state = FloatingState::new()
         .with_rates([0.0, 0.0, 0.0].into())
         .with_attitude(Quaternion::new(-0.4, -0.5, 0.5, 0.5))
         .with_orbit(orbit.into());
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
+
+    // TODO: This isnt the ideal interface and will be improved in the future
     let f = Rc::new(RefCell::new(Joint::new("f", f_model).unwrap()));
 
     // Create the main body of the spacecraft
     let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(1000.0, cm, inertia).unwrap();
+
+    // Add a mesh for 3d animation
     let geometry = Geometry::Cuboid(Cuboid::new(3.0, 2.0, 2.0));
     let material = Material::Phong {
         color: Color::new(0.5, 0.5, 0.5, 1.0),
@@ -99,7 +93,7 @@ fn main() {
     let bus = Rc::new(RefCell::new(Body::new("bus", mp).unwrap().with_mesh(mesh)));
 
     // Create the solar array panels of the spacecraft
-    //sa1
+    //solar array 1
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(100.0, cm, inertia).unwrap();
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
@@ -117,7 +111,7 @@ fn main() {
 
     let sa1 = Rc::new(RefCell::new(Body::new("sa1", mp).unwrap().with_mesh(mesh)));
 
-    //sa2
+    //solar array 2
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(100.0, cm, inertia).unwrap();
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
@@ -135,7 +129,7 @@ fn main() {
 
     let sa2 = Rc::new(RefCell::new(Body::new("sa2", mp).unwrap().with_mesh(mesh)));
 
-    //sa3
+    //solar array 3
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0).unwrap();
     let mp = MassProperties::new(100.0, cm, inertia).unwrap();
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
@@ -190,13 +184,14 @@ fn main() {
         Joint::new("hinge3", Revolute::new(p, x)).unwrap(),
     ));
 
+    // Add a GPS model
     let mut gps = Sensor::new(
         "gps",
         Gps::new()
             .with_noise_position(NoiseModels::Gaussian(GaussianNoise::new(0.0, 50.0)))
             .with_noise_velocity(NoiseModels::Gaussian(GaussianNoise::new(0.0, 1.0))),
     );
-    // Add a star tracker
+    // Add a star tracker model
     let mut st = Sensor::new(
         "st",
         StarTracker::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
@@ -205,7 +200,7 @@ fn main() {
         ))),
     );
 
-    // Add a rate gyro
+    // Add a rate gyro model
     let mut imu = Sensor::new(
         "imu",
         RateGyro::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(
@@ -260,6 +255,7 @@ fn main() {
         rw: [rw1, rw2, rw3, rw4],
     };
 
+    // TODO: These connections are not the ideal interface and will be improved in the future
     base.borrow_mut().connect_outer_joint(&f).unwrap();
     f.borrow_mut()
         .connect_base(&base, Transform::IDENTITY)
@@ -347,5 +343,5 @@ fn main() {
         actuator_system,
     );
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 10.0);
+    sys.simulate("", 0.0, 10000.0, 1.0);
 }
