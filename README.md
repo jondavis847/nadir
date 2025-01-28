@@ -1,5 +1,5 @@
 # Intro
-NASA Attitude Dynamics in Rust (NADIR) is a collection of rust librarys that support modeling and simulation of dynamical systems. The primary motivation is high fidelity modeling of spacecraft dynamics, but general dynamical systems are supported.
+NASA Attitude Dynamics in Rust (NADIR) is a collection of rust libraries that support modeling and simulation of dynamical systems. The primary motivation is high fidelity modeling of spacecraft dynamics, but general dynamical systems are supported.
 
 # Getting Started
 The best way to start is to look at the examples. They can all be run from a terminal by changing directory in to the examples root folder and entering 'cargo run --release'. The first time you run you will see a bunch of dependencies get downloaded and compiled from cargo. If you don't include the --release it will still work, it will just compile faster and run slower.
