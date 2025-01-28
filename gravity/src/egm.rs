@@ -1,6 +1,4 @@
-use std::f64::consts::PI;
-
-use legendre::{factorial, Legendre, LegendreErrors, LegendreNormalization};
+use legendre::{factorial, LegendreErrors, LegendreNormalization};
 use nalgebra::Vector3;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};

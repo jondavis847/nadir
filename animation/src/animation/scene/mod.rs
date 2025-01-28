@@ -24,11 +24,13 @@ use image::{load_from_memory, GenericImageView};
 
 pub mod camera;
 pub mod earth_pipeline;
+pub mod moon_pipeline;
 pub mod pipeline;
 pub mod sun_pipeline;
 
 use camera::Camera;
 use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
+use moon_pipeline::{MoonBindGroup, MoonPipeline};
 use pipeline::{
     uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
     Ellipsoid64Pipeline, Pipeline,
@@ -506,6 +508,88 @@ impl Primitive for ScenePrimitive {
             }
         }
 
+        if let Some(moon) = self.celestial.meshes.get(&CelestialMeshes::Moon) {
+            if !storage.has::<MoonPipeline>() {
+                const MOON_COLOR: &[u8] = include_bytes!("../../../resources/moon_4k.tif");
+
+                let moon_color = load_texture(device, queue, MOON_COLOR, "moon_color");
+
+                let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Linear,
+                    ..Default::default()
+                });
+
+                let moon_bind_group_layout =
+                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("moon bind group layout"),
+                        entries: &[
+                            // sampler
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                            //moon color
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
+                                },
+                                count: None,
+                            },
+                        ],
+                    });
+
+                let moon_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("moon.bind.group"),
+                    layout: &moon_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Sampler(&sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&moon_color),
+                        },
+                    ],
+                });
+
+                storage.store(MoonBindGroup(moon_bind_group));
+
+                let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
+                let moon_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("moon.pipeline.layout"),
+                    bind_group_layouts: &[&uniform_bind_group_layout, &moon_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+                storage.store(MoonPipeline::new(
+                    device,
+                    format,
+                    &moon_layout,
+                    &[moon.mesh_gpu],
+                    Ellipsoid64::vertices(),
+                    self.sample_count,
+                ));
+            } else {
+                if let Some(moon_pipeline) = storage.get_mut::<MoonPipeline>() {
+                    moon_pipeline.update(queue, &[moon.mesh_gpu]);
+                }
+            }
+        }
+
         //cuboids
         let cuboids: Vec<MeshGpu> = self
             .meshes
@@ -731,6 +815,16 @@ impl Primitive for ScenePrimitive {
         if let Some(pipeline) = storage.get::<EarthPipeline>() {
             if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
                 pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
+                pass.set_pipeline(&pipeline.pipeline);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            }
+        }
+
+        if let Some(pipeline) = storage.get::<MoonPipeline>() {
+            if let Some(moon_bind_group) = storage.get::<MoonBindGroup>() {
+                pass.set_bind_group(1, &moon_bind_group.0, &[]); // textures saved in bing group 1
                 pass.set_pipeline(&pipeline.pipeline);
                 pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
                 pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));

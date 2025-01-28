@@ -89,7 +89,7 @@ fn fs_main(in: Output) -> FragOutput {
     let cloud_color = cloud_texture.rgb;
     let cloud_alpha = cloud_texture.a;
     let night_texture = textureSample(earth_night, earth_sampler, in.uv).rgb;
-    let night_lights = vec3<f32>(1.0,0.8745,0.7843);
+    let night_lights = vec3<f32>(1.0,0.8745,0.5843);
     let night_color = night_lights * night_texture;
 
     let cloud_intensity = 0.8;
