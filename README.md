@@ -1,3 +1,4 @@
+![alt text](<Screenshot from 2025-01-28 00-07-00.png>)
 # Intro
 NASA Attitude Dynamics in Rust (NADIR) is a collection of rust libraries that support modeling and simulation of dynamical systems. The primary motivation is high fidelity modeling of spacecraft dynamics, but general dynamical systems are supported.
 
