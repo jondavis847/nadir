@@ -62,7 +62,7 @@ impl Default for Scene {
             body_meshes: Vec::new(),
             celestial: CelestialAnimation::default(),
             world_target: None,
-            sample_count: 1,
+            sample_count: 4,
         }
     }
 }
