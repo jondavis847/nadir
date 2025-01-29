@@ -5,7 +5,7 @@ pub enum LegendreNormalization {
     FourPi,
     #[default]
     Full,
-    Schmidt,
+    SchmidtQuasi,
     Unnormalized,
 }
 
@@ -91,18 +91,19 @@ impl Legendre {
                     self.norm[l][m] = match norm {
                         LegendreNormalization::Unnormalized => 1.0,
                         LegendreNormalization::FourPi => {
-                            let delta = if m == 0 { 0.0 } else { 1.0 };
+                            let delta = if m == 0 { 1.0 } else { 0.0 };
                             ((2.0 - delta) * (2.0 * lf + 1.0) * factorial(lf - mf)
                                 / factorial(lf + mf))
                             .sqrt()
                         }
                         LegendreNormalization::Full => {
-                            let k = if m == 0 { 1.0 } else { 2.0 };
-                            (k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
+                            //let k = if m == 0 { 1.0 } else { 2.0 };
+                            //(k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
+                            ((2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
                                 .sqrt()
                         }
-                        LegendreNormalization::Schmidt => {
-                            let delta = if m == 0 { 0.0 } else { 1.0 };
+                        LegendreNormalization::SchmidtQuasi => {
+                            let delta = if m == 0 { 1.0 } else { 0.0 };
                             ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
                         }
                     };
@@ -154,7 +155,6 @@ impl Legendre {
             }
         }
         // apply normalization and condon-shortley after recursion
-        // p00 is still 1.0
         for l in 0..=self.degree {
             for m in 0..=l {
                 if m <= self.order {
@@ -276,18 +276,18 @@ mod tests {
     }
 
     #[test]
-    fn test_legendre_normalization_four_pi() {
+    fn test_legendre_normalization_schmidt() {
         let mut legendre = Legendre::new(10, 10)
             .unwrap()
-            .with_normalization(LegendreNormalization::FourPi);
+            .with_normalization(LegendreNormalization::SchmidtQuasi);
         legendre.calculate(0.5).unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
-        assert_equal(legendre.p[1][0], 0.8660254037844386);
-        assert_equal(legendre.p[1][1], 1.5);
-        assert_equal(legendre.p[2][2], 1.4523687548277808);
-        assert_equal(legendre.p[6][6], 1.0217072515428407);
-        assert_equal(legendre.p[10][0], -0.8625718403480759);
-        assert_equal(legendre.p[10][10], 0.6455505880614334);
+        assert_equal(legendre.p[1][0], 0.5);
+        assert_equal(legendre.p[1][1], 0.8660254037844386);
+        assert_equal(legendre.p[2][2], 0.6495190528383288);
+        assert_equal(legendre.p[6][6], 0.2833706064577766);
+        assert_equal(legendre.p[10][0], -0.18822860717773438);
+        assert_equal(legendre.p[10][10], 0.14087068736737018);
     }
 }

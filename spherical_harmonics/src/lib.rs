@@ -81,15 +81,15 @@ impl SphericalHarmonics {
                     let mf = m as f64;
                     dbg!(dp[l][m]);
                     partial_r +=
-                        -arl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
+                        arl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
                     partial_lat += arl * dp[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
                     partial_lon += arl * mf * p[l][m] * (s[l][m] * cml[m] - c[l][m] * sml[m]);
                 }
             }
         }
-        let kar = k * a / r;
+        let kar = k * ar;
 
-        partial_r *= kar / r;
+        partial_r *= -kar / r;
         partial_lat *= kar;
         partial_lon *= kar;
 

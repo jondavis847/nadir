@@ -132,7 +132,7 @@ impl Igrf {
             degree,
             order,
             spherical_harmonics: SphericalHarmonics::new(degree, order)?
-                .with_normalization(LegendreNormalization::Schmidt),
+                .with_normalization(LegendreNormalization::SchmidtQuasi),
             g: IgrfCoeffs(g_coeffs),
             h: IgrfCoeffs(h_coeffs),
             svg,
@@ -334,7 +334,7 @@ mod tests {
         let r = Vector3::new(7e6, 0.0, 0.0);
         let t = Time::from_ymdhms(2005, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
 
-        let mut igrf = Igrf::new(2, 2, &t).unwrap();
+        let mut igrf = Igrf::new(1, 1, &t).unwrap();
         let b = igrf.calculate(&r, &t).unwrap();
 
         dbg!(b);

@@ -1,9 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
-
+use aerospace::orbit::KeplerianElements;
+use celestial::{CelestialBodies, CelestialSystem};
 use color::Color;
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use multibody::{
-    base::Base,
+    base::{Base, BaseSystems},
     body::{Body, BodyTrait},
     joint::{
         floating::{Floating, FloatingParameters, FloatingState},
@@ -11,6 +11,8 @@ use multibody::{
     },
     system::MultibodySystem,
 };
+use std::{cell::RefCell, rc::Rc};
+use time::Time;
 
 use nadir_3d::{
     geometry::{cuboid::Cuboid, Geometry, GeometryState},
@@ -20,12 +22,22 @@ use nadir_3d::{
 use transforms::Transform;
 
 fn main() {
-    let base = Base::new("base", multibody::base::BaseSystems::Basic(None));
+    let epoch = Time::now().unwrap();
+    let mut celestial = CelestialSystem::new(epoch).unwrap();
+    celestial
+        .add_body(CelestialBodies::Earth, true, false)
+        .unwrap();
+    celestial
+        .add_body(CelestialBodies::Moon, false, false)
+        .unwrap();
+
+    // Create the base reference frame of the system and add the CelestialSystem
+    let base = Base::new("base", BaseSystems::Celestial(celestial));
 
     // create a floating joint
     let state = FloatingState::new()
-        .with_rates([1.0, 0.0, 1.0].into())
-        .with_velocity([0.0, 1.0, 0.0].into());
+        .with_rates([0.0, 0.0, 0.0].into())
+        .with_orbit(KeplerianElements::iss().into());
 
     let parameters = FloatingParameters::new();
     let f_model = Floating::new(parameters, state);
@@ -68,5 +80,5 @@ fn main() {
 
     let mut sys = MultibodySystem::new(base, [b], [f], (), (), ());
     // Run the simulation
-    sys.simulate("", 0.0, 10.0, 0.1);
+    sys.simulate("", 0.0, 100000.0, 100.0);
 }
