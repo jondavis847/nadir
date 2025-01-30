@@ -64,7 +64,7 @@ impl Legendre {
     pub fn with_derivatives(mut self) -> Self {
         let mut dp = self.p.clone();
         dp[0][0] = 0.0;
-        dp[1][0] = 1.0;
+        dp[1][0] = 0.0;
 
         self.dp = Some(dp);
         self
@@ -273,6 +273,20 @@ mod tests {
         assert_equal(legendre.p[6][6], 0.5108536257714203);
         assert_equal(legendre.p[10][0], -0.6099303975706846);
         assert_equal(legendre.p[10][10], 0.3227752940307167);
+    }
+
+    #[test]
+    fn test_legendre_derivative() {
+        // independent values from pyshtools
+        let mut legendre = Legendre::new(10, 10).unwrap().with_derivatives();
+        legendre.calculate(0.5).unwrap();
+        let dp = legendre.dp.unwrap();
+        assert_equal(dp[0][0], 0.0);
+        assert_equal(dp[1][0], 1.0);
+        assert_equal(dp[1][1], -0.5773502691896257);
+        assert_equal(dp[2][0], 1.5);
+        assert_equal(dp[2][1], 1.7320508075688774);
+        assert_equal(dp[2][2], -3.0);
     }
 
     #[test]

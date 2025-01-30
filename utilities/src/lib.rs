@@ -119,6 +119,10 @@ pub fn unique_strings_alphabetical(vec1: Vec<String>, vec2: Vec<String>) -> Vec<
 
 pub fn assert_equal(left: f64, right: f64) {
     let max = left.abs().max(right.abs());
+    if max < std::f64::EPSILON {
+        // If both values are close to zero, we consider them equal
+        return;
+    }
     let rel_diff = (left - right).abs() / max;
     assert!(
         rel_diff < 1e-9,
