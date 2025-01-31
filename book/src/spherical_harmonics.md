@@ -99,14 +99,25 @@ or for colatitude
 Since this partial does not depend on r, we can take out the \\(\frac{a}{r}\\) immediately so that 
 \\[V(r,k,a,g,h) = \frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} P^m_l (sin \phi) [g_m^l cos(m\theta) + h_m^l sin(m\theta) ]\\]
 
-The only part of the potential function V depending on \\(\phi\\) is \\(  \bar{P}_m^l (sin \phi) \\)
 
-Consequentially, the recursive spherical harmonic solvers typically also calculate \\(\frac{d}{d\phi} {P}^l_m(sin\phi)\\) while calculating \\({P}^l_m(sin\phi)\\) since there are recursive versions that depend only on \\(\bar{P}^l_m\\) and its previously calculated values.
+The only part of the potential function V depending on \\(\phi\\) is \\(  \bar{P}_m^l (sin \phi) \\). We use the chain rule to get the derivative as
+
+\\[\frac{d}{d\phi} \bar{P}_m^l (sin \phi)\\]
+\\[ = \frac{d}{dx} \bar{P}_m^l (x) \frac{d}{d\phi} sin \phi\\]
+\\[ = cos\phi \frac{d}{dx} \bar{P}_m^l (x)\\]
+
+The term \\(\frac{d}{dx} {P}^l_m(x)\\) is calculated with recursion relations while calculating \\({P}^l_m(sin\phi)\\) since there are recursive versions that depend only on \\(\bar{P}^l_m\\) and its previously calculated values.
+
+Remembering that \\(x = sin\phi\\), and from \\(1 = cos^2\phi + sin^2\phi => cos\phi = \sqrt{1 - sin^2\phi} = \sqrt{1 - x^2}\\), we get the final derivative for latitude as 
+\\[\sqrt{1 - x^2} \frac{d}{dx} \bar{P}_m^l (x) \\] 
+
+Simlarly for colatitue, remembering that \\(x = cos\phi\\), and from \\(1 = cos^2\phi + sin^2\phi => sin\phi = \sqrt{1 - cos^2\phi} = \sqrt{1 - x^2}\\), we get the final derivative for latitude as 
+\\-[\sqrt{1 - x^2} \frac{d}{dx} \bar{P}_m^l (x) \\] 
 
 The final equation for latitude is 
-\\[\frac{\partial V}{\partial \phi} = \frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} \frac{d}{d\phi} P^m_l (sin \phi) [g^m_l (t) cos(m\theta) + h^m_l (t) sin(m\theta) ] \\]
+\\[\frac{\partial V}{\partial \phi} = \frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} \sqrt{1 - x^2} \frac{d}{dx} P^m_l (x) [g^m_l (t) cos(m\theta) + h^m_l (t) sin(m\theta) ] \\]
 or for colatitude
-\\[\frac{\partial V}{\partial \lambda} = \frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} \frac{d}{d\lambda} P^m_l (cos \lambda) [g^m_l (t) cos(m\theta) + h^m_l (t) sin(m\theta) ] \\]
+\\[\frac{\partial V}{\partial \lambda} = -\frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} \sqrt{1 - x^2} \frac{d}{dx} P^m_l (x) [g^m_l (t) cos(m\theta) + h^m_l (t) sin(m\theta) ] \\]
 
 ## Calculating \\(\frac{\partial V}{\partial \theta}\\)
 

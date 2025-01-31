@@ -124,6 +124,8 @@ impl Legendre {
             return Err(LegendreErrors::ValueOutOfRange);
         }
 
+        dbg!(x);
+
         let one_minus_x_2 = 1.0 - x * x;
         // first couple values, p[0][0] is always 1.0 from initialization
 
@@ -172,9 +174,16 @@ impl Legendre {
                         let mf = m as f64;
                         dp[l][m] =
                             ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / one_minus_x_2;
+                        dbg!(l);
+                        dbg!(m);
+                        dbg!(self.p[l - 1][m]);
+                        dbg!(self.p[l][m]);
+                        dbg!(one_minus_x_2);
                     }
                 }
             }
+
+            dbg!(&dp);
         }
 
         Ok(())

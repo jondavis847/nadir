@@ -60,7 +60,8 @@ impl SphericalHarmonics {
                 }
             }
         }
-        self.legendre.calculate(colat.cos())?;
+        let x = colat.cos();
+        self.legendre.calculate(x)?;
 
         let mut partial_r = 0.0;
         let mut partial_lat = 0.0;
@@ -73,32 +74,32 @@ impl SphericalHarmonics {
         };
 
         let ar = a / r;
+        let sqrt_one_minus_x2 = (1.0 - x * x).sqrt();
         let mut arl = ar;
         for l in 1..=self.degree {
             arl *= ar;
             for m in 0..=l {
                 if m <= self.order {
                     let mf = m as f64;
-                    dbg!(dp[l][m]);
                     partial_r +=
                         arl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
-                    partial_lat += arl * dp[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
+                    partial_lat +=
+                        arl * -sqrt_one_minus_x2 * dp[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
                     partial_lon += arl * mf * p[l][m] * (s[l][m] * cml[m] - c[l][m] * sml[m]);
                 }
             }
         }
-        let kar = k * ar;
 
-        partial_r *= -kar / r;
-        partial_lat *= kar;
-        partial_lon *= kar;
+        partial_r *= -k / r;
+        partial_lat *= k;
+        partial_lon *= k;
 
-        let ar = partial_r;
-        let alat = partial_lat / r;
-        let alon = partial_lon / (r * colat.sin());
+        let ar = -partial_r;
+        let alat = -partial_lat / r;
+        let alon = -partial_lon / (r * colat.sin());
 
         // negative since -grad(V)
-        Ok(-Vector3::new(ar, alat, alon))
+        Ok(Vector3::new(ar, alat, alon))
     }
 
     pub fn calculate_from_cartesian(
@@ -118,6 +119,7 @@ impl SphericalHarmonics {
         let lon = y.atan2(x);
 
         let a_spherical = self.calculate_from_colatitude(r, colat, lon, k, a, c, s)?;
+        dbg!(a_spherical);
         let ar = a_spherical[0];
         let alat = a_spherical[1];
         let alon = a_spherical[2];
