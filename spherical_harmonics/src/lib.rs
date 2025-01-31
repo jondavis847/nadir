@@ -41,8 +41,8 @@ impl SphericalHarmonics {
         lon: f64,
         k: f64,
         a: f64,
-        c: &Vec<Vec<f64>>,
-        s: &Vec<Vec<f64>>,
+        g: &Vec<Vec<f64>>,
+        h: &Vec<Vec<f64>>,
     ) -> Result<Vector3<f64>, SphericalHarmonicsErrors> {
         // we calculate trig functions in a recursion since it's faster than using cos and sin on each element
         let cml = &mut self.cml;
@@ -61,10 +61,11 @@ impl SphericalHarmonics {
             }
         }
         let x = colat.cos();
+        let sin_colat = (1.0 - x * x).sqrt();
         self.legendre.calculate(x)?;
 
         let mut partial_r = 0.0;
-        let mut partial_lat = 0.0;
+        let mut partial_colat = 0.0;
         let mut partial_lon = 0.0;
 
         let p = &self.legendre.p;
@@ -74,32 +75,32 @@ impl SphericalHarmonics {
         };
 
         let ar = a / r;
-        let sqrt_one_minus_x2 = (1.0 - x * x).sqrt();
         let mut arl = ar;
         for l in 1..=self.degree {
+            let lf = l as f64;
             arl *= ar;
             for m in 0..=l {
                 if m <= self.order {
                     let mf = m as f64;
-                    partial_r +=
-                        arl * (l as f64 + 1.0) * p[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
-                    partial_lat +=
-                        arl * -sqrt_one_minus_x2 * dp[l][m] * (c[l][m] * cml[m] + s[l][m] * sml[m]);
-                    partial_lon += arl * mf * p[l][m] * (s[l][m] * cml[m] - c[l][m] * sml[m]);
+                    let gchs = g[l][m] * cml[m] + h[l][m] * sml[m];
+                    let hcgs = h[l][m] * cml[m] - g[l][m] * sml[m];
+
+                    partial_r += arl * (lf + 1.0) * p[l][m] * gchs;
+                    partial_colat += arl * dp[l][m] * gchs;
+                    partial_lon += arl * mf * p[l][m] * hcgs;
                 }
             }
         }
 
         partial_r *= -k / r;
-        partial_lat *= k;
+        partial_colat *= -sin_colat * k;
         partial_lon *= k;
 
-        let ar = -partial_r;
-        let alat = -partial_lat / r;
-        let alon = -partial_lon / (r * colat.sin());
-
         // negative since -grad(V)
-        Ok(Vector3::new(ar, alat, alon))
+        let ar = -partial_r;
+        let acolat = -partial_colat / r;
+        let alon = -partial_lon / (r * sin_colat);
+        Ok(Vector3::new(ar, acolat, alon))
     }
 
     pub fn calculate_from_cartesian(
@@ -121,12 +122,12 @@ impl SphericalHarmonics {
         let a_spherical = self.calculate_from_colatitude(r, colat, lon, k, a, c, s)?;
         dbg!(a_spherical);
         let ar = a_spherical[0];
-        let alat = a_spherical[1];
+        let acolat = a_spherical[1];
         let alon = a_spherical[2];
 
-        let ax = (ar * colat.sin() + alat * colat.cos()) * lon.cos() - alon * lon.sin();
-        let ay = (ar * colat.sin() + alat * colat.cos()) * lon.sin() + alon * lon.cos();
-        let az = ar * colat.cos() - alat * colat.sin();
+        let ax = (ar * colat.sin() + acolat * colat.cos()) * lon.cos() - alon * lon.sin();
+        let ay = (ar * colat.sin() + acolat * colat.cos()) * lon.sin() + alon * lon.cos();
+        let az = ar * colat.cos() - acolat * colat.sin();
         Ok(Vector3::new(ax, ay, az))
     }
 }

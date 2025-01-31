@@ -31,7 +31,7 @@ pub struct Igrf {
     degree: usize,
     order: usize,
     #[serde(skip)]
-    spherical_harmonics: SphericalHarmonics,
+    pub spherical_harmonics: SphericalHarmonics,
     #[serde(skip)]
     g: IgrfCoeffs,
     #[serde(skip)]
@@ -331,10 +331,15 @@ mod tests {
 
     #[test]
     fn test_igrf_1() {
-        let r = Vector3::new(7e6, 0.0, 0.0);
+        //let r = Vector3::new(7e6, 0.0, 0.0);
+        let r = Vector3::new(
+            3.1825409938898864e6,
+            4.9565139279149985e6,
+            3.7821161410769783e6,
+        );
         let t = Time::from_ymdhms(2005, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
 
-        let mut igrf = Igrf::new(1, 1, &t).unwrap();
+        let mut igrf = Igrf::new(13, 13, &t).unwrap();
         let b = igrf.calculate(&r, &t).unwrap();
 
         dbg!(b);
