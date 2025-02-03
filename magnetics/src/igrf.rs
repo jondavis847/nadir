@@ -339,7 +339,7 @@ mod tests {
         );
         let t = Time::from_ymdhms(2005, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
 
-        let mut igrf = Igrf::new(13, 13, &t).unwrap();
+        let mut igrf = Igrf::new(1, 1, &t).unwrap();
         let b = igrf.calculate(&r, &t).unwrap();
 
         dbg!(b);

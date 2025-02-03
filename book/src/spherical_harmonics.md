@@ -111,8 +111,8 @@ The term \\(\frac{d}{dx} {P}^l_m(x)\\) is calculated with recursion relations wh
 Remembering that \\(x = sin\phi\\), and from \\(1 = cos^2\phi + sin^2\phi => cos\phi = \sqrt{1 - sin^2\phi} = \sqrt{1 - x^2}\\), we get the final derivative for latitude as 
 \\[\sqrt{1 - x^2} \frac{d}{dx} \bar{P}_m^l (x) \\] 
 
-Simlarly for colatitue, remembering that \\(x = cos\phi\\), and from \\(1 = cos^2\phi + sin^2\phi => sin\phi = \sqrt{1 - cos^2\phi} = \sqrt{1 - x^2}\\), we get the final derivative for latitude as 
-\\-[\sqrt{1 - x^2} \frac{d}{dx} \bar{P}_m^l (x) \\] 
+Similarly for colatitue, remembering that \\(x = cos\phi\\), and from \\(1 = cos^2\phi + sin^2\phi => sin\phi = \sqrt{1 - cos^2\phi} = \sqrt{1 - x^2}\\), we get the final derivative for latitude as 
+\\[-\sqrt{1 - x^2} \frac{d}{dx} \bar{P}_m^l (x) \\] 
 
 The final equation for latitude is 
 \\[\frac{\partial V}{\partial \phi} = \frac{ka}{r} \sum_{l=1}^{\infty} \left(\frac{a}{r}\right)^l \sum_{m=0}^{l} \sqrt{1 - x^2} \frac{d}{dx} P^m_l (x) [g^m_l (t) cos(m\theta) + h^m_l (t) sin(m\theta) ] \\]

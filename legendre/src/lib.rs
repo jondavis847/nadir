@@ -35,13 +35,13 @@ impl Legendre {
         if order > degree {
             return Err(LegendreErrors::OrderGreaterThanDegree);
         }
-
-        let mut p = vec![vec![0.0; order + 1]; degree + 1];
+        // need to go to + 2 for derivative recursion
+        let mut p = vec![vec![0.0; order + 2]; degree + 2];
         p[0][0] = 1.0;
 
         // populate norm with all 1's to start. updated in with_normalization
-        let mut norm = vec![vec![0.0; order + 1]; degree + 1];
-        for l in 0..=degree {
+        let mut norm = vec![vec![0.0; order + 2]; degree + 2];
+        for l in 0..=degree + 1 {
             for m in 0..=l {
                 if m <= order {
                     norm[l][m] = 1.0
@@ -64,7 +64,7 @@ impl Legendre {
     pub fn with_derivatives(mut self) -> Self {
         let mut dp = self.p.clone();
         dp[0][0] = 0.0;
-        dp[1][0] = 0.0;
+        // the rest get overwritten in calculate
 
         self.dp = Some(dp);
         self
@@ -73,7 +73,7 @@ impl Legendre {
     pub fn with_condon_shortley(mut self) -> Self {
         self.condon_shortley = true;
         // lump condon-shortley factor into the norm
-        for l in 0..=self.degree {
+        for l in 0..=self.degree + 1 {
             for m in 0..=l {
                 self.norm[l][m] *= (-1.0_f64).powi(m as i32);
             }
@@ -82,11 +82,11 @@ impl Legendre {
     }
 
     pub fn with_normalization(mut self, norm: LegendreNormalization) -> Self {
-        // precomute norm factors for l and m
-        for l in 0..=self.degree {
+        // precompute norm factors for l and m
+        for l in 0..=self.degree + 1 {
             let lf = l as f64;
             for m in 0..=l {
-                if m <= self.order {
+                if m <= self.order + 1 {
                     let mf = m as f64;
                     self.norm[l][m] = match norm {
                         LegendreNormalization::Unnormalized => 1.0,
@@ -132,11 +132,11 @@ impl Legendre {
             self.p[1][1] = one_minus_x_2.sqrt();
         }
 
-        for l in 2..=self.degree {
+        for l in 2..=self.degree + 1 {
             let lf = l as f64;
 
             for m in 0..=l {
-                if m <= self.order {
+                if m <= self.order + 1 {
                     let p = &mut self.p;
 
                     if m == 0 {
@@ -155,9 +155,9 @@ impl Legendre {
             }
         }
         // apply normalization and condon-shortley after recursion
-        for l in 0..=self.degree {
+        for l in 0..=self.degree + 1 {
             for m in 0..=l {
-                if m <= self.order {
+                if m <= self.order + 1 {
                     self.p[l][m] *= self.norm[l][m];
                 }
             }
