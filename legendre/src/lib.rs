@@ -226,7 +226,7 @@ impl Legendre {
         Ok(())
     }
 }
-// factorial needs to bef64 for legendre or we over flow at like order,degree 10,10.
+// factorial needs to be f64 for legendre or we overflow at like order,degree 10,10.
 pub fn factorial(n: f64) -> f64 {
     let mut result = 1.0;
     let mut i = 1.0;
