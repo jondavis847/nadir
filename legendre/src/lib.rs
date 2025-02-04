@@ -29,7 +29,7 @@ pub struct Legendre {
     order: usize,
     condon_shortley: bool,
     normalization: LegendreNormalization,
-    norm: Vec<Vec<f64>>,
+    factor: Vec<Vec<f64>>,
 }
 
 impl Legendre {
@@ -38,15 +38,15 @@ impl Legendre {
             return Err(LegendreErrors::OrderGreaterThanDegree);
         }
         // need to go to + 2 for derivative recursion
-        let mut p = vec![vec![0.0; order + 2]; degree + 2];
+        let mut p = vec![vec![0.0; order + 1]; degree + 1];
         p[0][0] = 1.0;
 
         // populate norm with all 1's to start. updated in with_normalization
-        let mut norm = vec![vec![0.0; order + 2]; degree + 2];
-        for l in 0..=degree + 1 {
+        let mut factor = vec![vec![0.0; order + 1]; degree + 1];
+        for l in 0..=degree {
             for m in 0..=l {
                 if m <= order {
-                    norm[l][m] = 1.0
+                    factor[l][m] = 1.0
                 }
             }
         }
@@ -58,7 +58,7 @@ impl Legendre {
             order,
             condon_shortley: false,
             normalization: LegendreNormalization::Unnormalized,
-            norm,
+            factor,
         })
     }
 
@@ -75,9 +75,9 @@ impl Legendre {
     pub fn with_condon_shortley(mut self) -> Self {
         self.condon_shortley = true;
         // lump condon-shortley factor into the norm
-        for l in 0..=self.degree + 1 {
+        for l in 0..=self.degree {
             for m in 0..=l {
-                self.norm[l][m] *= (-1.0_f64).powi(m as i32);
+                self.factor[l][m] *= (-1.0_f64).powi(m as i32);
             }
         }
         self
@@ -85,12 +85,12 @@ impl Legendre {
 
     pub fn with_normalization(mut self, norm: LegendreNormalization) -> Self {
         // precompute norm factors for l and m
-        for l in 0..=self.degree + 1 {
+        for l in 0..=self.degree {
             let lf = l as f64;
             for m in 0..=l {
-                if m <= self.order + 1 {
+                if m <= self.order {
                     let mf = m as f64;
-                    self.norm[l][m] = match norm {
+                    self.factor[l][m] = match norm {
                         LegendreNormalization::Unnormalized => 1.0,
                         LegendreNormalization::FourPi => {
                             let delta = if m == 0 { 1.0 } else { 0.0 };
@@ -113,7 +113,7 @@ impl Legendre {
 
                 // lump condon-shortley factor into the norm
                 if self.condon_shortley {
-                    self.norm[l][m] *= (-1.0_f64).powi(m as i32);
+                    self.factor[l][m] *= (-1.0_f64).powi(m as i32);
                 }
             }
         }
@@ -164,7 +164,7 @@ impl Legendre {
         for l in 0..=self.degree {
             for m in 0..=l {
                 if m <= self.order {
-                    self.p[l][m] *= self.norm[l][m];
+                    self.p[l][m] *= self.factor[l][m];
                 }
             }
         }
