@@ -11,6 +11,8 @@ pub enum LegendreNormalization {
 
 #[derive(Error, Debug)]
 pub enum LegendreErrors {
+    #[error("legendre derivative matrix not found, intialize Legendre with .with_derivatives()")]
+    NoDerivatives,
     #[error("order must be less than or equal to degree")]
     OrderGreaterThanDegree,
     #[error("value must be between -1 and 1 inclusive")]
@@ -120,44 +122,48 @@ impl Legendre {
     }
 
     pub fn calculate(&mut self, x: f64) -> Result<(), LegendreErrors> {
-        if !(x >= -1.0 && x <= 1.0) {
+        if !(x > -1.0 && x < 1.0) {
             return Err(LegendreErrors::ValueOutOfRange);
         }
 
-        let one_minus_x_2 = 1.0 - x * x;
-        // first couple values, p[0][0] is always 1.0 from initialization
+        let one_minus_x2 = 1.0 - x * x;
+        let sqrt_one_minus_x2 = one_minus_x2.sqrt();
 
+        // --- Initialize the lowest degree values ---
+        // p[0][0] is assumed to be 1.0 (from initialization)
+        // For degree 1, set:
         self.p[1][0] = x;
         if self.order > 0 {
-            self.p[1][1] = one_minus_x_2.sqrt();
+            self.p[1][1] = sqrt_one_minus_x2;
         }
 
-        for l in 2..=self.degree + 1 {
+        for l in 2..=self.degree {
             let lf = l as f64;
 
             for m in 0..=l {
-                if m <= self.order + 1 {
+                if m <= self.order {
                     let p = &mut self.p;
 
                     if m == 0 {
-                        p[l][0] = ((2.0 * lf - 1.0) * p[1][0] * p[l - 1][0]
-                            - (lf - 1.0) * p[l - 2][0])
-                            / lf; //zonal
+                        //zonal
+                        p[l][0] =
+                            ((2.0 * lf - 1.0) * x * p[l - 1][0] - (lf - 1.0) * p[l - 2][0]) / lf;
                     } else {
+                        // sectoral
                         p[l][m] = if m == l {
-                            (2.0 * lf - 1.0) * p[1][1] * p[l - 1][m - 1] // sectoral
+                            (2.0 * lf - 1.0) * p[1][1] * p[l - 1][m - 1]
                         } else {
-                            p[l - 2][m] + (2.0 * lf - 1.0) * p[1][1] * p[l - 1][m - 1]
                             // tesseral
+                            p[l - 2][m] + (2.0 * lf - 1.0) * p[1][1] * p[l - 1][m - 1]
                         };
                     }
                 }
             }
         }
         // apply normalization and condon-shortley after recursion
-        for l in 0..=self.degree + 1 {
+        for l in 0..=self.degree {
             for m in 0..=l {
-                if m <= self.order + 1 {
+                if m <= self.order {
                     self.p[l][m] *= self.norm[l][m];
                 }
             }
@@ -165,13 +171,53 @@ impl Legendre {
 
         // calculate derivatives
         if let Some(dp) = &mut self.dp {
+            let p = &self.p;
             for l in 1..=self.degree {
                 let lf = l as f64;
                 for m in 0..=l {
                     if m <= self.order {
                         let mf = m as f64;
-                        dp[l][m] =
-                            ((lf + mf) * self.p[l - 1][m] - lf * x * self.p[l][m]) / one_minus_x_2;
+                        dp[l][m] = match self.normalization {
+                            LegendreNormalization::Unnormalized => {
+                                ((lf + mf) * p[l - 1][m] - lf * x * p[l][m]) / one_minus_x2
+                            }
+                            LegendreNormalization::Full => {
+                                if m == 0 {
+                                    (((2.0 * lf + 1.0) / (2.0 * lf - 1.0)).sqrt() * p[l - 1][m]
+                                        - lf * x * p[l][m])
+                                        / one_minus_x2
+                                } else if l == m {
+                                    -lf * x * p[l][m] / one_minus_x2
+                                } else if l == m + 1 {
+                                    (p[l - 1][m] * (2.0 * mf + 3.0).sqrt()
+                                        - x * (mf + 1.0) * p[l][m])
+                                        / one_minus_x2
+                                } else {
+                                    ((2.0 * lf + 1.0).sqrt() * (lf - mf).sqrt() * (lf + mf).sqrt()
+                                        / (2.0 * lf - 1.0).sqrt()
+                                        * p[l - 1][m]
+                                        - lf * x * p[l][m])
+                                        / one_minus_x2
+                                }
+                            }
+                            LegendreNormalization::SchmidtQuasi => {
+                                if m == 0 {
+                                    ((lf + mf) * p[l - 1][m] - lf * x * p[l][m]) / one_minus_x2
+                                } else if l == m {
+                                    -lf * x * p[l][m] / one_minus_x2
+                                } else if l == m + 1 {
+                                    (p[l - 1][m] * (2.0 * mf + 1.0).sqrt()
+                                        - x * (mf + 1.0) * p[l][m])
+                                        / one_minus_x2
+                                } else {
+                                    ((lf + mf).sqrt() * (lf - mf).sqrt() * p[l - 1][m]
+                                        - lf * x * p[l][m])
+                                        / one_minus_x2
+                                }
+                            }
+
+                            _ => 0.0,
+                        }
                     }
                 }
             }
@@ -276,6 +322,25 @@ mod tests {
     }
 
     #[test]
+    fn test_legendre_normalization_schmidt() {
+        let mut legendre = Legendre::new(10, 10)
+            .unwrap()
+            .with_normalization(LegendreNormalization::SchmidtQuasi);
+        legendre.calculate(0.5).unwrap();
+
+        assert_equal(legendre.p[0][0], 1.0);
+        assert_equal(legendre.p[1][0], 0.5);
+        assert_equal(legendre.p[1][1], 0.8660254037844386);
+        assert_equal(legendre.p[2][2], 0.6495190528383288);
+        assert_equal(legendre.p[3][1], 0.13258252147247768);
+        assert_equal(legendre.p[3][2], 0.7261843774138905);
+        assert_equal(legendre.p[3][3], 0.5134898976610931);
+        assert_equal(legendre.p[6][6], 0.2833706064577766);
+        assert_equal(legendre.p[10][0], -0.18822860717773438);
+        assert_equal(legendre.p[10][10], 0.14087068736737018);
+    }
+
+    #[test]
     fn test_legendre_derivative() {
         // independent values from pyshtools
         let mut legendre = Legendre::new(10, 10).unwrap().with_derivatives();
@@ -287,21 +352,40 @@ mod tests {
         assert_equal(dp[2][0], 1.5);
         assert_equal(dp[2][1], 1.7320508075688774);
         assert_equal(dp[2][2], -3.0);
+        assert_equal(dp[3][0], 0.375);
+        assert_equal(dp[3][1], 6.27868418);
+        assert_equal(dp[3][2], 3.75);
+        assert_equal(dp[3][3], -19.48557159);
+        assert_equal(dp[4][0], -1.5625);
+        assert_equal(dp[4][1], 5.77350269);
+        assert_equal(dp[4][2], 33.75);
+        assert_equal(dp[4][3], 0.0);
+        assert_equal(dp[4][4], -157.5);
     }
 
     #[test]
-    fn test_legendre_normalization_schmidt() {
+    fn test_legendre_derivative_schmidt() {
+        // independent values from pyshtools
         let mut legendre = Legendre::new(10, 10)
             .unwrap()
+            .with_derivatives()
             .with_normalization(LegendreNormalization::SchmidtQuasi);
         legendre.calculate(0.5).unwrap();
-
-        assert_equal(legendre.p[0][0], 1.0);
-        assert_equal(legendre.p[1][0], 0.5);
-        assert_equal(legendre.p[1][1], 0.8660254037844386);
-        assert_equal(legendre.p[2][2], 0.6495190528383288);
-        assert_equal(legendre.p[6][6], 0.2833706064577766);
-        assert_equal(legendre.p[10][0], -0.18822860717773438);
-        assert_equal(legendre.p[10][10], 0.14087068736737018);
+        let dp = legendre.dp.unwrap();
+        assert_equal(dp[0][0], 0.0);
+        assert_equal(dp[1][0], 1.0);
+        assert_equal(dp[1][1], -0.5773502691896257);
+        assert_equal(dp[2][0], 1.5);
+        assert_equal(dp[2][1], 1.0);
+        assert_equal(dp[2][2], -0.8660254037844387);
+        assert_equal(dp[3][0], 0.375);
+        assert_equal(dp[3][1], 2.56326208);
+        assert_equal(dp[3][2], 0.48412291827592746);
+        assert_equal(dp[3][3], -1.0269797953221862);
+        assert_equal(dp[4][0], -1.5625);
+        assert_equal(dp[4][1], 1.82574186);
+        assert_equal(dp[4][2], 2.5155764746872626);
+        assert_equal(dp[4][3], 0.0);
+        assert_equal(dp[4][4], -1.10926496);
     }
 }
