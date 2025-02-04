@@ -51,33 +51,30 @@ impl Dipole {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use utilities::assert_equal;
+    use utilities::{assert_equal, assert_equal_reltol};
 
     #[test]
-    fn test_dipole_1() {
+    fn test_dipole_gh() {
         let r = Vector3::new(7e6, 0.0, 0.0);
 
         let dipole = Dipole::from_gh(6.3712e6, [-29554.63, -1669.05], 5077.99).unwrap();
         let b = dipole.calculate(&r).unwrap();
 
-        dbg!(b);
-
-        // assert_equal(a[0], 0.0);
-        // assert_equal(a[1], -1.3778135992666715e-5);
-        // assert_equal(a[2], -9.808708996195295e-6);
+        assert_equal(b[0], -2516.9172529558114);
+        assert_equal(b[1], -3828.7890240966663);
+        assert_equal(b[2], 22284.101180829042);
     }
 
     #[test]
-    fn test_dipole_2() {
+    fn test_dipole_mlatlon() {
         let r = Vector3::new(7e6, 0.0, 0.0);
 
         let dipole = Dipole::from_mlatlon(6.3712e6, 0.306, 80.65, -72.68).unwrap();
         let b = dipole.calculate(&r).unwrap();
 
-        dbg!(b);
-
-        // assert_equal(a[0], 0.0);
-        // assert_equal(a[1], -1.3778135992666715e-5);
-        // assert_equal(a[2], -9.808708996195295e-6);
+        // make sure mlatlon is reasonably close ( ~10% ) within gh
+        assert_equal_reltol(b[0], -2516.9172529558114, 0.2);
+        assert_equal_reltol(b[1], -3828.7890240966663, 0.2);
+        assert_equal_reltol(b[2], 22284.101180829042, 0.1);
     }
 }

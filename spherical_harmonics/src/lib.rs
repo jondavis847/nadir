@@ -120,7 +120,7 @@ impl SphericalHarmonics {
         let lon = y.atan2(x);
 
         let a_spherical = self.calculate_from_colatitude(r, colat, lon, k, a, c, s)?;
-        dbg!(a_spherical);
+
         let ar = a_spherical[0];
         let acolat = a_spherical[1];
         let alon = a_spherical[2];

@@ -132,3 +132,22 @@ pub fn assert_equal(left: f64, right: f64) {
         rel_diff
     );
 }
+
+pub fn assert_equal_reltol(left: f64, right: f64, reltol: f64) {
+    let max = left.abs().max(right.abs());
+    if max < std::f64::EPSILON {
+        // If both values are close to zero, we consider them equal
+        return;
+    }
+    let abs_diff = (left - right).abs();
+    let rel_diff = abs_diff / max;
+
+    assert!(
+        rel_diff < reltol,
+        "Assertion failed: left ({}) and right ({}) are not approximately equal. Relative difference: {}. Absolute difference: {}",
+        left,
+        right,
+        rel_diff,
+        abs_diff,
+    );
+}

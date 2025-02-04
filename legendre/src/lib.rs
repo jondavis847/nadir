@@ -2,10 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub enum LegendreNormalization {
-    FourPi,
-    #[default]
     Full,
     SchmidtQuasi,
+    #[default]
     Unnormalized,
 }
 
@@ -30,6 +29,7 @@ pub struct Legendre {
     condon_shortley: bool,
     normalization: LegendreNormalization,
     factor: Vec<Vec<f64>>,
+    dfactor: Option<Vec<Vec<f64>>>,
 }
 
 impl Legendre {
@@ -59,17 +59,17 @@ impl Legendre {
             condon_shortley: false,
             normalization: LegendreNormalization::Unnormalized,
             factor,
+            dfactor: None,
         })
     }
 
     /// just preallocates at construction
     pub fn with_derivatives(mut self) -> Self {
-        let mut dp = self.p.clone();
-        dp[0][0] = 0.0;
-        // the rest get overwritten in calculate
-
-        self.dp = Some(dp);
-        self
+        self.dp = Some(vec![vec![0.0; self.order + 1]; self.degree + 1]);
+        self.dfactor = Some(vec![vec![0.0; self.order + 1]; self.degree + 1]);
+        // calculate normalization if it already had one
+        let norm = self.normalization;
+        self.with_normalization(norm)
     }
 
     pub fn with_condon_shortley(mut self) -> Self {
@@ -92,12 +92,6 @@ impl Legendre {
                     let mf = m as f64;
                     self.factor[l][m] = match norm {
                         LegendreNormalization::Unnormalized => 1.0,
-                        LegendreNormalization::FourPi => {
-                            let delta = if m == 0 { 1.0 } else { 0.0 };
-                            ((2.0 - delta) * (2.0 * lf + 1.0) * factorial(lf - mf)
-                                / factorial(lf + mf))
-                            .sqrt()
-                        }
                         LegendreNormalization::Full => {
                             //let k = if m == 0 { 1.0 } else { 2.0 };
                             //(k * (2.0 * lf + 1.0) * factorial(lf - mf) / (2.0 * factorial(lf + mf)))
@@ -109,8 +103,36 @@ impl Legendre {
                             ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
                         }
                     };
-                }
 
+                    if let Some(dfactor) = &mut self.dfactor {
+                        dfactor[l][m] = match norm {
+                            LegendreNormalization::Unnormalized => lf + mf,
+                            LegendreNormalization::Full => {
+                                if m == 0 {
+                                    ((2.0 * lf + 1.0) / (2.0 * lf - 1.0)).sqrt()
+                                } else if l == m {
+                                    0.0
+                                } else if l == m + 1 {
+                                    (2.0 * mf + 3.0).sqrt()
+                                } else {
+                                    (2.0 * lf + 1.0).sqrt() * (lf - mf).sqrt() * (lf + mf).sqrt()
+                                        / (2.0 * lf - 1.0).sqrt()
+                                }
+                            }
+                            LegendreNormalization::SchmidtQuasi => {
+                                if m == 0 {
+                                    lf + mf
+                                } else if l == m {
+                                    0.0
+                                } else if l == m + 1 {
+                                    (2.0 * mf + 1.0).sqrt()
+                                } else {
+                                    (lf + mf).sqrt() * (lf - mf).sqrt()
+                                }
+                            }
+                        };
+                    }
+                }
                 // lump condon-shortley factor into the norm
                 if self.condon_shortley {
                     self.factor[l][m] *= (-1.0_f64).powi(m as i32);
@@ -122,7 +144,7 @@ impl Legendre {
     }
 
     pub fn calculate(&mut self, x: f64) -> Result<(), LegendreErrors> {
-        if !(x > -1.0 && x < 1.0) {
+        if x < -1.0 || x > 1.0 {
             return Err(LegendreErrors::ValueOutOfRange);
         }
 
@@ -171,52 +193,14 @@ impl Legendre {
 
         // calculate derivatives
         if let Some(dp) = &mut self.dp {
-            let p = &self.p;
-            for l in 1..=self.degree {
-                let lf = l as f64;
-                for m in 0..=l {
-                    if m <= self.order {
-                        let mf = m as f64;
-                        dp[l][m] = match self.normalization {
-                            LegendreNormalization::Unnormalized => {
-                                ((lf + mf) * p[l - 1][m] - lf * x * p[l][m]) / one_minus_x2
-                            }
-                            LegendreNormalization::Full => {
-                                if m == 0 {
-                                    (((2.0 * lf + 1.0) / (2.0 * lf - 1.0)).sqrt() * p[l - 1][m]
-                                        - lf * x * p[l][m])
-                                        / one_minus_x2
-                                } else if l == m {
-                                    -lf * x * p[l][m] / one_minus_x2
-                                } else if l == m + 1 {
-                                    (p[l - 1][m] * (2.0 * mf + 3.0).sqrt()
-                                        - x * (mf + 1.0) * p[l][m])
-                                        / one_minus_x2
-                                } else {
-                                    ((2.0 * lf + 1.0).sqrt() * (lf - mf).sqrt() * (lf + mf).sqrt()
-                                        / (2.0 * lf - 1.0).sqrt()
-                                        * p[l - 1][m]
-                                        - lf * x * p[l][m])
-                                        / one_minus_x2
-                                }
-                            }
-                            LegendreNormalization::SchmidtQuasi => {
-                                if m == 0 {
-                                    ((lf + mf) * p[l - 1][m] - lf * x * p[l][m]) / one_minus_x2
-                                } else if l == m {
-                                    -lf * x * p[l][m] / one_minus_x2
-                                } else if l == m + 1 {
-                                    (p[l - 1][m] * (2.0 * mf + 1.0).sqrt()
-                                        - x * (mf + 1.0) * p[l][m])
-                                        / one_minus_x2
-                                } else {
-                                    ((lf + mf).sqrt() * (lf - mf).sqrt() * p[l - 1][m]
-                                        - lf * x * p[l][m])
-                                        / one_minus_x2
-                                }
-                            }
-
-                            _ => 0.0,
+            if let Some(dfactor) = &self.dfactor {
+                let p = &self.p;
+                for l in 1..=self.degree {
+                    let lf = l as f64;
+                    for m in 0..=l {
+                        if m <= self.order {
+                            dp[l][m] =
+                                (dfactor[l][m] * p[l - 1][m] - lf * x * p[l][m]) / one_minus_x2;
                         }
                     }
                 }
@@ -343,7 +327,7 @@ mod tests {
     #[test]
     fn test_legendre_derivative() {
         // independent values from pyshtools
-        let mut legendre = Legendre::new(10, 10).unwrap().with_derivatives();
+        let mut legendre = Legendre::new(4, 4).unwrap().with_derivatives();
         legendre.calculate(0.5).unwrap();
         let dp = legendre.dp.unwrap();
         assert_equal(dp[0][0], 0.0);
@@ -366,10 +350,35 @@ mod tests {
     #[test]
     fn test_legendre_derivative_schmidt() {
         // independent values from pyshtools
-        let mut legendre = Legendre::new(10, 10)
+        let mut legendre = Legendre::new(4, 4)
             .unwrap()
             .with_derivatives()
             .with_normalization(LegendreNormalization::SchmidtQuasi);
+        legendre.calculate(0.5).unwrap();
+        let dp = legendre.dp.unwrap();
+        assert_equal(dp[0][0], 0.0);
+        assert_equal(dp[1][0], 1.0);
+        assert_equal(dp[1][1], -0.5773502691896257);
+        assert_equal(dp[2][0], 1.5);
+        assert_equal(dp[2][1], 1.0);
+        assert_equal(dp[2][2], -0.8660254037844387);
+        assert_equal(dp[3][0], 0.375);
+        assert_equal(dp[3][1], 2.56326208);
+        assert_equal(dp[3][2], 0.48412291827592746);
+        assert_equal(dp[3][3], -1.0269797953221862);
+        assert_equal(dp[4][0], -1.5625);
+        assert_equal(dp[4][1], 1.82574186);
+        assert_equal(dp[4][2], 2.5155764746872626);
+        assert_equal(dp[4][3], 0.0);
+        assert_equal(dp[4][4], -1.10926496);
+
+        // make sure order of builder does not matter
+        // independent values from pyshtools
+        let mut legendre = Legendre::new(4, 4)
+            .unwrap()
+            .with_normalization(LegendreNormalization::SchmidtQuasi)
+            .with_derivatives();
+
         legendre.calculate(0.5).unwrap();
         let dp = legendre.dp.unwrap();
         assert_equal(dp[0][0], 0.0);

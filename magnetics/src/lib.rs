@@ -34,7 +34,7 @@ impl Magnetics {
                 Ok(b) => Ok(b),
                 Err(e) => Err(e.into()),
             },
-            Magnetics::Igrf(b) => match b.calculate(r, epoch) {
+            Magnetics::Igrf(b) => match b.calculate_ecef(r, epoch) {
                 Ok(b) => Ok(b),
                 Err(e) => Err(e.into()),
             },

@@ -216,7 +216,7 @@ impl Igrf {
         Ok(())
     }
 
-    pub fn calculate(
+    pub fn calculate_ecef(
         &mut self,
         r_ecef: &Vector3<f64>,
         epoch: &Time,
@@ -236,6 +236,39 @@ impl Igrf {
 
         let b = self.spherical_harmonics.calculate_from_cartesian(
             r_ecef,
+            Self::RE,
+            Self::RE,
+            &self.g_cache,
+            &self.h_cache,
+        )?;
+
+        Ok(b)
+    }
+
+    pub fn calculate_spherical(
+        &mut self,
+        r: f64,
+        colat: f64,
+        lon: f64,
+        epoch: &Time,
+    ) -> Result<Vector3<f64>, IgrfErrors> {
+        // linearly interpolate between igrf epochs (5 years) based on current epoch
+        let datetime = epoch.get_datetime();
+        let epoch_year = datetime.year() as f64;
+        let epoch_day = datetime.ordinal0() as f64;
+        let decimal_year = if datetime.date().leap_year() {
+            epoch_year + epoch_day / 366.0
+        } else {
+            epoch_year + epoch_day / 365.0
+        };
+
+        // calculate g and h based on interp or extrap
+        self.calculate_gh(decimal_year)?;
+
+        let b = self.spherical_harmonics.calculate_from_colatitude(
+            r,
+            colat,
+            lon,
             Self::RE,
             Self::RE,
             &self.g_cache,
@@ -326,26 +359,58 @@ impl<'de> Deserialize<'de> for Igrf {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::PI;
+
     use super::*;
-    use utilities::assert_equal;
+    use utilities::{assert_equal, assert_equal_reltol};
 
     #[test]
-    fn test_igrf_1() {
-        //let r = Vector3::new(7e6, 0.0, 0.0);
-        let r = Vector3::new(
-            3.1825409938898864e6,
-            4.9565139279149985e6,
-            3.7821161410769783e6,
-        );
+    fn test_igrf_matches_dipole() {
         let t = Time::from_ymdhms(2005, 1, 1, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
+        let r = Vector3::new(7e6, 0.0, 0.0);
 
         let mut igrf = Igrf::new(1, 1, &t).unwrap();
-        let b = igrf.calculate(&r, &t).unwrap();
+        let b = igrf.calculate_ecef(&r, &t).unwrap();
 
-        dbg!(b);
+        assert_equal(b[0], -2516.9172529558114);
+        assert_equal(b[1], -3828.7890240966663);
+        assert_equal(b[2], 22284.101180829042);
+    }
 
-        // assert_equal(a[0], 0.0);
-        // assert_equal(a[1], -1.3778135992666715e-5);
-        // assert_equal(a[2], -9.808708996195295e-6);
+    #[test]
+    fn test_igrf_13_matches_ngdc_1() {
+        // we dont match exactly unfortunately.
+        // it's possible this is due to the time system we use, or maybe the igrf system ( we use 14, other might have older models that extrapolate?)
+        // julia satellitetoolbox doesnt match exactly either, but we match them exactly through igrf13
+        // just check that we're very close (<1%?)
+
+        let t = Time::from_ymdhms(2024, 6, 7, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
+        let r = 6.7e6;
+        let theta = 60.0 * PI / 180.0;
+        let phi = 30.0 * PI / 180.0;
+
+        let mut igrf = Igrf::new(13, 13, &t).unwrap();
+        let b = igrf.calculate_spherical(r, theta, phi, &t).unwrap();
+        assert_equal_reltol(b[0], -25784.8, 0.01);
+        assert_equal_reltol(b[1], -26473.1, 0.01);
+        assert_equal_reltol(b[2], 1902.2, 0.01);
+    }
+
+    #[test]
+    fn test_igrf_13_matches_ngdc_2() {
+        // we dont match exactly unfortunately.
+        // it's possible this is due to the time system we use, or maybe the igrf system ( we use 14, other might have older models that extrapolate?)
+        // julia satellitetoolbox doesnt match exactly either, but we match them exactly through igrf13
+        // just check that we're very close (<1%?)
+        let t = Time::from_ymdhms(2028, 11, 30, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
+        let r = 7.7e6;
+        let theta = 120.0 * PI / 180.0;
+        let phi = -60.0 * PI / 180.0;
+
+        let mut igrf = Igrf::new(13, 13, &t).unwrap();
+        let b = igrf.calculate_spherical(r, theta, phi, &t).unwrap();
+        assert_equal_reltol(b[0], 8400.9, 0.01);
+        assert_equal_reltol(b[1], -11168.5, 0.01);
+        assert_equal_reltol(b[2], -1620.8, 0.01);
     }
 }
