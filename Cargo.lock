@@ -872,6 +872,7 @@ name = "celestial"
 version = "0.0.1"
 dependencies = [
  "gravity",
+ "magnetics",
  "nadir_result",
  "nalgebra",
  "rotations",
@@ -5486,6 +5487,7 @@ dependencies = [
  "color",
  "csv",
  "gravity",
+ "magnetics",
  "mass_properties",
  "multibody",
  "nadir_3d",

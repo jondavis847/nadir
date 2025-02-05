@@ -1,5 +1,9 @@
 use gravity::{newtonian::NewtonianGravity, Gravity, GravityModel};
 
+use magnetics::{
+    dipole::{Dipole, DipoleErrors},
+    MagneticErrors, MagneticField,
+};
 use nadir_result::ResultManager;
 use nalgebra::Vector3;
 use rotations::{
@@ -25,6 +29,10 @@ pub enum CelestialErrors {
     BodyNotFoundInCelestialSystem,
     #[error("celestial body already exists in the celestial system.")]
     CelestialBodyAlreadyExists,
+    #[error("DipoleError: {0}")]
+    DipoleError(#[from] DipoleErrors),
+    #[error("MagneticError: {0}")]
+    MagneticError(#[from] MagneticErrors),
     #[error("spice data not found in celestial system")]
     SpiceNotFound,
     #[error(
@@ -44,7 +52,7 @@ pub struct CelestialSystem {
 impl CelestialSystem {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
         // make sure there's at least a sun for animation
-        let sun = CelestialBody::new(CelestialBodies::Sun, None); //, None);
+        let sun = CelestialBody::new(CelestialBodies::Sun);
         let bodies = vec![sun];
         // for now lets default to having spice, in the future add analytical ephem
         let spice = Some(Spice::from_local()?);
@@ -135,55 +143,15 @@ impl CelestialSystem {
         }
     }
 
-    // pub fn set_geomag(
-    //     &mut self,
-    //     body: CelestialBodies,
-    //     b: Option<GeoMagnetism>,
-    // ) -> Result<(), CelestialErrors> {
-    //     if let Some(celestial_body) = self.bodies.iter_mut().find(|cb| cb.body == body) {
-    //         celestial_body.geomag = b;
-    //         Ok(())
-    //     } else {
-    //         Err(CelestialErrors::BodyNotFoundInCelestialSystem)
-    //     }
-    // }
-
-    pub fn set_gravity(
-        &mut self,
-        body: CelestialBodies,
-        g: Option<Gravity>,
-    ) -> Result<(), CelestialErrors> {
-        if let Some(celestial_body) = self.bodies.iter_mut().find(|cb| cb.body == body) {
-            celestial_body.gravity = g;
-            Ok(())
-        } else {
-            Err(CelestialErrors::BodyNotFoundInCelestialSystem)
-        }
-    }
-
-    pub fn add_body(
-        &mut self,
-        body: CelestialBodies,
-        gravity: bool,
-        _geomag: bool,
-    ) -> Result<(), CelestialErrors> {
+    pub fn with_body(mut self, body: CelestialBody) -> Result<Self, CelestialErrors> {
         // Check if the body already exists in the vector
-        if self.bodies.iter().any(|b| b.body == body) {
+        if self.bodies.iter().any(|b| b.body == body.body) {
             return Err(CelestialErrors::CelestialBodyAlreadyExists);
-        }
-
-        let gravity_option = if gravity {
-            Some(Gravity::Newtonian(NewtonianGravity::new(body.get_mu())))
-        } else {
-            None
         };
-
-        //let geomag_option = None; // for now
-
         // Create and add the celestial body
-        self.bodies.push(CelestialBody::new(body, gravity_option)); //, geomag_option));
+        self.bodies.push(body);
 
-        Ok(())
+        Ok(self)
     }
 
     pub fn delete_body(&mut self, body: CelestialBodies) {
@@ -231,27 +199,50 @@ impl CelestialSystem {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CelestialBody {
     pub body: CelestialBodies,
-    pub position: Vector3<f64>,      // icrf
-    pub orientation: UnitQuaternion, // icrf to itrf
+    pub position: Vector3<f64>,      // gcrf
+    pub orientation: UnitQuaternion, // active in gcrf
     pub gravity: Option<Gravity>,
-    //pub geomag: Option<GeoMagnetism>,
+    pub magnetic_field: Option<MagneticField>,
     pub result_id: Option<u32>,
 }
 
 impl CelestialBody {
-    pub fn new(
-        body: CelestialBodies,
-        gravity: Option<Gravity>,
-        //  geomag: Option<GeoMagnetism>,
-    ) -> Self {
+    pub fn new(body: CelestialBodies) -> Self {
         Self {
             body,
-            position: Vector3::zeros(),
-            orientation: UnitQuaternion::IDENTITY,
-            gravity,
-            //geomag,
+            position: Vector3::zeros(),            //placeholder
+            orientation: UnitQuaternion::IDENTITY, //placeholder
+            gravity: None,
+            magnetic_field: None,
             result_id: None,
         }
+    }
+
+    pub fn with_gravity_newtonian(mut self) -> Self {
+        self.gravity = Some(Gravity::Newtonian(NewtonianGravity::new(
+            self.body.get_mu(),
+        )));
+        self
+    }
+
+    pub fn with_gravity(mut self, g: Gravity) -> Self {
+        self.gravity = Some(g);
+        self
+    }
+
+    pub fn with_magnetic_field(mut self, b: MagneticField) -> Self {
+        self.magnetic_field = Some(b);
+        self
+    }
+
+    pub fn with_magnetic_dipole(mut self) -> Result<Self, CelestialErrors> {
+        if let Some(dipole) = self.body.get_dipole()? {
+            self.magnetic_field = Some(MagneticField::Dipole(dipole));
+        } else {
+            self.magnetic_field = None;
+        };
+
+        Ok(self)
     }
 
     pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), CelestialErrors> {
@@ -413,6 +404,33 @@ impl CelestialBodies {
             CelestialBodies::Uranus => 25362000.0,
             CelestialBodies::Venus => 6051800.0,
         }
+    }
+
+    /// Returns the dipole model of the magnetic field for the body
+    /// Retrieved from GSFC planetary constants
+    /// https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+    pub fn get_dipole(&self) -> Result<Option<Dipole>, CelestialErrors> {
+        let dipole = match self {
+            CelestialBodies::Earth => Some(Dipole::new(6.378e6, 0.306, 80.65, -72.68, 0.076)?),
+            CelestialBodies::Jupiter => {
+                Some(Dipole::new(71.398e6, 4.30, 90.0 - 9.4, 200.1, 0.119)?)
+            }
+            CelestialBodies::Mars => None,
+            CelestialBodies::Mercury => Some(Dipole::new(2.44e6, 0.002, 90.0, 0.0, 0.17)?),
+            CelestialBodies::Moon => None,
+            CelestialBodies::Neptune => {
+                Some(Dipole::new(24.765e6, 0.142, 90.0 - 46.9, 288.0, 0.485)?)
+            }
+            CelestialBodies::Pluto => None,
+            CelestialBodies::Saturn => Some(Dipole::new(60.33e6, 0.215, 90.0, 0.0, 0.038)?),
+            CelestialBodies::Sun => todo!(
+                "need to find a dipole bfield model for the sun, gsfc fact sheet does not provide"
+            ),
+            CelestialBodies::Uranus => Some(Dipole::new(25.6e6, 0.228, 90.0 - 58.6, 53.6, 0.352)?),
+            CelestialBodies::Venus => None,
+        };
+
+        Ok(dipole)
     }
 
     pub fn from_str(str: &str) -> Option<Self> {

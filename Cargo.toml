@@ -9,23 +9,28 @@ members = [
     "aerospace", 
     "animation",     
     "benchmarks", 
+    "celestial", 
     "color", 
     "coordinate_systems",     
     "examples/*",
+    "gravity", 
+    "legendre", 
+    "magnetics", 
     "mass_properties",
     "multibody", 
     "nadir",    
     "nadir_3d",     
+    "nadir_result", 
+    "plotting", 
+    "plotting_egui",
     "rotations", 
     "software",    
     "spatial_algebra",
+    "spherical_harmonics", 
     "spice", 
-    "transforms", 
-    "utilities",
     "time", 
-    "plotting", 
-    "plotting_egui",
-    "nadir_result", "gravity", "legendre", "spherical_harmonics", "celestial", "magnetics", 
+    "transforms", 
+    "utilities", 
 ]
 resolver = "2"
 
@@ -41,6 +46,7 @@ egui_plot = "0.30.0"
 gravity = {path = "gravity"}
 indicatif = "0.17.9"
 legendre = {path = "legendre"}
+magnetics = {path = "magnetics"}
 mass_properties = {path = "mass_properties"} 
 multibody = {path = "multibody"}  
 nadir = {path = "nadir"}  

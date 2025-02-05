@@ -18,23 +18,23 @@ pub enum MagneticErrors {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Magnetics {
+pub enum MagneticField {
     Dipole(Dipole),
     Igrf(Igrf),
 }
 
-impl Magnetics {
+impl MagneticField {
     pub fn calculate(
         &mut self,
         r: &Vector3<f64>,
         epoch: &Time,
     ) -> Result<Vector3<f64>, MagneticErrors> {
         match self {
-            Magnetics::Dipole(b) => match b.calculate(r) {
+            MagneticField::Dipole(b) => match b.calculate(r) {
                 Ok(b) => Ok(b),
                 Err(e) => Err(e.into()),
             },
-            Magnetics::Igrf(b) => match b.calculate_ecef(r, epoch) {
+            MagneticField::Igrf(b) => match b.calculate_ecef(r, epoch) {
                 Ok(b) => Ok(b),
                 Err(e) => Err(e.into()),
             },
