@@ -10,13 +10,13 @@ use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct RateGyroParameters {
+struct MagnetometerParameters {
     delay: Option<f64>,
     noise: Option<[Noise; 3]>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
-pub struct RateGyroState {
+pub struct MagnetometerState {
     noise: Option<Vector3<f64>>,
     pub measurement: Vector3<f64>,
 }
@@ -27,12 +27,12 @@ pub struct RateGyroState {
 /// about the desired rotation axis in the body frame
 /// You can use Rotation::AlignedAxes to simplify the logic
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct RateGyro {
-    parameters: RateGyroParameters,
-    pub state: RateGyroState,
+pub struct Magnetometer {
+    parameters: MagnetometerParameters,
+    pub state: MagnetometerState,
 }
 
-impl RateGyro {
+impl Magnetometer {
     pub fn new() -> Self {
         Self::default()
     }
@@ -57,11 +57,11 @@ impl RateGyro {
     }
 }
 
-impl SensorModel for RateGyro {
+impl SensorModel for Magnetometer {
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let rotation = connection.transform.rotation;
-        let body_rate = body.state.angular_rate_body;
+        let body_b_field = body.state.angular_rate_body;
         let sensor_rate = rotation.transform(body_rate);
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
