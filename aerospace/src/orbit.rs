@@ -28,7 +28,7 @@ pub enum OrbitType {
 }
 
 pub enum Orbit {
-    //Defauney(DelauneyElements), TODO?
+    //Delauney(DelauneyElements), TODO?
     //Equinoctal(EquinoctalElements), TODO
     Keplerian(KeplerianElements),
     //Poincare(PoincareElements), TODO?
@@ -271,8 +271,8 @@ impl KeplerianElements {
         let rotation = Rotation::from(&euler_angles);
 
         // Rotate position and velocity from orbital plane to inertial frame
-        let position = rotation.transform(r_pqw);
-        let velocity = rotation.transform(v_pqw);
+        let position = rotation.transform(&r_pqw);
+        let velocity = rotation.transform(&v_pqw);
 
         (position, velocity)
     }

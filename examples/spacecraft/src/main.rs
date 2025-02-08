@@ -9,7 +9,10 @@ use gravity::{
 };
 use hardware::{
     actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},
-    sensors::{gps::Gps, rate_gyro::RateGyro, star_tracker::StarTracker, SpacecraftSensors},
+    sensors::{
+        gps::Gps, magnetometer::Magnetometer, rate_gyro::RateGyro, star_tracker::StarTracker,
+        SpacecraftSensors,
+    },
 };
 use magnetics::{igrf::Igrf, MagneticField};
 use mass_properties::{CenterOfMass, Inertia, MassProperties};
@@ -207,6 +210,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         ))),
     );
 
+    // Add the magnetometer
+    let mut mag = Sensor::new(
+        "mag",
+        Magnetometer::new().with_noise(NoiseModels::Gaussian(GaussianNoise::new(0.0, 100.0))),
+    );
+
     // Create the reaction wheels
     let mut rw1 = Actuator::new("rw1", ReactionWheel::new(0.25, 0.5, 0.0)?);
     let mut rw2 = Actuator::new("rw2", ReactionWheel::new(0.25, 0.5, 0.0)?);
@@ -299,8 +308,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     gps.connect_to_body(&bus, Transform::IDENTITY)?;
     st.connect_to_body(&bus, Transform::IDENTITY)?;
     imu.connect_to_body(&bus, Transform::IDENTITY)?;
+    mag.connect_to_body(&bus, Transform::IDENTITY)?;
 
-    let sensor_system = SpacecraftSensors { gps, st, imu };
+    let sensor_system = SpacecraftSensors { gps, st, imu, mag };
 
     let software = SpacecraftFsw::default();
 
@@ -314,7 +324,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         actuator_system,
     );
     // Run the simulation
-    sys.simulate("", 0.0, 100000.0, 100.0);
+    sys.simulate("", 0.0, 1000.0, 0.1);
 
     Ok(())
 }

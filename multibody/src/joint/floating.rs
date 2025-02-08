@@ -53,9 +53,9 @@ impl FloatingState {
         let q = UnitQuaternion::from(&q);
         let old_q = UnitQuaternion::from(&self.q);
         // rotate velocity back to jif first since that's what it was provided as
-        self.v = old_q.inv().transform(self.v);
+        self.v = old_q.inv().transform(&self.v);
         // rotate v by the new q
-        self.v = q.transform(self.v);
+        self.v = q.transform(&self.v);
         self.q = Quaternion::from(&q);
         self
     }
@@ -73,7 +73,7 @@ impl FloatingState {
     pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
         // this assumes that velocity is provided in the jif frame, but it needs to be jof
         let q = UnitQuaternion::from(&self.q);
-        let v_jof = q.transform(v);
+        let v_jof = q.transform(&v);
         self.v = v_jof;
         self
     }
@@ -227,10 +227,10 @@ impl JointModel for Floating {
         // then we need to add them to the joint state position so that the jof frame is at the cm
         // r is in the jif frame, so need to transform jof and cm to jif frame
         let jif_from_jof = transforms.jif_from_jof;
-        let cm_in_jof = jof_from_ob.0.rotation.transform(original_cm);
+        let cm_in_jof = jof_from_ob.0.rotation.transform(&original_cm);
         let ob_from_jof_translation = Cartesian::from(transforms.ob_from_jof.0.translation).vec();
         let total_in_jof = cm_in_jof + ob_from_jof_translation;
-        let total_in_jif = jif_from_jof.0.rotation.transform(total_in_jof);
+        let total_in_jif = jif_from_jof.0.rotation.transform(&total_in_jof);
         let r = &mut self.state.r;
         *r += total_in_jif;
 
@@ -302,7 +302,7 @@ impl JointModel for Floating {
         // this is techinically v_jif = R * v_jof + w x r, but r is 0 since jof frame is coincident with itself for floating joint
         let jif_from_jof = &transforms.jif_from_jof.0.rotation;
         let v_jof = self.state.v;
-        let v_jif = jif_from_jof.transform(v_jof);
+        let v_jif = jif_from_jof.transform(&v_jof);
 
         dx.0[0] = dq.x;
         dx.0[1] = dq.y;

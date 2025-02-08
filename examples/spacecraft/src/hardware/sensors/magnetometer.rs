@@ -19,6 +19,7 @@ struct MagnetometerParameters {
 pub struct MagnetometerState {
     noise: Option<Vector3<f64>>,
     pub measurement: Vector3<f64>,
+    position_base: Vector3<f64>,
 }
 
 /// A simple rate sensor with gaussian white noise & constant delay
@@ -61,17 +62,17 @@ impl SensorModel for Magnetometer {
     fn update(&mut self, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let rotation = connection.transform.rotation;
-        let body_b_field = body.state.angular_rate_body;
-        let sensor_rate = rotation.transform(body_rate);
+
+        let sensor_b = rotation.transform(&body.state.magnetic_field_body);
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
             self.state.noise = Some(noise);
-            self.state.measurement = sensor_rate + noise;
+            self.state.measurement = sensor_b + noise;
         } else {
-            self.state.measurement = sensor_rate;
+            self.state.measurement = sensor_b
         }
     }
 

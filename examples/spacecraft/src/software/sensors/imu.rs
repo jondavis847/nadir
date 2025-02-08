@@ -26,7 +26,10 @@ struct Parameters {
 impl RateGyroFsw {
     pub fn run(&mut self, imu: &RateGyro) {
         self.state.w_imu = imu.state.measurement;
-        self.state.w_body = self.parameters.imu_to_body.transform(imu.state.measurement);
+        self.state.w_body = self
+            .parameters
+            .imu_to_body
+            .transform(&imu.state.measurement);
         self.state.valid = true;
     }
 }

@@ -122,7 +122,7 @@ impl Joint {
                 .jof_from_ob
                 .0
                 .rotation
-                .transform(body.state.angular_momentum_body);
+                .transform(&body.state.angular_momentum_body);
             Momentum::from(Vector6::new(h[0], h[1], h[2], 0.0, 0.0, 0.0))
         };
 

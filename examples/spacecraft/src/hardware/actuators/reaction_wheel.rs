@@ -216,11 +216,11 @@ impl ActuatorModel for ReactionWheel {
         // equal and opposite
         self.state.torque_body = transform
             .rotation
-            .transform(Vector3::new(0.0, 0.0, -torque));
+            .transform(&Vector3::new(0.0, 0.0, -torque));
         self.state.momentum_body =
             transform
                 .rotation
-                .transform(Vector3::new(0.0, 0.0, self.state.momentum));
+                .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
         self.state.acceleration = torque / self.parameters.inertia;
 
         // Update body

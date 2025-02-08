@@ -34,7 +34,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64>;
+    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64>;
 
     /// Transforms a vector by the rotation.
     ///
@@ -45,7 +45,7 @@ pub trait RotationTrait {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3<f64>) -> Vector3<f64>;
+    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64>;
 
     fn inv(&self) -> Self;
 
@@ -175,7 +175,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.rotate(v),
             Rotation::RotationMatrix(rotation) => rotation.rotate(v),
@@ -192,7 +192,7 @@ impl RotationTrait for Rotation {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
         match self {
             Rotation::EulerAngles(rotation) => rotation.transform(v),
             Rotation::RotationMatrix(rotation) => rotation.transform(v),

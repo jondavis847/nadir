@@ -184,6 +184,7 @@ where
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
         self.actuators.update(); // run the actuators before updating forces on the body
+        self.update_environments();
         self.update_forces(); // update forces after body states for position based gravity calcs
 
         match self.algorithm {
@@ -371,6 +372,19 @@ where
         self.base.borrow_mut().update(t).unwrap();
     }
 
+    fn update_environments(&mut self) {
+        let mut base = self.base.borrow_mut();
+        match &mut base.system {
+            BaseSystems::Celestial(celestial) => {
+                for bodyref in &mut self.bodies {
+                    let mut body = bodyref.borrow_mut();
+                    body.calculate_magnetic_field(celestial);
+                }
+            }
+            _ => {} //continue
+        }
+    }
+
     fn update_forces(&mut self) {
         // forces wee already reset and updated from actuators in self.actuators.update()
         // TODO: i dont like this, too inconsistnet, do the updating here
@@ -389,9 +403,7 @@ where
                         body.calculate_gravity(&transforms.ob_from_base, gravity);
                     }
                 }
-                BaseSystems::Celestial(celestial) => {
-                    body.calculate_gravity_celestial(&transforms.ob_from_base, celestial)
-                }
+                BaseSystems::Celestial(celestial) => body.calculate_gravity_celestial(celestial),
             }
 
             // calculate total external forces for the outer body

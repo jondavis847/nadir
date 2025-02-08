@@ -18,7 +18,7 @@ impl GravGradientTrq {
         let n2 = mu / (position.norm()).powi(3); // square of orbital rate  [rad^2/s^2]
         let a3: Vector3<f64> = -position / position.norm(); // LVLH Nadir
         let r_ecef_to_bcs = *q * *a_f2i;
-        let a3_bcs: Vector3<f64> = r_ecef_to_bcs.inv().transform(a3);
+        let a3_bcs: Vector3<f64> = r_ecef_to_bcs.inv().transform(&a3);
 
         3.0 * n2 * a3_bcs.cross(&(moi * a3_bcs))
     }

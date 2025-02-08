@@ -130,7 +130,7 @@ impl RotationTrait for EulerAngles {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
         let quat = UnitQuaternion::from(self);
         quat.rotate(v)
     }
@@ -144,7 +144,7 @@ impl RotationTrait for EulerAngles {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
         let quat = UnitQuaternion::from(self);
         quat.transform(v)
     }

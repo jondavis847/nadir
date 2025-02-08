@@ -38,16 +38,16 @@ impl Transform {
         let rotation = self.rotation.inv();
         let translation = match self.translation {
             CoordinateSystem::Cartesian(cartesian) => {
-                CoordinateSystem::from(Cartesian::from(self.rotation.transform(-cartesian.vec())))
+                CoordinateSystem::from(Cartesian::from(self.rotation.transform(&-cartesian.vec())))
             }
             CoordinateSystem::Cylindrical(cylindrical) => {
                 let cartesian = Cartesian::from(cylindrical);
-                let new_cartesian = Cartesian::from(self.rotation.transform(-cartesian.vec()));
+                let new_cartesian = Cartesian::from(self.rotation.transform(&-cartesian.vec()));
                 CoordinateSystem::Cylindrical(Cylindrical::from(new_cartesian))
             }
             CoordinateSystem::Spherical(spherical) => {
                 let cartesian = Cartesian::from(spherical);
-                let new_cartesian = Cartesian::from(self.rotation.transform(-cartesian.vec()));
+                let new_cartesian = Cartesian::from(self.rotation.transform(&-cartesian.vec()));
                 CoordinateSystem::Spherical(Spherical::from(new_cartesian))
             }
         };
@@ -68,7 +68,7 @@ impl Mul<Vector3<f64>> for Transform {
         // translation is from A to B, so we need to take the negative since this is a transform, not motion
         let v_a_translated_to_b = v_a - Cartesian::from(self.translation).vec();
         // now transform via rotation
-        let v_b = self.rotation.transform(v_a_translated_to_b);
+        let v_b = self.rotation.transform(&v_a_translated_to_b);
         v_b
     }
 }
@@ -89,7 +89,7 @@ impl Mul<Transform> for Transform {
 
         // convert to cartesian (in case it's something else) so we can transform it, then convert back
         let cartesian_vec = Cartesian::from(translation_f1_to_f2_in_f1).vec();
-        let rotated_vec = t1.rotation.inv().transform(cartesian_vec);
+        let rotated_vec = t1.rotation.inv().transform(&cartesian_vec);
         let translation_f1_to_f2_in_ref = match translation_f1_to_f2_in_f1 {
             CoordinateSystem::Cartesian(_) => CoordinateSystem::from(Cartesian::from(rotated_vec)),
             CoordinateSystem::Cylindrical(_) => {
@@ -128,7 +128,7 @@ impl Mul<MassProperties> for Transform {
 
         // rotate the translation
         let translation = Cartesian::from(self.translation).vec();
-        let rotated_translation = self.rotation.transform(translation);
+        let rotated_translation = self.rotation.transform(&translation);
 
         // apply parallel axis theorem
         let dx = rotated_translation[0];

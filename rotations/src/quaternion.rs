@@ -255,7 +255,7 @@ impl RotationTrait for UnitQuaternion {
     /// # Returns
     ///
     /// The rotated vector.
-    fn rotate(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.w);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
@@ -286,7 +286,7 @@ impl RotationTrait for UnitQuaternion {
     /// # Returns
     ///
     /// The transformed vector.
-    fn transform(&self, v: Vector3<f64>) -> Vector3<f64> {
+    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
         let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.w);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
@@ -837,7 +837,7 @@ mod tests {
         let a = EulerAngles::new(PI / 4.0, 0.0, 0.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(0.0, 1.0, 0.0);
-        let result = q.transform(v);
+        let result = q.transform(&v);
 
         assert_abs_diff_eq!(result[0], 0.0, epsilon = TOL);
         assert_abs_diff_eq!(result[1], 0.7071067811865475, epsilon = TOL);
@@ -849,7 +849,7 @@ mod tests {
         let a = EulerAngles::new(PI / 4.0, 0.0, 0.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(0.0, 1.0, 0.0);
-        let result = q.rotate(v);
+        let result = q.rotate(&v);
 
         assert_abs_diff_eq!(result[0], 0.0, epsilon = TOL);
         assert_abs_diff_eq!(result[1], 0.7071067811865475, epsilon = TOL);
@@ -861,7 +861,7 @@ mod tests {
         let a = EulerAngles::new(0.0, PI / 4.0, 0.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(1.0, 0.0, 0.0);
-        let result = q.transform(v);
+        let result = q.transform(&v);
 
         assert_abs_diff_eq!(result[0], 0.7071067811865475, epsilon = TOL);
         assert_abs_diff_eq!(result[1], 0.0, epsilon = TOL);
@@ -873,7 +873,7 @@ mod tests {
         let a = EulerAngles::new(0.0, PI / 4.0, 0.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(1.0, 0.0, 0.0);
-        let result = q.rotate(v);
+        let result = q.rotate(&v);
 
         assert_abs_diff_eq!(result[0], 0.7071067811865475, epsilon = TOL);
         assert_abs_diff_eq!(result[1], 0.0, epsilon = TOL);
@@ -885,7 +885,7 @@ mod tests {
         let a = EulerAngles::new(0.0, 0.0, PI / 4.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(1.0, 0.0, 0.0);
-        let result = q.transform(v);
+        let result = q.transform(&v);
 
         assert_abs_diff_eq!(result[0], 0.7071067811865475, epsilon = TOL);
         assert_abs_diff_eq!(result[1], -0.7071067811865476, epsilon = TOL);
@@ -897,7 +897,7 @@ mod tests {
         let a = EulerAngles::new(0.0, 0.0, PI / 4.0, EulerSequence::XYZ);
         let q = UnitQuaternion::from(&a);
         let v = Vector3::new(1.0, 0.0, 0.0);
-        let result = q.rotate(v);
+        let result = q.rotate(&v);
 
         assert_abs_diff_eq!(result[0], 0.7071067811865475, epsilon = TOL);
         assert_abs_diff_eq!(result[1], 0.7071067811865476, epsilon = TOL);

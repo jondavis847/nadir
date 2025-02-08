@@ -2,7 +2,7 @@ use mass_properties::{CenterOfMass, Inertia, MassProperties};
 use nalgebra::{Matrix3, Matrix6, Vector3, Vector6};
 use rotations::rotation_matrix::RotationMatrix;
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, AddAssign, Mul, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub};
 use transforms::Transform;
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -415,6 +415,13 @@ impl From<Vector6<f64>> for Force {
     #[inline]
     fn from(v: Vector6<f64>) -> Self {
         Force(ForceVector(SpatialVector::from(v)))
+    }
+}
+
+impl MulAssign<f64> for Force {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.0 .0.rotation *= rhs;
+        self.0 .0.translation *= rhs;
     }
 }
 

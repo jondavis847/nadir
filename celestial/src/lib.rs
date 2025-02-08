@@ -1,4 +1,4 @@
-use gravity::{newtonian::NewtonianGravity, Gravity, GravityModel};
+use gravity::{newtonian::NewtonianGravity, Gravity};
 
 use magnetics::{
     dipole::{Dipole, DipoleErrors},
@@ -164,35 +164,72 @@ impl CelestialSystem {
         let mut g_final = Vector3::zeros();
 
         for body in &mut self.bodies {
-            match body.body {
-                CelestialBodies::Earth => {
-                    // Special case for Earth
-                    if let Some(gravity) = &mut body.gravity {
-                        match gravity {
-                            Gravity::Egm(gravity) => {
-                                let position_itrf = body.orientation.rotate(*position);
-                                let g_itrf = gravity.calculate(&position_itrf).unwrap();
-                                let g_gcrf = body.orientation.transform(g_itrf);
-                                g_final += g_gcrf;
-                            }
-                            Gravity::Newtonian(gravity) => {
-                                g_final += gravity.calculate(position).unwrap()
-                            }
-                            Gravity::Constant(gravity) => {
-                                g_final += gravity.calculate(position).unwrap()
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    // General case for other celestial bodies
-                    if let Some(gravity) = &mut body.gravity {
-                        g_final += gravity.calculate(position).unwrap();
-                    }
-                }
+            if let Some(gravity) = &mut body.gravity {
+                // convert j2k position to celestial body fixed frame
+                let rf = match body.body {
+                    CelestialBodies::Earth => body.orientation.transform(position), //dont need to do subtraction for earth
+                    _ => body.orientation.transform(&(position - body.position)),
+                };
+                // calculate mag field in celestial body fixed frame
+                let g_body = gravity.calculate(&rf).unwrap();
+                // rotate back to j2k
+                let g_j2k = body.orientation.rotate(&g_body); // same as body.orientation.inv().transform(&b_body);
+                g_final += g_j2k;
             }
         }
+
+        // for body in &mut self.bodies {
+        //     match body.body {
+        //         CelestialBodies::Earth => {
+        //             // Special case for Earth
+        //             if let Some(gravity) = &mut body.gravity {
+        //                 match gravity {
+        //                     Gravity::Egm(gravity) => {
+        //                         let position_itrf = body.orientation.rotate(position);
+        //                         let g_itrf = gravity.calculate(&position_itrf).unwrap();
+        //                         let g_gcrf = body.orientation.transform(&g_itrf);
+        //                         g_final += g_gcrf;
+        //                     }
+        //                     Gravity::Newtonian(gravity) => {
+        //                         g_final += gravity.calculate(position).unwrap()
+        //                     }
+        //                     Gravity::Constant(gravity) => {
+        //                         g_final += gravity.calculate(position).unwrap()
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //         _ => {
+        //             // General case for other celestial bodies
+        //             if let Some(gravity) = &mut body.gravity {
+        //                 g_final += gravity.calculate(position).unwrap();
+        //             }
+        //         }
+        //     }
+        // }
         g_final
+    }
+
+    /// calculates magnetic field based on all bodies in the celestial system with a gravity model
+    /// position is in the gcrf/j2000 frame
+    pub fn calculate_magnetic_field(&mut self, position: &Vector3<f64>) -> Vector3<f64> {
+        let mut b_final = Vector3::zeros();
+
+        for body in &mut self.bodies {
+            if let Some(magnetic_field) = &mut body.magnetic_field {
+                // convert j2k position to celestial body fixed frame
+                let rf = match body.body {
+                    CelestialBodies::Earth => body.orientation.transform(position), //dont need to do subtraction here
+                    _ => body.orientation.transform(&(position - body.position)),
+                };
+                // calculate mag field in celestial body fixed frame
+                let b_body = magnetic_field.calculate(&rf, &self.epoch.time).unwrap();
+                // rotate back to j2k
+                let b_j2k = body.orientation.rotate(&b_body); // same as body.orientation.inv().transform(&b_body);
+                b_final += b_j2k;
+            }
+        }
+        b_final
     }
 }
 

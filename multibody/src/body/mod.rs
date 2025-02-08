@@ -35,6 +35,7 @@ pub trait BodyTrait {
 }
 
 pub type BodyRef = Rc<RefCell<Body>>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     #[serde(skip)]
@@ -89,15 +90,11 @@ impl Body {
 
         self.state.gravity_force_base = g_vec;
         // transform to the body frame
-        self.state.gravity_force_body = body_from_base.0.rotation.transform(g_vec);
+        self.state.gravity_force_body = body_from_base.0.rotation.transform(&g_vec);
     }
 
     //TODO: combine this with calculate_gravity?
-    pub fn calculate_gravity_celestial(
-        &mut self,
-        body_from_base: &SpatialTransform,
-        celestial: &mut CelestialSystem,
-    ) {
+    pub fn calculate_gravity_celestial(&mut self, celestial: &mut CelestialSystem) {
         let g_vec = celestial.calculate_gravity(&self.state.position_base);
 
         // convert g_vec to a force by multiplying by mass
@@ -108,7 +105,17 @@ impl Body {
 
         self.state.gravity_force_base = g_vec;
         // transform to the body frame
-        self.state.gravity_force_body = body_from_base.0.rotation.transform(g_vec);
+        let q = self.state.attitude_base;
+        self.state.gravity_force_body = q.transform(&g_vec);
+    }
+
+    pub fn calculate_magnetic_field(&mut self, celestial: &mut CelestialSystem) {
+        let b_vec = celestial.calculate_magnetic_field(&self.state.position_base);
+
+        self.state.magnetic_field_base = b_vec;
+        // transform to the body frame
+        let q = self.state.attitude_base;
+        self.state.magnetic_field_body = q.transform(&b_vec);
     }
 
     pub fn calculate_external_force(&mut self) {
@@ -151,11 +158,11 @@ impl Body {
         // v however is non zero in the body frame
         // using transport theorem, a_base = R_base_from_body * (a_body + w_body x v_body)
         self.state.acceleration_base = base_from_body.transform(
-            body_a.translation()
+            &(body_a.translation()
                 + self
                     .state
                     .angular_rate_body
-                    .cross(&self.state.velocity_body),
+                    .cross(&self.state.velocity_body)),
         );
     }
 
@@ -173,7 +180,7 @@ impl Body {
         // r is technically 0 since the body is coincident iwth its own frame
         // there would be a non-zero r if we were looking for motion of body frame w.r.t jof, but that motion
         // is already accounted for in the spatial algebra when converting from jof to body.
-        let body_v_in_base_translation = base_from_body.0.rotation.transform(*body_v.translation());
+        let body_v_in_base_translation = base_from_body.0.rotation.transform(body_v.translation());
         self.state.velocity_body = *body_v.translation();
         self.state.velocity_base = body_v_in_base_translation;
         self.state.angular_rate_body = *body_v.rotation();
@@ -182,9 +189,9 @@ impl Body {
         self.state.attitude_base = UnitQuaternion::from(&body_from_base.rotation);
 
         // reset actuator force and environment force to be updated later
-        self.state.actuator_force_body = Force::zeros();
-        self.state.environments_force_body = Force::zeros();
-        self.state.internal_momentum_body = Vector3::zeros();
+        self.state.actuator_force_body *= 0.0;
+        self.state.environments_force_body *= 0.0;
+        self.state.internal_momentum_body *= 0.0;
         //self.state.internal_torque_body = Vector3::zeros();
     }
 }
@@ -239,6 +246,12 @@ impl NadirResult for Body {
                 "actuator_force(body)[x]",
                 "actuator_force(body)[y]",
                 "actuator_force(body)[z]",
+                "magnetic_field(base)[x]",
+                "magnetic_field(base)[y]",
+                "magnetic_field(base)[z]",
+                "magnetic_field(body)[x]",
+                "magnetic_field(body)[y]",
+                "magnetic_field(body)[z]",
             ],
         );
         self.result_id = Some(id);
@@ -293,6 +306,12 @@ impl NadirResult for Body {
                     self.state.actuator_force_body.translation()[0].to_string(),
                     self.state.actuator_force_body.translation()[1].to_string(),
                     self.state.actuator_force_body.translation()[2].to_string(),
+                    self.state.magnetic_field_base[0].to_string(),
+                    self.state.magnetic_field_base[1].to_string(),
+                    self.state.magnetic_field_base[2].to_string(),
+                    self.state.magnetic_field_body[0].to_string(),
+                    self.state.magnetic_field_body[1].to_string(),
+                    self.state.magnetic_field_body[2].to_string(),
                 ],
             );
         }
@@ -322,29 +341,31 @@ impl BodyTrait for Body {
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct BodyState {
-    pub position_base: Vector3<f64>,
-    pub velocity_base: Vector3<f64>,
-    pub velocity_body: Vector3<f64>,
     pub acceleration_base: Vector3<f64>,
     pub acceleration_body: Vector3<f64>,
-    pub attitude_base: UnitQuaternion,
-    pub angular_rate_body: Vector3<f64>,
-    pub angular_accel_body: Vector3<f64>,
     pub actuator_force_body: Force,
-    pub environments_force_body: Force,
-    pub gravity_force_base: Vector3<f64>,
-    pub gravity_force_body: Vector3<f64>,
-    pub external_spatial_force_body: Force, //used for calculations
-    pub external_force_body: Vector3<f64>,
-    pub external_torque_body: Vector3<f64>,
-    //pub internal_torque_body: Vector3<f64>,
-    pub internal_momentum_body: Vector3<f64>,
+    pub angular_accel_body: Vector3<f64>,
+    pub angular_rate_body: Vector3<f64>,
     pub angular_momentum_body: Vector3<f64>,
     pub angular_momentum_system_body: Vector3<f64>,
     pub angular_momentum_base: Vector3<f64>,
     pub angular_momentum_system_base: Vector3<f64>,
+    pub attitude_base: UnitQuaternion,
+    pub environments_force_body: Force,
+    pub external_spatial_force_body: Force, //used for calculations
+    pub external_force_body: Vector3<f64>,
+    pub external_torque_body: Vector3<f64>,
+    pub internal_momentum_body: Vector3<f64>,
+    pub gravity_force_base: Vector3<f64>,
+    pub gravity_force_body: Vector3<f64>,
+    pub magnetic_field_base: Vector3<f64>,
+    pub magnetic_field_body: Vector3<f64>,
     pub linear_momentum_body: Vector3<f64>,
     pub linear_momentum_base: Vector3<f64>,
+    pub position_base: Vector3<f64>,
+    pub velocity_base: Vector3<f64>,
+    pub velocity_body: Vector3<f64>,
+    //pub internal_torque_body: Vector3<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
