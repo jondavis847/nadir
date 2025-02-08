@@ -56,7 +56,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
     let epoch = Time::now()?;
     let earth = CelestialBody::new(CelestialBodies::Earth)
-        .with_gravity(Gravity::Egm(EgmGravity::new(EgmModel::Egm2008, 7, 7)?))
+        .with_gravity(Gravity::Egm(
+            EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
+        ))
         .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?));
     let celestial = CelestialSystem::new(epoch)?
         .with_body(earth)?
