@@ -133,10 +133,10 @@ impl CelestialSystem {
                         body.position[0].to_string(),
                         body.position[1].to_string(),
                         body.position[2].to_string(),
-                        body.orientation.x.to_string(),
-                        body.orientation.y.to_string(),
-                        body.orientation.z.to_string(),
-                        body.orientation.w.to_string(),
+                        body.orientation.0.x.to_string(),
+                        body.orientation.0.y.to_string(),
+                        body.orientation.0.z.to_string(),
+                        body.orientation.0.w.to_string(),
                     ],
                 );
             }

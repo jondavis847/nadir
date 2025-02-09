@@ -86,10 +86,10 @@ impl NadirResult for GuidanceFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.target_attitude.x.to_string(),
-                    self.state.target_attitude.y.to_string(),
-                    self.state.target_attitude.z.to_string(),
-                    self.state.target_attitude.w.to_string(),
+                    self.state.target_attitude.0.x.to_string(),
+                    self.state.target_attitude.0.y.to_string(),
+                    self.state.target_attitude.0.z.to_string(),
+                    self.state.target_attitude.0.w.to_string(),
                     self.state.target_rate[0].to_string(),
                     self.state.target_rate[1].to_string(),
                     self.state.target_rate[2].to_string(),

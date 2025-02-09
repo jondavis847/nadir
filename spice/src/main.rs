@@ -62,10 +62,10 @@ fn main() {
             match orientation {
                 Ok(q) => {
                     println!("J2000/ITRF Quaternion:");
-                    println!("  x: {}", q.x);
-                    println!("  y: {}", q.y);
-                    println!("  z: {}", q.z);
-                    println!("  w: {}", q.w);
+                    println!("  x: {}", q.0.x);
+                    println!("  y: {}", q.0.y);
+                    println!("  z: {}", q.0.z);
+                    println!("  w: {}", q.0.w);
                 }
                 Err(e) => {
                     dbg!(e);

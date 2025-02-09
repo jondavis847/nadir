@@ -82,14 +82,14 @@ impl SensorModel for StarTracker {
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
         let content = &[
-            self.state.measurement.x.to_string(),
-            self.state.measurement.y.to_string(),
-            self.state.measurement.z.to_string(),
-            self.state.measurement.w.to_string(),
-            self.state.noise.x.to_string(),
-            self.state.noise.y.to_string(),
-            self.state.noise.z.to_string(),
-            self.state.noise.w.to_string(),
+            self.state.measurement.0.x.to_string(),
+            self.state.measurement.0.y.to_string(),
+            self.state.measurement.0.z.to_string(),
+            self.state.measurement.0.w.to_string(),
+            self.state.noise.0.x.to_string(),
+            self.state.noise.0.y.to_string(),
+            self.state.noise.0.z.to_string(),
+            self.state.noise.0.w.to_string(),
         ];
         results.write_record(id, content);
     }

@@ -52,10 +52,10 @@ impl ControlFsw {
         let q_error = current_attitude * target_attitude.inv();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
-        let q_error = if q_error.w < 0.0 { -q_error } else { q_error };
+        let q_error = if q_error.0.w < 0.0 { -q_error } else { q_error };
 
         // Compute the attitude error vector (scaled by 2 for small angles)
-        self.state.attitude_error = Vector3::new(q_error.x, q_error.y, q_error.z);
+        self.state.attitude_error = Vector3::new(q_error.0.x, q_error.0.y, q_error.0.z);
 
         // Rate Error
         self.state.rate_error = nav.ad.state.rates - guid.state.target_rate;

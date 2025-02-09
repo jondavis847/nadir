@@ -61,14 +61,14 @@ impl NadirResult for StarTrackerFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.q_st.x.to_string(),
-                    self.state.q_st.y.to_string(),
-                    self.state.q_st.z.to_string(),
-                    self.state.q_st.w.to_string(),
-                    self.state.q_body.x.to_string(),
-                    self.state.q_body.y.to_string(),
-                    self.state.q_body.z.to_string(),
-                    self.state.q_body.w.to_string(),
+                    self.state.q_st.0.x.to_string(),
+                    self.state.q_st.0.y.to_string(),
+                    self.state.q_st.0.z.to_string(),
+                    self.state.q_st.0.w.to_string(),
+                    self.state.q_body.0.x.to_string(),
+                    self.state.q_body.0.y.to_string(),
+                    self.state.q_body.0.z.to_string(),
+                    self.state.q_body.0.w.to_string(),
                     self.state.valid.to_string(),
                 ],
             );

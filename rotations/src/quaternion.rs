@@ -3,7 +3,7 @@ use nalgebra::{Matrix3, Vector3, Vector4};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::ops::{AddAssign, Deref, DerefMut, Mul, MulAssign, Neg};
+use std::ops::{AddAssign, Mul, MulAssign, Neg};
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -196,7 +196,7 @@ impl Quaternion {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Default)]
-pub struct UnitQuaternion(Quaternion);
+pub struct UnitQuaternion(pub Quaternion);
 impl UnitQuaternion {
     pub const IDENTITY: Self = Self(Quaternion::IDENTITY);
 
@@ -217,33 +217,23 @@ impl From<&UnitQuaternion> for Quaternion {
     }
 }
 
-impl Deref for UnitQuaternion {
-    type Target = Quaternion;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+// We decide not to deref to quat since if a user doesnt import RotationTrait,
+// inv() will be found for the Quaternion, returning Quaternion instead of UnitQuaternion
 
-impl DerefMut for UnitQuaternion {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+// impl Deref for UnitQuaternion {
+//     type Target = Quaternion;
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
+
+// impl DerefMut for UnitQuaternion {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.0
+//     }
+// }
 
 impl RotationTrait for UnitQuaternion {
-    fn identity() -> Self {
-        Self::IDENTITY
-    }
-
-    /// Computes the inverse of the quaternion.
-    ///
-    /// # Returns
-    ///
-    /// A new `Quaternion` representing the inverse.
-    fn inv(&self) -> Self {
-        UnitQuaternion(self.0.inv())
-    }
-
     /// Rotates a vector by the quaternion.
     /// Follows the logic from Markley/Crassidis
     /// aka Active Rotation or "Alibi"
@@ -256,7 +246,7 @@ impl RotationTrait for UnitQuaternion {
     ///
     /// The rotated vector.
     fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
-        let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.w);
+        let (q1, q2, q3, q4) = (self.0.x, self.0.y, self.0.z, self.0.w);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
             + 2.0 * (q1 * q2 - q3 * q4) * v[1]
@@ -287,7 +277,7 @@ impl RotationTrait for UnitQuaternion {
     ///
     /// The transformed vector.
     fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
-        let (q1, q2, q3, q4) = (self.x, self.y, self.z, self.w);
+        let (q1, q2, q3, q4) = (self.0.x, self.0.y, self.0.z, self.0.w);
 
         let out1 = (q1 * q1 - q2 * q2 - q3 * q3 + q4 * q4) * v[0]
             + 2.0 * (q1 * q2 + q3 * q4) * v[1]
@@ -302,6 +292,14 @@ impl RotationTrait for UnitQuaternion {
             + (-q1 * q1 - q2 * q2 + q3 * q3 + q4 * q4) * v[2];
 
         Vector3::new(out1, out2, out3)
+    }
+
+    fn identity() -> Self {
+        Self::IDENTITY
+    }
+
+    fn inv(&self) -> Self {
+        UnitQuaternion(self.0.inv()) // no need to renormalize since just taking negative of a UnitQuaternion
     }
 }
 
@@ -401,7 +399,7 @@ impl Neg for UnitQuaternion {
     type Output = Self;
 
     fn neg(self) -> Self {
-        Self::new(-self.x, -self.y, -self.z, -self.w)
+        Self::new(-self.0.x, -self.0.y, -self.0.z, -self.0.w)
     }
 }
 
@@ -599,7 +597,7 @@ impl From<&RotationMatrix> for UnitQuaternion {
                 UnitQuaternion::new(m[(0, 2)], m[(1, 2)], m[(2, 2)], 2.0 * v[2])
             }
         };
-        if q.w < 0.0 {
+        if q.0.w < 0.0 {
             q = -q
         };
         q
@@ -649,10 +647,10 @@ mod tests {
         assert_abs_diff_eq!(q.z, 0.5477225575051661, epsilon = TOL);
         assert_abs_diff_eq!(q.w, 0.7302967433402214, epsilon = TOL);
 
-        assert_abs_diff_eq!(qn.x, 0.18257418583505536, epsilon = TOL);
-        assert_abs_diff_eq!(qn.y, 0.3651483716701107, epsilon = TOL);
-        assert_abs_diff_eq!(qn.z, 0.5477225575051661, epsilon = TOL);
-        assert_abs_diff_eq!(qn.w, 0.7302967433402214, epsilon = TOL);
+        assert_abs_diff_eq!(qn.0.x, 0.18257418583505536, epsilon = TOL);
+        assert_abs_diff_eq!(qn.0.y, 0.3651483716701107, epsilon = TOL);
+        assert_abs_diff_eq!(qn.0.z, 0.5477225575051661, epsilon = TOL);
+        assert_abs_diff_eq!(qn.0.w, 0.7302967433402214, epsilon = TOL);
     }
 
     /// Test for quaternion inversion.
@@ -669,10 +667,10 @@ mod tests {
         let qn = UnitQuaternion::from(&q);
         let inv = qn.inv();
 
-        assert_abs_diff_eq!(inv.w, qn.w, epsilon = TOL);
-        assert_abs_diff_eq!(inv.x, -qn.x, epsilon = TOL);
-        assert_abs_diff_eq!(inv.y, -qn.y, epsilon = TOL);
-        assert_abs_diff_eq!(inv.z, -qn.z, epsilon = TOL);
+        assert_abs_diff_eq!(inv.0.w, qn.0.w, epsilon = TOL);
+        assert_abs_diff_eq!(inv.0.x, -qn.0.x, epsilon = TOL);
+        assert_abs_diff_eq!(inv.0.y, -qn.0.y, epsilon = TOL);
+        assert_abs_diff_eq!(inv.0.z, -qn.0.z, epsilon = TOL);
     }
 
     /// Test for quaternion multiplication.
@@ -694,10 +692,10 @@ mod tests {
 
         let result = UnitQuaternion::from(&m);
 
-        assert_abs_diff_eq!(result.x, 0.09229595564125728, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, -0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, -0.4304593345768795, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.09229595564125728, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, -0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, -0.4304593345768795, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.701057384649978, epsilon = TOL);
     }
 
     #[test]
@@ -705,10 +703,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XYZ);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.701057384649978, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.430459334576879, epsilon = TOL);
     }
 
     #[test]
@@ -716,10 +714,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XZY);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.430459334576879, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, -0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, -0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.701057384649978, epsilon = TOL);
     }
 
     #[test]
@@ -727,10 +725,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YXZ);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.430459334576879, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, -0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, -0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.701057384649978, epsilon = TOL);
     }
 
     #[test]
@@ -738,10 +736,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YZX);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.701057384649978, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.430459334576879, epsilon = TOL);
     }
 
     #[test]
@@ -749,10 +747,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZXY);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.701057384649978, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.430459334576879, epsilon = TOL);
     }
 
     #[test]
@@ -760,10 +758,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZYX);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, -0.092295955641257, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.560985526796931, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.430459334576879, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.701057384649978, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, -0.092295955641257, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.560985526796931, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.430459334576879, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.701057384649978, epsilon = TOL);
     }
 
     #[test]
@@ -771,10 +769,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XYX);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -782,10 +780,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::XZX);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, -0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, -0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -793,10 +791,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YXY);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, -0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, -0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -804,10 +802,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::YZY);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -815,10 +813,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZXZ);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -826,10 +824,10 @@ mod tests {
         let a = EulerAngles::new(PI / 2.0, PI / 3.0, PI / 4.0, EulerSequence::ZYZ);
         let result = UnitQuaternion::from(&a);
 
-        assert_abs_diff_eq!(result.x, -0.1913417161825449, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, 0.4619397662556433, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.8001031451912654, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.3314135740355918, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, -0.1913417161825449, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, 0.4619397662556433, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.8001031451912654, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.3314135740355918, epsilon = TOL);
     }
 
     #[test]
@@ -921,9 +919,9 @@ mod tests {
 
         let result = q2 * q1;
 
-        assert_abs_diff_eq!(result.x, 0.6036896179402393, epsilon = TOL);
-        assert_abs_diff_eq!(result.y, -0.6143987193116093, epsilon = TOL);
-        assert_abs_diff_eq!(result.z, 0.2703544012626616, epsilon = TOL);
-        assert_abs_diff_eq!(result.w, 0.43009482282088674, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.x, 0.6036896179402393, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.y, -0.6143987193116093, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.z, 0.2703544012626616, epsilon = TOL);
+        assert_abs_diff_eq!(result.0.w, 0.43009482282088674, epsilon = TOL);
     }
 }

@@ -109,19 +109,19 @@ impl From<&UnitQuaternion> for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the rotation defined by the quaternion.
     fn from(q: &UnitQuaternion) -> Self {
-        let s = q.w;
-        let x = q.x;
-        let y = q.y;
-        let z = q.z;
+        let w = q.0.w;
+        let x = q.0.x;
+        let y = q.0.y;
+        let z = q.0.z;
 
         let e11 = 1.0 - 2.0 * y * y - 2.0 * z * z;
-        let e12 = 2.0 * x * y + 2.0 * s * z;
-        let e13 = 2.0 * x * z - 2.0 * s * y;
-        let e21 = 2.0 * x * y - 2.0 * s * z;
+        let e12 = 2.0 * x * y + 2.0 * w * z;
+        let e13 = 2.0 * x * z - 2.0 * w * y;
+        let e21 = 2.0 * x * y - 2.0 * w * z;
         let e22 = 1.0 - 2.0 * x * x - 2.0 * z * z;
-        let e23 = 2.0 * y * z + 2.0 * s * x;
-        let e31 = 2.0 * x * z + 2.0 * s * y;
-        let e32 = 2.0 * y * z - 2.0 * s * x;
+        let e23 = 2.0 * y * z + 2.0 * w * x;
+        let e31 = 2.0 * x * z + 2.0 * w * y;
+        let e32 = 2.0 * y * z - 2.0 * w * x;
         let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;
 
         // Create the `RotationMatrix` from the computed elements.

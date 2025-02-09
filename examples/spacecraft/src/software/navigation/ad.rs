@@ -83,10 +83,10 @@ impl NadirResult for AttitudeDetermination {
             results.write_record(
                 id,
                 &[
-                    self.state.attitude.x.to_string(),
-                    self.state.attitude.y.to_string(),
-                    self.state.attitude.z.to_string(),
-                    self.state.attitude.w.to_string(),
+                    self.state.attitude.0.x.to_string(),
+                    self.state.attitude.0.y.to_string(),
+                    self.state.attitude.0.z.to_string(),
+                    self.state.attitude.0.w.to_string(),
                     self.state.rates[0].to_string(),
                     self.state.rates[1].to_string(),
                     self.state.rates[2].to_string(),

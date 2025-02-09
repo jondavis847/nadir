@@ -166,6 +166,8 @@ impl Body {
         );
     }
 
+    /// Updates the body's state after integration of the joint states
+    /// Forces, torques, and accelerations are updated elsewhere
     pub fn update_state(&mut self) {
         let inner_joint_weak = self.inner_joint.as_ref().unwrap();
         let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
@@ -177,7 +179,7 @@ impl Body {
         let joint_v = inner_joint.cache.v;
         let body_v = body_from_joint * joint_v;
         // need to apply kinematic transport theorem to get velocity of the body in the base
-        // r is technically 0 since the body is coincident iwth its own frame
+        // r is technically 0 since the body is coincident with its own frame
         // there would be a non-zero r if we were looking for motion of body frame w.r.t jof, but that motion
         // is already accounted for in the spatial algebra when converting from jof to body.
         let body_v_in_base_translation = base_from_body.0.rotation.transform(body_v.translation());
@@ -192,7 +194,16 @@ impl Body {
         self.state.actuator_force_body *= 0.0;
         self.state.environments_force_body *= 0.0;
         self.state.internal_momentum_body *= 0.0;
-        //self.state.internal_torque_body = Vector3::zeros();
+
+        self.state.kinetic_energy = 0.5
+            * self.mass_properties.mass
+            * self.state.velocity_base.dot(&self.state.velocity_base)
+            + 0.5
+                * (self.state.angular_rate_body.transpose()
+                    * self.mass_properties.inertia.matrix()
+                    * self.state.angular_rate_body)[0];
+
+        //TODO: calculate potential energy
     }
 }
 
@@ -252,6 +263,9 @@ impl NadirResult for Body {
                 "magnetic_field(body)[x]",
                 "magnetic_field(body)[y]",
                 "magnetic_field(body)[z]",
+                "kinetic_energy",
+                "potential_energy",
+                "total_energy",
             ],
         );
         self.result_id = Some(id);
@@ -281,10 +295,10 @@ impl NadirResult for Body {
                     self.state.angular_rate_body[0].to_string(),
                     self.state.angular_rate_body[1].to_string(),
                     self.state.angular_rate_body[2].to_string(),
-                    self.state.attitude_base.x.to_string(),
-                    self.state.attitude_base.y.to_string(),
-                    self.state.attitude_base.z.to_string(),
-                    self.state.attitude_base.w.to_string(),
+                    self.state.attitude_base.0.x.to_string(),
+                    self.state.attitude_base.0.y.to_string(),
+                    self.state.attitude_base.0.z.to_string(),
+                    self.state.attitude_base.0.w.to_string(),
                     self.state.external_force_body[0].to_string(),
                     self.state.external_force_body[1].to_string(),
                     self.state.external_force_body[2].to_string(),
@@ -312,6 +326,9 @@ impl NadirResult for Body {
                     self.state.magnetic_field_body[0].to_string(),
                     self.state.magnetic_field_body[1].to_string(),
                     self.state.magnetic_field_body[2].to_string(),
+                    self.state.kinetic_energy.to_string(),
+                    self.state.potential_energy.to_string(),
+                    self.state.total_energy.to_string(),
                 ],
             );
         }
@@ -358,14 +375,16 @@ pub struct BodyState {
     pub internal_momentum_body: Vector3<f64>,
     pub gravity_force_base: Vector3<f64>,
     pub gravity_force_body: Vector3<f64>,
-    pub magnetic_field_base: Vector3<f64>,
-    pub magnetic_field_body: Vector3<f64>,
+    pub kinetic_energy: f64,
     pub linear_momentum_body: Vector3<f64>,
     pub linear_momentum_base: Vector3<f64>,
+    pub magnetic_field_base: Vector3<f64>,
+    pub magnetic_field_body: Vector3<f64>,
     pub position_base: Vector3<f64>,
+    pub potential_energy: f64,
+    pub total_energy: f64,
     pub velocity_base: Vector3<f64>,
     pub velocity_body: Vector3<f64>,
-    //pub internal_torque_body: Vector3<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

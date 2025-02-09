@@ -17,6 +17,11 @@ pub struct AxisAngle {
 }
 
 impl AxisAngle {
+    const IDENTITY: Self = Self {
+        angle: 0.0,
+        axis: Vector3::new(1.0, 0.0, 0.0),
+    };
+
     pub fn new(angle: f64, axis: Vector3<f64>) -> Result<Self, AxisAngleErrors> {
         if axis.norm() < 1e-12 {
             return Err(AxisAngleErrors::ZeroMagnitudeAxis);
@@ -27,11 +32,14 @@ impl AxisAngle {
 }
 
 impl RotationTrait for AxisAngle {
-    fn identity() -> Self {
-        Self {
-            angle: 0.0,
-            axis: Vector3::new(1.0, 0.0, 0.0),
-        }
+    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
+        let quaternion = UnitQuaternion::from(self);
+        quaternion.rotate(v)
+    }
+
+    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
+        let quaternion = UnitQuaternion::from(self);
+        quaternion.transform(v)
     }
 
     fn inv(&self) -> Self {
@@ -41,13 +49,7 @@ impl RotationTrait for AxisAngle {
         }
     }
 
-    fn rotate(&self, v: &Vector3<f64>) -> Vector3<f64> {
-        let quaternion = UnitQuaternion::from(self);
-        quaternion.rotate(v)
-    }
-
-    fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
-        let quaternion = UnitQuaternion::from(self);
-        quaternion.transform(v)
+    fn identity() -> Self {
+        Self::IDENTITY
     }
 }

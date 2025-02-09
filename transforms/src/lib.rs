@@ -188,10 +188,10 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.w, expected_rotation.w, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.w, expected_rotation.0.w, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.x, expected_rotation.0.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.y, expected_rotation.0.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.z, expected_rotation.0.z, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);
@@ -229,10 +229,10 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.w, expected_rotation.w, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.x, expected_rotation.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.y, expected_rotation.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.z, expected_rotation.z, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.w, expected_rotation.0.w, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.x, expected_rotation.0.x, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.y, expected_rotation.0.y, epsilon = TOL);
+        assert_abs_diff_eq!(result_rotation.0.z, expected_rotation.0.z, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
         assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);

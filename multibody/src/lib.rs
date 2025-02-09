@@ -3,6 +3,7 @@ pub mod algorithms;
 pub mod base;
 pub mod body;
 pub mod joint;
+pub mod mechanism;
 pub mod sensor;
 pub mod software;
 pub mod solver;
