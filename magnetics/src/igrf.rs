@@ -386,7 +386,7 @@ mod tests {
 
         let t = Time::from_ymdhms(2024, 6, 7, 0, 0, 0.0, time::TimeSystem::UTC).unwrap();
         let r = 6.7e6;
-        let theta = 60.0 * PI / 180.0;
+        let theta = 60.0 * PI / 180.0; // colatitude
         let phi = 30.0 * PI / 180.0;
 
         let mut igrf = Igrf::new(13, 13, &t).unwrap();
