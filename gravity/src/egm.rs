@@ -251,11 +251,14 @@ mod tests {
     fn test_egm96_1() {
         let re = [7e6, 0.0, 0.0];
 
-        let mut g = EgmGravity::new(EgmModel::Egm96, 2, 2).unwrap();
+        let mut g = EgmGravity::new(EgmModel::Egm96, 10, 10)
+            .unwrap()
+            .with_newtonian()
+            .with_centrifugal();
         let a = g.calculate(&re.into()).unwrap();
         dbg!(a);
-        //assert_equal(a[0], 0.0);
-        //assert_equal(a[1], -1.3778135992666715e-5);
-        //assert_equal(a[2], -9.808708996195295e-6);
+        assert_equal(a[0], -8.145745669956069);
+        assert_equal(a[1], -2.191201471327777e-5);
+        assert_equal(a[2], 3.013126351887712e-5);
     }
 }
