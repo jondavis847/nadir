@@ -7,6 +7,7 @@ edition.workspace = true
 approx.workspace = true
 coordinate_systems.workspace = true
 nalgebra.workspace = true
+pest.workspace = true
 rand.workspace = true
 serde.workspace = true
 thiserror.workspace = true

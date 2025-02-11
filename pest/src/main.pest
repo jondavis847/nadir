@@ -1,0 +1,12 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+
+identifier = @{ ASCII_ALPHANUMERIC+ }
+integer    = @{ "-"? ~ ASCII_DIGIT+ }
+float      = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+number     = { float | integer }
+array      = { "[" ~ WHITESPACE* ~ number ~ ( WHITESPACE* ~ "," ~ WHITESPACE* ~ number )* ~ WHITESPACE* ~ "]" }
+assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ ( array | number ) }
+
+retrieval  = { identifier }
+
+line       = _{ assignment | retrieval }

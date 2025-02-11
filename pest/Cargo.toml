@@ -1,0 +1,10 @@
+[package]
+name = "pest"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pest.workspace = true
+pest_derive.workspace = true

@@ -20,7 +20,7 @@ members = [
     "multibody", 
     "nadir",    
     "nadir_3d",     
-    "nadir_result", 
+    "nadir_result", "pest", 
     "plotting", 
     "plotting_egui",
     "rotations", 
@@ -79,6 +79,8 @@ interp = "2.0.1"
 num-traits = "*"
 nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
 phf = { version = "0.11.2", features = ["macros"] }
+pest = "2.7.15"
+pest_derive = "2.7.15"
 reqwest = { version = "0.12.7", features = ["blocking"] }
 ron = "0.8.1"
 rand = { version = "0.8.5", features = ["serde", "serde1", "small_rng"] }
