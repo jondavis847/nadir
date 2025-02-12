@@ -114,7 +114,7 @@ struct NadirParser;
 
 #[derive(Debug)]
 pub enum NadirParserErrors {
-    EnclosedInnerNotExpression,
+    CouldNotGetInner,
     EmptyExpression,
     IdentifierNotFound,
     InvalidNumber,
@@ -295,7 +295,7 @@ fn evaluate_expression(
                 let inner_pair = sub_pair
                     .into_inner()
                     .next()
-                    .ok_or(NadirParserErrors::EnclosedInnerNotExpression)?;
+                    .ok_or(NadirParserErrors::CouldNotGetInner)?;
                 evaluate_expression(inner_pair, store, false)?
             }
 
@@ -309,11 +309,27 @@ fn evaluate_expression(
             }
 
             Rule::number => {
-                let number: f64 = sub_pair
-                    .as_str()
-                    .parse()
-                    .map_err(|_| NadirParserErrors::InvalidNumber)?;
-                Value::new(number) // Assuming `Value::new` creates a `Value` from a number
+                let inner_pair = sub_pair
+                    .into_inner()
+                    .next()
+                    .ok_or(NadirParserErrors::CouldNotGetInner)?;
+                match inner_pair.as_rule() {
+                    Rule::float => {
+                        let float = inner_pair
+                            .as_str()
+                            .parse::<f64>()
+                            .map_err(|_| NadirParserErrors::InvalidNumber)?;
+                        Value::new(float)
+                    }
+                    Rule::integer => {
+                        let integer = inner_pair
+                            .as_str()
+                            .parse::<i64>()
+                            .map_err(|_| NadirParserErrors::InvalidNumber)?;
+                        Value::new(integer)
+                    }
+                    _ => return Err(NadirParserErrors::UnexpectedRule),
+                }
             }
 
             Rule::function_call => {
