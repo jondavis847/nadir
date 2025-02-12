@@ -36,15 +36,30 @@ resolver = "2"
 
 [workspace.dependencies]
 aerospace = {path = "aerospace"} 
+ambassador = "0.4.1"
 animation = {path = "animation"}   
+approx = "0.5.1"
+bincode = "1.3.3"
+bytemuck = { version = "1.17.1", features = ["derive"] }
+byteorder = "1.5.0"
 celestial = {path = "celestial"}
+chrono = { version = "0.4.38", features = ["serde"] }
+clap = { version = "4.5.21", features = ["derive"] }
 color  = {path = "color"}  
+colored = "3.0.0"
 coordinate_systems  = {path = "coordinate_systems"}
 csv = "1.3.1"
+dirs = "5.0.1"
 eframe = "0.30.0"
 egui_plot = "0.30.0"
+glam = { version = "0.29.2", features = ["bytemuck", "serde"] }
 gravity = {path = "gravity"}
+httpdate = "1.0.3"
+iced = { version = "0.13.1", features = ["debug","advanced","canvas","image","tokio"] }
+image = "0.25.5"
 indicatif = "0.17.9"
+inquire = "0.7.5"
+interp = "2.0.1"
 legendre = {path = "legendre"}
 magnetics = {path = "magnetics"}
 mass_properties = {path = "mass_properties"} 
@@ -52,43 +67,29 @@ multibody = {path = "multibody"}
 nadir = {path = "nadir"}  
 nadir_3d = {path = "nadir_3d"} 
 nadir_result = {path = "nadir_result"}
+nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
+num-traits = "*"
+pest = "2.7.15"
+pest_derive = "2.7.15"
+phf = { version = "0.11.2", features = ["macros"] }
 plotting = {path = "plotting"}
 plotting_egui = {path = "plotting_egui"}
+rand = { version = "0.8.5", features = ["serde", "serde1", "small_rng"] }
+rand_distr = { version = "0.4.3", features = ["serde", "serde1"] }
+reqwest = { version = "0.12.7", features = ["blocking"] }
+ron = "0.8.1"
 rotations = {path = "rotations"} 
+rustyline = {version = "15.0.0", features = ["with-file-history"]}
+serde = {version = "1.0.215" , features = ["derive", "rc"]}
 software = {path = "software"} 
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"} 
-transforms = {path = "transforms"} 
-utilities = {path = "utilities"} 
-time = {path = "time"} 
-ambassador = "0.4.1"
-approx = "0.5.1"
-bincode = "1.3.3"
-bytemuck = { version = "1.17.1", features = ["derive"] }
-byteorder = "1.5.0"
-chrono = { version = "0.4.38", features = ["serde"] }
-clap = { version = "4.5.21", features = ["derive"] }
-dirs = "5.0.1"
-glam = { version = "0.29.2", features = ["bytemuck", "serde"] }
-httpdate = "1.0.3"
-iced = { version = "0.13.1", features = ["debug","advanced","canvas","image","tokio"] }
-image = "0.25.5"
-inquire = "0.7.5"
-interp = "2.0.1"
-num-traits = "*"
-nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
-phf = { version = "0.11.2", features = ["macros"] }
-pest = "2.7.15"
-pest_derive = "2.7.15"
-reqwest = { version = "0.12.7", features = ["blocking"] }
-ron = "0.8.1"
-rand = { version = "0.8.5", features = ["serde", "serde1", "small_rng"] }
-rand_distr = { version = "0.4.3", features = ["serde", "serde1"] }
-serde = {version = "1.0.215" , features = ["derive", "rc"]}
 thiserror = "2.0.9"
+time = {path = "time"} 
+transforms = {path = "transforms"} 
 typetag = "0.2.18"
-
+utilities = {path = "utilities"} 
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

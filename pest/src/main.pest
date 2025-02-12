@@ -1,12 +1,36 @@
+// Define whitespace
 WHITESPACE = _{ " " | "\t" | "\n" }
 
-identifier = @{ ASCII_ALPHANUMERIC+ }
+// Identifiers and Numbers
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer    = @{ "-"? ~ ASCII_DIGIT+ }
-float      = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
-number     = { float | integer }
-array      = { "[" ~ WHITESPACE* ~ number ~ ( WHITESPACE* ~ "," ~ WHITESPACE* ~ number )* ~ WHITESPACE* ~ "]" }
-assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ ( array | number ) }
+float      = @{ 
+    "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+number = { float | integer }
 
-retrieval  = { identifier }
+// Value Types
+value = { number | array | matrix }
+array = { "[" ~ WHITESPACE* ~ value ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ value)* ~ WHITESPACE* ~ "]" }
+matrix = { "[" ~ row ~ (";" ~ row)* ~ "]" }
+row = { value ~ (WHITESPACE+ ~ value)* }
 
-line       = _{ assignment | retrieval }
+// Expressions
+math = {MATH}
+expression = { enclosed | function_call | identifier | number | math}
+enclosed = { "(" ~ WHITESPACE* ~ expression ~ WHITESPACE* ~ ")" }
+
+// Assignments
+assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expression }
+
+// Function Handling
+function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESPACE* ~ ")" }
+function_arguments = { expression ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expression)* }
+
+// Evaluations and Lines
+line = { silent_line* ~ (print_line | silent_line) }
+silent_line = { print_line ~ ";" }
+print_line = { assignment | expression }
+
+evaluation = { expression }
+variable_retrieval = { identifier }
