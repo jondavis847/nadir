@@ -1,5 +1,18 @@
 // Define whitespace
-WHITESPACE = _{ " " | "\t" | "\n" }
+
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+
+math_expr       =  { prefix* ~ expression ~ postfix* ~ (infix ~ prefix* ~ expression ~ postfix* )* }
+infix      = _{ add | sub | mul | div }
+add        =  { "+" }
+sub        =  { "-" }
+mul        =  { "*" }
+div        =  { "/" }
+pow    =   { "^" } // Exponentiation
+prefix     = _{ neg }
+neg        =  { "-" }
+postfix    = _{ fac }
+fac        =  { "!" }
 
 // Identifiers and Numbers
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
@@ -16,21 +29,20 @@ matrix = { "[" ~ row ~ (";" ~ row)* ~ "]" }
 row = { value ~ (WHITESPACE+ ~ value)* }
 
 // Expressions
-math = {MATH}
-expression = { enclosed | function_call | identifier | number | math}
+expression = { enclosed | function_call | identifier | number}
 enclosed = { "(" ~ WHITESPACE* ~ expression ~ WHITESPACE* ~ ")" }
 
 // Assignments
-assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expression }
+assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ math_expr }
 
 // Function Handling
 function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESPACE* ~ ")" }
-function_arguments = { expression ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expression)* }
+function_arguments = { math_expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ math_expr)* }
 
 // Evaluations and Lines
 line = { silent_line* ~ (print_line | silent_line) }
 silent_line = { print_line ~ ";" }
-print_line = { assignment | expression }
+print_line = { assignment | math_expr }
 
-evaluation = { expression }
+evaluation = { math_expr }
 variable_retrieval = { identifier }

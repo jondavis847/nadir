@@ -1,128 +1,26 @@
 use colored::Colorize;
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
-use std::any::{type_name, Any, TypeId};
-use std::collections::HashMap;
 use std::fmt::Debug;
+use thiserror::Error;
 
-pub trait AnyClone: Any + Debug {
-    fn clone_box(&self) -> Box<dyn AnyClone>;
-    fn as_any(&self) -> &dyn Any;
+mod clone_any;
+mod storage;
+mod value;
 
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
-impl<T> AnyClone for T
-where
-    T: Clone + Any + Debug + 'static,
-{
-    fn clone_box(&self) -> Box<dyn AnyClone> {
-        Box::new(self.clone())
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-impl dyn AnyClone {
-    /// Allow downcasting `Box<dyn AnyClone>` to the original type
-    pub fn downcast<T: 'static>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
-        if (*self).as_any().type_id() == TypeId::of::<T>() {
-            // SAFETY: We just checked that the type is correct
-            let raw: *mut dyn AnyClone = Box::into_raw(self);
-            Ok(unsafe { Box::from_raw(raw as *mut T) })
-        } else {
-            Err(self)
-        }
-    }
-
-    /// Allow getting a reference to the original type
-    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        self.as_any().downcast_ref::<T>()
-    }
-
-    /// Allow getting a mutable reference to the original type
-    pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.as_any_mut().downcast_mut::<T>()
-    }
-}
-pub struct Value {
-    value: Box<dyn AnyClone>,
-    type_id: TypeId,
-    type_name: &'static str,
-}
-
-impl Value {
-    /// Create a new `Value` instance
-    pub fn new<T: AnyClone>(value: T) -> Self {
-        Self {
-            value: Box::new(value),
-            type_name: type_name::<T>(),
-            type_id: TypeId::of::<T>(),
-        }
-    }
-
-    /// Attempt to downcast the `Value` to a specific type
-    pub fn downcast<T: 'static>(self) -> Result<T, Self> {
-        if self.type_id == TypeId::of::<T>() {
-            Ok(*self.value.downcast::<T>().unwrap())
-        } else {
-            Err(self)
-        }
-    }
-
-    /// Attempt to get a reference to the value as a specific type
-    pub fn as_ref<T: 'static>(&self) -> Option<&T> {
-        if self.type_id == TypeId::of::<T>() {
-            self.value.as_ref().downcast_ref::<T>()
-        } else {
-            None
-        }
-    }
-}
-
-impl Clone for Value {
-    fn clone(&self) -> Self {
-        Self {
-            value: self.value.clone_box(),
-            type_id: self.type_id,
-            type_name: self.type_name,
-        }
-    }
-}
-
-impl std::fmt::Debug for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Assuming `self.type_name` returns the type name as a &str
-        let type_name = self.type_name; // Replace with your actual method to get the type name
-        write!(f, "{} ", type_name.bold().green())?;
-        self.value.fmt(f)
-    }
-}
+use storage::Storage;
+use value::Value;
 
 #[derive(Parser)]
 #[grammar = "main.pest"] // relative path to your .pest file
 struct NadirParser;
 
-#[derive(Debug)]
-pub enum NadirParserErrors {
-    CouldNotGetInner,
-    EmptyExpression,
-    IdentifierNotFound,
-    InvalidNumber,
-    MissingOperand,
-    MissingOperator,
-    UnexpectedOperator,
-    UnexpectedRule,
-}
+#[derive(Debug, Error)]
+pub enum NadirParserErrors {}
 
 fn main() {
     // `()` can be used when no completer is required
@@ -150,7 +48,14 @@ fn main() {
     let prompt = "nadir> ".bold().cyan().to_string();
 
     // This store holds variables as Box<dyn Any> so we can put any type into it.
-    let mut store: HashMap<String, Value> = HashMap::new();
+    let mut storage = Storage::default();
+
+    let pratt = PrattParser::new()
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::sub, Assoc::Left))
+        .op(Op::infix(Rule::mul, Assoc::Left) | Op::infix(Rule::div, Assoc::Left))
+        .op(Op::infix(Rule::pow, Assoc::Right))
+        .op(Op::prefix(Rule::neg))
+        .op(Op::postfix(Rule::fac));
 
     loop {
         // Display the prompt and read user input
@@ -164,8 +69,7 @@ fn main() {
                 match line.trim() {
                     "exit" => break,
                     "vars" => {
-                        let mut keys: Vec<&String> = store.keys().collect();
-                        keys.sort();
+                        let keys: Vec<&String> = storage.get_names();
                         for name in keys {
                             println!("{}", name);
                         }
@@ -175,14 +79,7 @@ fn main() {
                         let parse_result = NadirParser::parse(Rule::line, &line);
                         match parse_result {
                             Ok(pairs) => {
-                                for pair in pairs {
-                                    match evaluate_line(pair, &mut store) {
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            eprintln!("Evaluation error: {:?}", e);
-                                        }
-                                    };
-                                }
+                                parse_expr(pairs, &pratt, &mut storage);
                             }
                             Err(e) => {
                                 eprintln!("Parsing error: {}", e);
@@ -212,180 +109,105 @@ fn main() {
     }
 }
 
-fn evaluate_line(
-    pair: Pair<Rule>,
-    store: &mut HashMap<String, Value>,
-) -> Result<(), NadirParserErrors> {
-    let mut pairs = pair.into_inner();
-    let pair = pairs.next().unwrap();
-    match pair.as_rule() {
-        Rule::silent_line => evaluate_silent_line(pair, store)?,
-        Rule::print_line => evaluate_print_line(pair, store)?,
-        _ => unreachable!("Unexpected rule"),
-    }
-    Ok(())
-}
-
-fn evaluate_silent_line(
-    pair: Pair<Rule>,
-    store: &mut HashMap<String, Value>,
-) -> Result<(), NadirParserErrors> {
-    let mut pairs = pair.into_inner();
-    let pair = pairs.next().unwrap();
-    match pair.as_rule() {
-        Rule::expression => {
-            evaluate_expression(pair, store, false)?;
-        }
-        Rule::assignment => evaluate_assignment(pair, store, false)?,
-        _ => unreachable!("Unexpected rule"),
-    }
-    Ok(())
-}
-
-fn evaluate_print_line(
-    pair: Pair<Rule>,
-    store: &mut HashMap<String, Value>,
-) -> Result<(), NadirParserErrors> {
-    let mut pairs = pair.into_inner();
-    let pair = pairs.next().unwrap();
-    match pair.as_rule() {
-        Rule::expression => {
-            evaluate_expression(pair, store, true)?;
-        }
-        Rule::assignment => {
-            evaluate_assignment(pair, store, true)?;
-        }
-        _ => unreachable!("Unexpected rule"),
-    }
-    Ok(())
-}
-
-fn evaluate_assignment(
-    pair: Pair<Rule>,
-    store: &mut HashMap<String, Value>,
-    print: bool,
-) -> Result<(), NadirParserErrors> {
-    let mut pairs = pair.into_inner();
-    if let Some(identifier) = pairs.next() {
-        let identifier = identifier.as_str().to_string();
-        if let Some(expression) = pairs.next() {
-            let value = evaluate_expression(expression, store, false)?;
-            store.insert(identifier.clone(), value.clone());
-            if print {
-                println!("{} = {:?}", identifier, value);
+fn parse_expr(
+    pairs: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+    storage: &mut Storage,
+) -> Result<Option<Value>, NadirParserErrors> {
+    pratt
+        .map_primary(|primary| {
+            match primary.as_rule() {
+                Rule::number => evaluate_number(primary),
+                Rule::identifier => evaluate_identifier(primary, &storage),
+                Rule::function_call => unimplemented!("todo"),
+                Rule::expression => parse_expr(primary.into_inner(), pratt, storage),
+                _ => Ok(None), // For any other rule, return None
             }
-        }
-    }
-    Ok(())
-}
-
-fn evaluate_expression(
-    pair: Pair<Rule>,
-    store: &mut HashMap<String, Value>,
-    print: bool,
-) -> Result<Value, NadirParserErrors> {
-    // Loop through the sub-rules of the expression
-    let mut pairs = pair.into_inner(); // `into_inner` gives access to the sub-rules
-    let mut result: Option<Value> = None;
-
-    while let Some(sub_pair) = pairs.next() {
-        // Evaluate each sub-rule recursively
-        let value = match sub_pair.as_rule() {
-            Rule::enclosed => {
-                let inner_pair = sub_pair
-                    .into_inner()
-                    .next()
-                    .ok_or(NadirParserErrors::CouldNotGetInner)?;
-                evaluate_expression(inner_pair, store, false)?
-            }
-
-            Rule::identifier => {
-                let identifier = sub_pair.as_str();
-                if let Some(value) = store.get(identifier) {
-                    value.clone()
-                } else {
-                    return Err(NadirParserErrors::IdentifierNotFound);
-                }
-            }
-
-            Rule::number => {
-                let inner_pair = sub_pair
-                    .into_inner()
-                    .next()
-                    .ok_or(NadirParserErrors::CouldNotGetInner)?;
-                match inner_pair.as_rule() {
-                    Rule::float => {
-                        let float = inner_pair
-                            .as_str()
-                            .parse::<f64>()
-                            .map_err(|_| NadirParserErrors::InvalidNumber)?;
-                        Value::new(float)
+        })
+        .map_prefix(|op, rhs| {
+            rhs.and_then(|rhs_value| {
+                match op.as_rule() {
+                    Rule::neg => {
+                        // Assuming Value::Number and implementing negation
+                        if let Value::Number(n) = rhs_value {
+                            Ok(Some(Value::Number(-n)))
+                        } else {
+                            Err(NadirParserErrors::InvalidOperation)
+                        }
                     }
-                    Rule::integer => {
-                        let integer = inner_pair
-                            .as_str()
-                            .parse::<i64>()
-                            .map_err(|_| NadirParserErrors::InvalidNumber)?;
-                        Value::new(integer)
-                    }
-                    _ => return Err(NadirParserErrors::UnexpectedRule),
+                    _ => Err(NadirParserErrors::UnexpectedOperator),
                 }
-            }
+            })
+        })
+        .map_postfix(|lhs, op| {
+            lhs.and_then(|lhs_value| {
+                match op.as_rule() {
+                    Rule::fac => {
+                        // Assuming Value::Number and implementing factorial
+                        if let Value::Number(n) = lhs_value {
+                            if n >= 0.0 && n.fract() == 0.0 {
+                                let result = (1..=n as u64).product::<u64>() as f64;
+                                Ok(Some(Value::Number(result)))
+                            } else {
+                                Err(NadirParserErrors::InvalidNumber)
+                            }
+                        } else {
+                            Err(NadirParserErrors::InvalidOperation)
+                        }
+                    }
+                    _ => Err(NadirParserErrors::UnexpectedOperator),
+                }
+            })
+        })
+        .map_infix(|lhs, op, rhs| {
+            lhs.and_then(|lhs_value| {
+                rhs.and_then(|rhs_value| match (lhs_value, rhs_value) {
+                    (Value::Number(lhs_num), Value::Number(rhs_num)) => match op.as_rule() {
+                        Rule::add => Ok(Some(Value::Number(lhs_num + rhs_num))),
+                        Rule::sub => Ok(Some(Value::Number(lhs_num - rhs_num))),
+                        Rule::mul => Ok(Some(Value::Number(lhs_num * rhs_num))),
+                        Rule::div => {
+                            if rhs_num != 0.0 {
+                                Ok(Some(Value::Number(lhs_num / rhs_num)))
+                            } else {
+                                Err(NadirParserErrors::DivisionByZero)
+                            }
+                        }
+                        Rule::pow => Ok(Some(Value::Number(lhs_num.powf(rhs_num)))),
+                        _ => Err(NadirParserErrors::UnexpectedOperator),
+                    },
+                    _ => Err(NadirParserErrors::InvalidOperation),
+                })
+            })
+        })
+        .parse(pairs)
+}
 
-            Rule::function_call => {
-                unimplemented!("Function calls are not implemented yet");
-                //evaluate_function_call(sub_pair, store)? // Delegate function call evaluation
-            }
-            Rule::math => {
-                unimplemented!("math not implemented yet");
-                // For math operations, we need the left and right operands and the operator
-                // let mut inner_pairs = sub_pair.into_inner();
-                // let left = evaluate_expression(
-                //     inner_pairs
-                //         .next()
-                //         .ok_or(NadirParserErrors::MissingOperand)?,
-                //     store,
-                //     false,
-                // )?;
-                // let operator = inner_pairs
-                //     .next()
-                //     .ok_or(NadirParserErrors::MissingOperator)?
-                //     .as_str();
-                // let right = evaluate_expression(
-                //     inner_pairs
-                //         .next()
-                //         .ok_or(NadirParserErrors::MissingOperand)?,
-                //     store,
-                //     false,
-                // )?;
-
-                // // Perform the operation
-                // match operator {
-                //     "+" => Value::new(left.as_f64()? + right.as_f64()?),
-                //     "-" => Value::new(left.as_f64()? - right.as_f64()?),
-                //     "*" => Value::new(left.as_f64()? * right.as_f64()?),
-                //     "/" => {
-                //         let divisor = right.as_f64()?;
-                //         Value::new(left.as_f64()? / divisor)
-                //     }
-                //     _ => return Err(NadirParserErrors::UnexpectedOperator),
-                // }
-            }
-
-            _ => return Err(NadirParserErrors::UnexpectedRule),
-        };
-
-        // Combine results if necessary, or use the first evaluated value
-        result = Some(value);
+fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErrors> {
+    let inner_pair = primary
+        .into_inner()
+        .next()
+        .ok_or(NadirParserErrors::InvalidNumber)?;
+    match inner_pair.as_rule() {
+        Rule::float => inner_pair
+            .as_str()
+            .parse::<f64>()
+            .map(Value::new)
+            .map(Some)
+            .map_err(|_| NadirParserErrors::InvalidNumber),
+        Rule::integer => inner_pair
+            .as_str()
+            .parse::<i64>()
+            .map(Value::new)
+            .map(Some)
+            .map_err(|_| NadirParserErrors::InvalidNumber),
+        _ => Err(NadirParserErrors::InvalidNumber),
     }
+}
 
-    // If the result is still None, it means we couldn't evaluate anything
-    let final_result = result.ok_or(NadirParserErrors::EmptyExpression)?;
-
-    // Optionally print the final result
-    if print {
-        println!("{:?}", final_result);
-    }
-
-    Ok(final_result)
+fn evaluate_identifier(
+    primary: Pair<Rule>,
+    storage: &Storage,
+) -> Result<Option<Value>, NadirParserErrors> {
+    Ok(Some(storage.get(primary.as_str())?))
 }
