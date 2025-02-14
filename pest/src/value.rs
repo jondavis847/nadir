@@ -2,46 +2,6 @@ use nalgebra::{DMatrix, DVector};
 use std::f64::{INFINITY, NAN};
 use thiserror::Error;
 
-// use super::clone_any::CloneAny;
-// use std::{any::Any, ops::Neg};
-// use thiserror::Error;
-
-// impl Clone for Value {
-//     fn clone(&self) -> Value {
-//         Value(self.0.clone_any())
-//     }
-// }
-
-// #[derive(Debug, Error)]
-// pub enum ValueError {
-//     #[error("negation operation not defined for type `{0}`")]
-//     OperationNotDefined(&'static str),
-// }
-
-// pub struct Value(Box<dyn CloneAny>);
-
-// impl Value {
-//     pub fn new<T>(v: T) -> Self
-//     where
-//         T: CloneAny,
-//     {
-//         Value(Box::new(v))
-//     }
-//     pub fn get_type_name(&self) -> &'static str {
-//         self.0.type_name()
-//     }
-
-//     /// Take the negative of the Value if the operation is defined
-//     pub fn neg(&self) -> Result<Value, NadirParserErrors> {
-//         if let Some(&val) = self.0.downcast_ref::<f64>() {
-//             Ok(Value::new(-val))
-//         } else if let Some(&val) = self.0.downcast_ref::<i64>() {
-//             Ok(Value::new(-val))
-//         } else {
-//             Err(NadirParserErrors::OperationNotDefined)
-//         }
-//     }
-// }
 #[derive(Debug, Error)]
 pub enum ValueErrors {
     #[error("cannot add type {1} to {0}")]
@@ -73,30 +33,34 @@ pub enum Value {
     i64(i64),
     DVector(Box<DVector<f64>>),
     DMatrix(Box<DMatrix<f64>>),
-    String(Box<String>),
+    //String(Box<String>),
 }
 
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::f64(v) => writeln!(f, "f64: {}", v),
-            Value::i64(v) => writeln!(f, "i64: {}", v),
+            Value::f64(v) => writeln!(f, "\x1b[90mf64\x1b[0m {}", v),
+            Value::i64(v) => writeln!(f, "\x1b[90mi64\x1b[0m {}", v),
             Value::DVector(v) => {
-                writeln!(f, "Vector<f64>: [");
+                writeln!(f, "\x1b[90mVector<f64>\x1b[0m [")?;
                 for e in v.iter() {
-                    writeln!(f, "     {}", e);
+                    writeln!(f, "     {}", e)?;
                 }
                 writeln!(f, "]")
             }
             Value::DMatrix(m) => {
-                writeln!(f, "Matrix<f64>: ({}x{})", m.nrows(), m.ncols())?;
+                writeln!(
+                    f,
+                    "\x1b[90mMatrix<f64>\x1b[0m ({}x{})",
+                    m.nrows(),
+                    m.ncols()
+                )?;
                 writeln!(f, "[")?;
                 for row in m.row_iter() {
                     writeln!(f, "  {:?}", row)?;
                 }
                 writeln!(f, "]")
-            }
-            Value::String(s) => writeln!(f, "String: {}", s),
+            } //Value::String(s) => writeln!(f, "\x1b[90mString\x1b[0m {}", s),
         }
     }
 }
@@ -114,8 +78,7 @@ impl Value {
                 let rows = v.nrows();
                 let cols = v.ncols();
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
-            }
-            Value::String(_) => String::from("String"),
+            } //Value::String(_) => String::from("String"),
         }
     }
     pub fn try_add(&self, other: &Value) -> Result<Value, ValueErrors> {
@@ -137,9 +100,9 @@ impl Value {
             (Value::DMatrix(m), Value::i64(f)) | (Value::i64(f), Value::DMatrix(m)) => {
                 Ok(Value::DMatrix(Box::new(m.add_scalar(*f as f64))))
             }
-            (Value::String(a), Value::String(b)) => {
-                Ok(Value::String(Box::new(format!("{}{}", a, b))))
-            }
+            // (Value::String(a), Value::String(b)) => {
+            //     Ok(Value::String(Box::new(format!("{}{}", a, b))))
+            // }
             _ => Err(ValueErrors::CannotAddTypes(other.as_str(), self.as_str())),
         }
     }
@@ -297,7 +260,7 @@ impl Value {
             Value::i64(v) => Ok(Value::i64(-v)),
             Value::DVector(v) => Ok(Value::DVector(Box::new(-*v.clone()))),
             Value::DMatrix(v) => Ok(Value::DMatrix(Box::new(-*v.clone()))),
-            _ => Err(ValueErrors::CannotNegType(self.as_str())),
+            //_ => Err(ValueErrors::CannotNegType(self.as_str())),
         }
     }
 

@@ -2,14 +2,14 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
-use rustyline::completion::Completer;
+use rustyline::completion::FilenameCompleter;
 use rustyline::error::ReadlineError;
-use rustyline::highlight::Highlighter;
-use rustyline::hint::Hinter;
-use rustyline::validate::Validator;
-use rustyline::{Context, Editor};
-use rustyline_derive::Helper;
-use std::borrow::Cow;
+use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
+use rustyline::hint::HistoryHinter;
+use rustyline::validate::MatchingBracketValidator;
+use rustyline::{CompletionType, Config, EditMode, Editor};
+use rustyline_derive::{Completer, Helper, Hinter, Validator};
+use std::borrow::Cow::{self, Borrowed, Owned};
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -37,9 +37,21 @@ pub enum NadirParserErrors {
 }
 
 fn main() {
+    let config = Config::builder()
+        .history_ignore_space(true)
+        .completion_type(CompletionType::List)
+        .edit_mode(EditMode::Emacs)
+        .build();
+    let h = MyHelper {
+        completer: FilenameCompleter::new(),
+        highlighter: MatchingBracketHighlighter::new(),
+        hinter: HistoryHinter::new(),
+        colored_prompt: "".to_owned(),
+        validator: MatchingBracketValidator::new(),
+    };
     // `()` can be used when no completer is required
-    let mut rl = Editor::new().expect("Failed to create rustyline editor");
-    rl.set_helper(Some(MyHelper));
+    let mut rl = Editor::with_config(config).expect("Failed to create rustyline editor");
+    rl.set_helper(Some(h));
     // Determine the configuration directory
     let history_path = if let Some(mut history_path) = dirs::config_dir() {
         history_path.push("nadir");
@@ -58,9 +70,6 @@ fn main() {
         None
     };
 
-    // Custom prompt with bold and colored text
-    let prompt = "nadir> ";
-
     // This store holds variables as Box<dyn Any> so we can put any type into it.
     let mut storage = Storage::default();
 
@@ -71,8 +80,12 @@ fn main() {
         .op(Op::prefix(Rule::neg))
         .op(Op::postfix(Rule::fac));
 
+    let prompt = "nadir> ";
+
     loop {
         // Display the prompt and read user input
+        rl.helper_mut().expect("No helper").colored_prompt =
+            format!("\x1b[38;2;246;189;96m{prompt}\x1b[0m");
         match rl.readline(&prompt) {
             Ok(line) => {
                 // Add the input to history
@@ -235,8 +248,17 @@ fn evaluate_identifier(
     Ok(Some(storage.get(primary.as_str())?))
 }
 
-#[derive(Helper)]
-struct MyHelper;
+#[derive(Helper, Completer, Hinter, Validator)]
+struct MyHelper {
+    #[rustyline(Completer)]
+    completer: FilenameCompleter,
+    highlighter: MatchingBracketHighlighter,
+    #[rustyline(Validator)]
+    validator: MatchingBracketValidator,
+    #[rustyline(Hinter)]
+    hinter: HistoryHinter,
+    colored_prompt: String,
+}
 
 impl Highlighter for MyHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
@@ -245,36 +267,21 @@ impl Highlighter for MyHelper {
         default: bool,
     ) -> Cow<'b, str> {
         if default {
-            Cow::Borrowed(prompt)
+            Borrowed(&self.colored_prompt)
         } else {
-            // Apply cyan color to the prompt
-            Cow::Owned(format!("\x1b[36m{}\x1b[0m", prompt))
+            Borrowed(prompt)
         }
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        Cow::Owned(format!("\x1b[1;34m{}\x1b[0m", hint))
+        Owned("\x1b[1m".to_owned() + hint + "\x1b[m")
     }
 
-    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
-        Cow::Borrowed(line)
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
+        self.highlighter.highlight(line, pos)
     }
 
-    // fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
-    //     false
-    // }
-}
-
-impl Hinter for MyHelper {
-    type Hint = String;
-
-    fn hint(&self, _line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
-        None
+    fn highlight_char(&self, line: &str, pos: usize, kind: CmdKind) -> bool {
+        self.highlighter.highlight_char(line, pos, kind)
     }
 }
-
-impl Completer for MyHelper {
-    type Candidate = String;
-}
-
-impl Validator for MyHelper {}
