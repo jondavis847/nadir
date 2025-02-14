@@ -1,7 +1,7 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
 math_expr = { prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)* }
-term = { enclosed | function_call | identifier | number }
+term = { enclosed | struct_call | function_call | identifier | number }
 
 infix = _{ add | sub | mul | div }
 add = { "+" }
@@ -27,6 +27,8 @@ assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ math_expr }
 
 function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESPACE* ~ ")" }
 function_arguments = { math_expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ math_expr)* }
+
+struct_call = { identifier ~ "::" ~ function_call}
 
 line = { silent_line* ~ (print_line | silent_line) }
 silent_line = { print_line ~ ";" }

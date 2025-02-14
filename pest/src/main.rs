@@ -2,6 +2,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
+use rotations::prelude::Quaternion;
 use rustyline::completion::FilenameCompleter;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
@@ -26,8 +27,26 @@ struct NadirParser;
 
 #[derive(Debug, Error)]
 pub enum NadirParserErrors {
+    #[error("argument value was None  {0}")]
+    ArgumentValueIsNone(String),
+    #[error("pest parsing pairs were empty")]
+    EmptyPairs(String),
+    #[error("expected rule was function_arguments but got {0}")]
+    ExpectedFunctionArguments(String),
+    #[error("expected rule was function_call but got {0}")]
+    ExpectedFunctionCall(String),
+    #[error("expected rule was identifier but got {0}")]
+    ExpectedIdentifier(String),
+    #[error("function {0} not found")]
+    FunctionNotFound(String),
     #[error("invalid number {0}")]
     InvalidNumber(String),
+    #[error("was not able to parse function arguments")]
+    MissingFunctionArguments,
+    #[error("was not able to parse a function name")]
+    MissingFunctionName,
+    #[error("incorrect number of args to function {0}. expected {1}, got {2}")]
+    NumberOfArgs(String, String, String),
     #[error("StorageErrors: {0}")]
     StorageErrors(#[from] StorageErrors),
     #[error("unexpected operator {0}")]
@@ -105,8 +124,8 @@ fn main() {
                         // Parse the input using the "line" rule.
                         let parse_result = NadirParser::parse(Rule::line, &line);
                         match parse_result {
-                            Ok(pairs) => {
-                                match parse_expr(pairs, &pratt, &mut storage) {
+                            Ok(mut pairs) => {
+                                match parse_expr(&mut pairs, &pratt, &mut storage) {
                                     Ok(_) => {}
                                     Err(e) => eprintln!("{e}"),
                                 };
@@ -140,19 +159,21 @@ fn main() {
 }
 
 fn parse_expr(
-    pairs: Pairs<Rule>,
+    pairs: &mut Pairs<Rule>,
     pratt: &PrattParser<Rule>,
     storage: &mut Storage,
 ) -> Result<Option<Value>, NadirParserErrors> {
+    let pairs_clone = pairs.clone();
+
     pratt
         .map_primary(|primary| {
             match primary.as_rule() {
                 Rule::number => evaluate_number(primary),
                 Rule::identifier => evaluate_identifier(primary, &storage),
-                Rule::function_call => unimplemented!("todo"),
-                //Rule::expression => parse_expr(primary.into_inner(), pratt, storage),
+                Rule::function_call => evaluate_function_call(pairs, pratt, storage),
+                //Rule::struct_call => evaluate_struct_call(primary, &storage),
                 Rule::print_line => {
-                    let value = parse_expr(primary.into_inner(), pratt, storage)?;
+                    let value = parse_expr(&mut primary.into_inner(), pratt, storage)?;
                     if let Some(value) = &value {
                         println!("{:?}", value);
                     };
@@ -162,13 +183,13 @@ fn parse_expr(
                     let mut pairs = primary.into_inner();
                     let name = pairs.next().unwrap().as_str();
                     let expr = pairs.next().unwrap();
-                    let value = parse_expr(expr.into_inner(), pratt, storage)?;
+                    let value = parse_expr(&mut expr.into_inner(), pratt, storage)?;
                     if let Some(value) = &value {
                         storage.insert(name.to_string(), value.clone())?;
                     };
                     Ok(value)
                 }
-                _ => parse_expr(primary.into_inner(), pratt, storage), // For any other rule, return None
+                _ => parse_expr(&mut primary.into_inner(), pratt, storage), // For any other rule, return None
             }
         })
         .map_prefix(|op, rhs| {
@@ -215,7 +236,7 @@ fn parse_expr(
                 })
             })
         })
-        .parse(pairs)
+        .parse(pairs_clone)
 }
 
 fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErrors> {
@@ -247,6 +268,86 @@ fn evaluate_identifier(
 ) -> Result<Option<Value>, NadirParserErrors> {
     Ok(Some(storage.get(primary.as_str())?))
 }
+
+fn evaluate_function_call(
+    pairs: &mut Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+    storage: &mut Storage,
+) -> Result<Option<Value>, NadirParserErrors> {
+    // Extract the function_call pair
+    let function_call_pair = pairs
+        .next()
+        .ok_or_else(|| NadirParserErrors::MissingFunctionName)?;
+
+    // Ensure the pair is indeed a function_call
+    if function_call_pair.as_rule() != Rule::function_call {
+        return Err(NadirParserErrors::ExpectedFunctionCall(
+            function_call_pair.as_str().to_string(),
+        ));
+    }
+
+    // Iterate over the inner pairs to find identifier and function_arguments
+    let mut inner_pairs = function_call_pair.into_inner();
+    let fn_name_pair = inner_pairs
+        .next()
+        .ok_or_else(|| NadirParserErrors::MissingFunctionName)?;
+    if fn_name_pair.as_rule() != Rule::identifier {
+        return Err(NadirParserErrors::ExpectedIdentifier(
+            fn_name_pair.as_str().to_string(),
+        ));
+    }
+    let fn_name = fn_name_pair.as_str();
+
+    // Extract the function arguments
+    let args_pair = inner_pairs
+        .next()
+        .ok_or_else(|| NadirParserErrors::MissingFunctionArguments)?;
+    if args_pair.as_rule() != Rule::function_arguments {
+        return Err(NadirParserErrors::ExpectedFunctionArguments(
+            args_pair.as_str().to_string(),
+        ));
+    }
+
+    // Process each argument
+    let inner = args_pair.into_inner();
+    let mut args = Vec::new();
+    for arg in inner {
+        let arg_clone = arg.clone();
+        let value = parse_expr(&mut arg_clone.into_inner(), pratt, storage)?
+            .ok_or_else(|| NadirParserErrors::ArgumentValueIsNone(arg.as_str().to_string()))?;
+        args.push(value);
+    }
+
+    // Match the function name and evaluate
+    match fn_name {
+        "quat" => {
+            if args.len() != 4 {
+                return Err(NadirParserErrors::NumberOfArgs(
+                    fn_name.to_string(),
+                    "4".to_string(),
+                    args.len().to_string(),
+                ));
+            }
+            let mut quat_args = [0.0; 4];
+            for (i, arg) in args.iter().enumerate() {
+                quat_args[i] = arg.as_f64()?;
+            }
+            Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
+                quat_args[0],
+                quat_args[1],
+                quat_args[2],
+                quat_args[3],
+            )))))
+        }
+        _ => Err(NadirParserErrors::FunctionNotFound(fn_name.to_string())),
+    }
+}
+
+// fn evaluate_struct_call(
+//     primary: Pair<Rule>,
+//     storage: &Storage,
+// ) -> Result<Option<Value>, NadirParserErrors> {
+// }
 
 #[derive(Helper, Completer, Hinter, Validator)]
 struct MyHelper {

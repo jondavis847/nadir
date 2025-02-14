@@ -1,11 +1,23 @@
 use nalgebra::{DMatrix, DVector};
+use rotations::{
+    //euler_angles::{EulerAngles, EulerSequence},
+    quaternion::{Quaternion, UnitQuaternion},
+    //rotation_matrix::RotationMatrix,
+};
+
 use std::f64::{INFINITY, NAN};
 use thiserror::Error;
+
+fn label(s: &str) -> String {
+    ansi_term::Colour::Fixed(234).paint(s).to_string()
+}
 
 #[derive(Debug, Error)]
 pub enum ValueErrors {
     #[error("cannot add type {1} to {0}")]
     CannotAddTypes(String, String),
+    #[error("cannot convert type {0} to f64")]
+    CannotConvertToF64(String),
     #[error("cannot divide type {1} to {0}")]
     CannotDivideTypes(String, String),
     #[error("cannot multiply type {1} to {0}")]
@@ -33,16 +45,19 @@ pub enum Value {
     i64(i64),
     DVector(Box<DVector<f64>>),
     DMatrix(Box<DMatrix<f64>>),
+    Quaternion(Box<Quaternion>),
+    UnitQuaternion(Box<UnitQuaternion>),
     //String(Box<String>),
 }
 
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::f64(v) => writeln!(f, "\x1b[90mf64\x1b[0m {}", v),
-            Value::i64(v) => writeln!(f, "\x1b[90mi64\x1b[0m {}", v),
+            Value::f64(v) => writeln!(f, "{} {}", label("f64"), v),
+            Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::DVector(v) => {
-                writeln!(f, "\x1b[90mVector<f64>\x1b[0m [")?;
+                writeln!(f, "{}", label(&format!("[f64;{}]", v.len())))?;
+                writeln!(f, "[")?;
                 for e in v.iter() {
                     writeln!(f, "     {}", e)?;
                 }
@@ -51,15 +66,28 @@ impl std::fmt::Debug for Value {
             Value::DMatrix(m) => {
                 writeln!(
                     f,
-                    "\x1b[90mMatrix<f64>\x1b[0m ({}x{})",
-                    m.nrows(),
-                    m.ncols()
+                    "{} [",
+                    label(&format!("[f64;{}x{}]", m.nrows(), m.ncols()))
                 )?;
                 writeln!(f, "[")?;
                 for row in m.row_iter() {
                     writeln!(f, "  {:?}", row)?;
                 }
                 writeln!(f, "]")
+            }
+            Value::Quaternion(q) => {
+                writeln!(f, "{}", label("Quaternion"))?;
+                writeln!(f, "     {} {}", label("x"), q.x)?;
+                writeln!(f, "     {} {}", label("y"), q.y)?;
+                writeln!(f, "     {} {}", label("z"), q.z)?;
+                writeln!(f, "     {} {}", label("w"), q.w)
+            }
+            Value::UnitQuaternion(q) => {
+                writeln!(f, "{}", label("UnitQuaternion"))?;
+                writeln!(f, "     {} {}", label("x"), q.0.x)?;
+                writeln!(f, "     {} {}", label("y"), q.0.y)?;
+                writeln!(f, "     {} {}", label("z"), q.0.z)?;
+                writeln!(f, "     {} {}", label("w"), q.0.w)
             } //Value::String(s) => writeln!(f, "\x1b[90mString\x1b[0m {}", s),
         }
     }
@@ -78,9 +106,21 @@ impl Value {
                 let rows = v.nrows();
                 let cols = v.ncols();
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
-            } //Value::String(_) => String::from("String"),
+            }
+            Value::Quaternion(_) => String::from("Quaternion"),
+            Value::UnitQuaternion(_) => String::from("UnitQuaternion"),
+            //Value::String(_) => String::from("String"),
         }
     }
+
+    pub fn as_f64(&self) -> Result<f64, ValueErrors> {
+        match self {
+            Value::f64(v) => Ok(*v),
+            Value::i64(v) => Ok(*v as f64),
+            _ => Err(ValueErrors::CannotConvertToF64(self.as_str())),
+        }
+    }
+
     pub fn try_add(&self, other: &Value) -> Result<Value, ValueErrors> {
         match (self, other) {
             (Value::f64(a), Value::f64(b)) => Ok(Value::f64(a + b)),
@@ -169,6 +209,18 @@ impl Value {
             }
             (Value::DMatrix(a), Value::DMatrix(b)) => {
                 Ok(Value::DMatrix(Box::new(*a.clone() * *b.clone())))
+            }
+            (Value::Quaternion(q1), Value::Quaternion(q2)) => {
+                Ok(Value::Quaternion(Box::new(**q1 * **q2)))
+            }
+            (Value::UnitQuaternion(q1), Value::UnitQuaternion(q2)) => {
+                Ok(Value::UnitQuaternion(Box::new(**q1 * **q2)))
+            }
+            (Value::UnitQuaternion(q1), Value::Quaternion(q2)) => {
+                Ok(Value::Quaternion(Box::new(q1.0 * **q2)))
+            }
+            (Value::Quaternion(q1), Value::UnitQuaternion(q2)) => {
+                Ok(Value::Quaternion(Box::new(**q1 * q2.0)))
             }
             _ => Err(ValueErrors::CannotMultiplyTypes(
                 other.as_str(),
@@ -260,6 +312,8 @@ impl Value {
             Value::i64(v) => Ok(Value::i64(-v)),
             Value::DVector(v) => Ok(Value::DVector(Box::new(-*v.clone()))),
             Value::DMatrix(v) => Ok(Value::DMatrix(Box::new(-*v.clone()))),
+            Value::Quaternion(v) => Ok(Value::Quaternion(Box::new(-(**v)))),
+            Value::UnitQuaternion(v) => Ok(Value::UnitQuaternion(Box::new(-(**v)))),
             //_ => Err(ValueErrors::CannotNegType(self.as_str())),
         }
     }
