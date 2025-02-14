@@ -13,8 +13,8 @@ pub enum StorageError {
 pub struct Storage(HashMap<String, Value>);
 
 impl Storage {
-    pub fn insert(&mut self, name: String, x: &dyn CloneAny) -> Result<(), StorageError> {
-        self.0.insert(name, Value::new(x.clone_any()));
+    pub fn insert(&mut self, name: String, value: Value) -> Result<(), StorageError> {
+        self.0.insert(name, value);
         Ok(())
     }
 

@@ -47,36 +47,50 @@ use crate::NadirParserErrors;
 pub enum ValueErrors {
     #[error("cannot add type {1} to {0}")]
     CannotAddTypes(String, String),
-    #[error("cannot promote types {0} and {1}")]
-    CannotPromoteTypes(String, String),
+    #[error("cannot take negative of type {0}")]
+    CannotNegType(String),
 }
 
+#[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum Value {
-    f32(f32),
     f64(f64),
-    i32(i32),
     i64(i64),
-    u32(u32),
-    u64(u64),
-    Vector3f64(Box<Vector3<f64>>),
-    Matrix3f64(Box<Matrix3<f64>>),
     DVector(Box<DVector<f64>>),
     DMatrix(Box<DMatrix<f64>>),
     String(Box<String>),
 }
 
+impl std::fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::f64(v) => writeln!(f, "f64: {}", v),
+            Value::i64(v) => writeln!(f, "i64: {}", v),
+            Value::DVector(v) => {
+                writeln!(f, "Vector<f64>: [");
+                for e in v.iter() {
+                    writeln!(f, "     {}", e);
+                }
+                writeln!(f, "]")
+            }
+            Value::DMatrix(m) => {
+                writeln!(f, "Matrix<f64>: ({}x{})", m.nrows(), m.ncols())?;
+                writeln!(f, "[")?;
+                for row in m.row_iter() {
+                    writeln!(f, "  {:?}", row)?;
+                }
+                writeln!(f, "]")
+            }
+            Value::String(s) => writeln!(f, "String: {}", s),
+        }
+    }
+}
+
 impl Value {
     pub fn as_str(&self) -> String {
         match self {
-            Value::f32(_) => String::from("f32"),
             Value::f64(_) => String::from("f64"),
-            Value::i32(_) => String::from("i32"),
             Value::i64(_) => String::from("i64"),
-            Value::u32(_) => String::from("u32"),
-            Value::u64(_) => String::from("u64"),
-            Value::Vector3f64(_) => String::from("Vector<f64,3>"),
-            Value::Matrix3f64(_) => String::from("Matrix<f64,3,3>"),
             Value::DVector(v) => {
                 let length = v.len();
                 String::from(format!("Vector<f64,{}>", length))
@@ -84,49 +98,47 @@ impl Value {
             Value::DMatrix(v) => {
                 let rows = v.nrows();
                 let cols = v.ncols();
-                String::from(format!("Vector<f64,{},{}>", rows, cols))
+                String::from(format!("Matrix<f64,{},{}>", rows, cols))
             }
             Value::String(_) => String::from("String"),
         }
     }
     pub fn try_add(&self, other: &Value) -> Result<Value, ValueErrors> {
-      match try_promote(self, other) {
-        Ok(lhs,rhs) => {
-
-        }
-        Err(e) => match e {
-            ValueErrors::CannotPromoteTypes(, )
-        }
-      }
-
+        match (self, other) {
+            (Value::f64(a), Value::f64(b)) => Ok(Value::f64(a + b)),
+            (Value::i64(a), Value::f64(b)) => Ok(Value::f64(*a as f64 + b)),
+            (Value::f64(a), Value::i64(b)) => Ok(Value::f64(a + *b as f64)),
+            (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a + b)),
+            (Value::f64(a), Value::DVector(v)) => Ok(Value::DVector(Box::new(v.add_scalar(*a)))),
+            (Value::DVector(v), Value::f64(a)) => Ok(Value::DVector(Box::new(v.add_scalar(*a)))),
+            (Value::DMatrix(m), Value::f64(f)) => Ok(Value::DMatrix(Box::new(m.add_scalar(*f)))),
+            (Value::f64(f), Value::DMatrix(m)) => Ok(Value::DMatrix(Box::new(m.add_scalar(*f)))),
+            (Value::i64(a), Value::DVector(v)) => {
+                Ok(Value::DVector(Box::new(v.add_scalar(*a as f64))))
+            }
+            (Value::DVector(v), Value::i64(a)) => {
+                Ok(Value::DVector(Box::new(v.add_scalar(*a as f64))))
+            }
+            (Value::DMatrix(m), Value::i64(f)) => {
+                Ok(Value::DMatrix(Box::new(m.add_scalar(*f as f64))))
+            }
+            (Value::i64(f), Value::DMatrix(m)) => {
+                Ok(Value::DMatrix(Box::new(m.add_scalar(*f as f64))))
+            }
+            (Value::String(a), Value::String(b)) => {
+                Ok(Value::String(Box::new(String::from(format!("{}{}", a, b)))))
+            }
             _ => Err(ValueErrors::CannotAddTypes(other.as_str(), self.as_str())),
         }
     }
-}
 
-fn try_promote(a: &Value, b: &Value) -> Result<(Value, Value), ValueErrors> {
-    match (a, b) {
-        (Value::f32(a), Value::f32(b)) => Ok((Value::f32(*a), Value::f32(*b))),
-        (Value::f64(a), Value::f32(b)) => Ok((Value::f64(*a), Value::f64(*b as f64))),
-        (Value::f32(a), Value::f64(b)) => Ok((Value::f64(*a as f64), Value::f64(*b))),
-        (Value::f64(a), Value::f64(b)) => Ok((Value::f64(*a), Value::f64(*b))),
-        (Value::i32(a), Value::i32(b)) => Ok((Value::i32(*a), Value::i32(*b))),
-        (Value::i64(a), Value::i32(b)) => Ok((Value::i64(*a), Value::i64(*b as i64))),
-        (Value::i32(a), Value::i64(b)) => Ok((Value::i64(*a as i64), Value::i64(*b))),
-        (Value::i64(a), Value::i64(b)) => Ok((Value::i64(*a), Value::i64(*b))),
-        (Value::u32(a), Value::u32(b)) => Ok((Value::u32(*a), Value::u32(*b))),
-        (Value::u64(a), Value::u32(b)) => Ok((Value::u64(*a), Value::u64(*b as u64))),
-        (Value::u32(a), Value::u64(b)) => Ok((Value::u64(*a as u64), Value::u64(*b))),
-        (Value::u64(a), Value::u64(b)) => Ok((Value::u64(*a), Value::u64(*b))),
-        (Value::f64(a), Value::i32(b)) => Ok((Value::f64(*a), Value::f64(*b as f64))),
-        (Value::f64(a), Value::i64(b)) => Ok((Value::f64(*a), Value::f64(*b as f64))),
-        (Value::f64(a), Value::u32(b)) => Ok((Value::f64(*a), Value::f64(*b as f64))),
-        (Value::f64(a), Value::u64(b)) => Ok((Value::f64(*a), Value::f64(*b as f64))),
-        (Value::f32(a), Value::i32(b)) => Ok((Value::f64(*a as f64), Value::f64(*b as f64))),
-        (Value::f32(a), Value::i64(b)) => Ok((Value::f64(*a as f64), Value::f64(*b as f64))),
-        (Value::f32(a), Value::u32(b)) => Ok((Value::f64(*a as f64), Value::f64(*b as f64))),
-        (Value::f32(a), Value::u64(b)) => Ok((Value::f64(*a as f64), Value::f64(*b as f64))),
-        // Add similar rules for Vector3<f64> and Matrix3<f64> if they have a promotion behavior.
-        _ => Err(ValueErrors::CannotPromoteTypes(a.as_str(), b.as_str())),
+    pub fn try_neg(&self) -> Result<Value, ValueErrors> {
+        match self {
+            Value::f64(v) => Ok(Value::f64(-v)),
+            Value::i64(v) => Ok(Value::i64(-v)),
+            Value::DVector(v) => Ok(Value::DVector(Box::new(-*v.clone()))),
+            Value::DMatrix(v) => Ok(Value::DMatrix(Box::new(-*v.clone()))),
+            _ => Err(ValueErrors::CannotNegType(self.as_str())),
+        }
     }
 }

@@ -13,14 +13,19 @@ mod storage;
 mod value;
 
 use storage::Storage;
-use value::Value;
+use value::{Value, ValueErrors};
 
 #[derive(Parser)]
 #[grammar = "main.pest"] // relative path to your .pest file
 struct NadirParser;
 
 #[derive(Debug, Error)]
-pub enum NadirParserErrors {}
+pub enum NadirParserErrors {
+    #[error("ValueErrors: {0}")]
+    ValueErrors(#[from] ValueErrors),
+    #[error("unexpected operator {0}")]
+    UnexpectedOperator(String),
+}
 
 fn main() {
     // `()` can be used when no completer is required
@@ -126,16 +131,15 @@ fn parse_expr(
         })
         .map_prefix(|op, rhs| {
             rhs.and_then(|rhs_value| {
-                match op.as_rule() {
-                    Rule::neg => {
-                        // Assuming Value::Number and implementing negation
-                        if let Value::Number(n) = rhs_value {
-                            Ok(Some(Value::Number(-n)))
-                        } else {
-                            Err(NadirParserErrors::InvalidOperation)
-                        }
+                if let Some(value) = rhs_value {
+                    match op.as_rule() {
+                        Rule::neg => Ok(Some(value.try_neg()?)),
+                        _ => Err(NadirParserErrors::UnexpectedOperator(String::from(
+                            op.as_str(),
+                        ))),
                     }
-                    _ => Err(NadirParserErrors::UnexpectedOperator),
+                } else {
+                    Ok(None)
                 }
             })
         })
