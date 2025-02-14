@@ -1,48 +1,33 @@
-// Define whitespace
-
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-math_expr       =  { prefix* ~ expression ~ postfix* ~ (infix ~ prefix* ~ expression ~ postfix* )* }
-infix      = _{ add | sub | mul | div }
-add        =  { "+" }
-sub        =  { "-" }
-mul        =  { "*" }
-div        =  { "/" }
-pow    =   { "^" } // Exponentiation
-prefix     = _{ neg }
-neg        =  { "-" }
-postfix    = _{ fac }
-fac        =  { "!" }
+math_expr = { prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)* }
+term = { enclosed | function_call | identifier | number }
 
-// Identifiers and Numbers
+infix = _{ add | sub | mul | div }
+add = { "+" }
+sub = { "-" }
+mul = { "*" }
+div = { "/" }
+pow = { "^" } // Exponentiation
+
+prefix = _{ neg }
+neg = { "-" }
+
+postfix = _{ fac }
+fac = { "!" }
+
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-integer    = @{ "-"? ~ ASCII_DIGIT+ }
-float      = @{ 
-    "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)?
-}
+integer = @{ "-"? ~ ASCII_DIGIT+ }
+float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
 number = { float | integer }
 
-// Value Types
-value = { number | array | matrix }
-array = { "[" ~ WHITESPACE* ~ value ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ value)* ~ WHITESPACE* ~ "]" }
-matrix = { "[" ~ row ~ (";" ~ row)* ~ "]" }
-row = { value ~ (WHITESPACE+ ~ value)* }
+enclosed = { "(" ~ WHITESPACE* ~ math_expr ~ WHITESPACE* ~ ")" }
 
-// Expressions
-expression = { enclosed | function_call | identifier | number}
-enclosed = { "(" ~ WHITESPACE* ~ expression ~ WHITESPACE* ~ ")" }
-
-// Assignments
 assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ math_expr }
 
-// Function Handling
 function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESPACE* ~ ")" }
 function_arguments = { math_expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ math_expr)* }
 
-// Evaluations and Lines
 line = { silent_line* ~ (print_line | silent_line) }
 silent_line = { print_line ~ ";" }
 print_line = { assignment | math_expr }
-
-evaluation = { math_expr }
-variable_retrieval = { identifier }

@@ -80,6 +80,7 @@ reqwest = { version = "0.12.7", features = ["blocking"] }
 ron = "0.8.1"
 rotations = {path = "rotations"} 
 rustyline = {version = "15.0.0", features = ["with-file-history"]}
+rustyline-derive = "0.11.0"
 serde = {version = "1.0.215" , features = ["derive", "rc"]}
 software = {path = "software"} 
 spatial_algebra = {path = "spatial_algebra"} 

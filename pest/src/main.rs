@@ -1,10 +1,15 @@
-use colored::Colorize;
 use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
+use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::validate::Validator;
+use rustyline::{Context, Editor};
+use rustyline_derive::Helper;
+use std::borrow::Cow;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -12,7 +17,7 @@ mod clone_any;
 mod storage;
 mod value;
 
-use storage::Storage;
+use storage::{Storage, StorageErrors};
 use value::{Value, ValueErrors};
 
 #[derive(Parser)]
@@ -21,16 +26,20 @@ struct NadirParser;
 
 #[derive(Debug, Error)]
 pub enum NadirParserErrors {
-    #[error("ValueErrors: {0}")]
-    ValueErrors(#[from] ValueErrors),
+    #[error("invalid number {0}")]
+    InvalidNumber(String),
+    #[error("StorageErrors: {0}")]
+    StorageErrors(#[from] StorageErrors),
     #[error("unexpected operator {0}")]
     UnexpectedOperator(String),
+    #[error("ValueErrors: {0}")]
+    ValueErrors(#[from] ValueErrors),
 }
 
 fn main() {
     // `()` can be used when no completer is required
-    let mut rl = DefaultEditor::new().expect("Failed to create rustyline editor");
-
+    let mut rl = Editor::new().expect("Failed to create rustyline editor");
+    rl.set_helper(Some(MyHelper));
     // Determine the configuration directory
     let history_path = if let Some(mut history_path) = dirs::config_dir() {
         history_path.push("nadir");
@@ -50,7 +59,7 @@ fn main() {
     };
 
     // Custom prompt with bold and colored text
-    let prompt = "nadir> ".bold().cyan().to_string();
+    let prompt = "nadir> ";
 
     // This store holds variables as Box<dyn Any> so we can put any type into it.
     let mut storage = Storage::default();
@@ -84,7 +93,10 @@ fn main() {
                         let parse_result = NadirParser::parse(Rule::line, &line);
                         match parse_result {
                             Ok(pairs) => {
-                                parse_expr(pairs, &pratt, &mut storage);
+                                match parse_expr(pairs, &pratt, &mut storage) {
+                                    Ok(_) => {}
+                                    Err(e) => eprintln!("{e}"),
+                                };
                             }
                             Err(e) => {
                                 eprintln!("Parsing error: {}", e);
@@ -125,62 +137,68 @@ fn parse_expr(
                 Rule::number => evaluate_number(primary),
                 Rule::identifier => evaluate_identifier(primary, &storage),
                 Rule::function_call => unimplemented!("todo"),
-                Rule::expression => parse_expr(primary.into_inner(), pratt, storage),
-                _ => Ok(None), // For any other rule, return None
+                //Rule::expression => parse_expr(primary.into_inner(), pratt, storage),
+                Rule::print_line => {
+                    let value = parse_expr(primary.into_inner(), pratt, storage)?;
+                    if let Some(value) = &value {
+                        println!("{:?}", value);
+                    };
+                    Ok(value)
+                }
+                Rule::assignment => {
+                    let mut pairs = primary.into_inner();
+                    let name = pairs.next().unwrap().as_str();
+                    let expr = pairs.next().unwrap();
+                    let value = parse_expr(expr.into_inner(), pratt, storage)?;
+                    if let Some(value) = &value {
+                        storage.insert(name.to_string(), value.clone())?;
+                    };
+                    Ok(value)
+                }
+                _ => parse_expr(primary.into_inner(), pratt, storage), // For any other rule, return None
             }
         })
         .map_prefix(|op, rhs| {
             rhs.and_then(|rhs_value| {
-                if let Some(value) = rhs_value {
-                    match op.as_rule() {
-                        Rule::neg => Ok(Some(value.try_neg()?)),
-                        _ => Err(NadirParserErrors::UnexpectedOperator(String::from(
-                            op.as_str(),
-                        ))),
-                    }
-                } else {
-                    Ok(None)
-                }
+                rhs_value
+                    .map(|value| match op.as_rule() {
+                        Rule::neg => Ok(value.try_negative()?),
+                        _ => Err(NadirParserErrors::UnexpectedOperator(
+                            op.as_str().to_string(),
+                        )),
+                    })
+                    .transpose()
             })
         })
         .map_postfix(|lhs, op| {
             lhs.and_then(|lhs_value| {
-                match op.as_rule() {
-                    Rule::fac => {
-                        // Assuming Value::Number and implementing factorial
-                        if let Value::Number(n) = lhs_value {
-                            if n >= 0.0 && n.fract() == 0.0 {
-                                let result = (1..=n as u64).product::<u64>() as f64;
-                                Ok(Some(Value::Number(result)))
-                            } else {
-                                Err(NadirParserErrors::InvalidNumber)
-                            }
-                        } else {
-                            Err(NadirParserErrors::InvalidOperation)
-                        }
-                    }
-                    _ => Err(NadirParserErrors::UnexpectedOperator),
-                }
+                lhs_value
+                    .map(|value| match op.as_rule() {
+                        Rule::fac => Ok(value.try_factorial()?),
+                        _ => Err(NadirParserErrors::UnexpectedOperator(
+                            op.as_str().to_string(),
+                        )),
+                    })
+                    .transpose()
             })
         })
         .map_infix(|lhs, op, rhs| {
             lhs.and_then(|lhs_value| {
-                rhs.and_then(|rhs_value| match (lhs_value, rhs_value) {
-                    (Value::Number(lhs_num), Value::Number(rhs_num)) => match op.as_rule() {
-                        Rule::add => Ok(Some(Value::Number(lhs_num + rhs_num))),
-                        Rule::sub => Ok(Some(Value::Number(lhs_num - rhs_num))),
-                        Rule::mul => Ok(Some(Value::Number(lhs_num * rhs_num))),
-                        Rule::div => {
-                            if rhs_num != 0.0 {
-                                Ok(Some(Value::Number(lhs_num / rhs_num)))
-                            } else {
-                                Err(NadirParserErrors::DivisionByZero)
-                            }
-                        }
-                        Rule::pow => Ok(Some(Value::Number(lhs_num.powf(rhs_num)))),
-                        _ => Err(NadirParserErrors::UnexpectedOperator),
-                    },
-                    _ => Err(NadirParserErrors::InvalidOperation),
+                rhs.and_then(|rhs_value| {
+                    lhs_value
+                        .and_then(|lhs| {
+                            rhs_value.map(|rhs| match op.as_rule() {
+                                Rule::add => Ok(lhs.try_add(&rhs)?),
+                                Rule::sub => Ok(lhs.try_sub(&rhs)?),
+                                Rule::mul => Ok(lhs.try_mul(&rhs)?),
+                                Rule::div => Ok(lhs.try_div(&rhs)?),
+                                Rule::pow => Ok(lhs.try_pow(&rhs)?),
+                                _ => Err(NadirParserErrors::UnexpectedOperator(
+                                    op.as_str().to_string(),
+                                )),
+                            })
+                        })
+                        .transpose()
                 })
             })
         })
@@ -191,21 +209,22 @@ fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErro
     let inner_pair = primary
         .into_inner()
         .next()
-        .ok_or(NadirParserErrors::InvalidNumber)?;
+        .ok_or_else(|| NadirParserErrors::InvalidNumber("Empty number".to_string()))?;
+
+    let number_str = inner_pair.as_str().to_string();
+
     match inner_pair.as_rule() {
         Rule::float => inner_pair
             .as_str()
             .parse::<f64>()
-            .map(Value::new)
-            .map(Some)
-            .map_err(|_| NadirParserErrors::InvalidNumber),
+            .map(|f| Some(Value::f64(f)))
+            .map_err(|_| NadirParserErrors::InvalidNumber(number_str)),
         Rule::integer => inner_pair
             .as_str()
             .parse::<i64>()
-            .map(Value::new)
-            .map(Some)
-            .map_err(|_| NadirParserErrors::InvalidNumber),
-        _ => Err(NadirParserErrors::InvalidNumber),
+            .map(|i| Some(Value::i64(i)))
+            .map_err(|_| NadirParserErrors::InvalidNumber(number_str.clone())),
+        _ => Err(NadirParserErrors::InvalidNumber(number_str)),
     }
 }
 
@@ -215,3 +234,47 @@ fn evaluate_identifier(
 ) -> Result<Option<Value>, NadirParserErrors> {
     Ok(Some(storage.get(primary.as_str())?))
 }
+
+#[derive(Helper)]
+struct MyHelper;
+
+impl Highlighter for MyHelper {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        default: bool,
+    ) -> Cow<'b, str> {
+        if default {
+            Cow::Borrowed(prompt)
+        } else {
+            // Apply cyan color to the prompt
+            Cow::Owned(format!("\x1b[36m{}\x1b[0m", prompt))
+        }
+    }
+
+    fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
+        Cow::Owned(format!("\x1b[1;34m{}\x1b[0m", hint))
+    }
+
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        Cow::Borrowed(line)
+    }
+
+    // fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
+    //     false
+    // }
+}
+
+impl Hinter for MyHelper {
+    type Hint = String;
+
+    fn hint(&self, _line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
+        None
+    }
+}
+
+impl Completer for MyHelper {
+    type Candidate = String;
+}
+
+impl Validator for MyHelper {}

@@ -12,6 +12,7 @@ nalgebra.workspace = true
 pest.workspace = true
 pest_derive.workspace = true
 rustyline.workspace = true
+rustyline-derive.workspace = true
 thiserror.workspace = true
 
 [features]
