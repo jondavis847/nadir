@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 colored.workspace = true
 dirs.workspace = true
+nalgebra.workspace = true
 pest.workspace = true
 pest_derive.workspace = true
 rustyline.workspace = true
