@@ -203,6 +203,10 @@ impl UnitQuaternion {
     pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
         Self(Quaternion::new(x, y, z, w).normalize())
     }
+
+    pub fn rand() -> Self {
+        Self(Quaternion::rand().normalize())
+    }
 }
 
 impl From<&Quaternion> for UnitQuaternion {

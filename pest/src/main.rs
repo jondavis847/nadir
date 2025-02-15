@@ -1,23 +1,20 @@
+use ansi_term::Colour;
 use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
 use pest_derive::Parser;
-use rotations::prelude::Quaternion;
-use rustyline::completion::FilenameCompleter;
+use rotations::prelude::{Quaternion, UnitQuaternion};
 use rustyline::error::ReadlineError;
-use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
-use rustyline::hint::HistoryHinter;
-use rustyline::validate::MatchingBracketValidator;
 use rustyline::{CompletionType, Config, EditMode, Editor};
-use rustyline_derive::{Completer, Helper, Hinter, Validator};
-use std::borrow::Cow::{self, Borrowed, Owned};
-use std::fmt::Debug;
-use thiserror::Error;
+use std::cell::RefCell;
+use std::fmt::{self, Debug};
+use std::rc::Rc;
 
-mod clone_any;
+mod helper;
 mod storage;
 mod value;
 
+use helper::NadirHelper;
 use storage::{Storage, StorageErrors};
 use value::{Value, ValueErrors};
 
@@ -25,49 +22,87 @@ use value::{Value, ValueErrors};
 #[grammar = "main.pest"] // relative path to your .pest file
 struct NadirParser;
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum NadirParserErrors {
-    #[error("argument value was None  {0}")]
     ArgumentValueIsNone(String),
-    #[error("pest parsing pairs were empty")]
     EmptyPairs(String),
-    #[error("expected rule was function_arguments but got {0}")]
     ExpectedFunctionArguments(String),
-    #[error("expected rule was function_call but got {0}")]
     ExpectedFunctionCall(String),
-    #[error("expected rule was identifier but got {0}")]
     ExpectedIdentifier(String),
-    #[error("function {0} not found")]
     FunctionNotFound(String),
-    #[error("invalid number {0}")]
     InvalidNumber(String),
-    #[error("was not able to parse function arguments")]
     MissingFunctionArguments,
-    #[error("was not able to parse a function name")]
     MissingFunctionName,
-    #[error("incorrect number of args to function {0}. expected {1}, got {2}")]
     NumberOfArgs(String, String, String),
-    #[error("StorageErrors: {0}")]
-    StorageErrors(#[from] StorageErrors),
-    #[error("unexpected operator {0}")]
+    StorageErrors(StorageErrors),
     UnexpectedOperator(String),
-    #[error("ValueErrors: {0}")]
-    ValueErrors(#[from] ValueErrors),
+    ValueErrors(ValueErrors),
+}
+
+impl From<StorageErrors> for NadirParserErrors {
+    fn from(value: StorageErrors) -> Self {
+        Self::StorageErrors(value)
+    }
+}
+
+impl From<ValueErrors> for NadirParserErrors {
+    fn from(value: ValueErrors) -> Self {
+        Self::ValueErrors(value)
+    }
+}
+
+impl fmt::Display for NadirParserErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let error_message = match self {
+            NadirParserErrors::ArgumentValueIsNone(arg) => {
+                format!("argument value was None: {}", arg)
+            }
+            NadirParserErrors::EmptyPairs(arg) => format!("pest parsing pairs were empty: {}", arg),
+            NadirParserErrors::ExpectedFunctionArguments(arg) => {
+                format!("expected rule was function_arguments but got: {}", arg)
+            }
+            NadirParserErrors::ExpectedFunctionCall(arg) => {
+                format!("expected rule was function_call but got: {}", arg)
+            }
+            NadirParserErrors::ExpectedIdentifier(arg) => {
+                format!("expected rule was identifier but got: {}", arg)
+            }
+            NadirParserErrors::FunctionNotFound(func) => format!("function not found: {}", func),
+            NadirParserErrors::InvalidNumber(num) => format!("invalid number: {}", num),
+            NadirParserErrors::MissingFunctionArguments => {
+                "was not able to parse function arguments".to_string()
+            }
+            NadirParserErrors::MissingFunctionName => {
+                "was not able to parse a function name".to_string()
+            }
+            NadirParserErrors::NumberOfArgs(func, expected, got) => {
+                format!(
+                    "incorrect number of args to function '{}'. expected {}, got {}",
+                    func, expected, got
+                )
+            }
+            NadirParserErrors::StorageErrors(err) => format!("{}", err),
+            NadirParserErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
+            NadirParserErrors::ValueErrors(err) => format!("{}", err),
+        };
+
+        // Wrap the error message in red
+        let error_message = Colour::Red.paint(error_message);
+        write!(f, "{}", error_message)
+    }
 }
 
 fn main() {
+    // This store holds variables as Box<dyn Any> so we can put any type into it.
+    let mut storage = Rc::new(RefCell::new(Storage::default()));
+
     let config = Config::builder()
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .edit_mode(EditMode::Emacs)
         .build();
-    let h = MyHelper {
-        completer: FilenameCompleter::new(),
-        highlighter: MatchingBracketHighlighter::new(),
-        hinter: HistoryHinter::new(),
-        colored_prompt: "".to_owned(),
-        validator: MatchingBracketValidator::new(),
-    };
+    let h = NadirHelper::new(storage.clone());
+
     // `()` can be used when no completer is required
     let mut rl = Editor::with_config(config).expect("Failed to create rustyline editor");
     rl.set_helper(Some(h));
@@ -88,9 +123,6 @@ fn main() {
     } else {
         None
     };
-
-    // This store holds variables as Box<dyn Any> so we can put any type into it.
-    let mut storage = Storage::default();
 
     let pratt = PrattParser::new()
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::sub, Assoc::Left))
@@ -115,6 +147,7 @@ fn main() {
                 match line.trim() {
                     "exit" => break,
                     "vars" => {
+                        let storage = storage.borrow();
                         let keys: Vec<&String> = storage.get_names();
                         for name in keys {
                             println!("{}", name);
@@ -161,17 +194,15 @@ fn main() {
 fn parse_expr(
     pairs: &mut Pairs<Rule>,
     pratt: &PrattParser<Rule>,
-    storage: &mut Storage,
+    storage: &mut Rc<RefCell<Storage>>,
 ) -> Result<Option<Value>, NadirParserErrors> {
-    let pairs_clone = pairs.clone();
-
     pratt
         .map_primary(|primary| {
             match primary.as_rule() {
                 Rule::number => evaluate_number(primary),
-                Rule::identifier => evaluate_identifier(primary, &storage),
-                Rule::function_call => evaluate_function_call(pairs, pratt, storage),
-                //Rule::struct_call => evaluate_struct_call(primary, &storage),
+                Rule::identifier => evaluate_identifier(primary, storage),
+                Rule::function_call => evaluate_function_call(primary, pratt, storage, None),
+                Rule::struct_call => evaluate_struct_call(primary, pratt, storage),
                 Rule::print_line => {
                     let value = parse_expr(&mut primary.into_inner(), pratt, storage)?;
                     if let Some(value) = &value {
@@ -185,6 +216,7 @@ fn parse_expr(
                     let expr = pairs.next().unwrap();
                     let value = parse_expr(&mut expr.into_inner(), pratt, storage)?;
                     if let Some(value) = &value {
+                        let mut storage = storage.borrow_mut();
                         storage.insert(name.to_string(), value.clone())?;
                     };
                     Ok(value)
@@ -236,7 +268,7 @@ fn parse_expr(
                 })
             })
         })
-        .parse(pairs_clone)
+        .parse(pairs)
 }
 
 fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErrors> {
@@ -264,125 +296,143 @@ fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErro
 
 fn evaluate_identifier(
     primary: Pair<Rule>,
-    storage: &Storage,
+    storage: &Rc<RefCell<Storage>>,
 ) -> Result<Option<Value>, NadirParserErrors> {
+    let storage = storage.borrow();
     Ok(Some(storage.get(primary.as_str())?))
 }
 
 fn evaluate_function_call(
-    pairs: &mut Pairs<Rule>,
+    pair: Pair<Rule>,
     pratt: &PrattParser<Rule>,
-    storage: &mut Storage,
+    storage: &mut Rc<RefCell<Storage>>,
+    struct_name: Option<&str>,
 ) -> Result<Option<Value>, NadirParserErrors> {
-    // Extract the function_call pair
-    let function_call_pair = pairs
-        .next()
-        .ok_or_else(|| NadirParserErrors::MissingFunctionName)?;
-
-    // Ensure the pair is indeed a function_call
-    if function_call_pair.as_rule() != Rule::function_call {
-        return Err(NadirParserErrors::ExpectedFunctionCall(
-            function_call_pair.as_str().to_string(),
-        ));
-    }
-
-    // Iterate over the inner pairs to find identifier and function_arguments
-    let mut inner_pairs = function_call_pair.into_inner();
-    let fn_name_pair = inner_pairs
-        .next()
-        .ok_or_else(|| NadirParserErrors::MissingFunctionName)?;
-    if fn_name_pair.as_rule() != Rule::identifier {
-        return Err(NadirParserErrors::ExpectedIdentifier(
-            fn_name_pair.as_str().to_string(),
-        ));
-    }
+    let mut pairs = pair.into_inner();
+    let fn_name_pair = pairs.next().unwrap();
     let fn_name = fn_name_pair.as_str();
 
-    // Extract the function arguments
-    let args_pair = inner_pairs
-        .next()
-        .ok_or_else(|| NadirParserErrors::MissingFunctionArguments)?;
-    if args_pair.as_rule() != Rule::function_arguments {
-        return Err(NadirParserErrors::ExpectedFunctionArguments(
-            args_pair.as_str().to_string(),
-        ));
-    }
+    let args_pair = pairs.next();
 
     // Process each argument
-    let inner = args_pair.into_inner();
-    let mut args = Vec::new();
-    for arg in inner {
-        let arg_clone = arg.clone();
-        let value = parse_expr(&mut arg_clone.into_inner(), pratt, storage)?
-            .ok_or_else(|| NadirParserErrors::ArgumentValueIsNone(arg.as_str().to_string()))?;
-        args.push(value);
-    }
+    let args = if let Some(args_pair) = args_pair {
+        let inner = args_pair.into_inner();
+        let mut args = Vec::new();
+        for arg in inner {
+            let arg_clone = arg.clone();
+            let value = parse_expr(&mut arg_clone.into_inner(), pratt, storage)?
+                .ok_or_else(|| NadirParserErrors::ArgumentValueIsNone(arg.as_str().to_string()))?;
+            args.push(value);
+        }
+        args
+    } else {
+        Vec::new()
+    };
 
     // Match the function name and evaluate
-    match fn_name {
-        "quat" => {
-            if args.len() != 4 {
-                return Err(NadirParserErrors::NumberOfArgs(
-                    fn_name.to_string(),
-                    "4".to_string(),
-                    args.len().to_string(),
-                ));
+    if let Some(struct_name) = struct_name {
+        match (struct_name, fn_name) {
+            ("Quaternion", "new") => {
+                if args.len() != 4 {
+                    return Err(NadirParserErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "4".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+                let mut quat_args = [0.0; 4];
+                for (i, arg) in args.iter().enumerate() {
+                    quat_args[i] = arg.as_f64()?;
+                }
+                Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
+                    quat_args[0],
+                    quat_args[1],
+                    quat_args[2],
+                    quat_args[3],
+                )))))
             }
-            let mut quat_args = [0.0; 4];
-            for (i, arg) in args.iter().enumerate() {
-                quat_args[i] = arg.as_f64()?;
+            ("Quaternion", "rand") => {
+                if args.len() != 0 {
+                    return Err(NadirParserErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "0".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+
+                Ok(Some(Value::Quaternion(Box::new(Quaternion::rand()))))
             }
-            Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
-                quat_args[0],
-                quat_args[1],
-                quat_args[2],
-                quat_args[3],
-            )))))
+            ("UnitQuaternion", "new") => {
+                if args.len() != 4 {
+                    return Err(NadirParserErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "4".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+                let mut quat_args = [0.0; 4];
+                for (i, arg) in args.iter().enumerate() {
+                    quat_args[i] = arg.as_f64()?;
+                }
+                Ok(Some(Value::UnitQuaternion(Box::new(UnitQuaternion::new(
+                    quat_args[0],
+                    quat_args[1],
+                    quat_args[2],
+                    quat_args[3],
+                )))))
+            }
+            ("UnitQuaternion", "rand") => {
+                if args.len() != 0 {
+                    return Err(NadirParserErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "0".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+
+                Ok(Some(Value::UnitQuaternion(
+                    Box::new(UnitQuaternion::rand()),
+                )))
+            }
+            _ => Err(NadirParserErrors::FunctionNotFound(format!(
+                "{}::{}",
+                struct_name, fn_name
+            ))),
         }
-        _ => Err(NadirParserErrors::FunctionNotFound(fn_name.to_string())),
+    } else {
+        match fn_name {
+            "quat" => {
+                if args.len() != 4 {
+                    return Err(NadirParserErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "4".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+                let mut quat_args = [0.0; 4];
+                for (i, arg) in args.iter().enumerate() {
+                    quat_args[i] = arg.as_f64()?;
+                }
+                Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
+                    quat_args[0],
+                    quat_args[1],
+                    quat_args[2],
+                    quat_args[3],
+                )))))
+            }
+            _ => Err(NadirParserErrors::FunctionNotFound(fn_name.to_string())),
+        }
     }
 }
-
-// fn evaluate_struct_call(
-//     primary: Pair<Rule>,
-//     storage: &Storage,
-// ) -> Result<Option<Value>, NadirParserErrors> {
-// }
-
-#[derive(Helper, Completer, Hinter, Validator)]
-struct MyHelper {
-    #[rustyline(Completer)]
-    completer: FilenameCompleter,
-    highlighter: MatchingBracketHighlighter,
-    #[rustyline(Validator)]
-    validator: MatchingBracketValidator,
-    #[rustyline(Hinter)]
-    hinter: HistoryHinter,
-    colored_prompt: String,
-}
-
-impl Highlighter for MyHelper {
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
-        &'s self,
-        prompt: &'p str,
-        default: bool,
-    ) -> Cow<'b, str> {
-        if default {
-            Borrowed(&self.colored_prompt)
-        } else {
-            Borrowed(prompt)
-        }
-    }
-
-    fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        Owned("\x1b[1m".to_owned() + hint + "\x1b[m")
-    }
-
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
-        self.highlighter.highlight(line, pos)
-    }
-
-    fn highlight_char(&self, line: &str, pos: usize, kind: CmdKind) -> bool {
-        self.highlighter.highlight_char(line, pos, kind)
-    }
+fn evaluate_struct_call(
+    pair: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+    storage: &mut Rc<RefCell<Storage>>,
+) -> Result<Option<Value>, NadirParserErrors> {
+    // Extract the function_call pair
+    let mut pairs = pair.into_inner();
+    let struct_name_pair = pairs.next().unwrap();
+    let struct_name = struct_name_pair.as_str();
+    let fn_call_pair = pairs.next().unwrap();
+    evaluate_function_call(fn_call_pair, pratt, storage, Some(struct_name))
 }

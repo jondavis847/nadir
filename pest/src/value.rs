@@ -9,7 +9,7 @@ use std::f64::{INFINITY, NAN};
 use thiserror::Error;
 
 fn label(s: &str) -> String {
-    ansi_term::Colour::Fixed(234).paint(s).to_string()
+    ansi_term::Colour::Fixed(238).paint(s).to_string()
 }
 
 #[derive(Debug, Error)]
@@ -18,15 +18,15 @@ pub enum ValueErrors {
     CannotAddTypes(String, String),
     #[error("cannot convert type {0} to f64")]
     CannotConvertToF64(String),
-    #[error("cannot divide type {1} to {0}")]
+    #[error("cannot divide type {1} by {0}")]
     CannotDivideTypes(String, String),
-    #[error("cannot multiply type {1} to {0}")]
+    #[error("cannot multiply type {1} by {0}")]
     CannotMultiplyTypes(String, String),
     #[error("cannot calculate negative of type {0}")]
     CannotNegType(String),
     #[error("cannot calculate factorial of type {0}")]
     CannotFactorialType(String),
-    #[error("cannot take exponent of type {0}")]
+    #[error("cannot calculate exponent of type {0}")]
     CannotPowType(String),
     #[error("cannot add type {1} to {0}")]
     CannotSubtractTypes(String, String),
@@ -77,17 +77,17 @@ impl std::fmt::Debug for Value {
             }
             Value::Quaternion(q) => {
                 writeln!(f, "{}", label("Quaternion"))?;
-                writeln!(f, "     {} {}", label("x"), q.x)?;
-                writeln!(f, "     {} {}", label("y"), q.y)?;
-                writeln!(f, "     {} {}", label("z"), q.z)?;
-                writeln!(f, "     {} {}", label("w"), q.w)
+                writeln!(f, "{} {}", label("x"), q.x)?;
+                writeln!(f, "{} {}", label("y"), q.y)?;
+                writeln!(f, "{} {}", label("z"), q.z)?;
+                writeln!(f, "{} {}", label("w"), q.w)
             }
             Value::UnitQuaternion(q) => {
                 writeln!(f, "{}", label("UnitQuaternion"))?;
-                writeln!(f, "     {} {}", label("x"), q.0.x)?;
-                writeln!(f, "     {} {}", label("y"), q.0.y)?;
-                writeln!(f, "     {} {}", label("z"), q.0.z)?;
-                writeln!(f, "     {} {}", label("w"), q.0.w)
+                writeln!(f, "{} {}", label("x"), q.0.x)?;
+                writeln!(f, "{} {}", label("y"), q.0.y)?;
+                writeln!(f, "{} {}", label("z"), q.0.z)?;
+                writeln!(f, "{} {}", label("w"), q.0.w)
             } //Value::String(s) => writeln!(f, "\x1b[90mString\x1b[0m {}", s),
         }
     }
