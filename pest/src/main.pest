@@ -1,7 +1,7 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-math_expr = { prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)* }
-term = { enclosed | struct_call | function_call | identifier | number }
+math_expr = { (prefix+ ~ term ~ postfix*) | (prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)+) }
+term = { enclosed | struct_call | instance_call | instance_field | function_call | vector | matrix | identifier | number }
 
 infix = _{ add | sub | mul | div }
 add = { "+" }
@@ -29,7 +29,16 @@ function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESP
 function_arguments = { math_expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ math_expr)* }
 
 struct_call = { identifier ~ "::" ~ function_call}
+instance_field = { identifier ~ "." ~ identifier }
+instance_call = { identifier ~ "." ~ function_call}
 
 line = { silent_line* ~ (print_line | silent_line) }
 silent_line = { print_line ~ ";" }
-print_line = { assignment | math_expr }
+print_line = { assignment | math_expr | term | identifier | number }
+
+element = { math_expr | term }
+comma_separated = { element ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ element)* }
+space_separated = { element ~ (WHITESPACE+ ~ element)* }
+vector = { "[" ~ WHITESPACE* ~ (comma_separated ~ WHITESPACE*)? ~ "]" }
+matrix_row = {";" ~ WHITESPACE* ~ space_separated ~ WHITESPACE*}
+matrix = { "[" ~ WHITESPACE* ~ (space_separated ~ WHITESPACE* ~ (matrix_row)*)? ~ "]" }

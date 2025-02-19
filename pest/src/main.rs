@@ -1,4 +1,5 @@
 use ansi_term::Colour;
+use nalgebra::{DMatrix, DVector};
 use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
@@ -25,17 +26,22 @@ struct NadirParser;
 #[derive(Debug)]
 pub enum NadirParserErrors {
     ArgumentValueIsNone(String),
+    CantParseVector,
+    CantParseMatrix,
     EmptyPairs(String),
+    EmptyValue,
     ExpectedFunctionArguments(String),
     ExpectedFunctionCall(String),
     ExpectedIdentifier(String),
     FunctionNotFound(String),
+    InvalidField(String, String),
     InvalidNumber(String),
     MissingFunctionArguments,
     MissingFunctionName,
     NumberOfArgs(String, String, String),
     StorageErrors(StorageErrors),
     UnexpectedOperator(String),
+    UnexpectedRule(String),
     ValueErrors(ValueErrors),
 }
 
@@ -57,6 +63,9 @@ impl fmt::Display for NadirParserErrors {
             NadirParserErrors::ArgumentValueIsNone(arg) => {
                 format!("argument value was None: {}", arg)
             }
+            NadirParserErrors::CantParseVector => "could not parse vector".to_string(),
+            NadirParserErrors::CantParseMatrix => "could not parse matrix".to_string(),
+            NadirParserErrors::EmptyValue => format!("pest parsing value was empty"),
             NadirParserErrors::EmptyPairs(arg) => format!("pest parsing pairs were empty: {}", arg),
             NadirParserErrors::ExpectedFunctionArguments(arg) => {
                 format!("expected rule was function_arguments but got: {}", arg)
@@ -68,6 +77,9 @@ impl fmt::Display for NadirParserErrors {
                 format!("expected rule was identifier but got: {}", arg)
             }
             NadirParserErrors::FunctionNotFound(func) => format!("function not found: {}", func),
+            NadirParserErrors::InvalidField(instance, field) => {
+                format!("invalid field {field} for variable {instance}")
+            }
             NadirParserErrors::InvalidNumber(num) => format!("invalid number: {}", num),
             NadirParserErrors::MissingFunctionArguments => {
                 "was not able to parse function arguments".to_string()
@@ -83,6 +95,7 @@ impl fmt::Display for NadirParserErrors {
             }
             NadirParserErrors::StorageErrors(err) => format!("{}", err),
             NadirParserErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
+            NadirParserErrors::UnexpectedRule(rule) => format!("unexpected rule: {}", rule),
             NadirParserErrors::ValueErrors(err) => format!("{}", err),
         };
 
@@ -158,10 +171,14 @@ fn main() {
                         let parse_result = NadirParser::parse(Rule::line, &line);
                         match parse_result {
                             Ok(mut pairs) => {
-                                match parse_expr(&mut pairs, &pratt, &mut storage) {
-                                    Ok(_) => {}
-                                    Err(e) => eprintln!("{e}"),
-                                };
+                                if let Some(line_pair) = pairs.next() {
+                                    // get to next level, with is a silent_line or print_line
+                                    let print_or_silent = line_pair.into_inner().next().unwrap();
+                                    match parse_expr(print_or_silent, &pratt, &mut storage) {
+                                        Ok(_) => {}
+                                        Err(e) => eprintln!("{e}"),
+                                    };
+                                }
                             }
                             Err(e) => {
                                 eprintln!("Parsing error: {}", e);
@@ -192,83 +209,155 @@ fn main() {
 }
 
 fn parse_expr(
-    pairs: &mut Pairs<Rule>,
+    pair: Pair<Rule>,
     pratt: &PrattParser<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
 ) -> Result<Option<Value>, NadirParserErrors> {
-    pratt
-        .map_primary(|primary| {
-            match primary.as_rule() {
-                Rule::number => evaluate_number(primary),
-                Rule::identifier => evaluate_identifier(primary, storage),
-                Rule::function_call => evaluate_function_call(primary, pratt, storage, None),
-                Rule::struct_call => evaluate_struct_call(primary, pratt, storage),
-                Rule::print_line => {
-                    let value = parse_expr(&mut primary.into_inner(), pratt, storage)?;
-                    if let Some(value) = &value {
-                        println!("{:?}", value);
-                    };
-                    Ok(value)
+    dbg!(&pair);
+    match pair.as_rule() {
+        Rule::term => {
+            let inner_pair = pair.into_inner().next().unwrap();
+            parse_expr(inner_pair, pratt, storage)
+        }
+
+        Rule::vector => {
+            let inner_pairs = pair.into_inner();
+            let mut values = Vec::new();
+            for value_pair in inner_pairs {
+                if let Some(value) = parse_expr(value_pair, pratt, storage)? {
+                    values.push(value.as_f64()?);
+                } else {
+                    return Err(NadirParserErrors::CantParseVector);
                 }
-                Rule::assignment => {
-                    let mut pairs = primary.into_inner();
-                    let name = pairs.next().unwrap().as_str();
-                    let expr = pairs.next().unwrap();
-                    let value = parse_expr(&mut expr.into_inner(), pratt, storage)?;
-                    if let Some(value) = &value {
-                        let mut storage = storage.borrow_mut();
-                        storage.insert(name.to_string(), value.clone())?;
-                    };
-                    Ok(value)
-                }
-                _ => parse_expr(&mut primary.into_inner(), pratt, storage), // For any other rule, return None
             }
-        })
-        .map_prefix(|op, rhs| {
-            rhs.and_then(|rhs_value| {
-                rhs_value
-                    .map(|value| match op.as_rule() {
-                        Rule::neg => Ok(value.try_negative()?),
-                        _ => Err(NadirParserErrors::UnexpectedOperator(
-                            op.as_str().to_string(),
-                        )),
-                    })
-                    .transpose()
-            })
-        })
-        .map_postfix(|lhs, op| {
-            lhs.and_then(|lhs_value| {
-                lhs_value
-                    .map(|value| match op.as_rule() {
-                        Rule::fac => Ok(value.try_factorial()?),
-                        _ => Err(NadirParserErrors::UnexpectedOperator(
-                            op.as_str().to_string(),
-                        )),
-                    })
-                    .transpose()
-            })
-        })
-        .map_infix(|lhs, op, rhs| {
-            lhs.and_then(|lhs_value| {
-                rhs.and_then(|rhs_value| {
-                    lhs_value
-                        .and_then(|lhs| {
-                            rhs_value.map(|rhs| match op.as_rule() {
-                                Rule::add => Ok(lhs.try_add(&rhs)?),
-                                Rule::sub => Ok(lhs.try_sub(&rhs)?),
-                                Rule::mul => Ok(lhs.try_mul(&rhs)?),
-                                Rule::div => Ok(lhs.try_div(&rhs)?),
-                                Rule::pow => Ok(lhs.try_pow(&rhs)?),
+            Ok(Some(Value::DVector(Box::new(DVector::from_vec(values)))))
+        }
+
+        // Handle matrix directly (non-arithmetic)
+        Rule::matrix => {
+            let inner_pairs = pair.into_inner();
+            let mut rows = Vec::new();
+            for row_pair in inner_pairs {
+                let mut row = Vec::new();
+                for value_pair in row_pair.into_inner() {
+                    if let Some(value) = parse_expr(value_pair, pratt, storage)? {
+                        row.push(value.as_f64()?);
+                    } else {
+                        return Err(NadirParserErrors::CantParseMatrix);
+                    }
+                }
+                rows.push(row);
+            }
+            let ncols = rows.get(0).map(|row| row.len()).unwrap_or(0);
+            let matrix_data: Vec<f64> = rows.concat();
+            Ok(Some(Value::DMatrix(Box::new(DMatrix::from_vec(
+                rows.len(),
+                ncols,
+                matrix_data,
+            )))))
+        }
+
+        // Handle assignment: extract the variable name and expression.
+        Rule::assignment => {
+            let mut inner = pair.into_inner();
+            let name = inner.next().unwrap().as_str();
+            let expr = inner.next().unwrap();
+            let value = parse_expr(expr, pratt, storage)?;
+            if let Some(value) = &value {
+                storage
+                    .borrow_mut()
+                    .insert(name.to_string(), value.clone())?;
+            }
+            Ok(value)
+        }
+
+        Rule::print_line => {
+            let next_pair = pair.into_inner().next().unwrap();
+            let value = parse_expr(next_pair, pratt, storage)?;
+            if let Some(ref value) = value {
+                println!("{:?}", value);
+            }
+            Ok(value)
+        }
+
+        Rule::number => evaluate_number(pair),
+        Rule::identifier => evaluate_identifier(pair, storage),
+        Rule::function_call => evaluate_function_call(pair, pratt, storage, None),
+        Rule::struct_call => evaluate_struct_call(pair, pratt, storage),
+        Rule::instance_field => evaluate_instance_field(pair, storage),
+
+        // For everything else, assume it’s part of an arithmetic expression.
+        // Delegate these to the Pratt parser.
+        _ => {
+            return pratt
+                .map_primary(|primary| match primary.as_rule() {
+                    Rule::number => evaluate_number(primary),
+                    Rule::identifier => evaluate_identifier(primary, storage),
+                    Rule::function_call => evaluate_function_call(primary, pratt, storage, None),
+                    Rule::struct_call => evaluate_struct_call(primary, pratt, storage),
+                    Rule::instance_field => evaluate_instance_field(primary, storage),
+                    _ => {
+                        dbg!(&primary.as_rule());
+                        Err(NadirParserErrors::UnexpectedRule(
+                            primary.as_str().to_string(),
+                        ))
+                    }
+                })
+                .map_prefix(|op, rhs| {
+                    rhs.map_or(Err(NadirParserErrors::EmptyValue), |rhs_value| {
+                        if let Some(rhs_value) = rhs_value {
+                            match op.as_rule() {
+                                Rule::neg => Ok(Some(rhs_value.try_negative()?)),
                                 _ => Err(NadirParserErrors::UnexpectedOperator(
                                     op.as_str().to_string(),
                                 )),
-                            })
-                        })
-                        .transpose()
+                            }
+                        } else {
+                            Err(NadirParserErrors::EmptyValue)
+                        }
+                    })
                 })
-            })
-        })
-        .parse(pairs)
+                .map_postfix(|lhs, op| {
+                    lhs.map_or(Err(NadirParserErrors::EmptyValue), |lhs_value| {
+                        if let Some(lhs_value) = lhs_value {
+                            match op.as_rule() {
+                                Rule::fac => Ok(Some(lhs_value.try_factorial()?)),
+                                _ => Err(NadirParserErrors::UnexpectedOperator(
+                                    op.as_str().to_string(),
+                                )),
+                            }
+                        } else {
+                            Err(NadirParserErrors::EmptyValue)
+                        }
+                    })
+                })
+                .map_infix(|lhs, op, rhs| {
+                    lhs.and_then(|lhs_value| {
+                        if let Some(lhs_value) = lhs_value {
+                            rhs.map_or(Err(NadirParserErrors::EmptyValue), |rhs_value| {
+                                if let Some(rhs_value) = rhs_value {
+                                    match op.as_rule() {
+                                        Rule::add => Ok(Some(lhs_value.try_add(&rhs_value)?)),
+                                        Rule::sub => Ok(Some(lhs_value.try_sub(&rhs_value)?)),
+                                        Rule::mul => Ok(Some(lhs_value.try_mul(&rhs_value)?)),
+                                        Rule::div => Ok(Some(lhs_value.try_div(&rhs_value)?)),
+                                        Rule::pow => Ok(Some(lhs_value.try_pow(&rhs_value)?)),
+                                        _ => Err(NadirParserErrors::UnexpectedOperator(
+                                            op.as_str().to_string(),
+                                        )),
+                                    }
+                                } else {
+                                    Err(NadirParserErrors::EmptyValue)
+                                }
+                            })
+                        } else {
+                            Err(NadirParserErrors::EmptyValue)
+                        }
+                    })
+                })
+                .parse(pair.into_inner());
+        }
+    }
 }
 
 fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErrors> {
@@ -309,6 +398,7 @@ fn evaluate_function_call(
     struct_name: Option<&str>,
 ) -> Result<Option<Value>, NadirParserErrors> {
     let mut pairs = pair.into_inner();
+
     let fn_name_pair = pairs.next().unwrap();
     let fn_name = fn_name_pair.as_str();
 
@@ -319,9 +409,8 @@ fn evaluate_function_call(
         let inner = args_pair.into_inner();
         let mut args = Vec::new();
         for arg in inner {
-            let arg_clone = arg.clone();
-            let value = parse_expr(&mut arg_clone.into_inner(), pratt, storage)?
-                .ok_or_else(|| NadirParserErrors::ArgumentValueIsNone(arg.as_str().to_string()))?;
+            let value =
+                parse_expr(arg, pratt, storage)?.ok_or_else(|| NadirParserErrors::EmptyValue)?;
             args.push(value);
         }
         args
@@ -435,4 +524,41 @@ fn evaluate_struct_call(
     let struct_name = struct_name_pair.as_str();
     let fn_call_pair = pairs.next().unwrap();
     evaluate_function_call(fn_call_pair, pratt, storage, Some(struct_name))
+}
+
+fn evaluate_instance_field(
+    pair: Pair<Rule>,
+    storage: &Rc<RefCell<Storage>>,
+) -> Result<Option<Value>, NadirParserErrors> {
+    let storage = storage.borrow();
+    let mut pairs = pair.into_inner();
+    let instance_name = pairs.next().unwrap().as_str();
+    let instance = storage.get(instance_name)?;
+    let field = pairs.next().unwrap().as_str();
+    match instance {
+        Value::Quaternion(q) => match field {
+            "x" => Ok(Some(Value::f64(q.x))),
+            "y" => Ok(Some(Value::f64(q.y))),
+            "z" => Ok(Some(Value::f64(q.z))),
+            "w" => Ok(Some(Value::f64(q.w))),
+            _ => Err(NadirParserErrors::InvalidField(
+                instance_name.to_string(),
+                field.to_string(),
+            )),
+        },
+        Value::UnitQuaternion(q) => match field {
+            "x" => Ok(Some(Value::f64(q.0.x))),
+            "y" => Ok(Some(Value::f64(q.0.y))),
+            "z" => Ok(Some(Value::f64(q.0.z))),
+            "w" => Ok(Some(Value::f64(q.0.w))),
+            _ => Err(NadirParserErrors::InvalidField(
+                instance_name.to_string(),
+                field.to_string(),
+            )),
+        },
+        _ => Err(NadirParserErrors::InvalidField(
+            instance_name.to_string(),
+            field.to_string(),
+        )),
+    }
 }

@@ -27,7 +27,7 @@ members = [
     "software",    
     "spatial_algebra",
     "spherical_harmonics", 
-    "spice", 
+    "spice", "syn", 
     "time", 
     "transforms", 
     "utilities", 
@@ -70,6 +70,7 @@ nadir_3d = {path = "nadir_3d"}
 nadir_result = {path = "nadir_result"}
 nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
 num-traits = "*"
+quote = "1.0.38"
 pest = "2.7.15"
 pest_derive = "2.7.15"
 phf = { version = "0.11.2", features = ["macros"] }
@@ -87,6 +88,7 @@ software = {path = "software"}
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"} 
+syn = { version = "2.0", features = ["full", "parsing"] }
 thiserror = "2.0.9"
 time = {path = "time"} 
 transforms = {path = "transforms"} 

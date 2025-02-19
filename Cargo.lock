@@ -5775,6 +5775,21 @@ dependencies = [
 
 [[package]]
 name = "syn"
+version = "0.0.1"
+dependencies = [
+ "ansi_term",
+ "dirs 5.0.1",
+ "nalgebra",
+ "quote",
+ "rotations",
+ "rustyline",
+ "rustyline-derive",
+ "syn 2.0.98",
+ "thiserror 2.0.11",
+]
+
+[[package]]
+name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
