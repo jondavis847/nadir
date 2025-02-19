@@ -1,5 +1,10 @@
+use std::any::type_name;
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+pub fn variant_name<T>(_: &T) -> &'static str {
+    type_name::<T>()
+}
 
 pub fn format_number(value: f64) -> String {
     if !(1e-2..=1e4).contains(&value) {

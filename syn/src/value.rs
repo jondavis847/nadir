@@ -8,7 +8,7 @@ use rotations::{
 use std::f64::{INFINITY, NAN};
 use thiserror::Error;
 
-fn label(s: &str) -> String {
+pub fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(238).paint(s).to_string()
 }
 

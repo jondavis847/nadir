@@ -5786,6 +5786,7 @@ dependencies = [
  "rustyline-derive",
  "syn 2.0.98",
  "thiserror 2.0.11",
+ "utilities",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ rustyline.workspace = true
 rustyline-derive.workspace = true
 syn.workspace = true
 thiserror.workspace = true
+utilities.workspace = true
 
 [features]
 default = ["with-file-history"]

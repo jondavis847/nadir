@@ -9,7 +9,7 @@ pub enum StorageErrors {
 }
 
 #[derive(Default)]
-pub struct Storage(HashMap<String, Value>);
+pub struct Storage(pub HashMap<String, Value>);
 
 impl Storage {
     pub fn insert(&mut self, name: String, value: Value) -> Result<(), StorageErrors> {
