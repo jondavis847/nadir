@@ -1,18 +1,18 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-math_expr = { (prefix+ ~ term ~ postfix*) | (prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)+) }
 term = { enclosed | struct_call | instance_call | instance_field | function_call | vector | matrix | identifier | number }
+expr = { math | term }
+assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 
+math = { (prefix+ ~ term ~ postfix*) | (prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)+) }
 infix = _{ add | sub | mul | div }
 add = { "+" }
 sub = { "-" }
 mul = { "*" }
 div = { "/" }
 pow = { "^" } // Exponentiation
-
 prefix = _{ neg }
 neg = { "-" }
-
 postfix = _{ fac }
 fac = { "!" }
 
@@ -20,25 +20,23 @@ identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
 number = { float | integer }
+enclosed = { "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
 
-enclosed = { "(" ~ WHITESPACE* ~ math_expr ~ WHITESPACE* ~ ")" }
+comma_separated = { WHITESPACE* ~ expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expr)* ~ WHITESPACE* }
+space_separated = { WHITESPACE* ~ expr ~ (WHITESPACE+ ~ expr)* ~ WHITESPACE* }
 
-assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ math_expr }
-
-function_call = { identifier ~ "(" ~ WHITESPACE* ~ function_arguments? ~ WHITESPACE* ~ ")" }
-function_arguments = { math_expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ math_expr)* }
+function_call = { identifier ~ "(" ~ WHITESPACE* ~ arguments? ~ WHITESPACE* ~ ")" }
+arguments = { comma_separated }
 
 struct_call = { identifier ~ "::" ~ function_call}
 instance_field = { identifier ~ "." ~ identifier }
 instance_call = { identifier ~ "." ~ function_call}
 
-line = { silent_line* ~ (print_line | silent_line) }
+line = { print_line | silent_line }
 silent_line = { print_line ~ ";" }
-print_line = { assignment | math_expr | term | identifier | number }
+print_line = { assignment | expr }
 
-element = { math_expr | term }
-comma_separated = { element ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ element)* }
-space_separated = { element ~ (WHITESPACE+ ~ element)* }
-vector = { "[" ~ WHITESPACE* ~ (comma_separated ~ WHITESPACE*)? ~ "]" }
-matrix_row = {";" ~ WHITESPACE* ~ space_separated ~ WHITESPACE*}
-matrix = { "[" ~ WHITESPACE* ~ (space_separated ~ WHITESPACE* ~ (matrix_row)*)? ~ "]" }
+elements = { comma_separated }
+vector = { "[" ~ WHITESPACE* ~ (elements)? ~ "]" }
+matrix_row = { space_separated ~ ";"?}
+matrix = { "[" ~ (matrix_row)* ~ "]" }

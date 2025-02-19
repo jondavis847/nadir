@@ -1,5 +1,6 @@
 use ansi_term::Colour;
 use nalgebra::{DMatrix, DVector};
+use quote::quote;
 use rotations::prelude::{Quaternion, UnitQuaternion};
 use rustyline::error::ReadlineError;
 use rustyline::{CompletionType, Config, EditMode, Editor};
@@ -288,10 +289,14 @@ fn evaluate_expression(
     expr: &Expr,
     storage: &Rc<RefCell<Storage>>,
 ) -> Result<Option<Value>, NadirErrors> {
+    let p = quote! { #expr };
+    println!("{p}");
     match expr {
         Expr::Assign(e) => {
             let name = evaluate_expression(&e.left, storage)?;
             let value = evaluate_expression(&e.right, storage)?;
+            dbg!(&name);
+            dbg!(&value);
             if let (Some(name), Some(value)) = (&name, &value) {
                 let name = match name {
                     Value::String(name) => *name.clone(),
