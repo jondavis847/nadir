@@ -56,24 +56,22 @@ impl std::fmt::Debug for Value {
             Value::f64(v) => writeln!(f, "{} {}", label("f64"), v),
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::DVector(v) => {
-                writeln!(f, "{}", label(&format!("[f64;{}]", v.len())))?;
-                writeln!(f, "[")?;
+                writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
                 for e in v.iter() {
-                    writeln!(f, "     {}", e)?;
+                    writeln!(f, "   {}", e)?;
                 }
-                writeln!(f, "]")
+                Ok(())
             }
             Value::DMatrix(m) => {
                 writeln!(
                     f,
-                    "{} [",
-                    label(&format!("[f64;{}x{}]", m.nrows(), m.ncols()))
+                    "{}",
+                    label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
                 )?;
-                writeln!(f, "[")?;
                 for row in m.row_iter() {
                     writeln!(f, "  {:?}", row)?;
                 }
-                writeln!(f, "]")
+                Ok(())
             }
             Value::Quaternion(q) => {
                 writeln!(f, "{}", label("Quaternion"))?;

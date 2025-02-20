@@ -1,5 +1,5 @@
 use ansi_term::Colour;
-use nalgebra::{DMatrix, DVector};
+use nalgebra::{DMatrix, DVector, Dim, Dyn, RowDVector, RowVector, VecStorage};
 use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::Parser;
@@ -36,6 +36,7 @@ pub enum NadirParserErrors {
     FunctionNotFound(String),
     InvalidField(String, String),
     InvalidNumber(String),
+    MatrixRowLengthMismatch,
     MissingFunctionArguments,
     MissingFunctionName,
     NumberOfArgs(String, String, String),
@@ -81,6 +82,9 @@ impl fmt::Display for NadirParserErrors {
                 format!("invalid field {field} for variable {instance}")
             }
             NadirParserErrors::InvalidNumber(num) => format!("invalid number: {}", num),
+            NadirParserErrors::MatrixRowLengthMismatch => {
+                format!("matrix cannot have rows of different lengths")
+            }
             NadirParserErrors::MissingFunctionArguments => {
                 "was not able to parse function arguments".to_string()
             }
@@ -224,9 +228,12 @@ fn parse_expr(
             parse_expr(inner_pair, pratt, storage)
         }
         Rule::vector => {
-            let inner_pairs = pair.into_inner();
+            let elements_pair = pair.into_inner().next().unwrap();
+            let comma_separated_pair = elements_pair.into_inner().next().unwrap();
+            let value_pairs = comma_separated_pair.into_inner();
+
             let mut values = Vec::new();
-            for value_pair in inner_pairs {
+            for value_pair in value_pairs {
                 if let Some(value) = parse_expr(value_pair, pratt, storage)? {
                     values.push(value.as_f64()?);
                 } else {
@@ -235,13 +242,13 @@ fn parse_expr(
             }
             Ok(Some(Value::DVector(Box::new(DVector::from_vec(values)))))
         }
-        // Handle matrix directly (non-arithmetic)
+
         Rule::matrix => {
-            let inner_pairs = pair.into_inner();
-            let mut rows = Vec::new();
-            for row_pair in inner_pairs {
-                let mut row = Vec::new();
-                for value_pair in row_pair.into_inner() {
+            let row_pairs = pair.into_inner();
+            let mut matrix = VecStorage::new(1, 1, Vec::new());
+            for row_pair in row_pairs {
+                let space_separated_pair = row_pair.into_inner().next().unwrap();
+                for value_pair in space_separated_pair.into_inner() {
                     if let Some(value) = parse_expr(value_pair, pratt, storage)? {
                         row.push(value.as_f64()?);
                     } else {
@@ -250,16 +257,21 @@ fn parse_expr(
                 }
                 rows.push(row);
             }
-            let ncols = rows.get(0).map(|row| row.len()).unwrap_or(0);
-            let matrix_data: Vec<f64> = rows.concat();
-            Ok(Some(Value::DMatrix(Box::new(DMatrix::from_vec(
-                rows.len(),
-                ncols,
-                matrix_data,
-            )))))
+            // check that all rows have same len
+            let row_len = rows[0].len();
+            if rows.len() > 1 {
+                for i in 1..rows.len() {
+                    if rows[i].len() != row_len {
+                        return Err(NadirParserErrors::MatrixRowLengthMismatch);
+                    }
+                }
+            }
+            dbg!(&rows);
+            let matrix = DMatrix::from_rows(&rows);
+            dbg!(&matrix);
+            Ok(Some(Value::DMatrix(Box::new(matrix))))
         }
 
-        // Handle assignment: extract the variable name and expression.
         Rule::assignment => {
             let mut inner = pair.into_inner();
             let name = inner.next().unwrap().as_str();
