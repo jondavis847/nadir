@@ -1,29 +1,28 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-term = { enclosed | struct_call | instance_call | instance_field | function_call | vector | matrix | identifier | number }
-expr = { math | term }
-assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
-
-math = { (prefix+ ~ term ~ postfix*) | (prefix* ~ term ~ postfix* ~ (infix ~ prefix* ~ term ~ postfix*)+) }
-infix = _{ add | sub | mul | div }
-add = { "+" }
-sub = { "-" }
+primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | vector | matrix | identifier | number }
+unary = { neg* ~ primary }
+neg = { "-" }
+pow = { "^" }
+exponential = { unary ~ ( pow ~ unary )* }
+multiplicative = { exponential ~ ( (mul | div) ~ exponential )* }
 mul = { "*" }
 div = { "/" }
-pow = { "^" } // Exponentiation
-prefix = _{ neg }
-neg = { "-" }
-postfix = _{ fac }
-fac = { "!" }
+additive = { multiplicative ~ ( (add | sub) ~ multiplicative )* }
+add = { "+" }
+sub = { "-" }
+expr = _{additive}
+
+assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
-number = { float | integer }
-enclosed = { "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
+number = _{ float | integer }
+enclosed = _{ "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
 
-comma_separated = { WHITESPACE* ~ expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expr)* ~ WHITESPACE* }
-space_separated = { WHITESPACE* ~ expr ~ (WHITESPACE+ ~ expr)* ~ WHITESPACE* }
+comma_separated = _{ WHITESPACE* ~ expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expr)* ~ WHITESPACE* }
+space_separated = _{ WHITESPACE* ~ expr ~ (WHITESPACE+ ~ expr)* ~ WHITESPACE* }
 
 function_call = { identifier ~ "(" ~ WHITESPACE* ~ arguments? ~ WHITESPACE* ~ ")" }
 arguments = { comma_separated }
@@ -38,5 +37,5 @@ print_line = { assignment | expr }
 
 elements = { comma_separated }
 vector = { "[" ~ WHITESPACE* ~ (elements)? ~ "]" }
-matrix_row = { space_separated ~ ";"?}
-matrix = { "[" ~ (matrix_row)* ~ "]" }
+matrix_row = { space_separated }
+matrix = { "[" ~ matrix_row ~ ( ";" ~ matrix_row )* ~ "]" }

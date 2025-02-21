@@ -42,7 +42,7 @@ pub enum NadirParserErrors {
     NumberOfArgs(String, String, String),
     StorageErrors(StorageErrors),
     UnexpectedOperator(String),
-    UnexpectedRule(String),
+    UnexpectedRule(Rule),
     ValueErrors(ValueErrors),
 }
 
@@ -99,7 +99,7 @@ impl fmt::Display for NadirParserErrors {
             }
             NadirParserErrors::StorageErrors(err) => format!("{}", err),
             NadirParserErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
-            NadirParserErrors::UnexpectedRule(rule) => format!("unexpected rule: {}", rule),
+            NadirParserErrors::UnexpectedRule(rule) => format!("unexpected rule: {:?}", rule),
             NadirParserErrors::ValueErrors(err) => format!("{}", err),
         };
 
@@ -141,13 +141,6 @@ fn main() {
         None
     };
 
-    let pratt = PrattParser::new()
-        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::sub, Assoc::Left))
-        .op(Op::infix(Rule::mul, Assoc::Left) | Op::infix(Rule::div, Assoc::Left))
-        .op(Op::infix(Rule::pow, Assoc::Right))
-        .op(Op::prefix(Rule::neg))
-        .op(Op::postfix(Rule::fac));
-
     let prompt = "nadir> ";
 
     loop {
@@ -176,9 +169,10 @@ fn main() {
                         match parse_result {
                             Ok(mut pairs) => {
                                 if let Some(line_pair) = pairs.next() {
+                                    dbg!(&line_pair);
                                     // get to next level, with is a silent_line or print_line
                                     let print_or_silent = line_pair.into_inner().next().unwrap();
-                                    match parse_expr(print_or_silent, &pratt, &mut storage) {
+                                    match parse_expr(print_or_silent, &mut storage) {
                                         Ok(_) => {}
                                         Err(e) => eprintln!("{e}"),
                                     };
@@ -214,27 +208,148 @@ fn main() {
 
 fn parse_expr(
     pair: Pair<Rule>,
-    pratt: &PrattParser<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
 ) -> Result<Option<Value>, NadirParserErrors> {
-    dbg!(&pair);
     match pair.as_rule() {
+        Rule::additive => {
+            let mut inner_pairs = pair.into_inner();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+
+            while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
+                let right = parse_expr(right_pair, storage)?.unwrap();
+                value = match op_pair.as_rule() {
+                    Rule::add => value.try_add(&right)?,
+                    Rule::sub => value.try_sub(&right)?,
+                    _ => unreachable!(),
+                };
+            }
+
+            Ok(Some(value))
+        }
+        Rule::assignment => {
+            let mut inner = pair.into_inner();
+            let name = inner.next().unwrap().as_str();
+            let expr = inner.next().unwrap();
+            let value = parse_expr(expr, storage)?;
+            if let Some(value) = &value {
+                storage
+                    .borrow_mut()
+                    .insert(name.to_string(), value.clone())?;
+            }
+            Ok(value)
+        }
         Rule::expr => {
             let inner_pair = pair.into_inner().next().unwrap();
-            parse_expr(inner_pair, pratt, storage)
+            parse_expr(inner_pair, storage)
         }
-        Rule::term => {
-            let inner_pair = pair.into_inner().next().unwrap();
-            parse_expr(inner_pair, pratt, storage)
+        Rule::exponential => {
+            let mut inner_pairs = pair.into_inner();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+
+            while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
+                let right = parse_expr(right_pair, storage)?.unwrap();
+                value = match op_pair.as_rule() {
+                    Rule::pow => value.try_pow(&right)?,
+                    _ => unreachable!(),
+                };
+            }
+            Ok(Some(value))
+        }
+        Rule::float => Ok(Some(Value::f64(pair.as_str().parse::<f64>().unwrap()))),
+        Rule::function_call => evaluate_function_call(pair, storage, None),
+        Rule::identifier => Ok(Some(storage.borrow().get(pair.as_str())?)),
+        Rule::instance_field => evaluate_instance_field(pair, storage),
+        Rule::integer => Ok(Some(Value::i64(pair.as_str().parse::<i64>().unwrap()))),
+        Rule::matrix => {
+            let row_pairs = pair.into_inner();
+            let mut rows: Vec<Vec<f64>> = Vec::new();
+
+            // Parse each row from pest.
+            for row_pair in row_pairs {
+                let mut row: Vec<f64> = Vec::new();
+                for value_pair in row_pair.into_inner() {
+                    if let Some(value) = parse_expr(value_pair, storage)? {
+                        row.push(value.as_f64()?);
+                    } else {
+                        return Err(NadirParserErrors::CantParseMatrix);
+                    }
+                }
+                rows.push(row);
+            }
+
+            // Check that we have at least one row and that all rows are of equal length.
+            if rows.is_empty() {
+                return Err(NadirParserErrors::CantParseMatrix);
+            }
+            let row_len = rows[0].len();
+            if !rows.iter().all(|r| r.len() == row_len) {
+                return Err(NadirParserErrors::MatrixRowLengthMismatch);
+            }
+            dbg!(&rows);
+
+            // Flatten the matrix in row-major order.
+            let flat_data: Vec<f64> = rows.into_iter().flatten().collect();
+            let num_rows = flat_data.len() / row_len;
+
+            // Create the DMatrix using from_row_slice which accepts row-major data.
+            let matrix = DMatrix::from_row_slice(num_rows, row_len, &flat_data);
+
+            dbg!(&matrix);
+            Ok(Some(Value::DMatrix(Box::new(matrix))))
+        }
+        Rule::multiplicative => {
+            let mut inner_pairs = pair.into_inner();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+
+            while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
+                let right = parse_expr(right_pair, storage)?.unwrap();
+                value = match op_pair.as_rule() {
+                    Rule::mul => value.try_mul(&right)?,
+                    Rule::div => value.try_div(&right)?,
+                    _ => unreachable!(),
+                };
+            }
+
+            Ok(Some(value))
+        }
+        Rule::print_line => {
+            let next_pair = pair.into_inner().next().unwrap();
+            let value = parse_expr(next_pair, storage)?;
+            if let Some(ref value) = value {
+                println!("{:?}", value);
+            }
+            Ok(value)
+        }
+        Rule::silent_line => {
+            let next_pair = pair.into_inner().next().unwrap();
+            parse_expr(next_pair, storage)?;
+            Ok(None)
+        }
+        Rule::struct_call => {
+            let mut pairs = pair.into_inner();
+            let struct_name_pair = pairs.next().unwrap();
+            let struct_name = struct_name_pair.as_str();
+            let fn_call_pair = pairs.next().unwrap();
+            evaluate_function_call(fn_call_pair, storage, Some(struct_name))
+        }
+        Rule::unary => {
+            let mut inner_pairs = pair.into_inner();
+            let next_pair = inner_pairs.next().unwrap();
+            let value = match next_pair.as_rule() {
+                Rule::neg => {
+                    let value_pair = inner_pairs.next().unwrap();
+                    parse_expr(value_pair, storage)?.unwrap().try_negative()?
+                }
+                _ => parse_expr(next_pair, storage)?.unwrap(),
+            };
+            Ok(Some(value))
         }
         Rule::vector => {
             let elements_pair = pair.into_inner().next().unwrap();
-            let comma_separated_pair = elements_pair.into_inner().next().unwrap();
-            let value_pairs = comma_separated_pair.into_inner();
-
+            let value_pairs = elements_pair.into_inner();
             let mut values = Vec::new();
             for value_pair in value_pairs {
-                if let Some(value) = parse_expr(value_pair, pratt, storage)? {
+                if let Some(value) = parse_expr(value_pair, storage)? {
                     values.push(value.as_f64()?);
                 } else {
                     return Err(NadirParserErrors::CantParseVector);
@@ -243,166 +358,12 @@ fn parse_expr(
             Ok(Some(Value::DVector(Box::new(DVector::from_vec(values)))))
         }
 
-        Rule::matrix => {
-            let row_pairs = pair.into_inner();
-            let mut matrix = VecStorage::new(1, 1, Vec::new());
-            for row_pair in row_pairs {
-                let space_separated_pair = row_pair.into_inner().next().unwrap();
-                for value_pair in space_separated_pair.into_inner() {
-                    if let Some(value) = parse_expr(value_pair, pratt, storage)? {
-                        row.push(value.as_f64()?);
-                    } else {
-                        return Err(NadirParserErrors::CantParseMatrix);
-                    }
-                }
-                rows.push(row);
-            }
-            // check that all rows have same len
-            let row_len = rows[0].len();
-            if rows.len() > 1 {
-                for i in 1..rows.len() {
-                    if rows[i].len() != row_len {
-                        return Err(NadirParserErrors::MatrixRowLengthMismatch);
-                    }
-                }
-            }
-            dbg!(&rows);
-            let matrix = DMatrix::from_rows(&rows);
-            dbg!(&matrix);
-            Ok(Some(Value::DMatrix(Box::new(matrix))))
-        }
-
-        Rule::assignment => {
-            let mut inner = pair.into_inner();
-            let name = inner.next().unwrap().as_str();
-            let expr = inner.next().unwrap();
-            let value = parse_expr(expr, pratt, storage)?;
-            if let Some(value) = &value {
-                storage
-                    .borrow_mut()
-                    .insert(name.to_string(), value.clone())?;
-            }
-            Ok(value)
-        }
-
-        Rule::print_line => {
-            let next_pair = pair.into_inner().next().unwrap();
-            let value = parse_expr(next_pair, pratt, storage)?;
-            if let Some(ref value) = value {
-                println!("{:?}", value);
-            }
-            Ok(value)
-        }
-        Rule::silent_line => {
-            let next_pair = pair.into_inner().next().unwrap();
-            parse_expr(next_pair, pratt, storage)?;
-            Ok(None)
-        }
-
-        Rule::number => evaluate_number(pair),
-        Rule::identifier => evaluate_identifier(pair, storage),
-        Rule::function_call => evaluate_function_call(pair, pratt, storage, None),
-        Rule::struct_call => evaluate_struct_call(pair, pratt, storage),
-        Rule::instance_field => evaluate_instance_field(pair, storage),
-        Rule::elements => evaluate_elements(pair, pratt, storage),
-
-        // For everything else, assume it’s part of an arithmetic expression.
-        // Delegate these to the Pratt parser.
-        Rule::math => {
-            return pratt
-                .map_primary(|primary| parse_expr(primary, pratt, storage))
-                .map_prefix(|op, rhs| {
-                    rhs.map_or(Err(NadirParserErrors::EmptyValue), |rhs_value| {
-                        if let Some(rhs_value) = rhs_value {
-                            match op.as_rule() {
-                                Rule::neg => Ok(Some(rhs_value.try_negative()?)),
-                                _ => Err(NadirParserErrors::UnexpectedOperator(
-                                    op.as_str().to_string(),
-                                )),
-                            }
-                        } else {
-                            Err(NadirParserErrors::EmptyValue)
-                        }
-                    })
-                })
-                .map_postfix(|lhs, op| {
-                    lhs.map_or(Err(NadirParserErrors::EmptyValue), |lhs_value| {
-                        if let Some(lhs_value) = lhs_value {
-                            match op.as_rule() {
-                                Rule::fac => Ok(Some(lhs_value.try_factorial()?)),
-                                _ => Err(NadirParserErrors::UnexpectedOperator(
-                                    op.as_str().to_string(),
-                                )),
-                            }
-                        } else {
-                            Err(NadirParserErrors::EmptyValue)
-                        }
-                    })
-                })
-                .map_infix(|lhs, op, rhs| {
-                    lhs.and_then(|lhs_value| {
-                        if let Some(lhs_value) = lhs_value {
-                            rhs.map_or(Err(NadirParserErrors::EmptyValue), |rhs_value| {
-                                if let Some(rhs_value) = rhs_value {
-                                    match op.as_rule() {
-                                        Rule::add => Ok(Some(lhs_value.try_add(&rhs_value)?)),
-                                        Rule::sub => Ok(Some(lhs_value.try_sub(&rhs_value)?)),
-                                        Rule::mul => Ok(Some(lhs_value.try_mul(&rhs_value)?)),
-                                        Rule::div => Ok(Some(lhs_value.try_div(&rhs_value)?)),
-                                        Rule::pow => Ok(Some(lhs_value.try_pow(&rhs_value)?)),
-                                        _ => Err(NadirParserErrors::UnexpectedOperator(
-                                            op.as_str().to_string(),
-                                        )),
-                                    }
-                                } else {
-                                    Err(NadirParserErrors::EmptyValue)
-                                }
-                            })
-                        } else {
-                            Err(NadirParserErrors::EmptyValue)
-                        }
-                    })
-                })
-                .parse(pair.into_inner());
-        }
-        _ => Err(NadirParserErrors::UnexpectedRule(pair.as_str().to_string())),
+        _ => Err(NadirParserErrors::UnexpectedRule(pair.as_rule())),
     }
-}
-
-fn evaluate_number(primary: Pair<Rule>) -> Result<Option<Value>, NadirParserErrors> {
-    let inner_pair = primary
-        .into_inner()
-        .next()
-        .ok_or_else(|| NadirParserErrors::InvalidNumber("Empty number".to_string()))?;
-
-    let number_str = inner_pair.as_str().to_string();
-
-    match inner_pair.as_rule() {
-        Rule::float => inner_pair
-            .as_str()
-            .parse::<f64>()
-            .map(|f| Some(Value::f64(f)))
-            .map_err(|_| NadirParserErrors::InvalidNumber(number_str)),
-        Rule::integer => inner_pair
-            .as_str()
-            .parse::<i64>()
-            .map(|i| Some(Value::i64(i)))
-            .map_err(|_| NadirParserErrors::InvalidNumber(number_str.clone())),
-        _ => Err(NadirParserErrors::InvalidNumber(number_str)),
-    }
-}
-
-fn evaluate_identifier(
-    primary: Pair<Rule>,
-    storage: &Rc<RefCell<Storage>>,
-) -> Result<Option<Value>, NadirParserErrors> {
-    let storage = storage.borrow();
-    Ok(Some(storage.get(primary.as_str())?))
 }
 
 fn evaluate_function_call(
     pair: Pair<Rule>,
-    pratt: &PrattParser<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
     struct_name: Option<&str>,
 ) -> Result<Option<Value>, NadirParserErrors> {
@@ -418,8 +379,7 @@ fn evaluate_function_call(
         let inner = args_pair.into_inner();
         let mut args = Vec::new();
         for arg in inner {
-            let value =
-                parse_expr(arg, pratt, storage)?.ok_or_else(|| NadirParserErrors::EmptyValue)?;
+            let value = parse_expr(arg, storage)?.ok_or_else(|| NadirParserErrors::EmptyValue)?;
             args.push(value);
         }
         args
@@ -522,18 +482,6 @@ fn evaluate_function_call(
         }
     }
 }
-fn evaluate_struct_call(
-    pair: Pair<Rule>,
-    pratt: &PrattParser<Rule>,
-    storage: &mut Rc<RefCell<Storage>>,
-) -> Result<Option<Value>, NadirParserErrors> {
-    // Extract the function_call pair
-    let mut pairs = pair.into_inner();
-    let struct_name_pair = pairs.next().unwrap();
-    let struct_name = struct_name_pair.as_str();
-    let fn_call_pair = pairs.next().unwrap();
-    evaluate_function_call(fn_call_pair, pratt, storage, Some(struct_name))
-}
 
 fn evaluate_instance_field(
     pair: Pair<Rule>,
@@ -570,24 +518,4 @@ fn evaluate_instance_field(
             field.to_string(),
         )),
     }
-}
-
-fn evaluate_elements(
-    pair: Pair<Rule>,
-    pratt: &PrattParser<Rule>,
-    storage: &mut Rc<RefCell<Storage>>,
-) -> Result<Option<Value>, NadirParserErrors> {
-    // this pair is Rule::element, next pair must be Rule::comma_separated
-    // get the next rule
-    let commma_separated = pair.into_inner().next().unwrap();
-    let elements = commma_separated.into_inner();
-    let mut vec = Vec::new();
-    for element in elements {
-        if let Some(value) = parse_expr(element, pratt, storage)? {
-            vec.push(value.as_f64()?);
-        } else {
-            return Err(NadirParserErrors::EmptyValue);
-        }
-    }
-    Ok(Some(Value::DVector(Box::new(DVector::from(vec)))))
 }
