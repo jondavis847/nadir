@@ -165,6 +165,34 @@ impl Value {
             (Value::DMatrix(m), Value::i64(f)) | (Value::i64(f), Value::DMatrix(m)) => {
                 Ok(Value::DMatrix(Box::new(m.add_scalar(*f as f64))))
             }
+            (Value::DVector(v1), Value::DVector(v2)) => {
+                if v1.len() != v2.len() {
+                    return Err(ValueErrors::SizeMismatch(
+                        v1.len().to_string(),
+                        v2.len().to_string(),
+                    ));
+                }
+                let mut v3 = *v1.clone();
+                for i in 0..v1.len() {
+                    v3[i] = v1[i] + v2[i];
+                }
+                Ok(Value::DVector(Box::new(v3)))
+            }
+            (Value::DMatrix(v1), Value::DMatrix(v2)) => {
+                if v1.nrows() != v2.nrows() || v1.ncols() != v2.ncols() {
+                    return Err(ValueErrors::SizeMismatch(
+                        format!("{}x{}", v1.nrows(), v1.ncols()),
+                        format!("{}x{}", v2.nrows(), v2.ncols()),
+                    ));
+                }
+                let mut v3 = *v1.clone();
+                for i in 0..v1.nrows() {
+                    for j in 0..v1.ncols() {
+                        v3[(i, j)] = v1[(i, j)] + v2[(i, j)];
+                    }
+                }
+                Ok(Value::DMatrix(Box::new(v3)))
+            }
             // (Value::String(a), Value::String(b)) => {
             //     Ok(Value::String(Box::new(format!("{}{}", a, b))))
             // }
