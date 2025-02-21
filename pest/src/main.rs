@@ -263,11 +263,11 @@ fn parse_expr(
         Rule::matrix => {
             let row_pairs = pair.into_inner();
             let mut rows: Vec<Vec<f64>> = Vec::new();
-
             // Parse each row from pest.
             for row_pair in row_pairs {
+                let space_separated_pair = row_pair.into_inner().next().unwrap();
                 let mut row: Vec<f64> = Vec::new();
-                for value_pair in row_pair.into_inner() {
+                for value_pair in space_separated_pair.into_inner() {
                     if let Some(value) = parse_expr(value_pair, storage)? {
                         row.push(value.as_f64()?);
                     } else {

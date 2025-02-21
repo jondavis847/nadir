@@ -68,8 +68,13 @@ impl std::fmt::Debug for Value {
                     "{}",
                     label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
                 )?;
-                for row in m.row_iter() {
-                    writeln!(f, "  {:?}", row)?;
+                for i in 0..m.nrows() {
+                    write!(f, "  ")?; // indent each row
+                    for j in 0..m.ncols() {
+                        // Format each float to 3 decimal places (adjust as needed)
+                        write!(f, "{:8.3} ", m[(i, j)])?;
+                    }
+                    writeln!(f)?;
                 }
                 Ok(())
             }

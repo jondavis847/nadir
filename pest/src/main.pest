@@ -1,6 +1,6 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | vector | matrix | identifier | number }
+primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | matrix | vector | identifier | number }
 unary = { neg* ~ primary }
 neg = { "-" }
 pow = { "^" }
@@ -11,20 +11,23 @@ div = { "/" }
 additive = { multiplicative ~ ( (add | sub) ~ multiplicative )* }
 add = { "+" }
 sub = { "-" }
-expr = _{additive}
+expr = _{ 
+    &(primary ~ EOI) ~ primary 
+    | additive
+}
 
-assignment = { identifier ~ WHITESPACE* ~ "=" ~ WHITESPACE* ~ expr }
+assignment = { identifier ~ "=" ~ expr }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
 number = _{ float | integer }
-enclosed = _{ "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
+enclosed = _{ "(" ~ expr ~ ")" }
 
-comma_separated = _{ WHITESPACE* ~ expr ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ expr)* ~ WHITESPACE* }
-space_separated = _{ WHITESPACE* ~ expr ~ (WHITESPACE+ ~ expr)* ~ WHITESPACE* }
+comma_separated = _{ expr ~ ( "," ~ expr)* }
+space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)+ }
 
-function_call = { identifier ~ "(" ~ WHITESPACE* ~ arguments? ~ WHITESPACE* ~ ")" }
+function_call = { identifier ~ "(" ~ arguments? ~ ")" }
 arguments = { comma_separated }
 
 struct_call = { identifier ~ "::" ~ function_call}
@@ -36,6 +39,6 @@ silent_line = { print_line ~ ";" }
 print_line = { assignment | expr }
 
 elements = { comma_separated }
-vector = { "[" ~ WHITESPACE* ~ (elements)? ~ "]" }
+vector = { "[" ~ (elements)? ~ "]" }
 matrix_row = { space_separated }
 matrix = { "[" ~ matrix_row ~ ( ";" ~ matrix_row )* ~ "]" }
