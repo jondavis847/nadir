@@ -322,6 +322,11 @@ fn parse_expr(
             parse_expr(next_pair, storage)?;
             Ok(None)
         }
+        Rule::string => {
+            let parsed_str = pair.as_str();
+            let unquoted_str = &parsed_str[1..parsed_str.len() - 1]; // Remove the first and last character (the quotes)
+            Ok(Some(Value::String(Box::new(unquoted_str.to_string()))))
+        }
         Rule::struct_call => {
             let mut pairs = pair.into_inner();
             let struct_name_pair = pairs.next().unwrap();

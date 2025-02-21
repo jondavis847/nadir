@@ -1,6 +1,6 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | matrix | vector | identifier | number }
+primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | matrix | vector | string | identifier | number }
 term = _{ prefix }
 prefix = { neg* ~ postfix }
 neg = { "-" }
@@ -18,6 +18,9 @@ expr = _{
     &(primary ~ EOI) ~ primary 
     | additive
 }
+
+string = @{ "\"" ~ (escaped_char | !("\"" | "\\") ~ ANY)* ~ "\"" }
+escaped_char   = { "\\" ~ ANY }
 
 assignment = { identifier ~ "=" ~ expr }
 

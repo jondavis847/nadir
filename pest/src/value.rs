@@ -47,7 +47,7 @@ pub enum Value {
     DMatrix(Box<DMatrix<f64>>),
     Quaternion(Box<Quaternion>),
     UnitQuaternion(Box<UnitQuaternion>),
-    //String(Box<String>),
+    String(Box<String>),
 }
 
 impl std::fmt::Debug for Value {
@@ -100,6 +100,10 @@ impl std::fmt::Debug for Value {
                 }
                 Ok(())
             }
+            Value::String(s) => {
+                writeln!(f, "{}", label("String"))?;
+                writeln!(f, "{}", s)
+            }
             Value::Quaternion(q) => {
                 writeln!(f, "{}", label("Quaternion"))?;
                 writeln!(f, "{} {}", label("x"), q.x)?;
@@ -134,7 +138,7 @@ impl Value {
             }
             Value::Quaternion(_) => String::from("Quaternion"),
             Value::UnitQuaternion(_) => String::from("UnitQuaternion"),
-            //Value::String(_) => String::from("String"),
+            Value::String(_) => String::from("String"),
         }
     }
 
@@ -193,9 +197,9 @@ impl Value {
                 }
                 Ok(Value::DMatrix(Box::new(v3)))
             }
-            // (Value::String(a), Value::String(b)) => {
-            //     Ok(Value::String(Box::new(format!("{}{}", a, b))))
-            // }
+            (Value::String(a), Value::String(b)) => {
+                Ok(Value::String(Box::new(format!("{}{}", a, b))))
+            }
             _ => Err(ValueErrors::CannotAddTypes(other.as_str(), self.as_str())),
         }
     }
@@ -367,7 +371,7 @@ impl Value {
             Value::DMatrix(v) => Ok(Value::DMatrix(Box::new(-*v.clone()))),
             Value::Quaternion(v) => Ok(Value::Quaternion(Box::new(-(**v)))),
             Value::UnitQuaternion(v) => Ok(Value::UnitQuaternion(Box::new(-(**v)))),
-            //_ => Err(ValueErrors::CannotNegType(self.as_str())),
+            _ => Err(ValueErrors::CannotNegType(self.as_str())),
         }
     }
 
