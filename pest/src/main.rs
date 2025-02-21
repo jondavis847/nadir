@@ -169,7 +169,7 @@ fn main() {
                         match parse_result {
                             Ok(mut pairs) => {
                                 if let Some(line_pair) = pairs.next() {
-                                    dbg!(&line_pair);
+                                    // dbg!(&line_pair);
                                     // get to next level, with is a silent_line or print_line
                                     let print_or_silent = line_pair.into_inner().next().unwrap();
                                     match parse_expr(print_or_silent, &mut storage) {
@@ -285,7 +285,6 @@ fn parse_expr(
             if !rows.iter().all(|r| r.len() == row_len) {
                 return Err(NadirParserErrors::MatrixRowLengthMismatch);
             }
-            dbg!(&rows);
 
             // Flatten the matrix in row-major order.
             let flat_data: Vec<f64> = rows.into_iter().flatten().collect();
@@ -294,7 +293,6 @@ fn parse_expr(
             // Create the DMatrix using from_row_slice which accepts row-major data.
             let matrix = DMatrix::from_row_slice(num_rows, row_len, &flat_data);
 
-            dbg!(&matrix);
             Ok(Some(Value::DMatrix(Box::new(matrix))))
         }
         Rule::multiplicative => {

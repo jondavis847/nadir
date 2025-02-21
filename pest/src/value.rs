@@ -53,12 +53,27 @@ pub enum Value {
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::f64(v) => writeln!(f, "{} {}", label("f64"), v),
+            Value::f64(v) => {
+                if v.fract().abs() < std::f64::EPSILON {
+                    // Print with one decimal place (appending ".0")
+                    writeln!(f, "{} {:.1}", label("f64"), v)
+                } else {
+                    // Print the full decimal representation
+                    writeln!(f, "{} {}", label("f64"), v)
+                }
+            }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::DVector(v) => {
                 writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
                 for e in v.iter() {
-                    writeln!(f, "   {}", e)?;
+                    // Check if the fractional part is effectively 0
+                    if e.fract().abs() < std::f64::EPSILON {
+                        // Print with one decimal place (appending ".0")
+                        writeln!(f, "   {:.1}", e)?;
+                    } else {
+                        // Print the full decimal representation
+                        writeln!(f, "   {}", e)?;
+                    }
                 }
                 Ok(())
             }
@@ -71,8 +86,15 @@ impl std::fmt::Debug for Value {
                 for i in 0..m.nrows() {
                     write!(f, "  ")?; // indent each row
                     for j in 0..m.ncols() {
-                        // Format each float to 3 decimal places (adjust as needed)
-                        write!(f, "{:8.3} ", m[(i, j)])?;
+                        let value = m[(i, j)];
+                        // Use a small epsilon to account for floating-point precision
+                        if value.fract().abs() < 1e-6 {
+                            // Print with one decimal place (i.e. ".0"), keeping a width of 8 characters
+                            write!(f, "{:8.1} ", value)?;
+                        } else {
+                            // Otherwise, print with three decimal places and the same width
+                            write!(f, "{:8.3} ", value)?;
+                        }
                     }
                     writeln!(f)?;
                 }

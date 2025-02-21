@@ -25,7 +25,7 @@ number = _{ float | integer }
 enclosed = _{ "(" ~ expr ~ ")" }
 
 comma_separated = _{ expr ~ ( "," ~ expr)* }
-space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)+ }
+space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)* }
 
 function_call = { identifier ~ "(" ~ arguments? ~ ")" }
 arguments = { comma_separated }
@@ -34,8 +34,8 @@ struct_call = { identifier ~ "::" ~ function_call}
 instance_field = { identifier ~ "." ~ identifier }
 instance_call = { identifier ~ "." ~ function_call}
 
-line = { print_line | silent_line }
-silent_line = { print_line ~ ";" }
+line = { silent_line | print_line }
+silent_line = { (assignment | expr) ~ ";" }
 print_line = { assignment | expr }
 
 elements = { comma_separated }
