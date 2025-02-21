@@ -1,10 +1,13 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
 primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | matrix | vector | identifier | number }
-unary = { neg* ~ primary }
+term = _{ prefix }
+prefix = { neg* ~ postfix }
 neg = { "-" }
+postfix = { primary ~ fac* }
+fac = { "!" }
 pow = { "^" }
-exponential = { unary ~ ( pow ~ unary )* }
+exponential = { term ~ ( pow ~ term )? }
 multiplicative = { exponential ~ ( (mul | div) ~ exponential )* }
 mul = { "*" }
 div = { "/" }

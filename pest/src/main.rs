@@ -1,7 +1,6 @@
 use ansi_term::Colour;
-use nalgebra::{DMatrix, DVector, Dim, Dyn, RowDVector, RowVector, VecStorage};
-use pest::iterators::{Pair, Pairs};
-use pest::pratt_parser::{Assoc, Op, PrattParser};
+use nalgebra::{DMatrix, DVector};
+use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use rotations::prelude::{Quaternion, UnitQuaternion};
@@ -330,16 +329,32 @@ fn parse_expr(
             let fn_call_pair = pairs.next().unwrap();
             evaluate_function_call(fn_call_pair, storage, Some(struct_name))
         }
-        Rule::unary => {
+        Rule::postfix => {
             let mut inner_pairs = pair.into_inner();
-            let next_pair = inner_pairs.next().unwrap();
-            let value = match next_pair.as_rule() {
-                Rule::neg => {
-                    let value_pair = inner_pairs.next().unwrap();
-                    parse_expr(value_pair, storage)?.unwrap().try_negative()?
-                }
-                _ => parse_expr(next_pair, storage)?.unwrap(),
+            let first_pair = inner_pairs.next().unwrap();
+            let mut value = parse_expr(first_pair, storage)?.unwrap();
+            for postfix_pair in inner_pairs {
+                value = match postfix_pair.as_rule() {
+                    Rule::fac => value.try_factorial()?,
+                    _ => unreachable!("Parser should only pass valid postfixes"),
+                };
+            }
+            Ok(Some(value))
+        }
+        Rule::prefix => {
+            let mut inner_pairs = pair.into_inner();
+            let first = inner_pairs.next().unwrap();
+
+            let value = if first.as_rule() == Rule::neg {
+                // When the first token is a negation operator,
+                // the next token is the operand.
+                let operand = inner_pairs.next().unwrap();
+                parse_expr(operand, storage)?.unwrap().try_negative()?
+            } else {
+                // Otherwise, the first token is the actual operand.
+                parse_expr(first, storage)?.unwrap()
             };
+
             Ok(Some(value))
         }
         Rule::vector => {

@@ -27,7 +27,7 @@ members = [
     "software",    
     "spatial_algebra",
     "spherical_harmonics", 
-    "spice", "syn", 
+    "spice",
     "time", 
     "transforms", 
     "utilities", 
@@ -88,7 +88,6 @@ software = {path = "software"}
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"} 
-syn = { version = "2.0", features = ["full", "parsing"] }
 thiserror = "2.0.9"
 time = {path = "time"} 
 transforms = {path = "transforms"} 
