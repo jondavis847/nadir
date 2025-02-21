@@ -39,6 +39,7 @@ pub enum NadirParserErrors {
     MissingFunctionArguments,
     MissingFunctionName,
     NumberOfArgs(String, String, String),
+    OutOfBoundsIndex(String, String),
     StorageErrors(StorageErrors),
     UnexpectedOperator(String),
     UnexpectedRule(Rule),
@@ -95,6 +96,9 @@ impl fmt::Display for NadirParserErrors {
                     "incorrect number of args to function '{}'. expected {}, got {}",
                     func, expected, got
                 )
+            }
+            NadirParserErrors::OutOfBoundsIndex(max, ind) => {
+                format!("max size was {max} but index was {ind}")
             }
             NadirParserErrors::StorageErrors(err) => format!("{}", err),
             NadirParserErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
@@ -168,7 +172,7 @@ fn main() {
                         match parse_result {
                             Ok(mut pairs) => {
                                 if let Some(line_pair) = pairs.next() {
-                                    // dbg!(&line_pair);
+                                    dbg!(&line_pair);
                                     // get to next level, with is a silent_line or print_line
                                     let print_or_silent = line_pair.into_inner().next().unwrap();
                                     match parse_expr(print_or_silent, &mut storage) {
@@ -294,6 +298,65 @@ fn parse_expr(
 
             Ok(Some(Value::DMatrix(Box::new(matrix))))
         }
+        Rule::matrix_index => {
+            let mut inner_pairs = pair.into_inner();
+            let matrix_pair = inner_pairs.next().unwrap();
+            let row_index_pair = inner_pairs.next().unwrap();
+            let col_index_pair = inner_pairs.next().unwrap();
+
+            // Determine if row/col is a full selector or specific index
+            let row_selection = if row_index_pair.as_str() == ":" {
+                None // None signifies full row selection
+            } else {
+                Some(parse_expr(row_index_pair, storage)?.unwrap().as_usize()?)
+            };
+
+            let col_selection = if col_index_pair.as_str() == ":" {
+                None // None signifies full column selection
+            } else {
+                Some(parse_expr(col_index_pair, storage)?.unwrap().as_usize()?)
+            };
+
+            let matrix = match parse_expr(matrix_pair, storage)?.unwrap() {
+                Value::DMatrix(matrix) => *matrix,
+                _ => unreachable!("shouldn't be here if it's not a matrix"),
+            };
+
+            // Extract the desired elements based on the selection
+            match (row_selection, col_selection) {
+                (Some(row), Some(col)) => {
+                    // Specific element
+                    if row > matrix.nrows() {
+                        return Err(NadirParserErrors::OutOfBoundsIndex(
+                            row.to_string(),
+                            matrix.nrows().to_string(),
+                        ));
+                    }
+                    if col > matrix.ncols() {
+                        return Err(NadirParserErrors::OutOfBoundsIndex(
+                            col.to_string(),
+                            matrix.ncols().to_string(),
+                        ));
+                    }
+                    let value = matrix.get((row, col)).unwrap();
+                    Ok(Some(Value::f64(*value)))
+                }
+                (Some(row), None) => {
+                    // Entire row
+                    let row_vec = matrix.row(row).transpose().into_owned();
+                    Ok(Some(Value::DVector(Box::new(row_vec))))
+                }
+                (None, Some(col)) => {
+                    // Entire column
+                    let col_vec = matrix.column(col).into_owned();
+                    Ok(Some(Value::DVector(Box::new(col_vec))))
+                }
+                (None, None) => {
+                    // Entire matrix
+                    Ok(Some(Value::DMatrix(Box::new(matrix.clone()))))
+                }
+            }
+        }
         Rule::multiplicative => {
             let mut inner_pairs = pair.into_inner();
             let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
@@ -341,6 +404,8 @@ fn parse_expr(
             for postfix_pair in inner_pairs {
                 value = match postfix_pair.as_rule() {
                     Rule::fac => value.try_factorial()?,
+                    Rule::vector_index => value.try_vector_index()?,
+                    Rule::matrix_index => value.try_matrix_index()?,
                     _ => unreachable!("Parser should only pass valid postfixes"),
                 };
             }

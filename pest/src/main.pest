@@ -1,10 +1,21 @@
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 
-primary = _{ enclosed | struct_call | instance_call | instance_field | function_call | matrix | vector | string | identifier | number }
+primary = _{ 
+    enclosed | 
+    struct_call | 
+    instance_call | 
+    instance_field | 
+    function_call |     
+    matrix | 
+    vector | 
+    string | 
+    identifier | 
+    number 
+    }
 term = _{ prefix }
 prefix = { neg* ~ postfix }
 neg = { "-" }
-postfix = { primary ~ fac* }
+postfix = { primary ~ (matrix_index | vector_index | fac)* }
 fac = { "!" }
 pow = { "^" }
 exponential = { term ~ ( pow ~ term )? }
@@ -48,3 +59,6 @@ elements = { comma_separated }
 vector = { "[" ~ (elements)? ~ "]" }
 matrix_row = { space_separated }
 matrix = { "[" ~ matrix_row ~ ( ";" ~ matrix_row )* ~ "]" }
+
+vector_index = { "[" ~ expr ~ "]" }
+matrix_index = { "[" ~ expr ~ "," ~ expr ~ "]" }

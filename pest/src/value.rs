@@ -18,6 +18,10 @@ pub enum ValueErrors {
     CannotAddTypes(String, String),
     #[error("cannot convert type {0} to f64")]
     CannotConvertToF64(String),
+    #[error("cannot convert type {0} to i64")]
+    CannotConvertToI64(String),
+    #[error("cannot convert type {0} to usize")]
+    CannotConvertToUsize(String),
     #[error("cannot divide type {1} by {0}")]
     CannotDivideTypes(String, String),
     #[error("cannot multiply type {1} by {0}")]
@@ -147,6 +151,22 @@ impl Value {
             Value::f64(v) => Ok(*v),
             Value::i64(v) => Ok(*v as f64),
             _ => Err(ValueErrors::CannotConvertToF64(self.as_str())),
+        }
+    }
+
+    pub fn as_i64(&self) -> Result<i64, ValueErrors> {
+        match self {
+            Value::f64(v) => Ok(*v as i64),
+            Value::i64(v) => Ok(*v),
+            _ => Err(ValueErrors::CannotConvertToI64(self.as_str())),
+        }
+    }
+
+    pub fn as_usize(&self) -> Result<usize, ValueErrors> {
+        match self {
+            Value::f64(v) => Ok(*v as usize),
+            Value::i64(v) => Ok(*v as usize),
+            _ => Err(ValueErrors::CannotConvertToUsize(self.as_str())),
         }
     }
 
@@ -362,6 +382,8 @@ impl Value {
             )),
         }
     }
+
+    pub fn try_vector_index(&self) -> Result<Value, ValueErrors> {}
 
     pub fn try_negative(&self) -> Result<Value, ValueErrors> {
         match self {
