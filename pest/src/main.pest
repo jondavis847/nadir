@@ -60,5 +60,19 @@ vector = { "[" ~ (elements)? ~ "]" }
 matrix_row = { space_separated }
 matrix = { "[" ~ matrix_row ~ ( ";" ~ matrix_row )* ~ "]" }
 
-vector_index = { "[" ~ expr ~ "]" }
-matrix_index = { "[" ~ expr ~ "," ~ expr ~ "]" }
+vector_index = { "[" ~ index ~ "]" }
+matrix_index = { "[" ~ index ~ "," ~ index ~ "]" }
+
+index = { index_all | index_range_inclusive | index_range_exclusive | index_single }
+
+index_single = { expr }
+
+index_range_inclusive = { 
+    (expr ~ ":" ~ expr ~ (":" ~ expr)?) 
+}
+
+index_range_exclusive = { 
+    (expr ~ ".." ~ expr ~ (".." ~ expr)?) 
+}
+
+index_all = { ":" } // Selects all elements

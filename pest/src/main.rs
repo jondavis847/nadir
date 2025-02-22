@@ -16,7 +16,7 @@ mod value;
 
 use helper::NadirHelper;
 use storage::{Storage, StorageErrors};
-use value::{Value, ValueErrors};
+use value::{IndexStyle, Range, Value, ValueErrors};
 
 #[derive(Parser)]
 #[grammar = "main.pest"] // relative path to your .pest file
@@ -262,6 +262,7 @@ fn parse_expr(
         Rule::function_call => evaluate_function_call(pair, storage, None),
         Rule::identifier => Ok(Some(storage.borrow().get(pair.as_str())?)),
         Rule::instance_field => evaluate_instance_field(pair, storage),
+        Rule::instance_call => evaluate_instance_call(pair, storage),
         Rule::integer => Ok(Some(Value::i64(pair.as_str().parse::<i64>().unwrap()))),
         Rule::matrix => {
             let row_pairs = pair.into_inner();
@@ -296,7 +297,7 @@ fn parse_expr(
             // Create the DMatrix using from_row_slice which accepts row-major data.
             let matrix = DMatrix::from_row_slice(num_rows, row_len, &flat_data);
 
-            Ok(Some(Value::DMatrix(Box::new(matrix))))
+            Ok(Some(Value::Matrix(Box::new(matrix))))
         }
         Rule::matrix_index => {
             let mut inner_pairs = pair.into_inner();
@@ -318,7 +319,7 @@ fn parse_expr(
             };
 
             let matrix = match parse_expr(matrix_pair, storage)?.unwrap() {
-                Value::DMatrix(matrix) => *matrix,
+                Value::Matrix(matrix) => *matrix,
                 _ => unreachable!("shouldn't be here if it's not a matrix"),
             };
 
@@ -344,16 +345,16 @@ fn parse_expr(
                 (Some(row), None) => {
                     // Entire row
                     let row_vec = matrix.row(row).transpose().into_owned();
-                    Ok(Some(Value::DVector(Box::new(row_vec))))
+                    Ok(Some(Value::Vector(Box::new(row_vec))))
                 }
                 (None, Some(col)) => {
                     // Entire column
                     let col_vec = matrix.column(col).into_owned();
-                    Ok(Some(Value::DVector(Box::new(col_vec))))
+                    Ok(Some(Value::Vector(Box::new(col_vec))))
                 }
                 (None, None) => {
                     // Entire matrix
-                    Ok(Some(Value::DMatrix(Box::new(matrix.clone()))))
+                    Ok(Some(Value::Matrix(Box::new(matrix.clone()))))
                 }
             }
         }
@@ -404,8 +405,11 @@ fn parse_expr(
             for postfix_pair in inner_pairs {
                 value = match postfix_pair.as_rule() {
                     Rule::fac => value.try_factorial()?,
-                    Rule::vector_index => value.try_vector_index()?,
-                    Rule::matrix_index => value.try_matrix_index()?,
+                    Rule::vector_index => {
+                        let index = evaluate_index(postfix_pair, storage)?;
+                        value.try_vector_index(index)?
+                    }
+                    //Rule::matrix_index => value.try_matrix_index()?,
                     _ => unreachable!("Parser should only pass valid postfixes"),
                 };
             }
@@ -438,7 +442,7 @@ fn parse_expr(
                     return Err(NadirParserErrors::CantParseVector);
                 }
             }
-            Ok(Some(Value::DVector(Box::new(DVector::from_vec(values)))))
+            Ok(Some(Value::Vector(Box::new(DVector::from_vec(values)))))
         }
 
         _ => Err(NadirParserErrors::UnexpectedRule(pair.as_rule())),
@@ -600,5 +604,93 @@ fn evaluate_instance_field(
             instance_name.to_string(),
             field.to_string(),
         )),
+    }
+}
+
+fn evaluate_index(
+    pair: Pair<Rule>,
+    storage: &mut Rc<RefCell<Storage>>,
+) -> Result<IndexStyle, NadirParserErrors> {
+    let index_pair = pair.into_inner().next().unwrap();
+    let index_style_pair = index_pair.into_inner().next().unwrap();
+    match index_style_pair.as_rule() {
+        Rule::index_all => Ok(IndexStyle::All),
+        Rule::index_single => {
+            let expr_pair = index_style_pair.into_inner().next().unwrap();
+            let value = parse_expr(expr_pair, storage)?.unwrap();
+            Ok(value.as_index()?)
+        }
+        Rule::index_range_inclusive => {
+            let mut range_pairs = index_style_pair.into_inner();
+            let first = if let Some(first_pair) = range_pairs.next() {
+                Some(parse_expr(first_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+            let second = if let Some(second_pair) = range_pairs.next() {
+                Some(parse_expr(second_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+            let third = if let Some(third_pair) = range_pairs.next() {
+                Some(parse_expr(third_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+
+            let range = match (first, second, third) {
+                (Some(first), Some(second), None) => Range {
+                    start: Some(first),
+                    stop: Some(second + 1),
+                    step: None,
+                },
+                (Some(first), Some(second), Some(third)) => Range {
+                    start: Some(first),
+                    stop: Some(third + 1),
+                    step: Some(second),
+                },
+                // just return default range, which should index as all
+                _ => Range::default(),
+            };
+            Ok(IndexStyle::Range(range))
+        }
+        Rule::index_range_exclusive => {
+            let mut range_pairs = index_style_pair.into_inner();
+            let first = if let Some(first_pair) = range_pairs.next() {
+                Some(parse_expr(first_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+            let second = if let Some(second_pair) = range_pairs.next() {
+                Some(parse_expr(second_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+            let third = if let Some(third_pair) = range_pairs.next() {
+                Some(parse_expr(third_pair, storage)?.unwrap().as_usize()?)
+            } else {
+                None
+            };
+
+            let range = match (first, second, third) {
+                (Some(first), Some(second), None) => Range {
+                    start: Some(first),
+                    stop: Some(second),
+                    step: None,
+                },
+                (Some(first), Some(second), Some(third)) => Range {
+                    start: Some(first),
+                    stop: Some(third),
+                    step: Some(second),
+                },
+                // just return default range, which should index as all
+                _ => Range::default(),
+            };
+            Ok(IndexStyle::Range(range))
+        }
+        _ => {
+            dbg!(index_style_pair.as_rule());
+            unreachable!("rule needs to be an index")
+        }
     }
 }
