@@ -59,6 +59,7 @@ pub enum Value {
     VectorBool(Box<DVector<bool>>),
     VectorUsize(Box<DVector<usize>>),
     Matrix(Box<DMatrix<f64>>),
+    None,
     Range(Range),
     Quaternion(Box<Quaternion>),
     UnitQuaternion(Box<UnitQuaternion>),
@@ -78,6 +79,7 @@ impl std::fmt::Debug for Value {
                 }
             }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
+            Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"));
                 let start = if let Some(start) = r.start {
@@ -194,6 +196,7 @@ impl Value {
                 let cols = v.ncols();
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
             }
+            Value::None => "None".to_string(),
             Value::Range(_) => String::from("Range"),
             Value::Quaternion(_) => String::from("Quaternion"),
             Value::UnitQuaternion(_) => String::from("UnitQuaternion"),

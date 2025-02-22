@@ -23,7 +23,7 @@ use value::{IndexStyle, Range, Value, ValueErrors};
 struct NadirParser;
 
 #[derive(Debug)]
-pub enum NadirParserErrors {
+pub enum CliErrors {
     ArgumentValueIsNone(String),
     CantParseVector,
     CantParseMatrix,
@@ -46,64 +46,62 @@ pub enum NadirParserErrors {
     ValueErrors(ValueErrors),
 }
 
-impl From<StorageErrors> for NadirParserErrors {
+impl From<StorageErrors> for CliErrors {
     fn from(value: StorageErrors) -> Self {
         Self::StorageErrors(value)
     }
 }
 
-impl From<ValueErrors> for NadirParserErrors {
+impl From<ValueErrors> for CliErrors {
     fn from(value: ValueErrors) -> Self {
         Self::ValueErrors(value)
     }
 }
 
-impl fmt::Display for NadirParserErrors {
+impl fmt::Display for CliErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let error_message = match self {
-            NadirParserErrors::ArgumentValueIsNone(arg) => {
+            CliErrors::ArgumentValueIsNone(arg) => {
                 format!("argument value was None: {}", arg)
             }
-            NadirParserErrors::CantParseVector => "could not parse vector".to_string(),
-            NadirParserErrors::CantParseMatrix => "could not parse matrix".to_string(),
-            NadirParserErrors::EmptyValue => format!("pest parsing value was empty"),
-            NadirParserErrors::EmptyPairs(arg) => format!("pest parsing pairs were empty: {}", arg),
-            NadirParserErrors::ExpectedFunctionArguments(arg) => {
+            CliErrors::CantParseVector => "could not parse vector".to_string(),
+            CliErrors::CantParseMatrix => "could not parse matrix".to_string(),
+            CliErrors::EmptyValue => format!("pest parsing value was empty"),
+            CliErrors::EmptyPairs(arg) => format!("pest parsing pairs were empty: {}", arg),
+            CliErrors::ExpectedFunctionArguments(arg) => {
                 format!("expected rule was function_arguments but got: {}", arg)
             }
-            NadirParserErrors::ExpectedFunctionCall(arg) => {
+            CliErrors::ExpectedFunctionCall(arg) => {
                 format!("expected rule was function_call but got: {}", arg)
             }
-            NadirParserErrors::ExpectedIdentifier(arg) => {
+            CliErrors::ExpectedIdentifier(arg) => {
                 format!("expected rule was identifier but got: {}", arg)
             }
-            NadirParserErrors::FunctionNotFound(func) => format!("function not found: {}", func),
-            NadirParserErrors::InvalidField(instance, field) => {
+            CliErrors::FunctionNotFound(func) => format!("function not found: {}", func),
+            CliErrors::InvalidField(instance, field) => {
                 format!("invalid field {field} for variable {instance}")
             }
-            NadirParserErrors::InvalidNumber(num) => format!("invalid number: {}", num),
-            NadirParserErrors::MatrixRowLengthMismatch => {
+            CliErrors::InvalidNumber(num) => format!("invalid number: {}", num),
+            CliErrors::MatrixRowLengthMismatch => {
                 format!("matrix cannot have rows of different lengths")
             }
-            NadirParserErrors::MissingFunctionArguments => {
+            CliErrors::MissingFunctionArguments => {
                 "was not able to parse function arguments".to_string()
             }
-            NadirParserErrors::MissingFunctionName => {
-                "was not able to parse a function name".to_string()
-            }
-            NadirParserErrors::NumberOfArgs(func, expected, got) => {
+            CliErrors::MissingFunctionName => "was not able to parse a function name".to_string(),
+            CliErrors::NumberOfArgs(func, expected, got) => {
                 format!(
                     "incorrect number of args to function '{}'. expected {}, got {}",
                     func, expected, got
                 )
             }
-            NadirParserErrors::OutOfBoundsIndex(max, ind) => {
+            CliErrors::OutOfBoundsIndex(max, ind) => {
                 format!("max size was {max} but index was {ind}")
             }
-            NadirParserErrors::StorageErrors(err) => format!("{}", err),
-            NadirParserErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
-            NadirParserErrors::UnexpectedRule(rule) => format!("unexpected rule: {:?}", rule),
-            NadirParserErrors::ValueErrors(err) => format!("{}", err),
+            CliErrors::StorageErrors(err) => format!("{}", err),
+            CliErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
+            CliErrors::UnexpectedRule(rule) => format!("unexpected rule: {:?}", rule),
+            CliErrors::ValueErrors(err) => format!("{}", err),
         };
 
         // Wrap the error message in red
@@ -209,17 +207,14 @@ fn main() {
     }
 }
 
-fn parse_expr(
-    pair: Pair<Rule>,
-    storage: &mut Rc<RefCell<Storage>>,
-) -> Result<Option<Value>, NadirParserErrors> {
+fn parse_expr(pair: Pair<Rule>, storage: &mut Rc<RefCell<Storage>>) -> Result<Value, CliErrors> {
     match pair.as_rule() {
         Rule::additive => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage)?.unwrap();
+                let right = parse_expr(right_pair, storage)?;
                 value = match op_pair.as_rule() {
                     Rule::add => value.try_add(&right)?,
                     Rule::sub => value.try_sub(&right)?,
@@ -227,18 +222,17 @@ fn parse_expr(
                 };
             }
 
-            Ok(Some(value))
+            Ok(value)
         }
         Rule::assignment => {
             let mut inner = pair.into_inner();
             let name = inner.next().unwrap().as_str();
             let expr = inner.next().unwrap();
             let value = parse_expr(expr, storage)?;
-            if let Some(value) = &value {
-                storage
-                    .borrow_mut()
-                    .insert(name.to_string(), value.clone())?;
-            }
+            storage
+                .borrow_mut()
+                .insert(name.to_string(), value.clone())?;
+
             Ok(value)
         }
         Rule::expr => {
@@ -247,23 +241,23 @@ fn parse_expr(
         }
         Rule::exponential => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage)?.unwrap();
+                let right = parse_expr(right_pair, storage)?;
                 value = match op_pair.as_rule() {
                     Rule::pow => value.try_pow(&right)?,
                     _ => unreachable!(),
                 };
             }
-            Ok(Some(value))
+            Ok(value)
         }
-        Rule::float => Ok(Some(Value::f64(pair.as_str().parse::<f64>().unwrap()))),
+        Rule::float => Ok(Value::f64(pair.as_str().parse::<f64>().unwrap())),
         Rule::function_call => evaluate_function_call(pair, storage, None),
-        Rule::identifier => Ok(Some(storage.borrow().get(pair.as_str())?)),
+        Rule::identifier => Ok(storage.borrow().get(pair.as_str())?),
         Rule::instance_field => evaluate_instance_field(pair, storage),
         Rule::instance_call => evaluate_instance_call(pair, storage),
-        Rule::integer => Ok(Some(Value::i64(pair.as_str().parse::<i64>().unwrap()))),
+        Rule::integer => Ok(Value::i64(pair.as_str().parse::<i64>().unwrap())),
         Rule::matrix => {
             let row_pairs = pair.into_inner();
             let mut rows: Vec<Vec<f64>> = Vec::new();
@@ -272,10 +266,10 @@ fn parse_expr(
                 let space_separated_pair = row_pair.into_inner().next().unwrap();
                 let mut row: Vec<f64> = Vec::new();
                 for value_pair in space_separated_pair.into_inner() {
-                    if let Some(value) = parse_expr(value_pair, storage)? {
+                    if let value = parse_expr(value_pair, storage)? {
                         row.push(value.as_f64()?);
                     } else {
-                        return Err(NadirParserErrors::CantParseMatrix);
+                        return Err(CliErrors::CantParseMatrix);
                     }
                 }
                 rows.push(row);
@@ -283,11 +277,11 @@ fn parse_expr(
 
             // Check that we have at least one row and that all rows are of equal length.
             if rows.is_empty() {
-                return Err(NadirParserErrors::CantParseMatrix);
+                return Err(CliErrors::CantParseMatrix);
             }
             let row_len = rows[0].len();
             if !rows.iter().all(|r| r.len() == row_len) {
-                return Err(NadirParserErrors::MatrixRowLengthMismatch);
+                return Err(CliErrors::MatrixRowLengthMismatch);
             }
 
             // Flatten the matrix in row-major order.
@@ -297,7 +291,7 @@ fn parse_expr(
             // Create the DMatrix using from_row_slice which accepts row-major data.
             let matrix = DMatrix::from_row_slice(num_rows, row_len, &flat_data);
 
-            Ok(Some(Value::Matrix(Box::new(matrix))))
+            Ok(Value::Matrix(Box::new(matrix)))
         }
         Rule::matrix_index => {
             let mut inner_pairs = pair.into_inner();
@@ -309,16 +303,16 @@ fn parse_expr(
             let row_selection = if row_index_pair.as_str() == ":" {
                 None // None signifies full row selection
             } else {
-                Some(parse_expr(row_index_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(row_index_pair, storage)?.as_usize()?)
             };
 
             let col_selection = if col_index_pair.as_str() == ":" {
                 None // None signifies full column selection
             } else {
-                Some(parse_expr(col_index_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(col_index_pair, storage)?.as_usize()?)
             };
 
-            let matrix = match parse_expr(matrix_pair, storage)?.unwrap() {
+            let matrix = match parse_expr(matrix_pair, storage)? {
                 Value::Matrix(matrix) => *matrix,
                 _ => unreachable!("shouldn't be here if it's not a matrix"),
             };
@@ -328,42 +322,42 @@ fn parse_expr(
                 (Some(row), Some(col)) => {
                     // Specific element
                     if row > matrix.nrows() {
-                        return Err(NadirParserErrors::OutOfBoundsIndex(
+                        return Err(CliErrors::OutOfBoundsIndex(
                             row.to_string(),
                             matrix.nrows().to_string(),
                         ));
                     }
                     if col > matrix.ncols() {
-                        return Err(NadirParserErrors::OutOfBoundsIndex(
+                        return Err(CliErrors::OutOfBoundsIndex(
                             col.to_string(),
                             matrix.ncols().to_string(),
                         ));
                     }
                     let value = matrix.get((row, col)).unwrap();
-                    Ok(Some(Value::f64(*value)))
+                    Ok(Value::f64(*value))
                 }
                 (Some(row), None) => {
                     // Entire row
                     let row_vec = matrix.row(row).transpose().into_owned();
-                    Ok(Some(Value::Vector(Box::new(row_vec))))
+                    Ok(Value::Vector(Box::new(row_vec)))
                 }
                 (None, Some(col)) => {
                     // Entire column
                     let col_vec = matrix.column(col).into_owned();
-                    Ok(Some(Value::Vector(Box::new(col_vec))))
+                    Ok(Value::Vector(Box::new(col_vec)))
                 }
                 (None, None) => {
                     // Entire matrix
-                    Ok(Some(Value::Matrix(Box::new(matrix.clone()))))
+                    Ok(Value::Matrix(Box::new(matrix.clone())))
                 }
             }
         }
         Rule::multiplicative => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?.unwrap();
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage)?.unwrap();
+                let right = parse_expr(right_pair, storage)?;
                 value = match op_pair.as_rule() {
                     Rule::mul => value.try_mul(&right)?,
                     Rule::div => value.try_div(&right)?,
@@ -371,25 +365,23 @@ fn parse_expr(
                 };
             }
 
-            Ok(Some(value))
+            Ok(value)
         }
         Rule::print_line => {
             let next_pair = pair.into_inner().next().unwrap();
             let value = parse_expr(next_pair, storage)?;
-            if let Some(ref value) = value {
-                println!("{:?}", value);
-            }
+            println!("{:?}", value);
             Ok(value)
         }
         Rule::silent_line => {
             let next_pair = pair.into_inner().next().unwrap();
             parse_expr(next_pair, storage)?;
-            Ok(None)
+            Ok(Value::None)
         }
         Rule::string => {
             let parsed_str = pair.as_str();
             let unquoted_str = &parsed_str[1..parsed_str.len() - 1]; // Remove the first and last character (the quotes)
-            Ok(Some(Value::String(Box::new(unquoted_str.to_string()))))
+            Ok(Value::String(Box::new(unquoted_str.to_string())))
         }
         Rule::struct_call => {
             let mut pairs = pair.into_inner();
@@ -401,7 +393,7 @@ fn parse_expr(
         Rule::postfix => {
             let mut inner_pairs = pair.into_inner();
             let first_pair = inner_pairs.next().unwrap();
-            let mut value = parse_expr(first_pair, storage)?.unwrap();
+            let mut value = parse_expr(first_pair, storage)?;
             for postfix_pair in inner_pairs {
                 value = match postfix_pair.as_rule() {
                     Rule::fac => value.try_factorial()?,
@@ -413,7 +405,7 @@ fn parse_expr(
                     _ => unreachable!("Parser should only pass valid postfixes"),
                 };
             }
-            Ok(Some(value))
+            Ok(value)
         }
         Rule::prefix => {
             let mut inner_pairs = pair.into_inner();
@@ -423,29 +415,26 @@ fn parse_expr(
                 // When the first token is a negation operator,
                 // the next token is the operand.
                 let operand = inner_pairs.next().unwrap();
-                parse_expr(operand, storage)?.unwrap().try_negative()?
+                parse_expr(operand, storage)?.try_negative()?
             } else {
                 // Otherwise, the first token is the actual operand.
-                parse_expr(first, storage)?.unwrap()
+                parse_expr(first, storage)?
             };
 
-            Ok(Some(value))
+            Ok(value)
         }
         Rule::vector => {
             let elements_pair = pair.into_inner().next().unwrap();
             let value_pairs = elements_pair.into_inner();
             let mut values = Vec::new();
             for value_pair in value_pairs {
-                if let Some(value) = parse_expr(value_pair, storage)? {
-                    values.push(value.as_f64()?);
-                } else {
-                    return Err(NadirParserErrors::CantParseVector);
-                }
+                let value = parse_expr(value_pair, storage)?;
+                values.push(value.as_f64()?);
             }
-            Ok(Some(Value::Vector(Box::new(DVector::from_vec(values)))))
+            Ok(Value::Vector(Box::new(DVector::from_vec(values))))
         }
 
-        _ => Err(NadirParserErrors::UnexpectedRule(pair.as_rule())),
+        _ => Err(CliErrors::UnexpectedRule(pair.as_rule())),
     }
 }
 
@@ -453,7 +442,7 @@ fn evaluate_function_call(
     pair: Pair<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
     struct_name: Option<&str>,
-) -> Result<Option<Value>, NadirParserErrors> {
+) -> Result<Value, CliErrors> {
     let mut pairs = pair.into_inner();
 
     let fn_name_pair = pairs.next().unwrap();
@@ -466,7 +455,11 @@ fn evaluate_function_call(
         let inner = args_pair.into_inner();
         let mut args = Vec::new();
         for arg in inner {
-            let value = parse_expr(arg, storage)?.ok_or_else(|| NadirParserErrors::EmptyValue)?;
+            let value = parse_expr(arg, storage)?;
+            match value {
+                Value::None => return Err(CliErrors::EmptyValue),
+                _ => {}
+            }
             args.push(value);
         }
         args
@@ -479,7 +472,7 @@ fn evaluate_function_call(
         match (struct_name, fn_name) {
             ("Quaternion", "new") => {
                 if args.len() != 4 {
-                    return Err(NadirParserErrors::NumberOfArgs(
+                    return Err(CliErrors::NumberOfArgs(
                         fn_name.to_string(),
                         "4".to_string(),
                         args.len().to_string(),
@@ -489,27 +482,27 @@ fn evaluate_function_call(
                 for (i, arg) in args.iter().enumerate() {
                     quat_args[i] = arg.as_f64()?;
                 }
-                Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
+                Ok(Value::Quaternion(Box::new(Quaternion::new(
                     quat_args[0],
                     quat_args[1],
                     quat_args[2],
                     quat_args[3],
-                )))))
+                ))))
             }
             ("Quaternion", "rand") => {
                 if args.len() != 0 {
-                    return Err(NadirParserErrors::NumberOfArgs(
+                    return Err(CliErrors::NumberOfArgs(
                         fn_name.to_string(),
                         "0".to_string(),
                         args.len().to_string(),
                     ));
                 }
 
-                Ok(Some(Value::Quaternion(Box::new(Quaternion::rand()))))
+                Ok(Value::Quaternion(Box::new(Quaternion::rand())))
             }
             ("UnitQuaternion", "new") => {
                 if args.len() != 4 {
-                    return Err(NadirParserErrors::NumberOfArgs(
+                    return Err(CliErrors::NumberOfArgs(
                         fn_name.to_string(),
                         "4".to_string(),
                         args.len().to_string(),
@@ -519,27 +512,25 @@ fn evaluate_function_call(
                 for (i, arg) in args.iter().enumerate() {
                     quat_args[i] = arg.as_f64()?;
                 }
-                Ok(Some(Value::UnitQuaternion(Box::new(UnitQuaternion::new(
+                Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::new(
                     quat_args[0],
                     quat_args[1],
                     quat_args[2],
                     quat_args[3],
-                )))))
+                ))))
             }
             ("UnitQuaternion", "rand") => {
                 if args.len() != 0 {
-                    return Err(NadirParserErrors::NumberOfArgs(
+                    return Err(CliErrors::NumberOfArgs(
                         fn_name.to_string(),
                         "0".to_string(),
                         args.len().to_string(),
                     ));
                 }
 
-                Ok(Some(Value::UnitQuaternion(
-                    Box::new(UnitQuaternion::rand()),
-                )))
+                Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand())))
             }
-            _ => Err(NadirParserErrors::FunctionNotFound(format!(
+            _ => Err(CliErrors::FunctionNotFound(format!(
                 "{}::{}",
                 struct_name, fn_name
             ))),
@@ -548,7 +539,7 @@ fn evaluate_function_call(
         match fn_name {
             "quat" => {
                 if args.len() != 4 {
-                    return Err(NadirParserErrors::NumberOfArgs(
+                    return Err(CliErrors::NumberOfArgs(
                         fn_name.to_string(),
                         "4".to_string(),
                         args.len().to_string(),
@@ -558,14 +549,14 @@ fn evaluate_function_call(
                 for (i, arg) in args.iter().enumerate() {
                     quat_args[i] = arg.as_f64()?;
                 }
-                Ok(Some(Value::Quaternion(Box::new(Quaternion::new(
+                Ok(Value::Quaternion(Box::new(Quaternion::new(
                     quat_args[0],
                     quat_args[1],
                     quat_args[2],
                     quat_args[3],
-                )))))
+                ))))
             }
-            _ => Err(NadirParserErrors::FunctionNotFound(fn_name.to_string())),
+            _ => Err(CliErrors::FunctionNotFound(fn_name.to_string())),
         }
     }
 }
@@ -573,7 +564,7 @@ fn evaluate_function_call(
 fn evaluate_instance_field(
     pair: Pair<Rule>,
     storage: &Rc<RefCell<Storage>>,
-) -> Result<Option<Value>, NadirParserErrors> {
+) -> Result<Value, CliErrors> {
     let storage = storage.borrow();
     let mut pairs = pair.into_inner();
     let instance_name = pairs.next().unwrap().as_str();
@@ -581,26 +572,26 @@ fn evaluate_instance_field(
     let field = pairs.next().unwrap().as_str();
     match instance {
         Value::Quaternion(q) => match field {
-            "x" => Ok(Some(Value::f64(q.x))),
-            "y" => Ok(Some(Value::f64(q.y))),
-            "z" => Ok(Some(Value::f64(q.z))),
-            "w" => Ok(Some(Value::f64(q.w))),
-            _ => Err(NadirParserErrors::InvalidField(
+            "x" => Ok(Value::f64(q.x)),
+            "y" => Ok(Value::f64(q.y)),
+            "z" => Ok(Value::f64(q.z)),
+            "w" => Ok(Value::f64(q.w)),
+            _ => Err(CliErrors::InvalidField(
                 instance_name.to_string(),
                 field.to_string(),
             )),
         },
         Value::UnitQuaternion(q) => match field {
-            "x" => Ok(Some(Value::f64(q.0.x))),
-            "y" => Ok(Some(Value::f64(q.0.y))),
-            "z" => Ok(Some(Value::f64(q.0.z))),
-            "w" => Ok(Some(Value::f64(q.0.w))),
-            _ => Err(NadirParserErrors::InvalidField(
+            "x" => Ok(Value::f64(q.0.x)),
+            "y" => Ok(Value::f64(q.0.y)),
+            "z" => Ok(Value::f64(q.0.z)),
+            "w" => Ok(Value::f64(q.0.w)),
+            _ => Err(CliErrors::InvalidField(
                 instance_name.to_string(),
                 field.to_string(),
             )),
         },
-        _ => Err(NadirParserErrors::InvalidField(
+        _ => Err(CliErrors::InvalidField(
             instance_name.to_string(),
             field.to_string(),
         )),
@@ -610,30 +601,30 @@ fn evaluate_instance_field(
 fn evaluate_index(
     pair: Pair<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
-) -> Result<IndexStyle, NadirParserErrors> {
+) -> Result<IndexStyle, CliErrors> {
     let index_pair = pair.into_inner().next().unwrap();
     let index_style_pair = index_pair.into_inner().next().unwrap();
     match index_style_pair.as_rule() {
         Rule::index_all => Ok(IndexStyle::All),
         Rule::index_single => {
             let expr_pair = index_style_pair.into_inner().next().unwrap();
-            let value = parse_expr(expr_pair, storage)?.unwrap();
+            let value = parse_expr(expr_pair, storage)?;
             Ok(value.as_index()?)
         }
         Rule::index_range_inclusive => {
             let mut range_pairs = index_style_pair.into_inner();
             let first = if let Some(first_pair) = range_pairs.next() {
-                Some(parse_expr(first_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(first_pair, storage)?.as_usize()?)
             } else {
                 None
             };
             let second = if let Some(second_pair) = range_pairs.next() {
-                Some(parse_expr(second_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(second_pair, storage)?.as_usize()?)
             } else {
                 None
             };
             let third = if let Some(third_pair) = range_pairs.next() {
-                Some(parse_expr(third_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(third_pair, storage)?.as_usize()?)
             } else {
                 None
             };
@@ -657,17 +648,17 @@ fn evaluate_index(
         Rule::index_range_exclusive => {
             let mut range_pairs = index_style_pair.into_inner();
             let first = if let Some(first_pair) = range_pairs.next() {
-                Some(parse_expr(first_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(first_pair, storage)?.as_usize()?)
             } else {
                 None
             };
             let second = if let Some(second_pair) = range_pairs.next() {
-                Some(parse_expr(second_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(second_pair, storage)?.as_usize()?)
             } else {
                 None
             };
             let third = if let Some(third_pair) = range_pairs.next() {
-                Some(parse_expr(third_pair, storage)?.unwrap().as_usize()?)
+                Some(parse_expr(third_pair, storage)?.as_usize()?)
             } else {
                 None
             };
@@ -693,4 +684,10 @@ fn evaluate_index(
             unreachable!("rule needs to be an index")
         }
     }
+}
+
+fn evaluate_instance_call(
+    pair: Pair<Rule>,
+    storage: &mut Rc<RefCell<Storage>>,
+) -> Result<Value, CliErrors> {
 }
