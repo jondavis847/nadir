@@ -62,12 +62,13 @@ pub struct FunctionCompleter {
 
 impl FunctionCompleter {
     const FUNCTIONS: [&'static str; 0] = [];
-    const STRUCTS: [&'static str; 2] = ["Quaternion", "UnitQuaternion"];
-    const STRUCT_METHODS: [(&'static str, &'static str); 4] = [
+    const STRUCTS: [&'static str; 3] = ["Quaternion", "UnitQuaternion", "Vector"];
+    const STRUCT_METHODS: [(&'static str, &'static str); 5] = [
         ("Quaternion", "new"),
         ("Quaternion", "rand"),
         ("UnitQuaternion", "new"),
         ("UnitQuaternion", "rand"),
+        ("Vector", "rand"),
     ];
     const INSTANCE_METHODS: [(&'static str, &'static str); 2] =
         [("Quaternion", "inv"), ("UnitQuaternion", "inv")];
@@ -101,7 +102,7 @@ impl FunctionCompleter {
             let storage = self.storage.borrow();
             match storage.get(instance_name) {
                 Ok(value) => {
-                    let type_name = value.as_str();
+                    let type_name = value.to_string();
                     Self::INSTANCE_METHODS
                         .iter()
                         .filter(|(s, m)| s.starts_with(&type_name) && m.starts_with(method_prefix))

@@ -4482,6 +4482,7 @@ dependencies = [
  "nalgebra",
  "pest 2.7.15",
  "pest_derive",
+ "rand",
  "rotations",
  "rustyline",
  "rustyline-derive",

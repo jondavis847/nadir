@@ -8,7 +8,7 @@ primary = _{
     function_call |     
     matrix | 
     vector | 
-    string | 
+    string |     
     identifier | 
     number 
     }
@@ -33,7 +33,7 @@ expr = _{
 string = @{ "\"" ~ (escaped_char | !("\"" | "\\") ~ ANY)* ~ "\"" }
 escaped_char   = { "\\" ~ ANY }
 
-assignment = { identifier ~ "=" ~ expr }
+assignment = { "let " ~ identifier ~ "=" ~ expr }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }

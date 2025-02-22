@@ -9,7 +9,7 @@ use std::f64::{INFINITY, NAN};
 use thiserror::Error;
 
 fn label(s: &str) -> String {
-    ansi_term::Colour::Fixed(238).paint(s).to_string()
+    ansi_term::Colour::Fixed(237).paint(s).to_string()
 }
 
 #[derive(Debug, Error)]
@@ -81,7 +81,7 @@ impl std::fmt::Debug for Value {
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
-                writeln!(f, "{}", label("Range"));
+                writeln!(f, "{}", label("Range"))?;
                 let start = if let Some(start) = r.start {
                     start.to_string()
                 } else {
@@ -97,35 +97,35 @@ impl std::fmt::Debug for Value {
                 } else {
                     "None".to_string()
                 };
-                writeln!(f, "start: {}", start);
-                writeln!(f, "stop: {}", stop);
+                writeln!(f, "start: {}", start)?;
+                writeln!(f, "stop: {}", stop)?;
                 writeln!(f, "step: {}", step)
             }
             Value::Vector(v) => {
                 writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
-                for e in v.iter() {
+                for (i, e) in v.iter().enumerate() {
                     // Check if the fractional part is effectively 0
                     if e.fract().abs() < std::f64::EPSILON {
                         // Print with one decimal place (appending ".0")
-                        writeln!(f, "   {:.1}", e)?;
+                        writeln!(f, "{} {:.1}", label(&i.to_string()), e)?;
                     } else {
                         // Print the full decimal representation
-                        writeln!(f, "   {}", e)?;
+                        writeln!(f, "{} {}", label(&i.to_string()), e)?;
                     }
                 }
                 Ok(())
             }
             Value::VectorUsize(v) => {
                 writeln!(f, "{}", label(&format!("Vector<usize,{}>", v.len())))?;
-                for e in v.iter() {
-                    writeln!(f, "   {}", e)?;
+                for (i, e) in v.iter().enumerate() {
+                    writeln!(f, "{} {}", label(&i.to_string()), e)?;
                 }
                 Ok(())
             }
             Value::VectorBool(v) => {
                 writeln!(f, "{}", label(&format!("Vector<bool,{}>", v.len())))?;
-                for e in v.iter() {
-                    writeln!(f, "   {}", e)?;
+                for (i, e) in v.iter().enumerate() {
+                    writeln!(f, "{} {}", label(&i.to_string()), e)?;
                 }
                 Ok(())
             }
@@ -175,7 +175,7 @@ impl std::fmt::Debug for Value {
 }
 
 impl Value {
-    pub fn as_str(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             Value::f64(_) => String::from("f64"),
             Value::i64(_) => String::from("i64"),
@@ -208,7 +208,7 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v),
             Value::i64(v) => Ok(*v as f64),
-            _ => Err(ValueErrors::CannotConvertToF64(self.as_str())),
+            _ => Err(ValueErrors::CannotConvertToF64(self.to_string())),
         }
     }
 
@@ -216,7 +216,7 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v as i64),
             Value::i64(v) => Ok(*v),
-            _ => Err(ValueErrors::CannotConvertToI64(self.as_str())),
+            _ => Err(ValueErrors::CannotConvertToI64(self.to_string())),
         }
     }
 
@@ -230,7 +230,7 @@ impl Value {
             }
             Value::VectorBool(v) => Ok(IndexStyle::VecBool(Box::new(*v.clone()))),
             Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(Box::new(*v.clone()))),
-            _ => Err(ValueErrors::NonIndexType(self.as_str().to_string())),
+            _ => Err(ValueErrors::NonIndexType(self.to_string())),
         }
     }
 
@@ -238,7 +238,7 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v as usize),
             Value::i64(v) => Ok(*v as usize),
-            _ => Err(ValueErrors::CannotConvertToUsize(self.as_str())),
+            _ => Err(ValueErrors::CannotConvertToUsize(self.to_string())),
         }
     }
 
@@ -292,7 +292,10 @@ impl Value {
             (Value::String(a), Value::String(b)) => {
                 Ok(Value::String(Box::new(format!("{}{}", a, b))))
             }
-            _ => Err(ValueErrors::CannotAddTypes(other.as_str(), self.as_str())),
+            _ => Err(ValueErrors::CannotAddTypes(
+                other.to_string(),
+                self.to_string(),
+            )),
         }
     }
 
@@ -367,8 +370,8 @@ impl Value {
                 }
             }
             _ => Err(ValueErrors::CannotDivideTypes(
-                other.as_str(),
-                self.as_str(),
+                other.to_string(),
+                self.to_string(),
             )),
         }
     }
@@ -386,7 +389,7 @@ impl Value {
             }
             Value::f64(v) if *v < 0.0 => Err(ValueErrors::NegativeFactorial),
             Value::f64(_) => Err(ValueErrors::NonIntegerFactorial),
-            _ => Err(ValueErrors::CannotFactorialType(self.as_str())),
+            _ => Err(ValueErrors::CannotFactorialType(self.to_string())),
         }
     }
 
@@ -445,8 +448,8 @@ impl Value {
                 Ok(Value::Quaternion(Box::new(**q1 * q2.0)))
             }
             _ => Err(ValueErrors::CannotMultiplyTypes(
-                other.as_str(),
-                self.as_str(),
+                other.to_string(),
+                self.to_string(),
             )),
         }
     }
@@ -459,7 +462,7 @@ impl Value {
             Value::Matrix(v) => Ok(Value::Matrix(Box::new(-*v.clone()))),
             Value::Quaternion(v) => Ok(Value::Quaternion(Box::new(-(**v)))),
             Value::UnitQuaternion(v) => Ok(Value::UnitQuaternion(Box::new(-(**v)))),
-            _ => Err(ValueErrors::CannotNegType(self.as_str())),
+            _ => Err(ValueErrors::CannotNegType(self.to_string())),
         }
     }
 
@@ -475,7 +478,7 @@ impl Value {
             (Value::f64(base), Value::i64(exp)) => Ok(Value::f64(base.powi(*exp as i32))),
             (Value::i64(base), Value::f64(exp)) => Ok(Value::f64((*base as f64).powf(*exp))),
             (Value::f64(base), Value::f64(exp)) => Ok(Value::f64(base.powf(*exp))),
-            _ => Err(ValueErrors::CannotPowType(self.as_str())),
+            _ => Err(ValueErrors::CannotPowType(self.to_string())),
         }
     }
 
@@ -494,8 +497,8 @@ impl Value {
                 Ok(Value::Matrix(Box::new(m.add_scalar(-(*f as f64)))))
             }
             _ => Err(ValueErrors::CannotSubtractTypes(
-                other.as_str(),
-                self.as_str(),
+                other.to_string(),
+                self.to_string(),
             )),
         }
     }
@@ -556,7 +559,7 @@ impl Value {
                     Ok(Value::Vector(Box::new(DVector::from(v2))))
                 }
             },
-            _ => Err(ValueErrors::CannotIndexType(self.as_str())),
+            _ => Err(ValueErrors::CannotIndexType(self.to_string())),
         }
     }
 }
