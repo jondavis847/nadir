@@ -3,6 +3,7 @@ WHITESPACE = _{ " " | "\t" | NEWLINE }
 primary = _{ 
     enclosed | 
     struct_call | 
+    enumeration |
     instance_call | 
     instance_field | 
     function_call |     
@@ -50,6 +51,7 @@ arguments = { comma_separated }
 struct_call = { identifier ~ "::" ~ function_call}
 instance_field = { identifier ~ "." ~ identifier }
 instance_call = { identifier ~ "." ~ function_call}
+enumeration = { identifier ~ "::" ~ identifier}
 
 line = { silent_line | print_line }
 silent_line = { (assignment | expr) ~ ";" }

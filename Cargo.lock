@@ -4483,10 +4483,12 @@ dependencies = [
  "pest 2.7.15",
  "pest_derive",
  "rand",
+ "rand_distr",
  "rotations",
  "rustyline",
  "rustyline-derive",
  "thiserror 2.0.11",
+ "time",
 ]
 
 [[package]]

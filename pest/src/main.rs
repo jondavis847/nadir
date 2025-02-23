@@ -3,13 +3,15 @@ use nalgebra::{DMatrix, DVector};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use rand::Rng;
+use rand::{thread_rng, Rng};
+use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, UnitQuaternion};
 use rustyline::error::ReadlineError;
 use rustyline::{CompletionType, Config, EditMode, Editor};
 use std::cell::RefCell;
 use std::fmt::{self, Debug};
 use std::rc::Rc;
+use time::{Time, TimeErrors};
 
 mod helper;
 mod storage;
@@ -17,7 +19,7 @@ mod value;
 
 use helper::NadirHelper;
 use storage::{Storage, StorageErrors};
-use value::{IndexStyle, Range, Value, ValueErrors};
+use value::{Enum, IndexStyle, Range, Value, ValueErrors};
 
 #[derive(Parser)]
 #[grammar = "main.pest"] // relative path to your .pest file
@@ -34,6 +36,7 @@ pub enum ReplErrors {
     ExpectedFunctionCall(String),
     ExpectedIdentifier(String),
     FunctionNotFound(String),
+    InvalidEnum(String, String),
     InvalidField(String, String, String),
     InvalidMethod(String, String, String),
     InvalidNumber(String),
@@ -44,6 +47,7 @@ pub enum ReplErrors {
     NumberOfArgs(String, String, String),
     OutOfBoundsIndex(String, String),
     StorageErrors(StorageErrors),
+    TimeErrors(TimeErrors),
     UnexpectedOperator(String),
     UnexpectedRule(Rule),
     ValueErrors(ValueErrors),
@@ -58,6 +62,12 @@ impl From<StorageErrors> for ReplErrors {
 impl From<ValueErrors> for ReplErrors {
     fn from(value: ValueErrors) -> Self {
         Self::ValueErrors(value)
+    }
+}
+
+impl From<TimeErrors> for ReplErrors {
+    fn from(value: TimeErrors) -> Self {
+        Self::TimeErrors(value)
     }
 }
 
@@ -84,6 +94,9 @@ impl fmt::Display for ReplErrors {
             ReplErrors::InvalidMethod(instance, method, type_name) => {
                 format!("invalid method {method} for variable {instance} of type {type_name}")
             }
+            ReplErrors::InvalidEnum(name, variant) => {
+                format!("invalid enum {name}::{variant}")
+            }
             ReplErrors::InvalidField(instance, field, type_name) => {
                 format!("invalid field {field} for variable {instance} of type {type_name}")
             }
@@ -106,6 +119,7 @@ impl fmt::Display for ReplErrors {
                 format!("max size was {max} but index was {ind}")
             }
             ReplErrors::StorageErrors(err) => format!("{}", err),
+            ReplErrors::TimeErrors(err) => format!("{}", err),
             ReplErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
             ReplErrors::UnexpectedRule(rule) => format!("unexpected rule: {:?}", rule),
             ReplErrors::ValueErrors(err) => format!("{}", err),
@@ -255,6 +269,7 @@ fn parse_expr(
 
             Ok(value)
         }
+        Rule::enumeration => evaluate_enum(pair),
         Rule::expr => {
             let inner_pair = pair.into_inner().next().unwrap();
             parse_expr(inner_pair, storage, ans)
@@ -416,14 +431,24 @@ fn parse_expr(
         }
         Rule::postfix => {
             let mut inner_pairs = pair.into_inner();
+            dbg!(&inner_pairs);
             let first_pair = inner_pairs.next().unwrap();
             let mut value = parse_expr(first_pair, storage, ans)?;
             for postfix_pair in inner_pairs {
                 value = match postfix_pair.as_rule() {
                     Rule::fac => value.try_factorial()?,
                     Rule::vector_index => {
-                        let index = evaluate_index(postfix_pair, storage, ans)?;
+                        let index_pair = postfix_pair.into_inner().next().unwrap();
+                        let index = evaluate_index(index_pair, storage, ans)?;
                         value.try_vector_index(index)?
+                    }
+                    Rule::matrix_index => {
+                        let mut index_pairs = postfix_pair.into_inner();
+                        let first = index_pairs.next().unwrap();
+                        let second = index_pairs.next().unwrap();
+                        let first_index = evaluate_index(first, storage, ans)?;
+                        let second_index = evaluate_index(second, storage, ans)?;
+                        value.try_matrix_index(first_index, second_index)?
                     }
                     //Rule::matrix_index => value.try_matrix_index()?,
                     _ => unreachable!("Parser should only pass valid postfixes"),
@@ -495,6 +520,51 @@ fn evaluate_function_call(
     // Match the function name and evaluate
     if let Some(struct_name) = struct_name {
         match (struct_name, fn_name) {
+            ("Matrix", "rand") => {
+                let (rows, cols) = match args.len() {
+                    1 => {
+                        let a0 = args[0].as_usize()?;
+                        (a0, a0)
+                    }
+                    2 => (args[0].as_usize()?, args[1].as_usize()?),
+                    _ => {
+                        return Err(ReplErrors::NumberOfArgs(
+                            fn_name.to_string(),
+                            "1|2".to_string(),
+                            args.len().to_string(),
+                        ));
+                    }
+                };
+
+                let mut rng = rand::thread_rng();
+                let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.gen::<f64>()).collect();
+                let matrix = DMatrix::from_vec(rows, cols, data);
+                Ok(Value::Matrix(Box::new(matrix)))
+            }
+            ("Matrix", "randn") => {
+                if args.len() != 2 {
+                    return Err(ReplErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "2".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+
+                let rows = args[0].as_usize()?; // Number of rows
+                let cols = args[1].as_usize()?; // Number of columns
+
+                let mut rng = thread_rng();
+                let normal = Normal::new(0.0, 1.0).unwrap(); // Standard normal (μ=0, σ=1)
+
+                let data: Vec<f64> = (0..(rows * cols))
+                    .map(|_| normal.sample(&mut rng))
+                    .collect();
+
+                let matrix = DMatrix::from_vec(rows, cols, data);
+
+                Ok(Value::Matrix(Box::new(matrix)))
+            }
+
             ("Quaternion", "new") => {
                 if args.len() != 4 {
                     return Err(ReplErrors::NumberOfArgs(
@@ -524,6 +594,17 @@ fn evaluate_function_call(
                 }
 
                 Ok(Value::Quaternion(Box::new(Quaternion::rand())))
+            }
+            ("Time", "now") => {
+                if args.len() != 0 {
+                    return Err(ReplErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "0".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+
+                Ok(Value::Time(Box::new(Time::now()?)))
             }
             ("UnitQuaternion", "new") => {
                 if args.len() != 4 {
@@ -567,6 +648,25 @@ fn evaluate_function_call(
                 let mut rng = rand::thread_rng();
                 let vector =
                     DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.gen::<f64>()).collect());
+                Ok(Value::Vector(Box::new(vector)))
+            }
+            ("Vector", "randn") => {
+                if args.len() != 1 {
+                    return Err(ReplErrors::NumberOfArgs(
+                        fn_name.to_string(),
+                        "1".to_string(),
+                        args.len().to_string(),
+                    ));
+                }
+
+                let size = args[0].as_usize()?; // Get vector length
+
+                let mut rng = thread_rng();
+                let normal = Normal::new(0.0, 1.0).unwrap(); // Standard normal distribution (μ=0, σ=1)
+
+                let vector =
+                    DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
+
                 Ok(Value::Vector(Box::new(vector)))
             }
             _ => Err(ReplErrors::FunctionNotFound(format!(
@@ -645,8 +745,8 @@ fn evaluate_index(
     storage: &mut Rc<RefCell<Storage>>,
     ans: &mut Value,
 ) -> Result<IndexStyle, ReplErrors> {
-    let index_pair = pair.into_inner().next().unwrap();
-    let index_style_pair = index_pair.into_inner().next().unwrap();
+    let index_style_pair = pair.into_inner().next().unwrap();
+
     match index_style_pair.as_rule() {
         Rule::index_all => Ok(IndexStyle::All),
         Rule::index_single => {
@@ -752,6 +852,22 @@ fn evaluate_instance_call(
             instance_name.to_string(),
             method_name.to_string(),
             instance.to_string(),
+        )),
+    }
+}
+
+fn evaluate_enum(pair: Pair<Rule>) -> Result<Value, ReplErrors> {
+    let mut inner_pairs = pair.into_inner();
+    let name = inner_pairs.next().unwrap().as_str();
+    let variant = inner_pairs.next().unwrap().as_str();
+    match (name, variant) {
+        ("TimeSystem", "GPS") | ("TimeSystem", "UTC") => Ok(Value::Enum(Enum {
+            name: name.to_string(),
+            variant: variant.to_string(),
+        })),
+        _ => Err(ReplErrors::InvalidEnum(
+            name.to_string(),
+            variant.to_string(),
         )),
     }
 }

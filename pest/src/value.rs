@@ -7,6 +7,7 @@ use rotations::{
 
 use std::f64::{INFINITY, NAN};
 use thiserror::Error;
+use time::{Time, TimeSystem};
 
 fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(237).paint(s).to_string()
@@ -55,6 +56,7 @@ pub enum ValueErrors {
 pub enum Value {
     f64(f64),
     i64(i64),
+    Enum(Enum),
     Vector(Box<DVector<f64>>),
     VectorBool(Box<DVector<bool>>),
     VectorUsize(Box<DVector<usize>>),
@@ -64,6 +66,7 @@ pub enum Value {
     Quaternion(Box<Quaternion>),
     UnitQuaternion(Box<UnitQuaternion>),
     String(Box<String>),
+    Time(Box<Time>),
 }
 
 impl std::fmt::Debug for Value {
@@ -79,6 +82,7 @@ impl std::fmt::Debug for Value {
                 }
             }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
+            Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
@@ -163,6 +167,20 @@ impl std::fmt::Debug for Value {
                 writeln!(f, "{} {}", label("z"), q.z)?;
                 writeln!(f, "{} {}", label("w"), q.w)
             }
+            Value::Time(t) => {
+                let time_label = match t.system {
+                    TimeSystem::GPS => "Time<GPS>",
+                    TimeSystem::TAI => "Time<TAI>",
+                    TimeSystem::UTC => "Time<UTC>",
+                    TimeSystem::TDB => "Time<TDB>",
+                    TimeSystem::TT => "Time<TT>",
+                };
+                // Default to always showing the datetime, and using methods for other values
+                let value = t.get_datetime().to_string();
+
+                writeln!(f, "{}", label(time_label))?;
+                writeln!(f, "{value}")
+            }
             Value::UnitQuaternion(q) => {
                 writeln!(f, "{}", label("UnitQuaternion"))?;
                 writeln!(f, "{} {}", label("x"), q.0.x)?;
@@ -179,6 +197,7 @@ impl Value {
         match self {
             Value::f64(_) => String::from("f64"),
             Value::i64(_) => String::from("i64"),
+            Value::Enum(_) => String::from("Enum"),
             Value::Vector(v) => {
                 let length = v.len();
                 String::from(format!("Vector<f64,{}>", length))
@@ -196,6 +215,7 @@ impl Value {
                 let cols = v.ncols();
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
             }
+            Value::Time(_) => "Time".to_string(),
             Value::None => "None".to_string(),
             Value::Range(_) => String::from("Range"),
             Value::Quaternion(_) => String::from("Quaternion"),
@@ -503,6 +523,120 @@ impl Value {
         }
     }
 
+    pub fn try_matrix_index(
+        &self,
+        row_index: IndexStyle,
+        col_index: IndexStyle,
+    ) -> Result<Value, ValueErrors> {
+        match self {
+            Value::Matrix(m) => {
+                let (rows, cols) = (m.nrows(), m.ncols());
+
+                // Convert IndexStyle to actual row and column indices
+                let row_indices = match row_index {
+                    IndexStyle::All => (0..rows).collect(),
+                    IndexStyle::Usize(r) if r < rows => vec![r],
+                    IndexStyle::Usize(r) => return Err(ValueErrors::OutOfBoundsIndex(r, rows)),
+                    IndexStyle::Range(r) => {
+                        let start = r.start.unwrap_or(0);
+                        let stop = r.stop.unwrap_or(rows);
+                        if stop > rows {
+                            return Err(ValueErrors::OutOfBoundsIndex(stop, rows));
+                        }
+                        (start..stop).step_by(r.step.unwrap_or(1)).collect()
+                    }
+                    IndexStyle::VecUsize(indices) => {
+                        let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
+
+                        if indices_vec.iter().any(|&r| r >= rows) {
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                *indices_vec.iter().max().unwrap(),
+                                rows,
+                            ));
+                        }
+
+                        indices_vec // Return the converted Vec<usize>
+                    }
+                    IndexStyle::VecBool(mask) => {
+                        if mask.len() != rows {
+                            return Err(ValueErrors::SizeMismatch(
+                                mask.len().to_string(),
+                                rows.to_string(),
+                            ));
+                        }
+                        (0..rows).filter(|&i| mask[i]).collect()
+                    }
+                };
+
+                let col_indices = match col_index {
+                    IndexStyle::All => (0..cols).collect(),
+                    IndexStyle::Usize(c) if c < cols => vec![c],
+                    IndexStyle::Usize(c) => return Err(ValueErrors::OutOfBoundsIndex(c, cols)),
+                    IndexStyle::Range(r) => {
+                        let start = r.start.unwrap_or(0);
+                        let stop = r.stop.unwrap_or(cols);
+                        if stop > cols {
+                            return Err(ValueErrors::OutOfBoundsIndex(stop, cols));
+                        }
+                        (start..stop).step_by(r.step.unwrap_or(1)).collect()
+                    }
+                    IndexStyle::VecUsize(indices) => {
+                        let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
+
+                        if indices.iter().any(|&c| c >= cols) {
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                *indices.iter().max().unwrap(),
+                                cols,
+                            ));
+                        }
+                        indices_vec
+                    }
+                    IndexStyle::VecBool(mask) => {
+                        if mask.len() != cols {
+                            return Err(ValueErrors::SizeMismatch(
+                                mask.len().to_string(),
+                                cols.to_string(),
+                            ));
+                        }
+                        (0..cols).filter(|&i| mask[i]).collect()
+                    }
+                };
+
+                // Single Element Case
+                if row_indices.len() == 1 && col_indices.len() == 1 {
+                    return Ok(Value::f64(m[(row_indices[0], col_indices[0])]));
+                }
+
+                // Single Row or Column Case (Returns a Vector)
+                if row_indices.len() == 1 {
+                    let row = m.row(row_indices[0]);
+                    return Ok(Value::Vector(Box::new(DVector::from_vec(
+                        col_indices.iter().map(|&c| row[c]).collect(),
+                    ))));
+                }
+                if col_indices.len() == 1 {
+                    let col = m.column(col_indices[0]);
+                    return Ok(Value::Vector(Box::new(DVector::from_vec(
+                        row_indices.iter().map(|&r| col[r]).collect(),
+                    ))));
+                }
+
+                // General Case (Returns a Submatrix)
+                let mut submatrix_data = Vec::new();
+                for &r in &row_indices {
+                    for &c in &col_indices {
+                        submatrix_data.push(m[(r, c)]);
+                    }
+                }
+
+                let submatrix =
+                    DMatrix::from_vec(row_indices.len(), col_indices.len(), submatrix_data);
+                Ok(Value::Matrix(Box::new(submatrix)))
+            }
+            _ => Err(ValueErrors::CannotIndexType(self.to_string())),
+        }
+    }
+
     pub fn try_vector_index(&self, index: IndexStyle) -> Result<Value, ValueErrors> {
         match self {
             Value::Vector(v) => match index {
@@ -578,4 +712,10 @@ pub struct Range {
     pub start: Option<usize>,
     pub stop: Option<usize>,
     pub step: Option<usize>,
+}
+
+#[derive(Clone)]
+pub struct Enum {
+    pub name: String,
+    pub variant: String,
 }
