@@ -431,7 +431,6 @@ fn parse_expr(
         }
         Rule::postfix => {
             let mut inner_pairs = pair.into_inner();
-            dbg!(&inner_pairs);
             let first_pair = inner_pairs.next().unwrap();
             let mut value = parse_expr(first_pair, storage, ans)?;
             for postfix_pair in inner_pairs {

@@ -4,6 +4,7 @@ use rotations::{
     quaternion::{Quaternion, UnitQuaternion},
     //rotation_matrix::RotationMatrix,
 };
+use unicode_width::UnicodeWidthStr;
 
 use std::f64::{INFINITY, NAN};
 use thiserror::Error;
@@ -139,23 +140,36 @@ impl std::fmt::Debug for Value {
                     "{}",
                     label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
                 )?;
-                for i in 0..m.nrows() {
-                    write!(f, "  ")?; // indent each row
-                    for j in 0..m.ncols() {
-                        let value = m[(i, j)];
-                        // Use a small epsilon to account for floating-point precision
+
+                let col_width: usize = 8; // Explicitly define col_width as `usize`
+
+                // Print column headers (aligned with columns)
+                write!(f, "         ")?; // Space for row index alignment
+                for j in 0..m.ncols() {
+                    let header = label(&j.to_string()); // Apply color formatting
+                    let header_width: usize = UnicodeWidthStr::width(j.to_string().as_str()); // Get actual width
+                    let padding: usize = col_width.saturating_sub(header_width); // Explicitly declare as usize
+
+                    write!(f, "{}{:width$} ", header, "", width = padding)?; // Corrected alignment
+                }
+                writeln!(f)?; // New line after header
+
+                // Print matrix rows with row indices
+                for (i, row) in m.row_iter().enumerate() {
+                    write!(f, "{:>3} ", label(&i.to_string()))?; // Print row index with spacing
+
+                    for &value in row.iter() {
                         if value.fract().abs() < 1e-6 {
-                            // Print with one decimal place (i.e. ".0"), keeping a width of 8 characters
-                            write!(f, "{:8.1} ", value)?;
+                            write!(f, "{:width$.1} ", value, width = col_width)?;
                         } else {
-                            // Otherwise, print with three decimal places and the same width
-                            write!(f, "{:8.3} ", value)?;
+                            write!(f, "{:width$.5} ", value, width = col_width)?;
                         }
                     }
                     writeln!(f)?;
                 }
                 Ok(())
             }
+
             Value::String(s) => {
                 writeln!(f, "{}", label("String"))?;
                 writeln!(f, "{}", s)

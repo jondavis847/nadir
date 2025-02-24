@@ -18,6 +18,7 @@ rustyline.workspace = true
 rustyline-derive.workspace = true
 thiserror.workspace = true
 time.workspace = true
+unicode-width.workspace = true
 
 [features]
 default = ["with-file-history"]
