@@ -860,7 +860,21 @@ fn evaluate_enum(pair: Pair<Rule>) -> Result<Value, ReplErrors> {
     let name = inner_pairs.next().unwrap().as_str();
     let variant = inner_pairs.next().unwrap().as_str();
     match (name, variant) {
-        ("TimeSystem", "GPS") | ("TimeSystem", "UTC") => Ok(Value::Enum(Enum {
+        ("CelestialBodies", "Earth")
+        | ("CelestialBodies", "Jupiter")
+        | ("CelestialBodies", "Mars")
+        | ("CelestialBodies", "Mercury")
+        | ("CelestialBodies", "Moon")
+        | ("CelestialBodies", "Neptune")
+        | ("CelestialBodies", "Pluto")
+        | ("CelestialBodies", "Saturn")
+        | ("CelestialBodies", "Sun")
+        | ("CelestialBodies", "Uranus")
+        | ("CelestialBodies", "Venus")
+        | ("TimeSystem", "GPS")
+        | ("TimeSystem", "TAI")
+        | ("TimeSystem", "UTC")
+        | ("TimeSystem", "TDB") => Ok(Value::Enum(Enum {
             name: name.to_string(),
             variant: variant.to_string(),
         })),
