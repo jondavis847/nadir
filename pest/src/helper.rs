@@ -8,6 +8,7 @@ use std::borrow::Cow::{self, Borrowed, Owned};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::registry::Registry;
 use crate::storage::Storage;
 
 #[derive(Helper, Completer, Hinter, Validator)]
@@ -21,9 +22,9 @@ pub struct NadirHelper {
 }
 
 impl NadirHelper {
-    pub fn new(storage: Rc<RefCell<Storage>>) -> Self {
+    pub fn new(registry: Rc<RefCell<Registry>>, storage: Rc<RefCell<Storage>>) -> Self {
         NadirHelper {
-            completer: FunctionCompleter::new(storage),
+            completer: FunctionCompleter::new(registry, storage),
             highlighter: MatchingBracketHighlighter::new(),
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
@@ -57,83 +58,63 @@ impl Highlighter for NadirHelper {
 }
 
 pub struct FunctionCompleter {
+    registry: Rc<RefCell<Registry>>,
     storage: Rc<RefCell<Storage>>,
 }
 
 impl FunctionCompleter {
-    const ENUMS: [&'static str; 1] = ["TimeSystem"];
-    const FUNCTIONS: [&'static str; 0] = [];
-    const STRUCTS: [&'static str; 5] = ["Matrix", "Quaternion", "Time", "UnitQuaternion", "Vector"];
-    const STRUCT_METHODS: [(&'static str, &'static str); 9] = [
-        ("Matrix", "rand"),
-        ("Matrix", "randn"),
-        ("Quaternion", "new"),
-        ("Quaternion", "rand"),
-        ("Time", "now"),
-        ("UnitQuaternion", "new"),
-        ("UnitQuaternion", "rand"),
-        ("Vector", "rand"),
-        ("Vector", "randn"),
-    ];
-    const INSTANCE_METHODS: [(&'static str, &'static str); 2] =
-        [("Quaternion", "inv"), ("UnitQuaternion", "inv")];
-
-    pub fn new(storage: Rc<RefCell<Storage>>) -> Self {
-        Self { storage }
+    pub fn new(registry: Rc<RefCell<Registry>>, storage: Rc<RefCell<Storage>>) -> Self {
+        Self { registry, storage }
     }
 
     /// Helper to complete function names
-    fn complete_enums(prefix: &str) -> Vec<&'static str> {
-        Self::ENUMS
-            .iter()
-            .filter(|func| func.starts_with(prefix))
-            .cloned()
-            .collect()
-    }
+    // fn complete_enums(prefix: &str) -> Vec<&'static str> {
+    //     Self::ENUMS
+    //         .iter()
+    //         .filter(|func| func.starts_with(prefix))
+    //         .cloned()
+    //         .collect()
+    // }
 
     /// Helper to complete function names
-    fn complete_functions(prefix: &str) -> Vec<&'static str> {
-        Self::FUNCTIONS
-            .iter()
-            .filter(|func| func.starts_with(prefix))
-            .cloned()
-            .collect()
-    }
+    // fn complete_functions(prefix: &str) -> Vec<&'static str> {
+    //     Self::FUNCTIONS
+    //         .iter()
+    //         .filter(|func| func.starts_with(prefix))
+    //         .cloned()
+    //         .collect()
+    // }
 
     /// Helper to complete struct names
-    fn complete_structs(prefix: &str) -> Vec<&'static str> {
-        Self::STRUCTS
+    fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
+        self.registry
+            .borrow()
+            .get_structs()
             .iter()
             .filter(|s| s.starts_with(prefix))
             .cloned()
             .collect()
     }
 
-    /// Helper to complete struct methods (e.g., "StructName.method")
-    fn complete_methods(&self, prefix: &str) -> Vec<&'static str> {
-        // Split prefix into struct and method if applicable
-        if let Some((instance_name, method_prefix)) = prefix.split_once(".") {
-            let storage = self.storage.borrow();
-            match storage.get(instance_name) {
-                Ok(value) => {
-                    let type_name = value.to_string();
-                    Self::INSTANCE_METHODS
-                        .iter()
-                        .filter(|(s, m)| s.starts_with(&type_name) && m.starts_with(method_prefix))
-                        .map(|(_, method)| *method)
-                        .collect()
-                }
-                Err(_) => {
-                    vec![]
-                }
-            }
-        } else if let Some((struct_name, method_prefix)) = prefix.split_once("::") {
-            Self::STRUCT_METHODS
+    /// Helper to complete struct methods (e.g., "StructName::method")
+    fn complete_methods(&self, prefix: &str) -> Vec<String> {
+        // If the user typed something like "MyStruct::f"
+        if let Some((type_name, method_prefix)) = prefix.split_once("::") {
+            let methods = self
+                .registry
+                .borrow()
+                .get_struct_methods(type_name)
+                .unwrap_or_default();
+
+            methods
                 .iter()
-                .filter(|(s, m)| s.starts_with(struct_name) && m.starts_with(method_prefix))
-                .map(|(_, method)| *method)
+                // Filter out methods that start with the user’s partial input (`method_prefix`)
+                .filter(|method| method.starts_with(method_prefix))
+                // Build a "TypeName::method" string for the user to complete with
+                .map(|method| format!("{}::{}", type_name, method))
                 .collect()
         } else {
+            // If there's no "::" in the prefix, we're not looking up methods yet
             vec![]
         }
     }
@@ -171,21 +152,21 @@ impl Completer for FunctionCompleter {
             );
         } else {
             // Otherwise, check for function or struct or enum completions
+            // matches.extend(
+            //     Self::complete_functions(prefix)
+            //         .into_iter()
+            //         .map(|s| s.to_string()),
+            // );
             matches.extend(
-                Self::complete_functions(prefix)
+                self.complete_structs(prefix)
                     .into_iter()
-                    .map(|s| s.to_string()),
+                    .map(|s| format!("{}::", s)),
             );
-            matches.extend(
-                Self::complete_structs(prefix)
-                    .into_iter()
-                    .map(|s| s.to_string()),
-            );
-            matches.extend(
-                Self::complete_enums(prefix)
-                    .into_iter()
-                    .map(|s| s.to_string()),
-            );
+            // matches.extend(
+            //     Self::complete_enums(prefix)
+            //         .into_iter()
+            //         .map(|s| s.to_string()),
+            // );
         }
 
         // Return the starting index and the matches

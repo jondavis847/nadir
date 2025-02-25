@@ -3,17 +3,17 @@ use nalgebra::{DMatrix, DVector};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Normal};
-use rotations::prelude::{Quaternion, UnitQuaternion};
+use registry::{Registry, RegistryErrors};
+use rotations::prelude::Quaternion;
 use rustyline::error::ReadlineError;
 use rustyline::{CompletionType, Config, EditMode, Editor};
 use std::cell::RefCell;
 use std::fmt::{self, Debug};
 use std::rc::Rc;
-use time::{Time, TimeErrors};
+use time::TimeErrors;
 
 mod helper;
+mod registry;
 mod storage;
 mod value;
 
@@ -45,12 +45,19 @@ pub enum ReplErrors {
     MissingFunctionName,
     NameReserved(&'static str),
     NumberOfArgs(String, String, String),
+    RegistryErrors(RegistryErrors),
     OutOfBoundsIndex(String, String),
     StorageErrors(StorageErrors),
     TimeErrors(TimeErrors),
     UnexpectedOperator(String),
     UnexpectedRule(Rule),
     ValueErrors(ValueErrors),
+}
+
+impl From<RegistryErrors> for ReplErrors {
+    fn from(value: RegistryErrors) -> Self {
+        Self::RegistryErrors(value)
+    }
 }
 
 impl From<StorageErrors> for ReplErrors {
@@ -118,6 +125,7 @@ impl fmt::Display for ReplErrors {
             ReplErrors::OutOfBoundsIndex(max, ind) => {
                 format!("max size was {max} but index was {ind}")
             }
+            ReplErrors::RegistryErrors(err) => format!("{}", err),
             ReplErrors::StorageErrors(err) => format!("{}", err),
             ReplErrors::TimeErrors(err) => format!("{}", err),
             ReplErrors::UnexpectedOperator(op) => format!("unexpected operator: {}", op),
@@ -132,8 +140,8 @@ impl fmt::Display for ReplErrors {
 }
 
 fn main() {
-    // This store holds variables as Box<dyn Any> so we can put any type into it.
     let mut storage = Rc::new(RefCell::new(Storage::default()));
+    let registry = Rc::new(RefCell::new(Registry::default()));
     let mut ans = Value::None;
 
     let config = Config::builder()
@@ -141,7 +149,7 @@ fn main() {
         .completion_type(CompletionType::List)
         .edit_mode(EditMode::Emacs)
         .build();
-    let h = NadirHelper::new(storage.clone());
+    let h = NadirHelper::new(registry.clone(), storage.clone());
 
     // `()` can be used when no completer is required
     let mut rl = Editor::with_config(config).expect("Failed to create rustyline editor");
@@ -198,7 +206,12 @@ fn main() {
                                     // dbg!(&line_pair);
                                     // get to next level, with is a silent_line or print_line
                                     let print_or_silent = line_pair.into_inner().next().unwrap();
-                                    match parse_expr(print_or_silent, &mut storage, &mut ans) {
+                                    match parse_expr(
+                                        print_or_silent,
+                                        &mut storage,
+                                        &registry,
+                                        &mut ans,
+                                    ) {
                                         Ok(_) => {}
                                         Err(e) => eprintln!("{e}"),
                                     };
@@ -235,15 +248,16 @@ fn main() {
 fn parse_expr(
     pair: Pair<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
+    registry: &Rc<RefCell<Registry>>,
     ans: &mut Value,
 ) -> Result<Value, ReplErrors> {
     match pair.as_rule() {
         Rule::additive => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, ans)?;
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, registry, ans)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage, ans)?;
+                let right = parse_expr(right_pair, storage, registry, ans)?;
                 value = match op_pair.as_rule() {
                     Rule::add => value.try_add(&right)?,
                     Rule::sub => value.try_sub(&right)?,
@@ -262,7 +276,7 @@ fn parse_expr(
                 _ => {}
             }
             let expr = inner.next().unwrap();
-            let value = parse_expr(expr, storage, ans)?;
+            let value = parse_expr(expr, storage, registry, ans)?;
             storage
                 .borrow_mut()
                 .insert(name.to_string(), value.clone())?;
@@ -272,14 +286,14 @@ fn parse_expr(
         Rule::enumeration => evaluate_enum(pair),
         Rule::expr => {
             let inner_pair = pair.into_inner().next().unwrap();
-            parse_expr(inner_pair, storage, ans)
+            parse_expr(inner_pair, storage, registry, ans)
         }
         Rule::exponential => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, ans)?;
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, registry, ans)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage, ans)?;
+                let right = parse_expr(right_pair, storage, registry, ans)?;
                 value = match op_pair.as_rule() {
                     Rule::pow => value.try_pow(&right)?,
                     _ => unreachable!(),
@@ -288,7 +302,7 @@ fn parse_expr(
             Ok(value)
         }
         Rule::float => Ok(Value::f64(pair.as_str().parse::<f64>().unwrap())),
-        Rule::function_call => evaluate_function_call(pair, storage, ans, None),
+        Rule::function_call => evaluate_function_call(pair, storage, registry, ans, None),
         Rule::identifier => {
             let ident = pair.as_str();
             match ident {
@@ -307,7 +321,7 @@ fn parse_expr(
                 let space_separated_pair = row_pair.into_inner().next().unwrap();
                 let mut row: Vec<f64> = Vec::new();
                 for value_pair in space_separated_pair.into_inner() {
-                    let value = parse_expr(value_pair, storage, ans)?;
+                    let value = parse_expr(value_pair, storage, registry, ans)?;
                     row.push(value.as_f64()?);
                 }
                 rows.push(row);
@@ -341,16 +355,16 @@ fn parse_expr(
             let row_selection = if row_index_pair.as_str() == ":" {
                 None // None signifies full row selection
             } else {
-                Some(parse_expr(row_index_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(row_index_pair, storage, registry, ans)?.as_usize()?)
             };
 
             let col_selection = if col_index_pair.as_str() == ":" {
                 None // None signifies full column selection
             } else {
-                Some(parse_expr(col_index_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(col_index_pair, storage, registry, ans)?.as_usize()?)
             };
 
-            let matrix = match parse_expr(matrix_pair, storage, ans)? {
+            let matrix = match parse_expr(matrix_pair, storage, registry, ans)? {
                 Value::Matrix(matrix) => *matrix,
                 _ => unreachable!("shouldn't be here if it's not a matrix"),
             };
@@ -392,10 +406,10 @@ fn parse_expr(
         }
         Rule::multiplicative => {
             let mut inner_pairs = pair.into_inner();
-            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, ans)?;
+            let mut value = parse_expr(inner_pairs.next().unwrap(), storage, registry, ans)?;
 
             while let (Some(op_pair), Some(right_pair)) = (inner_pairs.next(), inner_pairs.next()) {
-                let right = parse_expr(right_pair, storage, ans)?;
+                let right = parse_expr(right_pair, storage, registry, ans)?;
                 value = match op_pair.as_rule() {
                     Rule::mul => value.try_mul(&right)?,
                     Rule::div => value.try_div(&right)?,
@@ -407,14 +421,14 @@ fn parse_expr(
         }
         Rule::print_line => {
             let next_pair = pair.into_inner().next().unwrap();
-            let value = parse_expr(next_pair, storage, ans)?;
+            let value = parse_expr(next_pair, storage, registry, ans)?;
             *ans = value.clone();
             println!("{:?}", value);
             Ok(value)
         }
         Rule::silent_line => {
             let next_pair = pair.into_inner().next().unwrap();
-            parse_expr(next_pair, storage, ans)?;
+            parse_expr(next_pair, storage, registry, ans)?;
             Ok(Value::None)
         }
         Rule::string => {
@@ -427,26 +441,26 @@ fn parse_expr(
             let struct_name_pair = pairs.next().unwrap();
             let struct_name = struct_name_pair.as_str();
             let fn_call_pair = pairs.next().unwrap();
-            evaluate_function_call(fn_call_pair, storage, ans, Some(struct_name))
+            evaluate_function_call(fn_call_pair, storage, registry, ans, Some(struct_name))
         }
         Rule::postfix => {
             let mut inner_pairs = pair.into_inner();
             let first_pair = inner_pairs.next().unwrap();
-            let mut value = parse_expr(first_pair, storage, ans)?;
+            let mut value = parse_expr(first_pair, storage, registry, ans)?;
             for postfix_pair in inner_pairs {
                 value = match postfix_pair.as_rule() {
                     Rule::fac => value.try_factorial()?,
                     Rule::vector_index => {
                         let index_pair = postfix_pair.into_inner().next().unwrap();
-                        let index = evaluate_index(index_pair, storage, ans)?;
+                        let index = evaluate_index(index_pair, storage, registry, ans)?;
                         value.try_vector_index(index)?
                     }
                     Rule::matrix_index => {
                         let mut index_pairs = postfix_pair.into_inner();
                         let first = index_pairs.next().unwrap();
                         let second = index_pairs.next().unwrap();
-                        let first_index = evaluate_index(first, storage, ans)?;
-                        let second_index = evaluate_index(second, storage, ans)?;
+                        let first_index = evaluate_index(first, storage, registry, ans)?;
+                        let second_index = evaluate_index(second, storage, registry, ans)?;
                         value.try_matrix_index(first_index, second_index)?
                     }
                     //Rule::matrix_index => value.try_matrix_index()?,
@@ -463,10 +477,10 @@ fn parse_expr(
                 // When the first token is a negation operator,
                 // the next token is the operand.
                 let operand = inner_pairs.next().unwrap();
-                parse_expr(operand, storage, ans)?.try_negative()?
+                parse_expr(operand, storage, registry, ans)?.try_negative()?
             } else {
                 // Otherwise, the first token is the actual operand.
-                parse_expr(first, storage, ans)?
+                parse_expr(first, storage, registry, ans)?
             };
 
             Ok(value)
@@ -476,7 +490,7 @@ fn parse_expr(
             let value_pairs = elements_pair.into_inner();
             let mut values = Vec::new();
             for value_pair in value_pairs {
-                let value = parse_expr(value_pair, storage, ans)?;
+                let value = parse_expr(value_pair, storage, registry, ans)?;
                 values.push(value.as_f64()?);
             }
             Ok(Value::Vector(Box::new(DVector::from_vec(values))))
@@ -489,6 +503,7 @@ fn parse_expr(
 fn evaluate_function_call(
     pair: Pair<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
+    registry: &Rc<RefCell<Registry>>,
     ans: &mut Value,
     struct_name: Option<&str>,
 ) -> Result<Value, ReplErrors> {
@@ -504,7 +519,7 @@ fn evaluate_function_call(
         let inner = args_pair.into_inner();
         let mut args = Vec::new();
         for arg in inner {
-            let value = parse_expr(arg, storage, ans)?;
+            let value = parse_expr(arg, storage, registry, ans)?;
             match value {
                 Value::None => return Err(ReplErrors::EmptyValue),
                 _ => {}
@@ -516,163 +531,10 @@ fn evaluate_function_call(
         Vec::new()
     };
 
-    // Match the function name and evaluate
     if let Some(struct_name) = struct_name {
-        match (struct_name, fn_name) {
-            ("Matrix", "rand") => {
-                let (rows, cols) = match args.len() {
-                    1 => {
-                        let a0 = args[0].as_usize()?;
-                        (a0, a0)
-                    }
-                    2 => (args[0].as_usize()?, args[1].as_usize()?),
-                    _ => {
-                        return Err(ReplErrors::NumberOfArgs(
-                            fn_name.to_string(),
-                            "1|2".to_string(),
-                            args.len().to_string(),
-                        ));
-                    }
-                };
-
-                let mut rng = rand::thread_rng();
-                let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.gen::<f64>()).collect();
-                let matrix = DMatrix::from_vec(rows, cols, data);
-                Ok(Value::Matrix(Box::new(matrix)))
-            }
-            ("Matrix", "randn") => {
-                if args.len() != 2 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "2".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-
-                let rows = args[0].as_usize()?; // Number of rows
-                let cols = args[1].as_usize()?; // Number of columns
-
-                let mut rng = thread_rng();
-                let normal = Normal::new(0.0, 1.0).unwrap(); // Standard normal (μ=0, σ=1)
-
-                let data: Vec<f64> = (0..(rows * cols))
-                    .map(|_| normal.sample(&mut rng))
-                    .collect();
-
-                let matrix = DMatrix::from_vec(rows, cols, data);
-
-                Ok(Value::Matrix(Box::new(matrix)))
-            }
-
-            ("Quaternion", "new") => {
-                if args.len() != 4 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "4".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-                let mut quat_args = [0.0; 4];
-                for (i, arg) in args.iter().enumerate() {
-                    quat_args[i] = arg.as_f64()?;
-                }
-                Ok(Value::Quaternion(Box::new(Quaternion::new(
-                    quat_args[0],
-                    quat_args[1],
-                    quat_args[2],
-                    quat_args[3],
-                ))))
-            }
-            ("Quaternion", "rand") => {
-                if args.len() != 0 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "0".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-
-                Ok(Value::Quaternion(Box::new(Quaternion::rand())))
-            }
-            ("Time", "now") => {
-                if args.len() != 0 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "0".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-
-                Ok(Value::Time(Box::new(Time::now()?)))
-            }
-            ("UnitQuaternion", "new") => {
-                if args.len() != 4 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "4".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-                let mut quat_args = [0.0; 4];
-                for (i, arg) in args.iter().enumerate() {
-                    quat_args[i] = arg.as_f64()?;
-                }
-                Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::new(
-                    quat_args[0],
-                    quat_args[1],
-                    quat_args[2],
-                    quat_args[3],
-                ))))
-            }
-            ("UnitQuaternion", "rand") => {
-                if args.len() != 0 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "0".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-
-                Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand())))
-            }
-            // called as Vector::rand(type,length)
-            ("Vector", "rand") => {
-                if args.len() != 1 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "1".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-                let mut rng = rand::thread_rng();
-                let vector =
-                    DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.gen::<f64>()).collect());
-                Ok(Value::Vector(Box::new(vector)))
-            }
-            ("Vector", "randn") => {
-                if args.len() != 1 {
-                    return Err(ReplErrors::NumberOfArgs(
-                        fn_name.to_string(),
-                        "1".to_string(),
-                        args.len().to_string(),
-                    ));
-                }
-
-                let size = args[0].as_usize()?; // Get vector length
-
-                let mut rng = thread_rng();
-                let normal = Normal::new(0.0, 1.0).unwrap(); // Standard normal distribution (μ=0, σ=1)
-
-                let vector =
-                    DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
-
-                Ok(Value::Vector(Box::new(vector)))
-            }
-            _ => Err(ReplErrors::FunctionNotFound(format!(
-                "{}::{}",
-                struct_name, fn_name
-            ))),
-        }
+        Ok(registry
+            .borrow()
+            .eval_struct_method(struct_name, fn_name, args)?)
     } else {
         match fn_name {
             "quat" => {
@@ -742,6 +604,7 @@ fn evaluate_instance_field(
 fn evaluate_index(
     pair: Pair<Rule>,
     storage: &mut Rc<RefCell<Storage>>,
+    registry: &Rc<RefCell<Registry>>,
     ans: &mut Value,
 ) -> Result<IndexStyle, ReplErrors> {
     let index_style_pair = pair.into_inner().next().unwrap();
@@ -750,23 +613,23 @@ fn evaluate_index(
         Rule::index_all => Ok(IndexStyle::All),
         Rule::index_single => {
             let expr_pair = index_style_pair.into_inner().next().unwrap();
-            let value = parse_expr(expr_pair, storage, ans)?;
+            let value = parse_expr(expr_pair, storage, registry, ans)?;
             Ok(value.as_index()?)
         }
         Rule::index_range_inclusive => {
             let mut range_pairs = index_style_pair.into_inner();
             let first = if let Some(first_pair) = range_pairs.next() {
-                Some(parse_expr(first_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(first_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
             let second = if let Some(second_pair) = range_pairs.next() {
-                Some(parse_expr(second_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(second_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
             let third = if let Some(third_pair) = range_pairs.next() {
-                Some(parse_expr(third_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(third_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
@@ -790,17 +653,17 @@ fn evaluate_index(
         Rule::index_range_exclusive => {
             let mut range_pairs = index_style_pair.into_inner();
             let first = if let Some(first_pair) = range_pairs.next() {
-                Some(parse_expr(first_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(first_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
             let second = if let Some(second_pair) = range_pairs.next() {
-                Some(parse_expr(second_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(second_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
             let third = if let Some(third_pair) = range_pairs.next() {
-                Some(parse_expr(third_pair, storage, ans)?.as_usize()?)
+                Some(parse_expr(third_pair, storage, registry, ans)?.as_usize()?)
             } else {
                 None
             };
