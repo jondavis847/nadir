@@ -18,6 +18,10 @@ fn label(s: &str) -> String {
 pub enum ValueErrors {
     #[error("cannot add type {1} to {0}")]
     CannotAddTypes(String, String),
+    #[error("cannot compare type {1} by {0}")]
+    CannotCompareTypes(String, String),
+    #[error("{0}")]
+    CannotConvertToBool(String),
     #[error("cannot convert type {0} to f64")]
     CannotConvertToF64(String),
     #[error("cannot convert type {0} to i64")]
@@ -57,6 +61,7 @@ pub enum ValueErrors {
 pub enum Value {
     f64(f64),
     i64(i64),
+    bool(bool),
     Enum(Enum),
     Vector(Box<DVector<f64>>),
     VectorBool(Box<DVector<bool>>),
@@ -83,6 +88,7 @@ impl std::fmt::Debug for Value {
                 }
             }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
+            Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
@@ -211,6 +217,7 @@ impl Value {
         match self {
             Value::f64(_) => String::from("f64"),
             Value::i64(_) => String::from("i64"),
+            Value::bool(_) => String::from("bool"),
             Value::Enum(_) => String::from("Enum"),
             Value::Vector(v) => {
                 let length = v.len();
@@ -235,6 +242,41 @@ impl Value {
             Value::Quaternion(_) => String::from("Quaternion"),
             Value::UnitQuaternion(_) => String::from("UnitQuaternion"),
             Value::String(_) => String::from("String"),
+        }
+    }
+
+    pub fn as_bool(&self) -> Result<bool, ValueErrors> {
+        match self {
+            Value::bool(v) => Ok(*v),
+
+            Value::f64(v) => {
+                if *v == 0.0 {
+                    Ok(false)
+                } else if *v == 1.0 {
+                    Ok(true)
+                } else {
+                    Err(ValueErrors::CannotConvertToBool(
+                        "f64 must be 0.0 or 1.0 to convert to bool".to_string(),
+                    ))
+                }
+            }
+
+            Value::i64(v) => {
+                if *v == 0 {
+                    Ok(false)
+                } else if *v == 1 {
+                    Ok(true)
+                } else {
+                    Err(ValueErrors::CannotConvertToBool(
+                        "i64 must be 0 or 1 to convert to bool".to_string(),
+                    ))
+                }
+            }
+
+            _ => Err(ValueErrors::CannotConvertToBool(format!(
+                "cannot convert type {} to bool",
+                self.to_string()
+            ))),
         }
     }
 
@@ -424,6 +466,58 @@ impl Value {
             Value::f64(v) if *v < 0.0 => Err(ValueErrors::NegativeFactorial),
             Value::f64(_) => Err(ValueErrors::NonIntegerFactorial),
             _ => Err(ValueErrors::CannotFactorialType(self.to_string())),
+        }
+    }
+
+    pub fn try_gt(&self, other: &Value) -> Result<Value, ValueErrors> {
+        match (self, other) {
+            (Value::f64(a), Value::f64(b)) => Ok(Value::bool(a > b)),
+            (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 > *b)),
+            (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a > *b as f64)),
+            (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a > b)),
+            _ => Err(ValueErrors::CannotCompareTypes(
+                other.to_string(),
+                self.to_string(),
+            )),
+        }
+    }
+
+    pub fn try_gte(&self, other: &Value) -> Result<Value, ValueErrors> {
+        match (self, other) {
+            (Value::f64(a), Value::f64(b)) => Ok(Value::bool(a >= b)),
+            (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 >= *b)),
+            (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a >= *b as f64)),
+            (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a >= b)),
+            _ => Err(ValueErrors::CannotCompareTypes(
+                other.to_string(),
+                self.to_string(),
+            )),
+        }
+    }
+
+    pub fn try_lt(&self, other: &Value) -> Result<Value, ValueErrors> {
+        match (self, other) {
+            (Value::f64(a), Value::f64(b)) => Ok(Value::bool(a < b)),
+            (Value::i64(a), Value::f64(b)) => Ok(Value::bool((*a as f64) < *b)),
+            (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a < *b as f64)),
+            (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a < b)),
+            _ => Err(ValueErrors::CannotCompareTypes(
+                other.to_string(),
+                self.to_string(),
+            )),
+        }
+    }
+
+    pub fn try_lte(&self, other: &Value) -> Result<Value, ValueErrors> {
+        match (self, other) {
+            (Value::f64(a), Value::f64(b)) => Ok(Value::bool(a <= b)),
+            (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 <= *b)),
+            (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a <= *b as f64)),
+            (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a <= b)),
+            _ => Err(ValueErrors::CannotCompareTypes(
+                other.to_string(),
+                self.to_string(),
+            )),
         }
     }
 

@@ -283,6 +283,39 @@ fn parse_expr(
 
             Ok(value)
         }
+        Rule::comparison => {
+            let mut inner_pairs = pair.into_inner();
+            // The first additive (e.g. `a`)
+            let first_pair = inner_pairs.next().unwrap();
+            let mut prev_value = parse_expr(first_pair, storage, registry, ans)?;
+
+            // We'll store a running boolean result (chained comparisons).
+            let mut result = true;
+
+            while let Some(comp_pair) = inner_pairs.next() {
+                let next_pair = inner_pairs.next().unwrap();
+                let next_value = parse_expr(next_pair, storage, registry, ans)?;
+
+                // Evaluate "prev_value < next_value" or similar
+                let partial = match comp_pair.as_str() {
+                    "<" => prev_value.try_lt(&next_value)?,
+                    "<=" => prev_value.try_lte(&next_value)?,
+                    ">" => prev_value.try_gt(&next_value)?,
+                    ">=" => prev_value.try_gte(&next_value)?,
+                    _ => unreachable!("comparator requried for parse"),
+                };
+
+                result = result && partial.as_bool()?; // chain with AND
+                if !result {
+                    break; // short-circuit if one comparison fails
+                }
+
+                // For the next comparison, "next_value" becomes "prev_value"
+                prev_value = next_value;
+            }
+
+            Ok(Value::bool(result))
+        }
         Rule::enumeration => evaluate_enum(pair),
         Rule::expr => {
             let inner_pair = pair.into_inner().next().unwrap();

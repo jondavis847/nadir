@@ -26,8 +26,17 @@ div = { "/" }
 additive = { multiplicative ~ ( (add | sub) ~ multiplicative )* }
 add = { "+" }
 sub = { "-" }
+gt = { ">" }
+gte = { ">=" }
+lt = { "<" }
+lte = { "<=" }
+comparator = { gt | gte | lt | lte}
+
+comparison = { additive ~ comparator ~ additive }
+
 expr = _{ 
     &(primary ~ EOI) ~ primary 
+    | comparison 
     | additive
 }
 
