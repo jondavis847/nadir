@@ -10,7 +10,7 @@ use std::f64::{INFINITY, NAN};
 use thiserror::Error;
 use time::{Time, TimeSystem};
 
-fn label(s: &str) -> String {
+pub fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(237).paint(s).to_string()
 }
 

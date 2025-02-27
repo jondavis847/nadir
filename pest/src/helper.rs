@@ -98,25 +98,41 @@ impl FunctionCompleter {
 
     /// Helper to complete struct methods (e.g., "StructName::method")
     fn complete_methods(&self, prefix: &str) -> Vec<String> {
-        // If the user typed something like "MyStruct::f"
-        if let Some((type_name, method_prefix)) = prefix.split_once("::") {
-            let methods = self
-                .registry
-                .borrow()
-                .get_struct_methods(type_name)
-                .unwrap_or_default();
+        // We'll collect all possible completions into this vector
+        let mut completions = vec![];
 
-            methods
-                .iter()
-                // Filter out methods that start with the user’s partial input (`method_prefix`)
-                .filter(|method| method.starts_with(method_prefix))
-                // Build a "TypeName::method" string for the user to complete with
-                .map(|method| format!("{}::{}", type_name, method))
-                .collect()
-        } else {
-            // If there's no "::" in the prefix, we're not looking up methods yet
-            vec![]
+        // If the user typed something like "MyStruct::f", we split it.
+        if let Some((type_name, method_prefix)) = prefix.split_once("::") {
+            // Get the actual struct info. You might need a function like `get_struct`.
+            // This is different from `get_struct_methods` which only returns method names.
+            if let Some(struc) = self.registry.borrow().structs.get(type_name) {
+                // `struc.methods` is a HashMap<&'static str, Vec<Method>>
+                for (name, overloads) in &struc.methods {
+                    // Does this method name match the partial input?
+                    if name.starts_with(method_prefix) {
+                        // Each `Method` can have a list of possible argument signatures (overloads).
+                        for method in overloads {
+                            // Build something like "rand(rows: i64, cols: i64)".
+                            let arg_string = method
+                                .args
+                                .iter()
+                                .map(|arg| {
+                                    format!("{}:{}", arg.name, crate::value::label(arg.type_name))
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+
+                            // Combine it back into "StructName::methodName(arg: type, ...)"
+                            let completion = format!("{}::{}({})", type_name, name, arg_string);
+
+                            completions.push(completion);
+                        }
+                    }
+                }
+            }
         }
+
+        completions
     }
 }
 
