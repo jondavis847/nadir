@@ -140,12 +140,12 @@ impl Mul<MassProperties> for Transform {
         let dz2 = dz * dz;
 
         let new_inertia = Inertia::new(
-            transformed_inertia.get_ixx() + mass * (dy2 + dz2),
-            transformed_inertia.get_ixy() - mass * dx * dy,
-            transformed_inertia.get_ixz() - mass * dx * dz,
-            transformed_inertia.get_iyy() + mass * (dx2 + dz2),
-            transformed_inertia.get_iyz() - mass * dy * dz,
-            transformed_inertia.get_izz() + mass * (dx2 + dy2),
+            transformed_inertia.ixx + mass * (dy2 + dz2),
+            transformed_inertia.ixy - mass * dx * dy,
+            transformed_inertia.ixz - mass * dx * dz,
+            transformed_inertia.iyy + mass * (dx2 + dz2),
+            transformed_inertia.iyz - mass * dy * dz,
+            transformed_inertia.izz + mass * (dx2 + dy2),
         )
         .unwrap();
 

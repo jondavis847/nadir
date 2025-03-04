@@ -29,7 +29,7 @@ members = [
     "spherical_harmonics", 
     "spice",
     "time", 
-    "transforms", 
+    "transforms", "uncertainty", 
     "utilities", 
 ]
 resolver = "2"
@@ -92,6 +92,7 @@ thiserror = "2.0.9"
 time = {path = "time"} 
 transforms = {path = "transforms"} 
 typetag = "0.2.18"
+uncertainty = {path = "uncertainty"}
 unicode-width = "0.2.0"
 utilities = {path = "utilities"} 
 
