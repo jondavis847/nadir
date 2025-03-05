@@ -3555,6 +3555,7 @@ version = "0.0.1"
 dependencies = [
  "nalgebra",
  "serde",
+ "thiserror 2.0.11",
  "uncertainty",
 ]
 

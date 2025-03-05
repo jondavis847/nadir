@@ -6,4 +6,5 @@ edition.workspace = true
 [dependencies]
 nalgebra.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 uncertainty.workspace = true

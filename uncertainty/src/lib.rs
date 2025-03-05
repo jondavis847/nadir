@@ -1,52 +1,107 @@
-use rand::rngs::ThreadRng;
-use rand_distr::{Normal, NormalError, Uniform};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
+use rand::rngs::{OsRng, StdRng};
+use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, Normal, NormalError, Uniform};
+use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Error)]
-pub enum UncertaintyErrors {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
     #[error("{0}")]
     NormalError(#[from] NormalError),
 }
 
 pub trait Uncertainty {
-    fn sample(&mut self) -> Self;
+    type Output;
+    fn sample(&mut self) -> Self::Output;
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct UncertainValue {
-    dist: Distributions,
+pub struct SimValue {
+    pub nominal: f64,
+    pub dispersion: Option<Dispersion>,
 }
 
-impl UncertainValue {
-    pub fn new_float(value: f64) -> Self {
+impl SimValue {
+    pub fn new(nominal: f64) -> Self {
         Self {
-            dist: Distributions::None(value),
+            nominal,
+            dispersion: None,
         }
     }
 
-    pub fn new_normal(mean: f64, std: f64) -> Result<Self, UncertaintyErrors> {
-        Ok(Self {
-            dist: Distributions::Normal {
-                dist: Normal::new(mean, std)?,
-                rng: rand::thread_rng(),
-            },
-        })
+    pub fn sample(&mut self) -> f64 {
+        if let Some(dispersion) = &mut self.dispersion {
+            dispersion.sample()
+        } else {
+            self.nominal
+        }
     }
 
-    pub fn new_uniform(lower: f64, upper: f64) -> Self {
-        Self {
-            dist: Distributions::Uniform {
-                dist: Uniform::new(lower, upper),
-                rng: rand::thread_rng(),
-            },
-        }
+    /// The rand Distribution can be passed in as 'with_distribution(normal.into()) for example,
+    /// where normal is a Normal<f64>, since we impl From<T: Distribution> for Distributions
+    pub fn with_distribution(mut self, distribution: Distributions) -> Result<Self, Error> {
+        let seed = OsRng.gen();
+        let rng = StdRng::seed_from_u64(seed);
+        self.dispersion = Some(Dispersion {
+            distribution,
+            rng,
+            seed,
+        });
+        Ok(self)
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Distributions {
-    None(f64),
-    Normal { dist: Normal<f64>, rng: ThreadRng },
-    Uniform { dist: Uniform<f64>, rng: ThreadRng },
+    Normal(Normal<f64>),
+    Uniform(Uniform<f64>),
+}
+
+impl From<Normal<f64>> for Distributions {
+    fn from(normal: Normal<f64>) -> Self {
+        Distributions::Normal(normal)
+    }
+}
+
+impl From<Uniform<f64>> for Distributions {
+    fn from(uniform: Uniform<f64>) -> Self {
+        Distributions::Uniform(uniform)
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Dispersion {
+    distribution: Distributions,
+    #[serde(skip)]
+    rng: StdRng,
+    seed: u64,
+}
+
+impl Dispersion {
+    pub fn sample(&mut self) -> f64 {
+        match self.distribution {
+            Distributions::Normal(dist) => dist.sample(&mut self.rng),
+            Distributions::Uniform(dist) => dist.sample(&mut self.rng),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Dispersion {
+    fn deserialize<D>(deserializer: D) -> Result<Dispersion, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct DispersionHelper {
+            distribution: Distributions,
+            seed: u64,
+        }
+
+        let helper = DispersionHelper::deserialize(deserializer)?;
+
+        Ok(Dispersion {
+            distribution: helper.distribution,
+            seed: helper.seed,
+            rng: StdRng::seed_from_u64(helper.seed),
+        })
+    }
 }
