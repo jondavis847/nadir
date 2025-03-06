@@ -113,7 +113,7 @@ impl Mul<Transform> for Transform {
 impl Mul<MassProperties> for Transform {
     type Output = MassProperties;
     fn mul(self, rhs: MassProperties) -> MassProperties {
-        let mass = rhs.mass;
+        let mass = rhs.mass.value;
 
         let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vector());
 
@@ -140,12 +140,12 @@ impl Mul<MassProperties> for Transform {
         let dz2 = dz * dz;
 
         let new_inertia = Inertia::new(
-            transformed_inertia.ixx + mass * (dy2 + dz2),
-            transformed_inertia.ixy - mass * dx * dy,
-            transformed_inertia.ixz - mass * dx * dz,
-            transformed_inertia.iyy + mass * (dx2 + dz2),
-            transformed_inertia.iyz - mass * dy * dz,
-            transformed_inertia.izz + mass * (dx2 + dy2),
+            transformed_inertia.ixx.value + mass * (dy2 + dz2),
+            transformed_inertia.ixy.value - mass * dx * dy,
+            transformed_inertia.ixz.value - mass * dx * dz,
+            transformed_inertia.iyy.value + mass * (dx2 + dz2),
+            transformed_inertia.iyz.value - mass * dy * dz,
+            transformed_inertia.izz.value + mass * (dx2 + dy2),
         )
         .unwrap();
 

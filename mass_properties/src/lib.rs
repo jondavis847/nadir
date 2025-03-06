@@ -56,6 +56,16 @@ impl CenterOfMass {
         self.z = self.z.with_distribution(distribution)?;
         Ok(self)
     }
+
+    pub fn vector(&self) -> Vector3<f64> {
+        Vector3::new(self.x.value, self.y.value, self.z.value)
+    }
+}
+
+impl From<Vector3<f64>> for CenterOfMass {
+    fn from(v: Vector3<f64>) -> CenterOfMass {
+        CenterOfMass::new(v[0], v[1], v[2])
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +152,20 @@ impl Inertia {
     ) -> Result<Self, MassPropertiesErrors> {
         self.iyz = self.iyz.with_distribution(distribution)?;
         Ok(self)
+    }
+
+    pub fn matrix(&self) -> Matrix3<f64> {
+        Matrix3::new(
+            self.ixx.value,
+            self.ixy.value,
+            self.ixz.value,
+            self.ixy.value,
+            self.iyy.value,
+            self.iyz.value,
+            self.ixz.value,
+            self.iyz.value,
+            self.izz.value,
+        )
     }
 }
 

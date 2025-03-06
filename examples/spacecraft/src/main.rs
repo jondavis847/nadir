@@ -103,6 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create the solar array panels of the spacecraft
     //solar array 1
+    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
     let mp = MassProperties::new(100.0, cm, inertia)?;
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
@@ -121,6 +122,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let sa1 = Rc::new(RefCell::new(Body::new("sa1", mp)?.with_mesh(mesh)));
 
     //solar array 2
+    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
     let mp = MassProperties::new(100.0, cm, inertia)?;
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
@@ -139,6 +141,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let sa2 = Rc::new(RefCell::new(Body::new("sa2", mp)?.with_mesh(mesh)));
 
     //solar array 3
+    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
     let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
     let mp = MassProperties::new(100.0, cm, inertia)?;
     let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));

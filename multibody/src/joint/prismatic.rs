@@ -74,7 +74,7 @@ impl JointModel for Prismatic {
         mass_properties: &MassProperties,
         transforms: &JointTransforms,
     ) -> SpatialInertia {
-        transforms.jof_from_ob * SpatialInertia::from(*mass_properties)
+        transforms.jof_from_ob * SpatialInertia::from(mass_properties)
     }
 
     fn calculate_tau(&mut self) {

@@ -621,16 +621,16 @@ impl From<Matrix6<f64>> for SpatialInertia {
     }
 }
 
-impl From<MassProperties> for SpatialInertia {
-    fn from(mp: MassProperties) -> Self {
-        let inertia = mp.inertia;
-        let mass = mp.mass;
+impl From<&MassProperties> for SpatialInertia {
+    fn from(mp: &MassProperties) -> Self {
+        let inertia = mp.inertia.matrix();
+        let mass = mp.mass.value;
         let com = mp.center_of_mass.vector();
 
         let cx = com.cross_matrix();
         let cxt = cx.transpose();
 
-        let m11 = inertia.matrix() + cx * cxt * mass;
+        let m11 = inertia + cx * cxt * mass;
         let m12 = cx * mass;
         let m21 = cxt * mass;
         let m22 = Matrix3::identity() * mass;
@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_transform_inertia_translation() {
-        let inertia = SpatialInertia::from(MassProperties::default());
+        let inertia = SpatialInertia::from(&MassProperties::default());
         let translation = Cartesian::new(0.0, 0.0, 1.0);
         let transform = Transform::new(Rotation::IDENTITY, translation.into());
         let spatial_transform = SpatialTransform::from(transform);
@@ -767,7 +767,7 @@ mod tests {
 
     #[test]
     fn test_transform_inertia_translation_2() {
-        let inertia = SpatialInertia::from(MassProperties::default());
+        let inertia = SpatialInertia::from(&MassProperties::default());
         let translation1 = Cartesian::new(0.0, 0.0, 0.5);
         let transform1 = Transform::new(Rotation::IDENTITY, translation1.into());
         let spatial_transform1 = SpatialTransform::from(transform1);
@@ -819,7 +819,7 @@ mod tests {
 
     #[test]
     fn test_transform_inertia_translation_and_rotation() {
-        let inertia = SpatialInertia::from(MassProperties::default());
+        let inertia = SpatialInertia::from(&MassProperties::default());
         let translation = Cartesian::new(0.0, 0.0, 1.0);
         let rotation = Rotation::from(&EulerAngles::new(
             std::f64::consts::FRAC_PI_2,

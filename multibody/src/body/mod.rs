@@ -86,7 +86,7 @@ impl Body {
         // note that we just calculate gravity as translation of the cm
         // any torque applied via gravity and it's joints is handled by
         // the conversion to a joint force through spatial algebra
-        let g_vec = g_vec * self.mass_properties.mass;
+        let g_vec = g_vec * self.mass_properties.mass.value;
 
         self.state.gravity_force_base = g_vec;
         // transform to the body frame
@@ -101,7 +101,7 @@ impl Body {
         // note that we just calculate gravity as translation of the cm
         // any torque applied via gravity and it's joints is handled by
         // the conversion to a joint force through spatial algebra
-        let g_vec = g_vec * self.mass_properties.mass;
+        let g_vec = g_vec * self.mass_properties.mass.value;
 
         self.state.gravity_force_base = g_vec;
         // transform to the body frame
@@ -196,7 +196,7 @@ impl Body {
         self.state.internal_momentum_body *= 0.0;
 
         self.state.kinetic_energy = 0.5
-            * self.mass_properties.mass
+            * self.mass_properties.mass.value
             * self.state.velocity_base.dot(&self.state.velocity_base)
             + 0.5
                 * (self.state.angular_rate_body.transpose()

@@ -75,7 +75,7 @@ impl JointModel for Revolute {
         inertia: &MassProperties,
         transforms: &JointTransforms,
     ) -> SpatialInertia {
-        transforms.jof_from_ob * SpatialInertia::from(*inertia)
+        transforms.jof_from_ob * SpatialInertia::from(inertia)
     }
 
     fn calculate_tau(&mut self) {

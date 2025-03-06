@@ -216,7 +216,7 @@ impl JointModel for Floating {
         let original_cm = inertia.center_of_mass.vector();
         let mut inertia = inertia.clone();
         inertia.center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
-        let spatial_inertia = SpatialInertia::from(inertia);
+        let spatial_inertia = SpatialInertia::from(&inertia);
 
         // only rotate the inertia to the jof, dont translate since cm is @ jof
         let mut jof_from_ob_rotation_only = jof_from_ob.clone();

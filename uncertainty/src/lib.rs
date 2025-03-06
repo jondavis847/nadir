@@ -16,14 +16,14 @@ pub trait Uncertainty {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SimValue {
-    pub nominal: f64,
+    pub value: f64,
     pub dispersion: Option<Dispersion>,
 }
 
 impl SimValue {
-    pub fn new(nominal: f64) -> Self {
+    pub fn new(value: f64) -> Self {
         Self {
-            nominal,
+            value,
             dispersion: None,
         }
     }
@@ -32,7 +32,7 @@ impl SimValue {
         if let Some(dispersion) = &mut self.dispersion {
             dispersion.sample()
         } else {
-            self.nominal
+            self.value
         }
     }
 
@@ -42,6 +42,7 @@ impl SimValue {
         let seed = OsRng.gen();
         let rng = StdRng::seed_from_u64(seed);
         self.dispersion = Some(Dispersion {
+            nominal: self.value,
             distribution,
             rng,
             seed,
@@ -70,6 +71,7 @@ impl From<Uniform<f64>> for Distributions {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Dispersion {
+    nominal: f64,
     distribution: Distributions,
     #[serde(skip)]
     rng: StdRng,
@@ -92,6 +94,7 @@ impl<'de> Deserialize<'de> for Dispersion {
     {
         #[derive(Deserialize)]
         struct DispersionHelper {
+            nominal: f64,
             distribution: Distributions,
             seed: u64,
         }
@@ -99,6 +102,7 @@ impl<'de> Deserialize<'de> for Dispersion {
         let helper = DispersionHelper::deserialize(deserializer)?;
 
         Ok(Dispersion {
+            nominal: helper.nominal,
             distribution: helper.distribution,
             seed: helper.seed,
             rng: StdRng::seed_from_u64(helper.seed),

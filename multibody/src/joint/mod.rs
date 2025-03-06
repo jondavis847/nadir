@@ -211,7 +211,7 @@ impl Joint {
             return Err(JointErrors::OuterBodyExists(self.name.clone()));
         } else {
             {
-                let mass_properties = bodyref.borrow().mass_properties;
+                let mass_properties = &bodyref.borrow().mass_properties;
                 self.cache.transforms.jof_from_ob = SpatialTransform(transform);
                 self.cache.transforms.ob_from_jof = SpatialTransform(transform.inv());
                 // calculate inertia about the joint
