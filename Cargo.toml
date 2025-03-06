@@ -7,8 +7,7 @@ rust-version = "1.82.0"
 [workspace]
 members = [ 
     "aerospace", 
-    "animation",     
-    "benchmarks", 
+    "animation",         
     "celestial", 
     "color", 
     "coordinate_systems",     

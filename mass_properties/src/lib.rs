@@ -62,6 +62,14 @@ impl CenterOfMass {
     }
 }
 
+impl Uncertainty for CenterOfMass {
+    fn sample(&mut self) {
+        self.x.sample();
+        self.y.sample();
+        self.z.sample();
+    }
+}
+
 impl From<Vector3<f64>> for CenterOfMass {
     fn from(v: Vector3<f64>) -> CenterOfMass {
         CenterOfMass::new(v[0], v[1], v[2])
@@ -169,6 +177,17 @@ impl Inertia {
     }
 }
 
+impl Uncertainty for Inertia {
+    fn sample(&mut self) {
+        self.ixx.sample();
+        self.iyy.sample();
+        self.izz.sample();
+        self.ixy.sample();
+        self.ixz.sample();
+        self.iyz.sample();
+    }
+}
+
 impl From<Matrix3<f64>> for Inertia {
     fn from(m: Matrix3<f64>) -> Inertia {
         //TODO add checks on the matrix
@@ -232,51 +251,9 @@ impl MassProperties {
 }
 
 impl Uncertainty for MassProperties {
-    type Output = MassPropertiesSim;
-    fn sample(&mut self) -> MassPropertiesSim {
-        MassPropertiesSim::from(self)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MassPropertiesSim {
-    pub mass: f64,
-    pub cmx: f64,
-    pub cmy: f64,
-    pub cmz: f64,
-    pub ixx: f64,
-    pub iyy: f64,
-    pub izz: f64,
-    pub ixy: f64,
-    pub ixz: f64,
-    pub iyz: f64,
-}
-
-impl From<&mut MassProperties> for MassPropertiesSim {
-    fn from(mp: &mut MassProperties) -> Self {
-        MassPropertiesSim {
-            mass: mp.mass.sample(),
-            cmx: mp.center_of_mass.x.sample(),
-            cmy: mp.center_of_mass.y.sample(),
-            cmz: mp.center_of_mass.z.sample(),
-            ixx: mp.inertia.ixx.sample(),
-            iyy: mp.inertia.iyy.sample(),
-            izz: mp.inertia.izz.sample(),
-            ixy: mp.inertia.ixy.sample(),
-            ixz: mp.inertia.ixz.sample(),
-            iyz: mp.inertia.iyz.sample(),
-        }
-    }
-}
-
-impl MassPropertiesSim {
-    pub fn center_of_mass(&self) -> Vector3<f64> {
-        Vector3::new(self.cmx, self.cmy, self.cmz)
-    }
-    pub fn inertia(&self) -> Matrix3<f64> {
-        Matrix3::new(
-            self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
-            self.izz,
-        )
+    fn sample(&mut self) {
+        self.mass.sample();
+        self.center_of_mass.sample();
+        self.inertia.sample()
     }
 }

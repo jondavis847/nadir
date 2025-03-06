@@ -29,4 +29,5 @@ thiserror.workspace = true
 time.workspace = true
 transforms.workspace = true
 typetag.workspace = true
+uncertainty.workspace = true
 utilities.workspace = true

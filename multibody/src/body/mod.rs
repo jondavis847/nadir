@@ -18,6 +18,7 @@ use std::{
 };
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::Uncertainty;
 
 #[derive(Clone, Debug, Error)]
 pub enum BodyErrors {
@@ -204,6 +205,12 @@ impl Body {
                     * self.state.angular_rate_body)[0];
 
         //TODO: calculate potential energy
+    }
+}
+
+impl Uncertainty for Body {
+    fn sample(&mut self) {
+        self.mass_properties.sample();
     }
 }
 
