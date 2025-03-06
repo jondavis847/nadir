@@ -3448,6 +3448,7 @@ name = "mass_properties"
 version = "0.0.1"
 dependencies = [
  "nalgebra",
+ "rand_distr",
  "serde",
  "thiserror 2.0.11",
  "uncertainty",
