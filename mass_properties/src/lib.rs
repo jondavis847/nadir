@@ -296,23 +296,23 @@ impl MassPropertiesBuilder {
         if mass < std::f64::EPSILON {
             Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
         } else {
-            self.mass = SimValue::new(mass);
+            self.mass.value = mass;
             Ok(self)
         }
     }
 
     pub fn with_cmx(mut self, cmx: f64) -> Self {
-        self.cmx = SimValue::new(cmx);
+        self.cmx.value = cmx;
         self
     }
 
     pub fn with_cmy(mut self, cmy: f64) -> Self {
-        self.cmy = SimValue::new(cmy);
+        self.cmy.value = cmy;
         self
     }
 
     pub fn with_cmz(mut self, cmz: f64) -> Self {
-        self.cmz = SimValue::new(cmz);
+        self.cmz.value = cmz;
         self
     }
 
@@ -320,7 +320,7 @@ impl MassPropertiesBuilder {
         if ixx < std::f64::EPSILON {
             Err(MassPropertiesErrors::IxxLessThanOrEqualToZero)
         } else {
-            self.ixx = SimValue::new(ixx);
+            self.ixx.value = ixx;
             Ok(self)
         }
     }
@@ -329,7 +329,7 @@ impl MassPropertiesBuilder {
         if iyy < std::f64::EPSILON {
             Err(MassPropertiesErrors::IyyLessThanOrEqualToZero)
         } else {
-            self.iyy = SimValue::new(iyy);
+            self.iyy.value = iyy;
             Ok(self)
         }
     }
@@ -338,31 +338,27 @@ impl MassPropertiesBuilder {
         if izz < std::f64::EPSILON {
             Err(MassPropertiesErrors::IzzLessThanOrEqualToZero)
         } else {
-            self.izz = SimValue::new(izz);
+            self.izz.value = izz;
             Ok(self)
         }
     }
 
     pub fn with_ixy(mut self, ixy: f64) -> Self {
-        self.ixy = SimValue::new(ixy);
+        self.ixy.value = ixy;
         self
     }
 
     pub fn with_ixz(mut self, ixz: f64) -> Self {
-        self.ixz = SimValue::new(ixz);
+        self.ixz.value = ixz;
         self
     }
 
     pub fn with_iyz(mut self, iyz: f64) -> Self {
-        self.iyz = SimValue::new(iyz);
+        self.iyz.value = iyz;
         self
     }
 
-    pub fn with_uncertain_mass_normal(
-        mut self,
-        mean: f64,
-        std: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_mass_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         // if mass can be less than 0.0, return an error
         // sample should be redrawing if mass is ever sampled below 0.0 on outliers
         if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
@@ -374,11 +370,7 @@ impl MassPropertiesBuilder {
         Ok(self)
     }
 
-    pub fn with_uncertain_mass_uniform(
-        mut self,
-        low: f64,
-        high: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_mass_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         // if mass can be less than 0.0, return an error
         if low < std::f64::EPSILON {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
@@ -394,21 +386,13 @@ impl MassPropertiesBuilder {
         Ok(self)
     }
 
-    pub fn with_uncertain_cmx_normal(
-        mut self,
-        mean: f64,
-        std: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmx_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
         self.cmx = self.cmx.with_distribution(dist.into())?;
         Ok(self)
     }
 
-    pub fn with_uncertain_cmx_uniform(
-        mut self,
-        low: f64,
-        high: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         // if low is not less than high, return an error
         if low > high {
             return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
@@ -418,21 +402,13 @@ impl MassPropertiesBuilder {
         Ok(self)
     }
 
-    pub fn with_uncertain_cmy_normal(
-        mut self,
-        mean: f64,
-        std: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
         self.cmy = self.cmy.with_distribution(dist.into())?;
         Ok(self)
     }
 
-    pub fn with_uncertain_cmy_uniform(
-        mut self,
-        low: f64,
-        high: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         // if low is not less than high, return an error
         if low > high {
             return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
@@ -442,27 +418,154 @@ impl MassPropertiesBuilder {
         Ok(self)
     }
 
-    pub fn with_uncertain_cmz_normal(
-        mut self,
-        mean: f64,
-        std: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
         self.cmz = self.cmz.with_distribution(dist.into())?;
         Ok(self)
     }
 
-    pub fn with_uncertain_cmz_uniform(
-        mut self,
-        low: f64,
-        high: f64,
-    ) -> Result<Self, MassPropertiesErrors> {
+    pub fn with_cmz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         // if low is not less than high, return an error
         if low > high {
             return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
         }
         let dist = Uniform::new(low, high);
         self.cmz = self.cmz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixx_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.ixx = self.ixx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
+        }
+
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.ixx = self.ixx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.iyy = self.iyy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.iyy = self.iyy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_izz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.izz = self.izz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_izz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.izz = self.izz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.ixy = self.ixy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.ixy = self.ixy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.ixz = self.ixz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.ixz = self.ixz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.iyz = self.iyz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if low is not less than high, return an error
+        if low > high {
+            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
+        }
+
+        let dist = Uniform::new(low, high);
+        self.iyz = self.iyz.with_distribution(dist.into())?;
         Ok(self)
     }
 }
