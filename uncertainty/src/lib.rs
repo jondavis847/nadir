@@ -10,7 +10,9 @@ pub enum Error {
 }
 
 pub trait Uncertainty {
-    fn sample(&mut self);
+    type Output;
+    type Error;
+    fn sample(&mut self) -> Result<Self::Output, Self::Error>;
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -27,9 +29,11 @@ impl SimValue {
         }
     }
 
-    pub fn sample(&mut self) {
+    pub fn sample(&mut self) -> f64 {
         if let Some(dispersion) = &mut self.dispersion {
-            self.value = dispersion.sample();
+            dispersion.sample()
+        } else {
+            self.value
         }
     }
 
