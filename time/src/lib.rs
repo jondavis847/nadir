@@ -60,23 +60,44 @@ pub enum TimeErrors {
 pub enum TimeSystem {
     GPS,
     TAI,
-    UTC,
     TDB,
     TT,
+    UTC,
+}
+
+impl TimeSystem {
+    pub fn to_string(&self) -> String {
+        match self {
+            TimeSystem::GPS => "GPS".to_string(),
+            TimeSystem::TAI => "TAI".to_string(),
+            TimeSystem::UTC => "UTC".to_string(),
+            TimeSystem::TDB => "TDB".to_string(),
+            TimeSystem::TT => "TT".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize, Eq)]
 pub enum TimeFormat {
     DateTime,
-    DayOfYear,
     JulianDate,
     SecondsSinceJ2000,
 }
 
+impl TimeFormat {
+    pub fn to_string(&self) -> String {
+        match self {
+            TimeFormat::DateTime => "DateTime".to_string(),
+            TimeFormat::JulianDate => "JulianDate".to_string(),
+            TimeFormat::SecondsSinceJ2000 => "SecondsSinceJ2000".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 pub struct Time {
-    system: TimeSystem,
-    value: SecondsSinceJ2000,
+    pub system: TimeSystem,
+    pub value: SecondsSinceJ2000,
 }
 
 impl Time {
