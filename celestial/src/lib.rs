@@ -443,6 +443,27 @@ impl CelestialBodies {
         }
     }
 
+    /// Returns the number of hours for a full sidereal rotation about its spin axis
+    pub fn get_rotation_period(&self) -> f64 {
+        match self {
+            CelestialBodies::Earth => 23.9345,
+            CelestialBodies::Jupiter => 9.9250,
+            CelestialBodies::Mars => 24.6229,
+            CelestialBodies::Mercury => 1407.6,
+            CelestialBodies::Moon => 655.720,
+            CelestialBodies::Neptune => 16.11,
+            CelestialBodies::Pluto => -153.2928,
+            CelestialBodies::Saturn => 10.656,
+            CelestialBodies::Sun => 609.12,
+            CelestialBodies::Uranus => -17.24,
+            CelestialBodies::Venus => -5832.6,
+        }
+    }
+
+    pub fn get_rotation_rate(&self) -> f64 {
+        2.0 * std::f64::consts::PI / self.get_rotation_period()
+    }
+
     /// Returns the dipole model of the magnetic field for the body
     /// Retrieved from GSFC planetary constants
     /// https://nssdc.gsfc.nasa.gov/planetary/factsheet/
@@ -468,6 +489,28 @@ impl CelestialBodies {
         };
 
         Ok(dipole)
+    }
+
+    // Returns the Greenwich Mean Sidereal Time (GMST) of a CelestialBody at some epoch
+    pub fn get_gmst(&self, epoch: &Time) -> f64 {
+        match self {
+            CelestialBodies::Earth => {
+                // Vallado equation 3-45 algorithm 15
+                let tut1 = epoch.get_jd();
+                let gmst_sec = 67310.54841
+                    + (876600.0 * 3600.0 + 8640184.812866) * tut1
+                    + 0.093104 * tut1.powi(2)
+                    - 6.2e-6 * tut1.powi(3);
+                gmst_sec * self.get_rotation_rate()
+            }
+            _ => todo!("implement other gmsts, we just hardcode earth from vallado for now"),
+        }
+    }
+
+    // Returns the RAAN of a celestial body given an MLTAN in decimal hours and an epoch
+    pub fn get_raan(&self, epoch: &Time, mltan: f64) -> f64 {
+        self.get_gmst(&epoch)
+            + self.get_rotation_rate() * (mltan - self.get_rotation_period() / 2.0)
     }
 
     pub fn from_str(str: &str) -> Option<Self> {

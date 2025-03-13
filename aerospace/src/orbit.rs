@@ -493,6 +493,45 @@ impl KeplerianElements {
             orbit_type,
         }
     }
+
+    pub fn new_mltan(
+        a: f64,
+        e: f64,
+        i: f64,
+        mltan: f64, //decimal hours
+        argp: f64,
+        f: f64,
+        epoch: Time,
+        central_body: CelestialBodies,
+    ) -> Self {
+        let mu = central_body.get_mu();
+        let radius = central_body.get_radius();
+        let (orbit_type, p) = if e < ORBIT_EPSILON {
+            (OrbitType::Circular, a)
+        } else if e <= 1.0 - ORBIT_EPSILON {
+            (OrbitType::Elliptical, a * (1.0 - e.powi(2)))
+        } else if e < 1.0 + ORBIT_EPSILON {
+            (OrbitType::Parabolic, a * (1.0 - e.powi(2)))
+        } else {
+            (OrbitType::Hyperbolic, a * (1.0 - e.powi(2)))
+        };
+
+        let raan = central_body.get_raan(&epoch, mltan);
+
+        Self {
+            semimajor_axis: a,
+            semiparameter: p,
+            eccentricity: e,
+            inclination: i,
+            argument_of_periapsis: argp,
+            raan,
+            epoch,
+            true_anomaly: f,
+            mu,
+            radius,
+            orbit_type,
+        }
+    }
 }
 
 #[cfg(test)]
