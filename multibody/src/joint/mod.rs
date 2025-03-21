@@ -6,20 +6,25 @@ pub mod revolute;
 use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    base::{BaseConnection, BaseRef},
-    body::{BodyConnection, BodyRef},
+    body::BodyConnection,
     solver::SimStateVector,
+    system::Id,
 };
+use floating::{Floating, FloatingBuilder};
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector6;
+use prismatic::{Prismatic, PrismaticBuilder};
+use rand::rngs::StdRng;
+use revolute::{Revolute, RevoluteBuilder};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, SpatialTransform, Velocity};
-use std::{cell::RefCell, fmt::Debug, rc::Rc};
+use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
+use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::{SimValue, Uncertainty};
 
 #[derive(Debug, Clone, Error)]
 pub enum JointErrors {
@@ -35,10 +40,74 @@ pub enum JointErrors {
     OuterBodyExists(String),
 }
 
-pub type JointRef = Rc<RefCell<Joint>>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum JointBuilders {
+    Floating(FloatingBuilder),
+    Revolute(RevoluteBuilder),
+    Prismatic(PrismaticBuilder),
+}
 
-#[typetag::serde]
-pub trait JointModel: CloneJointModel + Debug + ArticulatedBodyAlgorithm {
+impl Uncertainty for JointBuilders {
+    type Error = JointErrors;
+    type Output = JointModels;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        match self {
+            JointBuilders::Floating(builder) => Ok(JointModels::Floating(builder.sample(rng))),
+            JointBuilders::Revolute(builder) => Ok(JointModels::Revolute(builder.sample(rng))),
+            JointBuilders::Prismatic(builder) => Ok(JointModels::Prismatic(builder.sample(rng))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JointBuilder {
+    pub id: Id,
+    pub name: String,
+    pub model: JointBuilders,
+    pub connections: JointConnection,
+}
+
+impl JointBuilder {
+    pub fn new(id: Id, name: &str, model: JointBuilders) -> Result<Self, JointErrors> {
+        if name.is_empty() {
+            return Err(JointErrors::EmptyName);
+        }
+        Ok(Self {
+            id,
+            name: name.to_string(),
+            model: Box::new(model),
+            connections: JointConnection::default(),
+        })
+    }
+
+    pub fn connect_inner_body(
+        &mut self,
+        body: Id,
+        transform: Transform,
+    ) -> Result<(), JointErrors> {
+        if let Some(_) = &self.connections.inner_body {
+            return Err(JointErrors::InnerBodyExists(self.name.to_string()));
+        } else {
+            self.connections.inner_body = Some(BodyConnection::new(body, transform));
+        }
+        Ok(())
+    }
+
+    pub fn connect_outer_body(
+        &mut self,
+        body: Id,
+        transform: Transform,
+    ) -> Result<(), JointErrors> {
+        if let Some(_) = &self.connections.outer_body {
+            return Err(JointErrors::OuterBodyExists(self.name.clone()));
+        } else {
+            self.connections.outer_body = Some(BodyConnection::new(body, transform));
+        }
+        Ok(())
+    }
+}
+
+pub trait JointModel: ArticulatedBodyAlgorithm {
     fn calculate_joint_inertia(
         &mut self,
         mass_properties: &MassProperties,
@@ -59,42 +128,43 @@ pub trait JointModel: CloneJointModel + Debug + ArticulatedBodyAlgorithm {
     fn state_vector_read(&mut self, state: &SimStateVector);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
-    fn update_transforms(
-        &mut self,
-        transforms: &mut JointTransforms,
-        inner_joint: &Option<JointRef>,
-    );
+    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: &Option<Id>);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
 }
-pub trait CloneJointModel {
-    fn clone_model(&self) -> Box<dyn JointModel>;
-}
-impl<T> CloneJointModel for T
-where
-    T: JointModel + Clone + 'static,
-{
-    fn clone_model(&self) -> Box<dyn JointModel> {
-        Box::new(self.clone())
-    }
-}
 
-impl Clone for Box<dyn JointModel> {
-    fn clone(&self) -> Self {
-        self.clone_model()
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum JointModels {
+    Floating(Box<Floating>),
+    Prismatic(Box<Prismatic>),
+    Revolute(Box<Revolute>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Joint {
     pub name: String,
-    pub model: Box<dyn JointModel>,
+    pub model: JointModels,
     pub connections: JointConnection,
+    pub inner_joint: Option<Id>, //index of the parent joint
+    result_id: Option<u32>,
     #[serde(skip)]
     pub cache: JointCache,
-    #[serde(skip)]
-    pub inner_joint: Option<JointRef>, //index of the parent joint
-    result_id: Option<u32>,
+}
+
+impl Uncertainty for JointBuilder {
+    type Error = JointErrors;
+    type Output = Joint;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        let model = self.model.sample(rng)?;
+        Ok(Joint {
+            name: self.name.clone(),
+            model,
+            connections: self.connections.clone(),
+            inner_joint: self.inner_joint.clone(),
+            result_id: None,
+            cache: JointCache::default(),
+        })
+    }
 }
 
 impl Joint {
@@ -139,19 +209,6 @@ impl Joint {
             .aba_third_pass(&mut self.cache, &self.inner_joint);
     }
 
-    pub fn new(name: &str, model: impl JointModel + 'static) -> Result<Self, JointErrors> {
-        if name.is_empty() {
-            return Err(JointErrors::EmptyName);
-        }
-        Ok(Self {
-            name: name.to_string(),
-            model: Box::new(model),
-            connections: JointConnection::default(),
-            cache: JointCache::default(),
-            inner_joint: None,
-            result_id: None,
-        })
-    }
     /// Calculates the mass properties about the joint given mass properties at the outer body
     pub fn calculate_joint_inertia(&mut self) {
         let outer_body_connection = self.connections.outer_body.as_ref().unwrap();
@@ -164,65 +221,6 @@ impl Joint {
 
     pub fn calculate_vj(&mut self) {
         self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
-    }
-
-    pub fn connect_base(
-        &mut self,
-        base: &BaseRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        if let Some(_) = &self.connections.inner_body {
-            return Err(JointErrors::InnerBodyExists(self.name.to_string()));
-        } else {
-            self.connections.inner_body = Some(InnerBody::Base(BaseConnection::new(
-                Rc::clone(base),
-                transform,
-            )));
-            self.cache.transforms.jif_from_ib = SpatialTransform(transform);
-            self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
-        }
-        Ok(())
-    }
-
-    pub fn connect_inner_body(
-        &mut self,
-        body: &BodyRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        if let Some(_) = &self.connections.inner_body {
-            return Err(JointErrors::InnerBodyExists(self.name.to_string()));
-        } else {
-            self.connections.inner_body = Some(InnerBody::Body(BodyConnection::new(
-                Rc::clone(body),
-                transform,
-            )));
-            self.cache.transforms.jif_from_ib = SpatialTransform(transform);
-            self.cache.transforms.ib_from_jif = SpatialTransform(transform.inv());
-        }
-        Ok(())
-    }
-
-    pub fn connect_outer_body(
-        &mut self,
-        bodyref: &BodyRef,
-        transform: Transform,
-    ) -> Result<(), JointErrors> {
-        if let Some(_) = &self.connections.outer_body {
-            return Err(JointErrors::OuterBodyExists(self.name.clone()));
-        } else {
-            {
-                let mass_properties = &bodyref.borrow().mass_properties;
-                self.cache.transforms.jof_from_ob = SpatialTransform(transform);
-                self.cache.transforms.ob_from_jof = SpatialTransform(transform.inv());
-                // calculate inertia about the joint
-                // some joints make model specific assumptions about this
-                self.cache.inertia = self
-                    .model
-                    .calculate_joint_inertia(&mass_properties, &self.cache.transforms);
-            }
-            self.connections.outer_body = Some(BodyConnection::new(Rc::clone(bodyref), transform));
-        }
-        Ok(())
     }
 
     pub fn state_derivative(&self, derivative: &mut SimStateVector) {
@@ -258,28 +256,45 @@ impl NadirResult for Joint {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InnerBody {
-    Base(BaseConnection),
-    Body(BodyConnection),
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointConnection {
-    pub inner_body: Option<InnerBody>,
+    pub inner_body: Option<BodyConnection>,
     pub outer_body: Option<BodyConnection>,
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct JointParameters {
-    pub constant_force: f64,
-    pub damping: f64,
-    pub equilibrium: f64,
-    pub spring_constant: f64,
+    constant_force: f64,
+    damping: f64,
+    equilibrium: f64,
+    spring_constant: f64,
 }
 
-impl JointParameters {
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct JointParametersBuilder {
+    constant_force: SimValue,
+    damping: SimValue,
+    equilibrium: SimValue,
+    spring_constant: SimValue,
+}
+
+impl JointParametersBuilder {
+    //TODO: builder pattern?
     //pub fn with_constant_force
+}
+
+impl Uncertainty for JointParametersBuilder {
+    type Output = JointParameters;
+    type Error = ();
+
+    fn sample(&mut self, rng: &mut rand::rngs::StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(JointParameters {
+            constant_force: self.constant_force.sample(rng),
+            damping: self.damping.sample(rng),
+            equilibrium: self.equilibrium.sample(rng),
+            spring_constant: self.spring_constant.sample(rng),
+        })
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]

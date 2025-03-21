@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
 
-use super::JointRef;
+use super::Joint;
 
 /// We use the terminology B_from_A rather than A_to_B so that notation matches matrix multiplication
 /// i.e. v_C = C_from_B * B_from_A * v_A instead of
@@ -38,7 +38,7 @@ pub struct JointTransforms {
 }
 
 impl JointTransforms {
-    pub fn update(&mut self, inner_joint: &Option<JointRef>) {
+    pub fn update(&mut self, inner_joint: Option<&Joint>) {
         // transforms are multiplied like matrices from right to left.
         // i.e. if you want to express v from frame A in frame C
         // you would use vC = C_to_B * B_to_A * vA

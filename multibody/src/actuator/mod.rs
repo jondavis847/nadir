@@ -1,13 +1,17 @@
 use nadir_result::{NadirResult, ResultManager};
+use reaction_wheel::ReactionWheel;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
 
 use crate::{
-    body::{BodyConnection, BodyRef},
+    body::BodyConnection,
     solver::{SimStateVector, SimStates},
+    system::Id,
 };
+
+pub mod reaction_wheel;
 
 #[derive(Debug, Clone, Error)]
 pub enum ActuatorErrors {
@@ -31,22 +35,18 @@ pub trait ActuatorModel {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Actuator<T>
-where
-    T: ActuatorModel,
-{
+pub struct Actuator {
     pub name: String,
-    pub model: T,
+    pub model: ActuatorModels,
     pub connection: Option<BodyConnection>,
+    /// Id of the result writer in sys.writers
     result_id: Option<u32>,
+    /// Id of state index in SimStateVector
     state_id: Option<usize>,
 }
 
-impl<T> Actuator<T>
-where
-    T: ActuatorModel,
-{
-    pub fn new(name: &str, model: T) -> Self {
+impl Actuator {
+    pub fn new(name: &str, model: ActuatorModels) -> Self {
         Self {
             name: name.to_string(),
             model,
@@ -57,7 +57,7 @@ where
     }
     pub fn connect_to_body(
         &mut self,
-        body: &BodyRef,
+        body: Id,
         transform: Transform,
     ) -> Result<(), ActuatorErrors> {
         if let Some(connection) = &self.connection {
@@ -95,10 +95,7 @@ where
     }
 }
 
-impl<T> NadirResult for Actuator<T>
-where
-    T: ActuatorModel,
-{
+impl NadirResult for Actuator {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
         let actuator_folder_path = results.result_path.join("actuators");
@@ -125,20 +122,8 @@ where
     }
 }
 
-pub trait ActuatorSystem: Serialize {
-    fn update(&mut self);
-    fn initialize_results(&mut self, results: &mut ResultManager);
-    fn write_results(&self, results: &mut ResultManager);
-    fn state_vector_init(&mut self, x0: &mut SimStates);
-    fn state_vector_read(&mut self, x0: &SimStates);
-    fn state_derivative(&self, x0: &mut SimStates);
-}
-
-impl ActuatorSystem for () {
-    fn update(&mut self) {}
-    fn initialize_results(&mut self, _results: &mut ResultManager) {}
-    fn write_results(&self, _results: &mut ResultManager) {}
-    fn state_vector_init(&mut self, _x0: &mut SimStates) {}
-    fn state_vector_read(&mut self, _x0: &SimStates) {}
-    fn state_derivative(&self, _x0: &mut SimStates) {}
+// We just box as a standard for now since we preallocate for simulation and dont know the size of all of our actuators
+// All enum variants are as big as the biggest variant, but if all are boxed then its just the 8 bytes for the pointer
+pub enum ActuatorModels {
+    ReactionWheel(Box<ReactionWheel>),
 }

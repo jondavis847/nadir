@@ -5,33 +5,37 @@ pub mod body;
 pub mod joint;
 pub mod mechanism;
 pub mod sensor;
-pub mod software;
+//pub mod software;
 pub mod solver;
 pub mod system;
 
+use actuator::ActuatorErrors;
 use base::BaseErrors;
 use body::BodyErrors;
 use celestial::CelestialErrors;
-use joint::{revolute::RevoluteErrors, JointErrors};
+
+use joint::JointErrors;
 use sensor::SensorErrors;
 use spice::SpiceErrors;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MultibodyErrors {
-    #[error("base error:")]
+    #[error("{0}")]
+    ActuatorErrors(#[from] ActuatorErrors),
+    #[error("{0}")]
     BaseErrors(#[from] BaseErrors),
     #[error("base does not have any outer joints")]
     BaseMissingOuterJoint,
     #[error("could not find body '{0}' in the system")]
     BodyNotFound(String),
-    #[error("BodyError: {0}")]
+    #[error("{0}")]
     Body(#[from] BodyErrors),
     #[error("body '{0}' does not have an inner joint")]
     BodyMissingInnerJoint(String),
     #[error("base cannot be deleted")]
     CantDeleteBase,
-    #[error("celestial error:")]
+    #[error("{0}")]
     CelestialErrors(#[from] CelestialErrors),
     #[error("could not find component {0} in the system")]
     ComponentNotFound(String),
@@ -41,7 +45,7 @@ pub enum MultibodyErrors {
     DtCantBeZero,
     #[error("invalid connection")]
     InvalidConnection,
-    #[error("joint error")]
+    #[error("{0}")]
     JointErrors(#[from] JointErrors),
     #[error("joint '{0}' must have an inner body")]
     JointMissingInnerBody(String),
@@ -53,10 +57,8 @@ pub enum MultibodyErrors {
     NameTaken(String),
     #[error("could not find transform")]
     NoTransformFound,
-    #[error("revolute error: {0}")]
-    Revolute(#[from] RevoluteErrors),
-    #[error("sensor error: {0}")]
+    #[error("{0}")]
     SensorErrors(#[from] SensorErrors),
-    #[error("spice error: {0}")]
+    #[error("{0}")]
     SpiceErrors(#[from] SpiceErrors),
 }

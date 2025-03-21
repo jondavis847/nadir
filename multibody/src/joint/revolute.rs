@@ -7,6 +7,8 @@ use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
+use rand::rngs::StdRng;
+use rand_distr::{Normal, Uniform};
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
@@ -16,39 +18,180 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::{SimValue, Uncertainty};
 
-use super::{JointCache, JointRef};
+use super::{Joint, JointCache, JointParametersBuilder};
 #[derive(Debug, Copy, Clone, Error)]
 pub enum RevoluteErrors {}
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
-pub struct RevoluteState {
-    pub theta: f64,
-    pub omega: f64,
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct RevoluteStateBuilder {
+    pub angle: SimValue,
+    pub angular_rate: SimValue,
 }
 
-impl RevoluteState {
-    pub fn new(theta: f64, omega: f64) -> Self {
-        // assume this is about Z until we add more axes
-        Self { theta, omega }
+impl Uncertainty for RevoluteStateBuilder {
+    type Error = RevoluteErrors;
+    type Output = RevoluteState;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(RevoluteState {
+            angle: self.angle.sample(rng),
+            angular_rate: self.angular_rate.sample(rng),
+        })
     }
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub struct RevoluteState {
+    pub angle: f64,
+    pub angular_rate: f64,
 }
 
 impl AddAssign<&Self> for RevoluteState {
     fn add_assign(&mut self, rhs: &Self) {
-        self.theta += rhs.theta;
-        self.omega += rhs.omega;
+        self.angle += rhs.angle;
+        self.angular_rate += rhs.angular_rate;
     }
 }
 
 impl MulAssign<f64> for RevoluteState {
     fn mul_assign(&mut self, rhs: f64) {
-        self.theta *= rhs;
-        self.omega *= rhs;
+        self.angle *= rhs;
+        self.angular_rate *= rhs;
     }
 }
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct RevoluteParametersBuilder(JointParametersBuilder);
+
+impl Uncertainty for RevoluteParametersBuilder {
+    type Error = RevoluteErrors;
+    type Output = RevoluteParameters;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(RevoluteParameters(self.0.sample(rng)?))
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct RevoluteParameters(pub JointParameters);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevoluteBuilder {
+    state: RevoluteStateBuilder,
+    parameters: RevoluteParametersBuilder,
+}
+
+impl RevoluteBuilder {
+    pub fn set_angular_rate(&mut self, angular_rate: f64) {
+        self.state.angular_rate.value = angular_rate;
+    }
+
+    pub fn set_angle(&mut self, angle: f64) {
+        self.state.angle.value = angle;
+    }
+
+    pub fn set_uncertain_angular_rate_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        Ok(())
+    }
+
+    pub fn set_uncertain_angular_rate_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        if low >= high {
+            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
+        }
+        let dist = Uniform::new(low, high);
+        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        Ok(())
+    }
+
+    pub fn set_uncertain_angle_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        Ok(())
+    }
+
+    pub fn set_uncertain_angle_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        if low >= high {
+            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
+        }
+        let dist = Uniform::new(low, high);
+        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        Ok(())
+    }
+
+    pub fn with_angle(mut self, angle: f64) -> Self {
+        self.state.angle.value = angle;
+        self
+    }
+
+    pub fn with_angular_rate(mut self, angular_rate: f64) -> Self {
+        self.state.angular_rate.value = angular_rate;
+        self
+    }
+
+    pub fn with_uncertain_angular_rate_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_uncertain_angular_rate_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        if low >= high {
+            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
+        }
+        let dist = Uniform::new(low, high);
+        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_uncertain_angle_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_uncertain_angle_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        if low >= high {
+            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
+        }
+        let dist = Uniform::new(low, high);
+        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        Ok(self)
+    }
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Revolute {
@@ -68,7 +211,6 @@ impl Revolute {
     }
 }
 
-#[typetag::serde]
 impl JointModel for Revolute {
     fn calculate_joint_inertia(
         &mut self,
@@ -85,12 +227,19 @@ impl JointModel for Revolute {
             equilibrium,
             spring_constant,
         } = self.parameters.0;
-        self.cache.tau = constant_force + spring_constant * (equilibrium - self.state.theta)
-            - damping * self.state.omega;
+        self.cache.tau = constant_force + spring_constant * (equilibrium - self.state.angle)
+            - damping * self.state.angular_rate;
     }
 
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
-        Velocity::from(Vector6::new(self.state.omega, 0.0, 0.0, 0.0, 0.0, 0.0))
+        Velocity::from(Vector6::new(
+            self.state.angular_rate,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ))
     }
 
     fn ndof(&self) -> u32 {
@@ -98,25 +247,21 @@ impl JointModel for Revolute {
     }
 
     fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
-        derivative.0[0] = self.state.omega;
+        derivative.0[0] = self.state.angular_rate;
         derivative.0[1] = self.cache.q_ddot;
     }
 
     fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.theta, self.state.omega])
+        SimStateVector(vec![self.state.angle, self.state.angular_rate])
     }
 
     fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.theta = state.0[0];
-        self.state.omega = state.0[1];
+        self.state.angle = state.0[0];
+        self.state.angular_rate = state.0[1];
     }
 
-    fn update_transforms(
-        &mut self,
-        transforms: &mut JointTransforms,
-        inner_joint: &Option<JointRef>,
-    ) {
-        let euler_angles = EulerAngles::new(0.0, 0.0, self.state.theta, EulerSequence::ZYX);
+    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>) {
+        let euler_angles = EulerAngles::new(0.0, 0.0, self.state.angle, EulerSequence::ZYX);
         let rotation = Rotation::EulerAngles(euler_angles);
         let translation = CoordinateSystem::ZERO;
         let transform = Transform::new(rotation, translation);
@@ -127,15 +272,15 @@ impl JointModel for Revolute {
     }
 
     fn result_headers(&self) -> &[&str] {
-        &["theta", "omega", "alpha", "tau"]
+        &["angle", "angular_rate", "alpha", "tau"]
     }
 
     fn result_content(&self, id: u32, results: &mut ResultManager) {
         results.write_record(
             id,
             &[
-                self.state.theta.to_string(),
-                self.state.omega.to_string(),
+                self.state.angle.to_string(),
+                self.state.angular_rate.to_string(),
                 self.cache.q_ddot.to_string(),
                 self.cache.tau.to_string(),
             ],
@@ -166,7 +311,7 @@ struct RevoluteCache {
 }
 
 impl ArticulatedBodyAlgorithm for Revolute {
-    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&mut Joint>) {
         let aba = &mut self.cache.aba;
         let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
@@ -193,7 +338,7 @@ impl ArticulatedBodyAlgorithm for Revolute {
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
         let a_ij = if let Some(inner_joint_ref) = inner_joint {
             inner_joint_ref.borrow().cache.a
         } else {

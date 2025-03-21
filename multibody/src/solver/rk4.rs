@@ -1,24 +1,16 @@
 use nadir_result::ResultManager;
 
 use super::SimStates;
-use crate::{
-    actuator::ActuatorSystem, sensor::SensorSystem, software::SoftwareSystem,
-    system::MultibodySystem, MultibodyErrors,
-};
+use crate::{system::MultibodySystem, MultibodyErrors};
 use indicatif::{ProgressBar, ProgressStyle};
 
-pub fn solve_fixed_rk4<A, F, S>(
-    sys: &mut MultibodySystem<A, F, S>,
+pub fn solve_fixed_rk4(
+    sys: &mut MultibodySystem,
     tstart: f64,
     tstop: f64,
     mut dt: f64,
     results: &mut ResultManager,
-) -> Result<(), MultibodyErrors>
-where
-    A: ActuatorSystem,
-    F: SoftwareSystem<Actuators = A, Sensors = S>,
-    S: SensorSystem,
-{
+) -> Result<(), MultibodyErrors> {
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
     };

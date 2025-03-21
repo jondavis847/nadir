@@ -1,4 +1,5 @@
 use nalgebra::{Matrix3, Vector3};
+use rand::rngs::StdRng;
 use rand_distr::{Normal, NormalError, Uniform};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -334,12 +335,23 @@ impl Uncertainty for MassPropertiesBuilder {
     type Output = MassProperties;
     type Error = MassPropertiesErrors;
 
-    fn sample(&mut self) -> Result<Self::Output, MassPropertiesErrors> {
-        Ok(MassProperties::from(self))
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, MassPropertiesErrors> {
+        Ok(MassProperties {
+            mass: self.mass.sample(rng),
+            cmx: self.cmx.sample(rng),
+            cmy: self.cmy.sample(rng),
+            cmz: self.cmz.sample(rng),
+            ixx: self.ixx.sample(rng),
+            iyy: self.iyy.sample(rng),
+            izz: self.izz.sample(rng),
+            ixy: self.ixy.sample(rng),
+            ixz: self.ixz.sample(rng),
+            iyz: self.iyz.sample(rng),
+        })
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Serialize, Deserialize)]
 pub struct MassProperties {
     pub mass: f64,
     pub cmx: f64,
@@ -351,23 +363,6 @@ pub struct MassProperties {
     pub ixy: f64,
     pub ixz: f64,
     pub iyz: f64,
-}
-
-impl From<&mut MassPropertiesBuilder> for MassProperties {
-    fn from(builder: &mut MassPropertiesBuilder) -> Self {
-        Self {
-            mass: builder.mass.sample(),
-            cmx: builder.cmx.sample(),
-            cmy: builder.cmy.sample(),
-            cmz: builder.cmz.sample(),
-            ixx: builder.ixx.sample(),
-            iyy: builder.iyy.sample(),
-            izz: builder.izz.sample(),
-            ixy: builder.ixy.sample(),
-            ixz: builder.ixz.sample(),
-            iyz: builder.iyz.sample(),
-        }
-    }
 }
 
 impl MassProperties {
@@ -399,5 +394,39 @@ impl MassProperties {
             self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
             self.izz,
         )
+    }
+
+    pub fn set_cm(&mut self, cm: Vector3<f64>) {
+        self.cmx = cm.x;
+        self.cmy = cm.y;
+        self.cmz = cm.z;
+    }
+
+    pub fn set_inertia(&mut self, inertia: Matrix3<f64>) -> Result<(), MassPropertiesErrors> {
+        if inertia[(0, 0)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
+        }
+        if inertia[(1, 1)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+        if inertia[(2, 2)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+        self.ixx = inertia[(0, 0)];
+        self.iyy = inertia[(1, 1)];
+        self.izz = inertia[(2, 2)];
+        self.ixy = inertia[(0, 1)];
+        self.ixz = inertia[(0, 2)];
+        self.iyz = inertia[(1, 2)];
+        Ok(())
+    }
+
+    pub fn set_mass(&mut self, mass: f64) -> Result<(), MassPropertiesErrors> {
+        if mass < std::f64::EPSILON {
+            Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
+        } else {
+            self.mass = mass;
+            Ok(())
+        }
     }
 }

@@ -11,3 +11,4 @@ pest.workspace = true
 rand.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+uncertainty.workspace = true

@@ -9,28 +9,65 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
+use rand::rngs::StdRng;
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
 use transforms::Transform;
+use uncertainty::{SimValue, Uncertainty};
 
-use super::{JointCache, JointModel, JointRef};
+use super::{Joint, JointCache, JointModel, JointParametersBuilder};
 
 #[derive(Debug, Copy, Clone)]
 pub enum PrismaticErrors {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct PrismaticStateBuilder {
+    pub position: SimValue,
+    pub velocity: SimValue,
+}
+
+impl PrismaticStateBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_position(&mut self, position: f64) -> Self {
+        self.position = SimValue::new(position);
+    }
+
+    pub fn set_velocity(&mut self, velocity: f64) -> Self {
+        self.velocity = SimValue::new(velocity);
+    }
+
+    pub fn with_position(mut self, position: f64) -> Self {
+        self.position = SimValue::new(position);
+        self
+    }
+
+    pub fn with_velocity(mut self, velocity: f64) -> Self {
+        self.velocity = SimValue::new(velocity);
+        self
+    }
+}
+
+impl Uncertainty for PrismaticStateBuilder {
+    type Output = PrismaticState;
+    type Error = PrismaticErrors;
+
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(PrismaticState {
+            position: self.position.sample(rng),
+            velocity: self.velocity.sample(rng),
+        })
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct PrismaticState {
     pub position: f64,
     pub velocity: f64,
-}
-
-impl PrismaticState {
-    pub fn new(position: f64, velocity: f64) -> Self {
-        // assume this is about Z until we add more axes
-        Self { position, velocity }
-    }
 }
 
 impl<'a> AddAssign<&'a Self> for PrismaticState {
@@ -47,8 +84,55 @@ impl MulAssign<f64> for PrismaticState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrismaticParametersBuilder(JointParametersBuilder);
+
+impl PrismaticParametersBuilder {
+    pub fn new() -> Self {
+        Self(JointParametersBuilder::new())
+    }
+
+    pub fn with_damping(mut self, damping: f64) -> Self {
+        self.0.damping.value = damping;
+        self
+    }
+
+    pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
+        self.0.equilibrium.value = equilibrium;
+        self
+    }
+
+    pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
+        self.0.spring_constant.value = spring_constant;
+        self
+    }
+
+    pub fn with_constant_force(mut self, constant_force: f64) -> Self {
+        self.0.constant_force.value = constant_force;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PrismaticParameters(JointParameters);
+
+pub struct PrismaticBuilder {
+    pub parameters: PrismaticParametersBuilder,
+    pub state: PrismaticStateBuilder,
+}
+
+impl Uncertainty for PrismaticBuilder {
+    type Output = Prismatic;
+    type Error = PrismaticErrors;
+
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(Prismatic::new(
+            self.parameters.sample(rng)?,
+            self.state.sample(rng)?,
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prismatic {
     pub parameters: PrismaticParameters,
@@ -67,7 +151,6 @@ impl Prismatic {
     }
 }
 
-#[typetag::serde]
 impl JointModel for Prismatic {
     fn calculate_joint_inertia(
         &mut self,
@@ -112,11 +195,7 @@ impl JointModel for Prismatic {
         self.state.velocity = state.0[1];
     }
 
-    fn update_transforms(
-        &mut self,
-        transforms: &mut JointTransforms,
-        inner_joint: &Option<JointRef>,
-    ) {
+    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>) {
         let rotation = Rotation::identity();
         let translation = CoordinateSystem::from(Cartesian::new(self.state.position, 0.0, 0.0));
         let transform = Transform::new(rotation, translation);
@@ -166,7 +245,7 @@ struct PrismaticCache {
 }
 
 impl ArticulatedBodyAlgorithm for Prismatic {
-    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&mut Joint>) {
         let aba = &mut self.cache.aba;
         let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
@@ -175,7 +254,7 @@ impl ArticulatedBodyAlgorithm for Prismatic {
         aba.big_d_inv = 1.0 / aba.big_u[3];
         aba.lil_u = self.cache.tau - (joint_cache.aba.p_big_a.get_index(4).unwrap()); //note force is 1 indexed, so
 
-        if let Some(inner_joint_ref) = inner_joint {
+        if let Some(inner_joint) = inner_joint {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
@@ -185,7 +264,6 @@ impl ArticulatedBodyAlgorithm for Prismatic {
                 + Force::from(i_lil_a * joint_cache.aba.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            let mut inner_joint = inner_joint_ref.borrow_mut();
             inner_joint.cache.aba.inertia_articulated +=
                 joint_cache.transforms.ij_jof_from_jof * i_lil_a;
             inner_joint.cache.aba.p_big_a +=
@@ -193,9 +271,9 @@ impl ArticulatedBodyAlgorithm for Prismatic {
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
-        let a_ij = if let Some(inner_joint_ref) = inner_joint {
-            inner_joint_ref.borrow().cache.a
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
+        let a_ij = if let Some(inner_joint) = inner_joint {
+            inner_joint.cache.a
         } else {
             Acceleration::zeros()
         };

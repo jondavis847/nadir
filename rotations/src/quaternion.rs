@@ -1,9 +1,13 @@
+use crate::axis_angle::AxisAngleErrors;
+
 use super::*;
 use nalgebra::{Matrix3, Vector3, Vector4};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{AddAssign, Mul, MulAssign, Neg};
+use thiserror::Error;
+use uncertainty::{Dispersion, Uncertainty};
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -15,9 +19,11 @@ pub struct Quaternion {
 }
 
 /// Errors that can occur when creating a `Quaternion`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Error, Copy)]
 pub enum QuaternionErrors {
-    /// Occurs when the quaternion has zero magnitude.
+    #[error("{0}")]
+    AxisAngleErrors(#[from] AxisAngleErrors),
+    #[error("got zero magnitude quaternion")]
     ZeroMagnitude,
 }
 
@@ -630,6 +636,31 @@ impl fmt::Debug for Quaternion {
         writeln!(f, "   y: {: >10.6}", self.y)?;
         writeln!(f, "   z: {: >10.6}", self.z)?;
         writeln!(f, "   w: {: >10.6}", self.w)
+    }
+}
+
+pub struct UnitQuaternionBuilder {
+    nominal: UnitQuaternion,
+    dispersion: Option<Dispersion>,
+}
+
+impl Uncertainty for UnitQuaternionBuilder {
+    type Output = UnitQuaternion;
+    type Error = QuaternionErrors;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        if let Some(dispersion) = &mut self.dispersion {
+            let angle = dispersion.sample(rng);
+            // uniformly sample the rotation axis
+            let axis = Vector3::new(
+                rng.gen_range(-1.0..1.0),
+                rng.gen_range(-1.0..1.0),
+                rng.gen_range(-1.0..1.0),
+            )
+            .normalize();
+            Ok(UnitQuaternion::from(&AxisAngle::new(angle, axis)?))
+        } else {
+            Ok(self.nominal)
+        }
     }
 }
 

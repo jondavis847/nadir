@@ -13,6 +13,7 @@ clap.workspace = true
 coordinate_systems.workspace = true
 csv.workspace = true
 gravity.workspace = true
+indexmap.workspace = true
 indicatif.workspace = true
 mass_properties.workspace = true
 nadir_3d.workspace = true

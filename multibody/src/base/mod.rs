@@ -1,18 +1,10 @@
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
-
-use crate::joint::{Joint, JointRef};
-
-use super::body::{BodyErrors, BodyTrait};
+use crate::system::Id;
 
 use celestial::{CelestialErrors, CelestialSystem};
 use gravity::Gravity;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use transforms::Transform;
 
 #[derive(Debug, Error)]
 pub enum BaseErrors {
@@ -22,9 +14,9 @@ pub enum BaseErrors {
     BaseIsNotCelestial,
     #[error("CelestialError: {0}")]
     CelestialError(#[from] CelestialErrors),
+    #[error("joint '{0}' already connected to {1} as an outer joint")]
+    OuterJointExists(String, String),
 }
-
-pub type BaseRef = Rc<RefCell<Base>>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BaseSystems {
@@ -35,21 +27,36 @@ pub enum BaseSystems {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Base {
     pub name: String,
-    pub system: BaseSystems,
-    #[serde(skip)]
-    pub outer_joints: Vec<Weak<RefCell<Joint>>>,
+    pub outer_joints: Vec<Id>,
 }
 
 impl Base {
-    pub fn new(name: &str, system: BaseSystems) -> BaseRef {
-        Rc::new(RefCell::new(Base {
-            name: name.to_string(),
-            system,
+    pub fn new() -> Base {
+        Base {
+            name: "base".to_string(),
             outer_joints: Vec::new(),
-        }))
+        }
     }
 
-    pub fn add_celestial_system(&mut self, celestial: CelestialSystem) {
+    pub fn connect_outer_joint(&mut self, outer_joint: Id) -> Result<(), BaseErrors> {
+        if self.outer_joints.contains(&outer_joint) {
+            return Err(BaseErrors::OuterJointExists(
+                self.name.clone(),
+                outer_joint.to_string(),
+            ));
+        }
+        self.outer_joints.push(outer_joint);
+        Ok(())
+    }
+
+    /// Builder method for adding a celestial system, ideally used when compiling the system
+    pub fn with_celestial_system(mut self, celestial: CelestialSystem) {
+        self.system = BaseSystems::Celestial(celestial);
+        self
+    }
+
+    /// Setter method for adding a celestial system, ideally used interactively from the REPL
+    pub fn set_celestial_system(&mut self, celestial: CelestialSystem) {
         self.system = BaseSystems::Celestial(celestial);
     }
 
@@ -71,40 +78,5 @@ impl Base {
             BaseSystems::Basic(_) => {}
         }
         Ok(())
-    }
-}
-
-impl BodyTrait for Base {
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
-        // Iterate over the existing outer joints
-        for jointref in &self.outer_joints {
-            if let Some(existing_joint) = jointref.upgrade() {
-                // Check if the existing joint and the new joint point to the same allocation
-                if Rc::ptr_eq(&existing_joint, joint) {
-                    return Err(BodyErrors::OuterJointExists(
-                        existing_joint.borrow().name.clone(),
-                        self.name.clone(),
-                    ));
-                }
-            }
-        }
-
-        // If no match is found, add the new joint to outer_joints
-        self.outer_joints.push(Rc::downgrade(&joint.clone()));
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BaseConnection {
-    pub base: Rc<RefCell<Base>>,
-    pub transform: Transform,
-}
-impl BaseConnection {
-    pub fn new(base: Rc<RefCell<Base>>, transform: Transform) -> Self {
-        Self { base, transform }
     }
 }

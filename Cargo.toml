@@ -57,6 +57,7 @@ gravity = {path = "gravity"}
 httpdate = "1.0.3"
 iced = { version = "0.13.1", features = ["debug","advanced","canvas","image","tokio"] }
 image = "0.25.5"
+indexmap = "2.8.0"
 indicatif = "0.17.9"
 inquire = "0.7.5"
 interp = "2.0.1"

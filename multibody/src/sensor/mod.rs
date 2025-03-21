@@ -1,11 +1,19 @@
 pub mod noise;
 
-use crate::body::{BodyConnection, BodyRef};
+use crate::{body::BodyConnection, system::Id};
+use gps::Gps;
 use nadir_result::{NadirResult, ResultManager};
+use rate_gyro::RateGyro;
 use serde::{Deserialize, Serialize};
+use star_tracker::StarTracker;
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
+
+pub mod gps;
+pub mod magnetometer;
+pub mod rate_gyro;
+pub mod star_tracker;
 
 #[derive(Debug, Clone, Error)]
 pub enum SensorErrors {
@@ -22,25 +30,15 @@ pub trait SensorModel {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Sensor<T>
-where
-    T: SensorModel,
-{
+pub struct Sensor {
     pub name: String,
-    pub model: T,
+    pub model: SensorModels,
     connection: Option<BodyConnection>,
     result_id: Option<u32>,
 }
 
-impl<T> Sensor<T>
-where
-    T: SensorModel,
-{
-    pub fn connect_to_body(
-        &mut self,
-        body: &BodyRef,
-        transform: Transform,
-    ) -> Result<(), SensorErrors> {
+impl Sensor {
+    pub fn connect_to_body(&mut self, body: Id, transform: Transform) -> Result<(), SensorErrors> {
         if let Some(connection) = &self.connection {
             return Err(SensorErrors::AlreadyConnectedToAnotherBody(
                 self.name.clone(),
@@ -52,10 +50,7 @@ where
         Ok(())
     }
 
-    pub fn new(name: &str, model: T) -> Self
-    where
-        T: SensorModel,
-    {
+    pub fn new(name: &str, model: SensorModels) -> Self {
         Self {
             name: name.to_string(),
             model,
@@ -69,10 +64,7 @@ where
     }
 }
 
-impl<T> NadirResult for Sensor<T>
-where
-    T: SensorModel,
-{
+impl NadirResult for Sensor {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the sensor subfolder folder path
         let sensor_folder_path = results.result_path.join("sensors");
@@ -94,14 +86,8 @@ where
     }
 }
 
-pub trait SensorSystem: Serialize {
-    fn update(&mut self);
-    fn initialize_results(&mut self, results: &mut ResultManager);
-    fn write_results(&self, results: &mut ResultManager);
-}
-
-impl SensorSystem for () {
-    fn update(&mut self) {}
-    fn initialize_results(&mut self, _results: &mut ResultManager) {}
-    fn write_results(&self, _results: &mut ResultManager) {}
+pub enum SensorModels {
+    Gps(Box<Gps>),
+    RateGyro(Box<RateGyro>),
+    StarTracker(Box<StarTracker>),
 }
