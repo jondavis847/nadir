@@ -1,5 +1,5 @@
 use crate::{
-    body::BodyConnection,
+    body::Body,
     sensor::{
         noise::{Noise, NoiseModels},
         SensorModel,
@@ -8,6 +8,7 @@ use crate::{
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
+use transforms::Transform;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct RateGyroParameters {
@@ -58,11 +59,9 @@ impl RateGyro {
 }
 
 impl SensorModel for RateGyro {
-    fn update(&mut self, connection: &BodyConnection) {
-        let body = connection.body.borrow();
-        let rotation = connection.transform.rotation;
+    fn update(&mut self, body: &Body, body_transform: &Transform) {
         let body_rate = body.state.angular_rate_body;
-        let sensor_rate = rotation.transform(&body_rate);
+        let sensor_rate = body_transform.rotation.transform(&body_rate);
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();

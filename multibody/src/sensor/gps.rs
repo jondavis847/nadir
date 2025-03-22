@@ -1,5 +1,5 @@
 use crate::{
-    body::BodyConnection,
+    body::Body,
     sensor::{
         noise::{Noise, NoiseModels},
         SensorModel,
@@ -8,6 +8,7 @@ use crate::{
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use time::Time;
+use transforms::Transform;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Parameters {
@@ -83,8 +84,7 @@ impl Gps {
 }
 
 impl SensorModel for Gps {
-    fn update(&mut self, connection: &BodyConnection) {
-        let body = connection.body.borrow();
+    fn update(&mut self, body: &Body, _body_transform: &Transform) {
         let true_position = body.state.position_base;
         let true_velocity = body.state.velocity_base;
 

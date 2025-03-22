@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use nadir_result::{NadirResult, ResultManager};
 use reaction_wheel::ReactionWheel;
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,7 @@ use thiserror::Error;
 use transforms::Transform;
 
 use crate::{
-    body::BodyConnection,
+    body::{Body, BodyConnection},
     solver::{SimStateVector, SimStates},
     system::Id,
 };
@@ -22,8 +23,7 @@ pub enum ActuatorErrors {
 }
 
 pub trait ActuatorModel {
-    type Command;
-    fn update(&mut self, connection: &mut BodyConnection);
+    fn update(&mut self, body: &mut Body, body_transform: &Transform);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
@@ -63,17 +63,19 @@ impl Actuator {
         if let Some(connection) = &self.connection {
             return Err(ActuatorErrors::AlreadyConnectedToAnotherBody(
                 self.name.clone(),
-                connection.body.borrow().name.clone(),
+                connection.body.to_string(),
             ));
         }
 
-        self.connection = Some(BodyConnection::new(body.clone(), transform));
+        self.connection = Some(BodyConnection::new(body, transform));
         Ok(())
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, bodies: &mut IndexMap<Id, Body>) {
         if let Some(connection) = &mut self.connection {
-            self.model.update(connection);
+            if let Some(body) = bodies.get_mut(&connection.body) {
+                self.model.update(body, &connection.transform);
+            }
         }
     }
 
@@ -122,8 +124,45 @@ impl NadirResult for Actuator {
     }
 }
 
-// We just box as a standard for now since we preallocate for simulation and dont know the size of all of our actuators
-// All enum variants are as big as the biggest variant, but if all are boxed then its just the 8 bytes for the pointer
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ActuatorModels {
-    ReactionWheel(Box<ReactionWheel>),
+    ReactionWheel(ReactionWheel),
+}
+
+impl ActuatorModel for ActuatorModels {
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.result_content(id, results),
+        }
+    }
+
+    fn result_headers(&self) -> &[&str] {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.result_headers(),
+        }
+    }
+
+    fn state_derivative(&self, derivative: &mut SimStateVector) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
+        }
+    }
+
+    fn state_vector_init(&self) -> SimStateVector {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
+        }
+    }
+
+    fn state_vector_read(&mut self, state: &SimStateVector) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
+        }
+    }
+
+    fn update(&mut self, body: &mut Body, body_transform: &Transform) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.update(body, body_transform),
+        }
+    }
 }

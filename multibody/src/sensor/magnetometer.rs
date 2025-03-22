@@ -1,5 +1,5 @@
 use crate::{
-    body::BodyConnection,
+    body::Body,
     sensor::{
         noise::{Noise, NoiseModels},
         SensorModel,
@@ -8,6 +8,7 @@ use crate::{
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
+use transforms::Transform;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct MagnetometerParameters {
@@ -59,11 +60,10 @@ impl Magnetometer {
 }
 
 impl SensorModel for Magnetometer {
-    fn update(&mut self, connection: &BodyConnection) {
-        let body = connection.body.borrow();
-        let rotation = connection.transform.rotation;
-
-        let sensor_b = rotation.transform(&body.state.magnetic_field_body);
+    fn update(&mut self, body: &Body, body_transform: &Transform) {
+        let sensor_b = body_transform
+            .rotation
+            .transform(&body.state.magnetic_field_body);
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();

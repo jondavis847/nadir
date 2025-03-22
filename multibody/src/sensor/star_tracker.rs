@@ -1,5 +1,5 @@
 use crate::{
-    body::BodyConnection,
+    body::Body,
     sensor::{
         noise::{NoiseModels, QuaternionNoise},
         SensorModel,
@@ -8,6 +8,7 @@ use crate::{
 
 use rotations::{prelude::UnitQuaternion, Rotation};
 use serde::{Deserialize, Serialize};
+use transforms::Transform;
 
 /// Constant parameters for the simple star tracker sensor
 /// delay - a constant in seconds between truth dynamics and the sensor measurement
@@ -61,9 +62,8 @@ impl StarTracker {
 }
 
 impl SensorModel for StarTracker {
-    fn update(&mut self, connection: &BodyConnection) {
-        let body = connection.body.borrow();
-        let body_to_st = UnitQuaternion::from(&connection.transform.rotation);
+    fn update(&mut self, body: &Body, body_transform: &Transform) {
+        let body_to_st = UnitQuaternion::from(&body_transform.rotation);
         // Get the truth attitude
         let mut sensor_attitude = body_to_st * body.state.attitude_base;
         // Apply optional misalignment

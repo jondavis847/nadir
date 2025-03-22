@@ -8,7 +8,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum BaseErrors {
-    #[error("base is celestial")]
+    #[error("base is celestial, delete it if needed with .delete_celestial()")]
     BaseIsCelestial,
     #[error("base is not celestial")]
     BaseIsNotCelestial,
@@ -28,6 +28,7 @@ pub enum BaseSystems {
 pub struct Base {
     pub name: String,
     pub outer_joints: Vec<Id>,
+    pub system: BaseSystems,
 }
 
 impl Base {
@@ -35,6 +36,7 @@ impl Base {
         Base {
             name: "base".to_string(),
             outer_joints: Vec::new(),
+            system: BaseSystems::Basic(None),
         }
     }
 
@@ -50,25 +52,18 @@ impl Base {
     }
 
     /// Builder method for adding a celestial system, ideally used when compiling the system
-    pub fn with_celestial_system(mut self, celestial: CelestialSystem) {
+    pub fn with_celestial(mut self, celestial: CelestialSystem) -> Self {
         self.system = BaseSystems::Celestial(celestial);
         self
     }
 
     /// Setter method for adding a celestial system, ideally used interactively from the REPL
-    pub fn set_celestial_system(&mut self, celestial: CelestialSystem) {
+    pub fn set_celestial(&mut self, celestial: CelestialSystem) {
         self.system = BaseSystems::Celestial(celestial);
     }
 
-    pub fn delete_celestial_system(&mut self) {
-        self.system = BaseSystems::Basic(None);
-    }
-
-    pub fn add_basic_gravity(&mut self, gravity: Gravity) -> Result<(), BaseErrors> {
-        match self.system {
-            BaseSystems::Basic(_) => self.system = BaseSystems::Basic(Some(gravity)),
-            BaseSystems::Celestial(_) => return Err(BaseErrors::BaseIsCelestial),
-        }
+    pub fn set_basic(&mut self, gravity: Option<Gravity>) -> Result<(), BaseErrors> {
+        self.system = BaseSystems::Basic(gravity);
         Ok(())
     }
 

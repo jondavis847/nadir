@@ -1,9 +1,10 @@
-use crate::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
+use crate::{actuator::ActuatorModel, body::Body, solver::SimStateVector};
 use nalgebra::{Vector3, Vector6};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
 use thiserror::Error;
+use transforms::Transform;
 
 #[derive(Debug, Error)]
 pub enum ReactionWheelErrors {}
@@ -160,8 +161,7 @@ impl ReactionWheel {
 }
 
 impl ActuatorModel for ReactionWheel {
-    type Command = ReactionWheelCommands;
-    fn update(&mut self, connection: &mut BodyConnection) {
+    fn update(&mut self, body: &mut Body, body_transform: &Transform) {
         // Determine initial torque based on command type
         let mut torque = match self.state.command {
             ReactionWheelCommands::Current(current) => {
@@ -211,20 +211,18 @@ impl ActuatorModel for ReactionWheel {
         }
 
         // Update state
-        let transform = &connection.transform;
         self.state.torque = torque;
         // equal and opposite
-        self.state.torque_body = transform
+        self.state.torque_body = body_transform
             .rotation
             .transform(&Vector3::new(0.0, 0.0, -torque));
         self.state.momentum_body =
-            transform
+            body_transform
                 .rotation
                 .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
         self.state.acceleration = torque / self.parameters.inertia;
 
         // Update body
-        let mut body = connection.body.borrow_mut();
         body.state.internal_momentum_body += self.state.momentum_body;
         body.state.actuator_force_body += Force::from(Vector6::new(
             self.state.torque_body[0],
