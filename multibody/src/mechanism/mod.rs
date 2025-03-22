@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use indexmap::IndexMap;
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 
@@ -23,7 +22,7 @@ impl Mechanism {
         self
     }
 
-    pub fn update(&mut self, bodies: &HashMap<Id, Body>) {
+    pub fn update(&mut self, bodies: &IndexMap<Id, Body>) {
         self.state.kinetic_energy = 0.0;
         self.state.potential_energy = 0.0;
         self.state.total_energy = 0.0;
@@ -42,7 +41,7 @@ impl Mechanism {
                         // rotate momentum to mechanism frame
                         // can't just use momentum base because it includes orbital angular momentum in addition to body angular momentum
                         // use body momentum, rotated to base by this body transform, then rotated to mechanism by first body transform
-                        let first_body = self.bodies[0].borrow();
+                        let first_body = bodies.get(&self.bodies[0]).unwrap();
                         let base_to_mechanism = first_body.state.attitude_base;
                         let body_to_base = body.state.attitude_base.inv();
                         let body_to_mechanism = base_to_mechanism * body_to_base;

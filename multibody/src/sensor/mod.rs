@@ -38,7 +38,7 @@ pub trait SensorModel {
 pub struct Sensor {
     pub name: String,
     pub model: SensorModels,
-    connection: Option<BodyConnection>,
+    pub connection: Option<BodyConnection>,
     result_id: Option<u32>,
 }
 
@@ -64,7 +64,7 @@ impl Sensor {
         }
     }
 
-    pub fn update(&mut self, bodies: IndexMap<Id, Body>) {
+    pub fn update(&mut self, bodies: &IndexMap<Id, Body>) {
         if let Some(connection) = &self.connection {
             if let Some(body) = bodies.get(&connection.body) {
                 self.model.update(body, &connection.transform);
