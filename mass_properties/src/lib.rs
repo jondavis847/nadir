@@ -1,9 +1,9 @@
 use nalgebra::{Matrix3, Vector3};
 use rand::rngs::StdRng;
-use rand_distr::{Normal, NormalError, Uniform};
+use rand_distr::{Normal, NormalError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
 
 #[derive(Debug, Error)]
 pub enum MassPropertiesErrors {
@@ -19,6 +19,8 @@ pub enum MassPropertiesErrors {
     NormalErrors(#[from] NormalError),
     #[error("{0}")]
     UncertaintyErrors(#[from] uncertainty::Error),
+    #[error("{0}")]
+    UniformErrors(#[from] UniformError),
     #[error("for uniform dist, low must be less than high")]
     UniformLowMustBeGreaterThanHigh,
 }
@@ -137,12 +139,7 @@ impl MassPropertiesBuilder {
             return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
         }
 
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.mass = self.mass.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -154,11 +151,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_cmx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.cmx = self.cmx.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -170,11 +163,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_cmy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.cmy = self.cmy.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -186,11 +175,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_cmz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.cmz = self.cmz.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -213,12 +198,7 @@ impl MassPropertiesBuilder {
             return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
         }
 
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.ixx = self.ixx.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -241,12 +221,7 @@ impl MassPropertiesBuilder {
             return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
         }
 
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.iyy = self.iyy.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -269,12 +244,7 @@ impl MassPropertiesBuilder {
             return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
         }
 
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.izz = self.izz.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -286,12 +256,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_ixy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.ixy = self.ixy.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -303,12 +268,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_ixz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.ixz = self.ixz.with_distribution(dist.into())?;
         Ok(self)
     }
@@ -320,12 +280,7 @@ impl MassPropertiesBuilder {
     }
 
     pub fn with_iyz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
-        // if low is not less than high, return an error
-        if low > high {
-            return Err(MassPropertiesErrors::UniformLowMustBeGreaterThanHigh);
-        }
-
-        let dist = Uniform::new(low, high);
+        let dist = Uniform::new(low, high)?;
         self.iyz = self.iyz.with_distribution(dist.into())?;
         Ok(self)
     }

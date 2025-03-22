@@ -639,8 +639,9 @@ impl fmt::Debug for Quaternion {
     }
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct UnitQuaternionBuilder {
-    nominal: UnitQuaternion,
+    pub nominal: UnitQuaternion,
     dispersion: Option<Dispersion>,
 }
 

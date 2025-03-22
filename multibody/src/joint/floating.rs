@@ -11,6 +11,8 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
+use rand::rngs::StdRng;
+use rand_distr::NormalError;
 use rotations::{
     euler_angles::EulerAngles,
     prelude::{UnitQuaternion, UnitQuaternionBuilder},
@@ -20,102 +22,55 @@ use rotations::{
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
+use thiserror::Error;
 use transforms::Transform;
-use uncertainty::SimVector3;
+use uncertainty::{SimVector3, Uncertainty, UniformError};
 
-use super::{Joint, JointCache, JointModel, JointParametersBuilder};
+use super::{Joint, JointCache, JointErrors, JointModel, JointParametersBuilder};
 
-#[derive(Debug, Copy, Clone)]
-pub enum FloatingErrors {}
+#[derive(Debug, Error)]
+pub enum FloatingErrors {
+    #[error("{0}")]
+    Normal(#[from] NormalError),
+    #[error("{0}")]
+    Uncertainty(#[from] uncertainty::Error),
+    #[error("{0}")]
+    Uniform(#[from] UniformError),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloatingParametersBuilder {
-    xr: JointParametersBuilder,
-    yr: JointParametersBuilder,
-    zr: JointParametersBuilder,
-    xt: JointParametersBuilder,
-    yt: JointParametersBuilder,
-    zt: JointParametersBuilder,
-}
-
-impl FloatingParametersBuilder {
-    /// Adds JointParameters for rotation in the x, y, and z axis.
-    /// Sets the parameters for all axes!
-    /// Use with_xr for example if you only want to set x.
-    pub fn with_rotation(mut self, p: JointParametersBuilder) -> Self {
-        self.xr = p;
-        self.yr = p;
-        self.zr = p;
-        self
-    }
-
-    /// Adds JointParameters for translation in the x, y, and z axis.
-    /// Sets the parameters for all axes!
-    /// Use with_xr for example if you only want to set x.
-    pub fn with_translation(mut self, p: JointParametersBuilder) -> Self {
-        self.xt = p;
-        self.yt = p;
-        self.zt = p;
-        self
-    }
-
-    /// Adds JointParameters for rotation in the x axis
-    pub fn with_xr(mut self, p: JointParametersBuilder) -> Self {
-        self.xr = p;
-        self
-    }
-
-    /// Adds JointParameters for rotation in the y axis
-    pub fn with_yr(mut self, p: JointParametersBuilder) -> Self {
-        self.yr = p;
-        self
-    }
-
-    /// Adds JointParameters for rotation in the z axis
-    pub fn with_zr(mut self, p: JointParametersBuilder) -> Self {
-        self.zr = p;
-        self
-    }
-
-    /// Adds JointParameters for translation in the x axis
-    pub fn with_xt(mut self, p: JointParametersBuilder) -> Self {
-        self.xt = p;
-        self
-    }
-
-    /// Adds JointParameters for translation in the y axis
-    pub fn with_yt(mut self, p: JointParametersBuilder) -> Self {
-        self.yt = p;
-        self
-    }
-
-    /// Adds JointParameters for translation in the z axis
-    pub fn with_zt(mut self, p: JointParametersBuilder) -> Self {
-        self.zt = p;
-        self
-    }
+    x_rotation: JointParametersBuilder,
+    y_rotation: JointParametersBuilder,
+    z_rotation: JointParametersBuilder,
+    x_translation: JointParametersBuilder,
+    y_translation: JointParametersBuilder,
+    z_translation: JointParametersBuilder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FloatingParameters {
-    xr: JointParameters,
-    yr: JointParameters,
-    zr: JointParameters,
-    xt: JointParameters,
-    yt: JointParameters,
-    zt: JointParameters,
+    x_rotation: JointParameters,
+    y_rotation: JointParameters,
+    z_rotation: JointParameters,
+    x_translation: JointParameters,
+    y_translation: JointParameters,
+    z_translation: JointParameters,
 }
 
-impl From<&FloatingParametersBuilder> for FloatingParameters {
-    fn from(builder: &FloatingParametersBuilder) -> Self {
-        Self {
-            xr: builder.xr.into(),
-            yr: builder.yr.into(),
-            zr: builder.zr.into(),
-            xt: builder.xt.into(),
-            yt: builder.yt.into(),
-            zt: builder.zt.into(),
-        }
+impl Uncertainty for FloatingParametersBuilder {
+    type Error = JointErrors;
+    type Output = FloatingParameters;
+
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(FloatingParameters {
+            x_rotation: self.x_rotation.sample(rng)?,
+            y_rotation: self.y_rotation.sample(rng)?,
+            z_rotation: self.z_rotation.sample(rng)?,
+            x_translation: self.x_translation.sample(rng)?,
+            y_translation: self.y_translation.sample(rng)?,
+            z_translation: self.z_translation.sample(rng)?,
+        })
     }
 }
 
@@ -129,41 +84,99 @@ pub struct FloatingStateBuilder {
 
 impl FloatingStateBuilder {
     pub fn new() -> Self {
-        Self {
-            q: UnitQuaternion::IDENTITY,
-            w: Vector3::zeros(),
-            r: Vector3::zeros(),
-            v: Vector3::zeros(),
-        }
+        Self::default()
     }
+}
 
+impl Uncertainty for FloatingStateBuilder {
+    type Error = JointErrors;
+    type Output = FloatingState;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        let q = self.q.sample(rng).unwrap(); // unwrapping since error type is ()
+        let w = self.w.sample(rng).unwrap(); // unwrapping since error type is ()
+        let r = self.r.sample(rng).unwrap(); // unwrapping since error type is ()
+        let mut v = self.v.sample(rng).unwrap(); // unwrapping since error type is ()
+
+        // v is provided and stored in builder state in the jif
+        // v sim is in the jof though so need to transform it based on q
+        v = q.transform(&v);
+
+        // It's very annoying but I can't use UnitQuaternion in Floating, because when I integrate the state
+        // I need to be able to add the delta quat to the quat, but delta quat from quaternion kinematics cant be normalized
+        // Since I'm adding FloatingState to FloatingState, it must be a regular quat manually normalized
+        Ok(FloatingState {
+            q: Quaternion::from(&q),
+            w,
+            r,
+            v,
+        })
+    }
+}
+
+/// IMPORTANT: State values are in the JOF
+/// This just makes sense for applying angular quantities
+/// translation frame is tied to rotation frame due to the use of spatial vectors (since they both live in the same vector)
+/// i.e. r (position) is the JIFs position in the JOF!
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub struct FloatingState {
+    pub q: Quaternion,
+    pub w: Vector3<f64>,
+    pub r: Vector3<f64>,
+    pub v: Vector3<f64>,
+}
+
+impl<'a> AddAssign<&'a Self> for FloatingState {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
+        self.q = self.q.normalize(); // manually normalize since we can't use UnitQuaternions
+        self.w += &rhs.w;
+        self.r += &rhs.r;
+        self.v += &rhs.v;
+    }
+}
+
+impl MulAssign<f64> for FloatingState {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.q *= rhs;
+        self.q = self.q.normalize(); // manually normalize since we can't use UnitQuaternions
+        self.w *= rhs;
+        self.r *= rhs;
+        self.v *= rhs;
+    }
+}
+
+/// Builder for a 6-DOF Floating joint
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FloatingBuilder {
+    pub parameters: FloatingParametersBuilder,
+    pub state: FloatingStateBuilder,
+}
+
+impl FloatingBuilder {
     pub fn with_attitude(mut self, q: UnitQuaternion) -> Self {
-        // r is provided and stored in state in the jif
-        // v is in the jof though so need to transform it based on q
-        let old_q = UnitQuaternion::from(&self.q);
-        // rotate velocity back to jif first since that's what it was provided as
-        self.v = old_q.inv().transform(&self.v);
-        // rotate v by the new q
-        self.v = q.transform(&self.v);
-        self.q = Quaternion::from(&q);
+        self.state.q.nominal = q;
         self
     }
 
     pub fn with_angular_rate(mut self, w: Vector3<f64>) -> Self {
-        self.w = w;
+        self.state.w.x.value = w[0];
+        self.state.w.y.value = w[1];
+        self.state.w.z.value = w[2];
         self
     }
 
     pub fn with_position(mut self, r: Vector3<f64>) -> Self {
-        self.r = r;
+        self.state.r.x.value = r[0];
+        self.state.r.y.value = r[1];
+        self.state.r.z.value = r[2];
         self
     }
 
+    /// This is the velocity of the joint outer frame (jof) in the joint inner frame (jif)
     pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
-        // this assumes that velocity is provided in the jif frame, but it needs to be jof
-        let q = UnitQuaternion::from(&self.q);
-        let v_jof = q.transform(&v);
-        self.v = v_jof;
+        self.state.v.x.value = v[0];
+        self.state.v.y.value = v[1];
+        self.state.v.z.value = v[2];
         self
     }
 
@@ -176,65 +189,6 @@ impl FloatingStateBuilder {
     }
 }
 
-/// IMPORTANT: State values are in the JOF
-/// This just makes sense for applying angular quantities
-/// translation frame is tied to rotation frame due to the use of spatial vectors (since they both live in the same vector)
-/// i.e. r (position) is the JIFs position in the JOF!
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
-pub struct FloatingState {
-    pub q: UnitQuaternion,
-    pub w: Vector3<f64>,
-    pub r: Vector3<f64>,
-    pub v: Vector3<f64>,
-}
-
-impl FloatingState {
-    pub fn new() -> Self {
-        Self {
-            q: UnitQuaternion::IDENTITY,
-            w: Vector3::zeros(),
-            r: Vector3::zeros(),
-            v: Vector3::zeros(),
-        }
-    }
-}
-
-impl<'a> AddAssign<&'a Self> for FloatingState {
-    fn add_assign(&mut self, rhs: &'a Self) {
-        self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
-        self.w += &rhs.w;
-        self.r += &rhs.r;
-        self.v += &rhs.v;
-    }
-}
-
-impl MulAssign<f64> for FloatingState {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.q *= rhs;
-        self.w *= rhs;
-        self.r *= rhs;
-        self.v *= rhs;
-    }
-}
-
-impl From<&FloatingStateBuilder> for FloatingState {
-    fn from(state: &FloatingStateBuilder) -> Self {
-        Self {
-            q: state.q.sample(),
-            w: state.w.sample(),
-            r: state.r.sample(),
-            v: state.v.sample(),
-        }
-    }
-}
-
-/// Builder for a 6-DOF Floating joint
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FloatingBuilder {
-    pub parameters: FloatingParametersBuilder,
-    pub initial_state: FloatingStateBuilder,
-}
-
 /// 6-DOF Floating joint, create with the FloatingBuilder
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Floating {
@@ -244,13 +198,15 @@ pub struct Floating {
     cache: FloatingCache,
 }
 
-impl From<&FloatingBuilder> for Floating {
-    fn from(builder: &FloatingBuilder) -> Self {
-        Self {
-            parameters: builder.parameters.into(),
-            state: builder.initial_state.into(),
+impl Uncertainty for FloatingBuilder {
+    type Error = JointErrors;
+    type Output = Floating;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(Floating {
+            parameters: self.parameters.sample(rng)?,
+            state: self.state.sample(rng)?,
             cache: FloatingCache::default(),
-        }
+        })
     }
 }
 
@@ -262,11 +218,12 @@ impl JointModel for Floating {
     ) -> SpatialInertia {
         let jof_from_ob = transforms.jof_from_ob;
         // IMPORTANT: floating joint must assume that jof is at cm
-        // otherwise you will have a moment arm and body will torque with linear force at cm
-        // jof_from_ob has already made this correction, but so do mass props
+        // otherwise you will have a moment arm and body will torque with a linear force applied at cm
+        // jof_from_ob transform has already made this correction
         let original_cm = mass_props.cm();
-        let mut inertia = mass_props.inertia();
+        let mut mass_props = mass_props.clone();
         mass_props.set_cm(Vector3::zeros());
+        // inertia values are assumed given about the cm, so dont need to parallel axis to 0 from cm
         let spatial_inertia = SpatialInertia::from(&mass_props);
 
         // only rotate the inertia to the jof, dont translate since cm is @ jof
@@ -293,29 +250,29 @@ impl JointModel for Floating {
         // this assume tait-bryan euler angle sequence (ZYX)
         let angles = EulerAngles::from(&self.state.q);
 
-        self.cache.tau[0] = p.xr.constant_force
-            + p.xr.spring_constant * (p.xr.equilibrium - angles.psi)
-            - p.xr.damping * self.state.w[0];
-        self.cache.tau[1] = p.yr.constant_force
-            + p.yr.spring_constant * (p.yr.equilibrium - angles.theta)
-            - p.yr.damping * self.state.w[1];
-        self.cache.tau[2] = p.zr.constant_force
-            + p.zr.spring_constant * (p.zr.equilibrium - angles.phi)
-            - p.zr.damping * self.state.w[2];
+        self.cache.tau[0] = p.x_rotation.constant_force
+            + p.x_rotation.spring_constant * (p.x_rotation.equilibrium - angles.psi)
+            - p.x_rotation.damping * self.state.w[0];
+        self.cache.tau[1] = p.y_rotation.constant_force
+            + p.y_rotation.spring_constant * (p.y_rotation.equilibrium - angles.theta)
+            - p.y_rotation.damping * self.state.w[1];
+        self.cache.tau[2] = p.z_rotation.constant_force
+            + p.z_rotation.spring_constant * (p.z_rotation.equilibrium - angles.phi)
+            - p.z_rotation.damping * self.state.w[2];
 
         // translation quantities are + instead of - since they are expressed in JOF
         // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
         // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
         // to get back to a JIF equilibrium
-        self.cache.tau[3] = p.xt.constant_force
-            + p.xt.spring_constant * (p.xt.equilibrium - self.state.r[0])
-            - p.xt.damping * self.state.v[0];
-        self.cache.tau[4] = p.yt.constant_force
-            + p.yt.spring_constant * (p.yt.equilibrium - self.state.r[1])
-            - p.yt.damping * self.state.v[1];
-        self.cache.tau[5] = p.zt.constant_force
-            + p.zt.spring_constant * (p.zt.equilibrium - self.state.r[2])
-            - p.zt.damping * self.state.v[2];
+        self.cache.tau[3] = p.x_translation.constant_force
+            + p.x_translation.spring_constant * (p.x_translation.equilibrium - self.state.r[0])
+            - p.x_translation.damping * self.state.v[0];
+        self.cache.tau[4] = p.y_translation.constant_force
+            + p.y_translation.spring_constant * (p.y_translation.equilibrium - self.state.r[1])
+            - p.y_translation.damping * self.state.v[1];
+        self.cache.tau[5] = p.z_translation.constant_force
+            + p.z_translation.spring_constant * (p.z_translation.equilibrium - self.state.r[2])
+            - p.z_translation.damping * self.state.v[2];
     }
 
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
@@ -343,14 +300,17 @@ impl JointModel for Floating {
         );
         let dq = Quaternion::from(0.5 * tmp * self.state.w);
 
-        // we make assumptions about velocity and acceleration being in the jof so that our joint space matrix is constant
+        // we make assumptions about velocity and acceleration being in the jof so that our joint motion space matrix is constant
         // however, position makes a lot more sense when expressed in the jif. we will also specify linear velocity
         // and acceleration in the jif which is much more intuitive. however, we need to account for rotating
-        // reference frames, i.e. the kinematic transport theorem. luckily, for joints, the frames are coincident
-        // with the origin, so r = 0 and many terms cancel. coriolis acceleration, however does not.
+        // reference frames through the kinematic transport theorem. luckily, for joints, the inner and outer frames are coincident
+        // with their origin, so r = 0 and many terms cancel. coriolis acceleration, however does not.
 
         // transform self.state.v (v_jof) to the jif for integrating r via transport theorem
         // this is techinically v_jif = R * v_jof + w x r, but r is 0 since jof frame is coincident with itself for floating joint
+
+        //TODO: Am I doing this right? I just said all these words but then looks like I just rotated it?
+
         let jif_from_jof = &transforms.jif_from_jof.0.rotation;
         let v_jof = self.state.v;
         let v_jif = jif_from_jof.transform(&v_jof);

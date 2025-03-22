@@ -6132,6 +6132,7 @@ dependencies = [
 name = "uncertainty"
 version = "0.0.1"
 dependencies = [
+ "nalgebra",
  "rand",
  "rand_distr",
  "serde",

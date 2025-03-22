@@ -52,7 +52,7 @@ impl JointTransforms {
 
         // get relevant transforms from the parent for calculations to the base, if the inner body is not the base
         if let Some(inner_joint) = inner_joint {
-            let ij_transforms = &inner_joint.borrow().cache.transforms;
+            let ij_transforms = &inner_joint.cache.transforms;
             let ij_ob_from_ij_jof = ij_transforms.ob_from_jof;
             let ij_jof_from_base = ij_transforms.jof_from_base;
             // this joints inner body is the parent joints outer body

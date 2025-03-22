@@ -8,7 +8,7 @@ use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::StdRng;
-use rand_distr::{Normal, Uniform};
+use rand_distr::{Normal, NormalError};
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
@@ -18,11 +18,18 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
 
-use super::{Joint, JointCache, JointParametersBuilder};
-#[derive(Debug, Copy, Clone, Error)]
-pub enum RevoluteErrors {}
+use super::{Joint, JointCache, JointErrors, JointParametersBuilder};
+#[derive(Debug, Error)]
+pub enum RevoluteErrors {
+    #[error("{0}")]
+    Normal(#[from] NormalError),
+    #[error("{0}")]
+    Uncertainty(#[from] uncertainty::Error),
+    #[error("{0}")]
+    Uniform(#[from] UniformError),
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RevoluteStateBuilder {
@@ -65,7 +72,7 @@ impl MulAssign<f64> for RevoluteState {
 pub struct RevoluteParametersBuilder(JointParametersBuilder);
 
 impl Uncertainty for RevoluteParametersBuilder {
-    type Error = RevoluteErrors;
+    type Error = JointErrors;
     type Output = RevoluteParameters;
     fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(RevoluteParameters(self.0.sample(rng)?))
@@ -82,114 +89,430 @@ pub struct RevoluteBuilder {
 }
 
 impl RevoluteBuilder {
+    /// Sets the nominal initial angular rate state
     pub fn set_angular_rate(&mut self, angular_rate: f64) {
         self.state.angular_rate.value = angular_rate;
     }
 
+    /// Sets the nominal initial angle state
     pub fn set_angle(&mut self, angle: f64) {
         self.state.angle.value = angle;
     }
 
+    /// Sets the joint damping parameter
+    pub fn set_damping(&mut self, damping: f64) {
+        self.parameters.0.damping.value = damping;
+    }
+
+    /// Sets the joint equilibrium parameter
+    pub fn set_equilibrium(&mut self, equilibrium: f64) {
+        self.parameters.0.equilibrium.value = equilibrium;
+    }
+
+    /// Sets the joint spring_constant parameter
+    pub fn set_spring_constant(&mut self, spring_constant: f64) {
+        self.parameters.0.spring_constant.value = spring_constant;
+    }
+
+    /// Sets the joint constant_force parameter
+    pub fn set_constant_force(&mut self, constant_force: f64) {
+        self.parameters.0.constant_force.value = constant_force;
+    }
+
+    /// Sets an initial angular rate state uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_angular_rate()
     pub fn set_uncertain_angular_rate_normal(
         &mut self,
         mean: f64,
         std: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        self.state.angular_rate.set_distribution(dist.into())?;
         Ok(())
     }
 
+    /// Sets an initial angular rate state uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_angular_rate()
     pub fn set_uncertain_angular_rate_uniform(
         &mut self,
         low: f64,
         high: f64,
     ) -> Result<(), RevoluteErrors> {
-        if low >= high {
-            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
-        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
+        let dist = Uniform::new(low, high)?;
+        self.state.angular_rate.set_distribution(dist.into())?;
         Ok(())
     }
 
+    /// Sets an initial angle state uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_angle()
     pub fn set_uncertain_angle_normal(
         &mut self,
         mean: f64,
         std: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        self.state.angle.set_distribution(dist.into())?;
         Ok(())
     }
 
+    /// Sets an initial angle state uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_angle()
     pub fn set_uncertain_angle_uniform(
         &mut self,
         low: f64,
         high: f64,
     ) -> Result<(), RevoluteErrors> {
-        if low >= high {
-            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
-        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        let dist = Uniform::new(low, high)?;
+        self.state.angle.set_distribution(dist.into())?;
         Ok(())
     }
 
+    /// Sets the joint damping parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_damping()
+    pub fn set_uncertain_damping_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint damping parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_damping()
+    pub fn set_uncertain_damping_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint equilibrium parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_equilibrium()
+    pub fn set_uncertain_equilibrium_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint equilibrium parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_equilibrium()
+    pub fn set_uncertain_equilibrium_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint spring_constant parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_spring_constant()
+    pub fn set_uncertain_spring_constant_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint spring_constant parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_spring_constant()
+    pub fn set_uncertain_spring_constant_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint constant_force parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_constant_force()
+    pub fn set_uncertain_constant_force_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint constant_force parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_constant_force()
+    pub fn set_uncertain_constant_force_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Builder method to set the nominal initial angle state
     pub fn with_angle(mut self, angle: f64) -> Self {
         self.state.angle.value = angle;
         self
     }
 
+    /// Builder method to set the nominal initial angular rate state
     pub fn with_angular_rate(mut self, angular_rate: f64) -> Self {
         self.state.angular_rate.value = angular_rate;
         self
     }
 
-    pub fn with_uncertain_angular_rate_normal(
-        mut self,
-        mean: f64,
-        std: f64,
-    ) -> Result<Self, RevoluteErrors> {
-        let dist = Normal::new(mean, std)?;
-        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
-        Ok(self)
+    /// Builder method to set the joint damping parameter
+    pub fn with_damping(mut self, damping: f64) -> Self {
+        self.parameters.0.damping.value = damping;
+        self
     }
 
-    pub fn with_uncertain_angular_rate_uniform(
-        mut self,
-        low: f64,
-        high: f64,
-    ) -> Result<Self, RevoluteErrors> {
-        if low >= high {
-            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
-        self.state.angular_rate = self.state.angular_rate.with_distribution(dist.into())?;
-        Ok(self)
+    /// Builder method to set the joint equilibrium parameter
+    pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
+        self.parameters.0.equilibrium.value = equilibrium;
+        self
     }
 
+    /// Builder method to set the joint spring_constant parameter
+    pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
+        self.parameters.0.spring_constant.value = spring_constant;
+        self
+    }
+
+    /// Builder method to set the joint constant_force parameter
+    pub fn with_constant_force(mut self, constant_force: f64) -> Self {
+        self.parameters.0.constant_force.value = constant_force;
+        self
+    }
+
+    /// Builder method for adding an initial angle state uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_angle()
     pub fn with_uncertain_angle_normal(
         mut self,
         mean: f64,
         std: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        self.state.angle.set_distribution(dist.into())?;
         Ok(self)
     }
 
+    /// Builder method for adding an initial angle state uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_angle()
     pub fn with_uncertain_angle_uniform(
         mut self,
         low: f64,
         high: f64,
     ) -> Result<Self, RevoluteErrors> {
-        if low >= high {
-            return Err(RevoluteErrors::UniformLowGreaterThanHigh);
-        }
-        let dist = Uniform::new(low, high);
-        self.state.angle = self.state.angle.with_distribution(dist.into())?;
+        let dist = Uniform::new(low, high)?;
+        self.state.angle.set_distribution(dist.into())?;
         Ok(self)
+    }
+
+    /// Builder method for adding an initial angle state uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_angular_rate()
+    pub fn with_uncertain_angular_rate_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.angular_rate.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding an initial angular rate state uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_angular_rate()
+    pub fn with_uncertain_angular_rate_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.state.angular_rate.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint constant_force parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_constant_force()
+    pub fn with_uncertain_constant_force_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint constant_force parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_constant_force()
+    pub fn with_uncertain_constant_force_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint damping parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_damping()
+    pub fn with_uncertain_damping_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint damping parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_damping()
+    pub fn with_uncertain_damping_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint equilibrium parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_equilibrium()
+    pub fn with_uncertain_equilibrium_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint equilibrium parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_equilibrium()
+    pub fn with_uncertain_equilibrium_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint spring_constant parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_spring_constant()
+    pub fn with_uncertain_spring_constant_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint spring_constant parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_spring_constant()
+    pub fn with_uncertain_spring_constant_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, RevoluteErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+}
+
+impl Uncertainty for RevoluteBuilder {
+    type Error = JointErrors;
+    type Output = Revolute;
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(Revolute {
+            parameters: self.parameters.sample(rng)?,
+            state: self.state.sample(rng)?,
+            ..Default::default()
+        })
     }
 }
 
@@ -320,7 +643,7 @@ impl ArticulatedBodyAlgorithm for Revolute {
         aba.big_d_inv = 1.0 / aba.big_u[0];
         aba.lil_u = self.cache.tau - (joint_cache.aba.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so
 
-        if let Some(inner_joint_ref) = inner_joint {
+        if let Some(inner_joint) = inner_joint {
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
@@ -330,7 +653,6 @@ impl ArticulatedBodyAlgorithm for Revolute {
                 + Force::from(i_lil_a * joint_cache.aba.c)
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            let mut inner_joint = inner_joint_ref.borrow_mut();
             inner_joint.cache.aba.inertia_articulated +=
                 joint_cache.transforms.ij_jof_from_jof * i_lil_a;
             inner_joint.cache.aba.p_big_a +=
@@ -339,8 +661,8 @@ impl ArticulatedBodyAlgorithm for Revolute {
     }
 
     fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
-        let a_ij = if let Some(inner_joint_ref) = inner_joint {
-            inner_joint_ref.borrow().cache.a
+        let a_ij = if let Some(inner_joint) = inner_joint {
+            inner_joint.cache.a
         } else {
             Acceleration::zeros()
         };

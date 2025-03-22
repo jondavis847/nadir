@@ -10,46 +10,31 @@ use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::StdRng;
+use rand_distr::{Normal, NormalError};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
 use std::ops::{AddAssign, MulAssign};
+use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
 
-use super::{Joint, JointCache, JointModel, JointParametersBuilder};
+use super::{Joint, JointCache, JointErrors, JointModel, JointParametersBuilder};
 
-#[derive(Debug, Copy, Clone)]
-pub enum PrismaticErrors {}
+#[derive(Debug, Error)]
+pub enum PrismaticErrors {
+    #[error("{0}")]
+    Normal(#[from] NormalError),
+    #[error("{0}")]
+    Uncertainty(#[from] uncertainty::Error),
+    #[error("{0}")]
+    Uniform(#[from] UniformError),
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PrismaticStateBuilder {
     pub position: SimValue,
     pub velocity: SimValue,
-}
-
-impl PrismaticStateBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set_position(&mut self, position: f64) -> Self {
-        self.position = SimValue::new(position);
-    }
-
-    pub fn set_velocity(&mut self, velocity: f64) -> Self {
-        self.velocity = SimValue::new(velocity);
-    }
-
-    pub fn with_position(mut self, position: f64) -> Self {
-        self.position = SimValue::new(position);
-        self
-    }
-
-    pub fn with_velocity(mut self, velocity: f64) -> Self {
-        self.velocity = SimValue::new(velocity);
-        self
-    }
 }
 
 impl Uncertainty for PrismaticStateBuilder {
@@ -84,47 +69,373 @@ impl MulAssign<f64> for PrismaticState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PrismaticParametersBuilder(JointParametersBuilder);
 
-impl PrismaticParametersBuilder {
-    pub fn new() -> Self {
-        Self(JointParametersBuilder::new())
-    }
+impl PrismaticParametersBuilder {}
 
-    pub fn with_damping(mut self, damping: f64) -> Self {
-        self.0.damping.value = damping;
-        self
-    }
+impl Uncertainty for PrismaticParametersBuilder {
+    type Output = PrismaticParameters;
+    type Error = JointErrors;
 
-    pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
-        self.0.equilibrium.value = equilibrium;
-        self
-    }
-
-    pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
-        self.0.spring_constant.value = spring_constant;
-        self
-    }
-
-    pub fn with_constant_force(mut self, constant_force: f64) -> Self {
-        self.0.constant_force.value = constant_force;
-        self
+    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(PrismaticParameters(self.0.sample(rng)?))
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrismaticParameters(JointParameters);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrismaticBuilder {
     pub parameters: PrismaticParametersBuilder,
     pub state: PrismaticStateBuilder,
 }
 
+impl PrismaticBuilder {
+    /// Sets the nominal initial position state
+    pub fn set_position(&mut self, position: f64) {
+        self.state.position = SimValue::new(position);
+    }
+
+    /// Sets the nominal initial velocity state
+    pub fn set_velocity(&mut self, velocity: f64) {
+        self.state.velocity = SimValue::new(velocity);
+    }
+
+    /// Sets the joint damping parameter
+    pub fn set_damping(&mut self, damping: f64) {
+        self.parameters.0.damping.value = damping;
+    }
+
+    /// Sets the joint equilibrium parameter
+    pub fn set_equilibrium(&mut self, equilibrium: f64) {
+        self.parameters.0.equilibrium.value = equilibrium;
+    }
+
+    /// Sets the joint spring_constant parameter
+    pub fn set_spring_constant(&mut self, spring_constant: f64) {
+        self.parameters.0.spring_constant.value = spring_constant;
+    }
+
+    /// Sets the joint constant_force parameter
+    pub fn set_constant_force(&mut self, constant_force: f64) {
+        self.parameters.0.constant_force.value = constant_force;
+    }
+
+    /// Sets an initial position state uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_position()
+    pub fn set_uncertain_position_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.state.position.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets an initial position state uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_position()
+    pub fn set_uncertain_position_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.state.position.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint damping parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_damping()
+    pub fn set_uncertain_damping_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint damping parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_damping()
+    pub fn set_uncertain_damping_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint equilibrium parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_equilibrium()
+    pub fn set_uncertain_equilibrium_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint equilibrium parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_equilibrium()
+    pub fn set_uncertain_equilibrium_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint spring_constant parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_spring_constant()
+    pub fn set_uncertain_spring_constant_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint spring_constant parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_spring_constant()
+    pub fn set_uncertain_spring_constant_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint constant_force parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_constant_force()
+    pub fn set_uncertain_constant_force_normal(
+        &mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Sets the joint constant_force parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .set_constant_force()
+    pub fn set_uncertain_constant_force_uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<(), PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(())
+    }
+
+    /// Builder method to set the initial position state
+    pub fn with_position(mut self, position: f64) -> Self {
+        self.state.position = SimValue::new(position);
+        self
+    }
+
+    /// Builder method to set the initial velocity state
+    pub fn with_velocity(mut self, velocity: f64) -> Self {
+        self.state.velocity = SimValue::new(velocity);
+        self
+    }
+
+    /// Builder method to set the joint damping parameter
+    pub fn with_damping(mut self, damping: f64) -> Self {
+        self.parameters.0.damping.value = damping;
+        self
+    }
+
+    /// Builder method to set the joint equilibrium parameter
+    pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
+        self.parameters.0.equilibrium.value = equilibrium;
+        self
+    }
+
+    /// Builder method to set the joint spring_constant parameter
+    pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
+        self.parameters.0.spring_constant.value = spring_constant;
+        self
+    }
+
+    /// Builder method to set the joint constant_force parameter
+    pub fn with_constant_force(mut self, constant_force: f64) -> Self {
+        self.parameters.0.constant_force.value = constant_force;
+        self
+    }
+
+    /// Builder method for adding a joint constant_force parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_constant_force()
+    pub fn with_uncertain_constant_force_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint constant_force parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_constant_force()
+    pub fn with_uncertain_constant_force_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .constant_force
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint damping parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_damping()
+    pub fn with_uncertain_damping_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint damping parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_damping()
+    pub fn with_uncertain_damping_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters.0.damping.set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint equilibrium parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_equilibrium()
+    pub fn with_uncertain_equilibrium_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint equilibrium parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_equilibrium()
+    pub fn with_uncertain_equilibrium_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .equilibrium
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint spring_constant parameter uncertainty with a normal distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_spring_constant()
+    pub fn with_uncertain_spring_constant_normal(
+        mut self,
+        mean: f64,
+        std: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    /// Builder method for adding a joint spring_constant parameter uncertainty with a uniform distribution
+    /// For use with Monte Carlo simulations
+    /// This does not change the nominal value, see .with_spring_constant()
+    pub fn with_uncertain_spring_constant_uniform(
+        mut self,
+        low: f64,
+        high: f64,
+    ) -> Result<Self, PrismaticErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.parameters
+            .0
+            .spring_constant
+            .set_distribution(dist.into())?;
+        Ok(self)
+    }
+}
+
 impl Uncertainty for PrismaticBuilder {
     type Output = Prismatic;
-    type Error = PrismaticErrors;
+    type Error = JointErrors;
 
+    /// Creates a Prismatic joint from the PrismaticBuilder
+    /// Samples the parameters and state uncertainty if present
     fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(Prismatic::new(
             self.parameters.sample(rng)?,
@@ -142,7 +453,7 @@ pub struct Prismatic {
 }
 
 impl Prismatic {
-    pub fn new(parameters: PrismaticParameters, state: PrismaticState) -> Self {
+    fn new(parameters: PrismaticParameters, state: PrismaticState) -> Self {
         Self {
             parameters,
             state,
