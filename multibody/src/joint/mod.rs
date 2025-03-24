@@ -21,7 +21,7 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::fmt::Debug;
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -425,4 +425,13 @@ pub struct JointCache {
     pub inertia: SpatialInertia,
     pub transforms: JointTransforms,
     pub aba: AbaCache,
+}
+
+#[derive(Debug, Clone)]
+pub struct JointRef(Rc<RefCell<Joint>>);
+
+impl JointRef {
+    pub fn new(joint: Joint) -> Self {
+        JointRef(Rc::new(RefCell::new(joint)))
+    }
 }

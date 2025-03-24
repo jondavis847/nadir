@@ -11,7 +11,7 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
-use std::{fs::File, io::Write};
+use std::{cell::RefCell, fs::File, io::Write, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::Uncertainty;
@@ -430,5 +430,14 @@ pub struct BodyConnection {
 impl BodyConnection {
     pub fn new(body: Id, transform: Transform) -> Self {
         Self { body, transform }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BodyRef(Rc<RefCell<Body>>);
+
+impl BodyRef {
+    pub fn new(body: Body) -> Self {
+        BodyRef(Rc::new(RefCell::new(body)))
     }
 }

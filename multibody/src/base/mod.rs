@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::system::Id;
 
 use celestial::{CelestialErrors, CelestialSystem};
@@ -73,5 +75,14 @@ impl Base {
             BaseSystems::Basic(_) => {}
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BaseRef(Rc<RefCell<Base>>);
+
+impl BaseRef {
+    pub fn new(base: Base) -> Self {
+        BaseRef(Rc::new(RefCell::new(base)))
     }
 }

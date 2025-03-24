@@ -23,6 +23,8 @@ use thiserror::Error;
 pub enum MultibodyErrors {
     #[error("{0}")]
     ActuatorErrors(#[from] ActuatorErrors),
+    #[error("actuator '{0}' is not connected to a body")]
+    ActuatorMissingBody(String),
     #[error("{0}")]
     BaseErrors(#[from] BaseErrors),
     #[error("base does not have any outer joints")]
@@ -59,6 +61,8 @@ pub enum MultibodyErrors {
     NoTransformFound,
     #[error("{0}")]
     SensorErrors(#[from] SensorErrors),
+    #[error("sensor '{0}' is not connected to a body")]
+    SensorMissingBody(String),
     #[error("{0}")]
     SpiceErrors(#[from] SpiceErrors),
 }
