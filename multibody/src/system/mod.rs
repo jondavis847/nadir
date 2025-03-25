@@ -140,14 +140,17 @@ impl MultibodySystemBuilder {
             nruns,
         };
 
+        let mut rng = StdRng::seed_from_u64(self.seed);     
+
         // run the nominal
-        let mut sys = MultibodySystem::try_from(self)?;
+        let mut sys = self.sample(true, &mut rng)?;
         sys.simulate(&options, &result_path);
 
         // run the monte carlo if present        
-        if let Some(nruns) = nruns {            
+        if let Some(nruns) = nruns {       
+            
             for run in 1..=nruns {
-                let mut sys = self.sample();
+                let mut sys = self.sample(false, &mut rng)?;
             }
         }
         Ok(())
@@ -257,33 +260,34 @@ impl MultibodySystemBuilder {
     }
 }
 
-impl TryFrom<&mut MultibodySystemBuilder> for MultibodySystem {
+impl Uncertainty for MultibodySystemBuilder {
+    type Output = MultibodySystem;
     type Error = MultibodyErrors;
-    fn try_from(builder: &mut MultibodySystemBuilder) -> Result<Self, MultibodyErrors> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<MultibodySystem, MultibodyErrors> {
         // ensure builder can produce a valid MultibodySystem
-        builder.validate()?;
+        self.validate()?;
 
         // order matters for bodies and joints
-        let mut bodies = Vec::new();
-        let mut joints = Vec::new();
+        let mut bodies = IndexMap::new();
+        let mut joints = IndexMap::new();
 
         // Order does not matter for actuators and sensors
         let mut actuators = HashMap::new();
         let mut sensors = HashMap::new();
-
-        let mut rng = StdRng::seed_from_u64(builder.seed);
+        let seed = rng.gen::<u64>();
+        let mut sys_rng = StdRng::seed_from_u64(seed);
 
         // Start the recursion from the base's outer joints
-        for outer_joint_id in &builder.base.outer_joints {
-            if let Some(outer_joint_builder) = builder.joints.get_mut(outer_joint_id) {
+        for outer_joint_id in &self.base.outer_joints {
+            if let Some(outer_joint_builder) = self.joints.get_mut(outer_joint_id) {
                 // Create the outer joint from the joint builder, sampling for monte carlo if applicable
-                let outer_joint = outer_joint_builder.sample(&mut rng)?;
+                let outer_joint = outer_joint_builder.sample(nominal, &mut sys_rng)?;
                 // Ensure base outer joints have no inner joints
                 joints.insert(outer_joint_builder.id, outer_joint);
 
                 // Recurse into connected outer bodies
                 if let Some(connection) = &outer_joint_builder.connections.outer_body {
-                    traverse_body(builder, connection.body, &mut joints, &mut bodies, &mut rng)?;
+                    traverse_body(self, connection.body, &mut joints, &mut bodies, &mut sys_rng)?;
                 }
             } else {
                 return Err(MultibodyErrors::JointNotFound(outer_joint_id.to_string()));
@@ -292,8 +296,8 @@ impl TryFrom<&mut MultibodySystemBuilder> for MultibodySystem {
 
         let mut sys = MultibodySystem {
             actuators,
-            algorithm: builder.algorithm,
-            base: BaseRef::new(builder.base.clone()),
+            algorithm: self.algorithm,
+            base: BaseRef::new(self.base.clone()),
             bodies,
             joints,
             sensors,
@@ -301,7 +305,7 @@ impl TryFrom<&mut MultibodySystemBuilder> for MultibodySystem {
         };
 
         // Loop back through to calculate joint mass properties
-        for joint in &mut sys.joints {
+        for (_,joint) in &mut sys.joints {
             if let Some(outer_body) = &joint.connections.outer_body {
                 if let Some(outer_body) = sys.bodies.get(&outer_body.body) {
                     // calculate inertia about the joint
@@ -328,9 +332,9 @@ impl TryFrom<&mut MultibodySystemBuilder> for MultibodySystem {
 pub struct MultibodySystem {
     pub actuators: HashMap<Id, Actuator>,
     pub algorithm: MultibodyAlgorithm,
-    pub base: BaseRef,
-    pub bodies: Vec<BodyRef>,
-    pub joints: Vec<JointRef>,
+    pub base: Base,
+    pub bodies: IndexMap<Id, Body>,
+    pub joints: IndexMap<Id, Joint>,
     pub sensors: HashMap<Id, Sensor>,
     //pub software: Option<Box<dyn SoftwareSystem>>,
     pub sim_time_id: Option<u32>,
@@ -342,12 +346,11 @@ impl MultibodySystem {
         let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
         self.sim_time_id = Some(id);
 
-        for bodyref in &self.bodies {
-            let body = bodyref.0.borrow_mut();
+        for (_,body) in &mut self.bodies {            
             body.new_result(&mut results);
         }
 
-        for joint in &self.joints {
+        for (_,joint) in &mut self.joints {
             joint.new_result(&mut results);
         }
 
@@ -355,7 +358,7 @@ impl MultibodySystem {
         self.actuators.initialize_results(&mut results);
         //self.software.initialize_results(&mut results);
 
-        match &mut self.base.borrow_mut().system {
+        match &mut self.base.system {
             BaseSystems::Basic(_) => {}
             BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results),
         }
@@ -374,16 +377,16 @@ impl MultibodySystem {
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 // First Pass
-                for (_,joint) in &mut self.joints {
-                    if let Some(connection) = &joint.connections {
-                        if let Some(inner_body) = &connection.inner_body {
-                            if body.body = Id(0) {
-                                None
-                            } else {
-                                bodies.get(&body.body)                                                   
+                for (_,joint) in &mut self.joints {                    
+                    let inner_joint = if let Some(inner_body) = &joint.connections.inner_body {
+                        if inner_body.body == Id(0) {
+                            None
+                        } else {
+                            if let Some(body) = self.bodies.get(&inner_body.body) {
+                                
                             }
                         }
-                    }
+                    }                    
                     joint.aba_first_pass();
                 }
 

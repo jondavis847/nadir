@@ -40,10 +40,10 @@ pub struct RevoluteStateBuilder {
 impl Uncertainty for RevoluteStateBuilder {
     type Error = RevoluteErrors;
     type Output = RevoluteState;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(RevoluteState {
-            angle: self.angle.sample(rng),
-            angular_rate: self.angular_rate.sample(rng),
+            angle: self.angle.sample(nominal, rng),
+            angular_rate: self.angular_rate.sample(nominal, rng),
         })
     }
 }
@@ -74,8 +74,8 @@ pub struct RevoluteParametersBuilder(JointParametersBuilder);
 impl Uncertainty for RevoluteParametersBuilder {
     type Error = JointErrors;
     type Output = RevoluteParameters;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
-        Ok(RevoluteParameters(self.0.sample(rng)?))
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        Ok(RevoluteParameters(self.0.sample(nominal, rng)?))
     }
 }
 
@@ -507,10 +507,10 @@ impl RevoluteBuilder {
 impl Uncertainty for RevoluteBuilder {
     type Error = JointErrors;
     type Output = Revolute;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(Revolute {
-            parameters: self.parameters.sample(rng)?,
-            state: self.state.sample(rng)?,
+            parameters: self.parameters.sample(nominal, rng)?,
+            state: self.state.sample(nominal, rng)?,
             ..Default::default()
         })
     }

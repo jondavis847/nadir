@@ -290,18 +290,22 @@ impl Uncertainty for MassPropertiesBuilder {
     type Output = MassProperties;
     type Error = MassPropertiesErrors;
 
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, MassPropertiesErrors> {
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut StdRng,
+    ) -> Result<Self::Output, MassPropertiesErrors> {
         Ok(MassProperties {
-            mass: self.mass.sample(rng),
-            cmx: self.cmx.sample(rng),
-            cmy: self.cmy.sample(rng),
-            cmz: self.cmz.sample(rng),
-            ixx: self.ixx.sample(rng),
-            iyy: self.iyy.sample(rng),
-            izz: self.izz.sample(rng),
-            ixy: self.ixy.sample(rng),
-            ixz: self.ixz.sample(rng),
-            iyz: self.iyz.sample(rng),
+            mass: self.mass.sample(nominal, rng),
+            cmx: self.cmx.sample(nominal, rng),
+            cmy: self.cmy.sample(nominal, rng),
+            cmz: self.cmz.sample(nominal, rng),
+            ixx: self.ixx.sample(nominal, rng),
+            iyy: self.iyy.sample(nominal, rng),
+            izz: self.izz.sample(nominal, rng),
+            ixy: self.ixy.sample(nominal, rng),
+            ixz: self.ixz.sample(nominal, rng),
+            iyz: self.iyz.sample(nominal, rng),
         })
     }
 }

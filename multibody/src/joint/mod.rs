@@ -21,7 +21,7 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::{cell::RefCell, fmt::Debug, rc::Rc};
+use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -56,16 +56,16 @@ pub enum JointModelBuilders {
 impl Uncertainty for JointModelBuilders {
     type Error = JointErrors;
     type Output = JointModels;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         match self {
             JointModelBuilders::Floating(builder) => {
-                Ok(JointModels::Floating(builder.sample(rng)?))
+                Ok(JointModels::Floating(builder.sample(nominal, rng)?))
             }
             JointModelBuilders::Revolute(builder) => {
-                Ok(JointModels::Revolute(builder.sample(rng)?))
+                Ok(JointModels::Revolute(builder.sample(nominal, rng)?))
             }
             JointModelBuilders::Prismatic(builder) => {
-                Ok(JointModels::Prismatic(builder.sample(rng)?))
+                Ok(JointModels::Prismatic(builder.sample(nominal, rng)?))
             }
         }
     }
@@ -274,8 +274,8 @@ pub struct Joint {
 impl Uncertainty for JointBuilder {
     type Error = JointErrors;
     type Output = Joint;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
-        let model = self.model.sample(rng)?;
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        let model = self.model.sample(nominal, rng)?;
         Ok(Joint {
             name: self.name.clone(),
             model,
@@ -401,12 +401,16 @@ impl Uncertainty for JointParametersBuilder {
     type Output = JointParameters;
     type Error = JointErrors;
 
-    fn sample(&mut self, rng: &mut rand::rngs::StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut rand::rngs::StdRng,
+    ) -> Result<Self::Output, Self::Error> {
         Ok(JointParameters {
-            constant_force: self.constant_force.sample(rng),
-            damping: self.damping.sample(rng),
-            equilibrium: self.equilibrium.sample(rng),
-            spring_constant: self.spring_constant.sample(rng),
+            constant_force: self.constant_force.sample(nominal, rng),
+            damping: self.damping.sample(nominal, rng),
+            equilibrium: self.equilibrium.sample(nominal, rng),
+            spring_constant: self.spring_constant.sample(nominal, rng),
         })
     }
 }
@@ -425,13 +429,4 @@ pub struct JointCache {
     pub inertia: SpatialInertia,
     pub transforms: JointTransforms,
     pub aba: AbaCache,
-}
-
-#[derive(Debug, Clone)]
-pub struct JointRef(Rc<RefCell<Joint>>);
-
-impl JointRef {
-    pub fn new(joint: Joint) -> Self {
-        JointRef(Rc::new(RefCell::new(joint)))
-    }
 }

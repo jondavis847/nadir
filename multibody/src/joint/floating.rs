@@ -62,14 +62,14 @@ impl Uncertainty for FloatingParametersBuilder {
     type Error = JointErrors;
     type Output = FloatingParameters;
 
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(FloatingParameters {
-            x_rotation: self.x_rotation.sample(rng)?,
-            y_rotation: self.y_rotation.sample(rng)?,
-            z_rotation: self.z_rotation.sample(rng)?,
-            x_translation: self.x_translation.sample(rng)?,
-            y_translation: self.y_translation.sample(rng)?,
-            z_translation: self.z_translation.sample(rng)?,
+            x_rotation: self.x_rotation.sample(nominal, rng)?,
+            y_rotation: self.y_rotation.sample(nominal, rng)?,
+            z_rotation: self.z_rotation.sample(nominal, rng)?,
+            x_translation: self.x_translation.sample(nominal, rng)?,
+            y_translation: self.y_translation.sample(nominal, rng)?,
+            z_translation: self.z_translation.sample(nominal, rng)?,
         })
     }
 }
@@ -91,11 +91,11 @@ impl FloatingStateBuilder {
 impl Uncertainty for FloatingStateBuilder {
     type Error = JointErrors;
     type Output = FloatingState;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
-        let q = self.q.sample(rng).unwrap(); // unwrapping since error type is ()
-        let w = self.w.sample(rng).unwrap(); // unwrapping since error type is ()
-        let r = self.r.sample(rng).unwrap(); // unwrapping since error type is ()
-        let mut v = self.v.sample(rng).unwrap(); // unwrapping since error type is ()
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        let q = self.q.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
+        let w = self.w.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
+        let r = self.r.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
+        let mut v = self.v.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
 
         // v is provided and stored in builder state in the jif
         // v sim is in the jof though so need to transform it based on q
@@ -201,10 +201,10 @@ pub struct Floating {
 impl Uncertainty for FloatingBuilder {
     type Error = JointErrors;
     type Output = Floating;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
         Ok(Floating {
-            parameters: self.parameters.sample(rng)?,
-            state: self.state.sample(rng)?,
+            parameters: self.parameters.sample(nominal, rng)?,
+            state: self.state.sample(nominal, rng)?,
             cache: FloatingCache::default(),
         })
     }

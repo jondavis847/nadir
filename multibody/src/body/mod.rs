@@ -11,7 +11,7 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
-use std::{cell::RefCell, fs::File, io::Write, rc::Rc};
+use std::{fs::File, io::Write};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::Uncertainty;
@@ -106,9 +106,9 @@ impl BodyBuilder {
 impl Uncertainty for BodyBuilder {
     type Output = Body;
     type Error = BodyErrors;
-    fn sample(&mut self, rng: &mut StdRng) -> Result<Body, BodyErrors> {
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Body, BodyErrors> {
         let mass_properties = if let Some(mp_builder) = &mut self.mass_properties {
-            mp_builder.sample(rng)?
+            mp_builder.sample(nominal, rng)?
         } else {
             return Err(BodyErrors::NoMassProperties(self.name.clone()));
         };
@@ -430,14 +430,5 @@ pub struct BodyConnection {
 impl BodyConnection {
     pub fn new(body: Id, transform: Transform) -> Self {
         Self { body, transform }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BodyRef(Rc<RefCell<Body>>);
-
-impl BodyRef {
-    pub fn new(body: Body) -> Self {
-        BodyRef(Rc::new(RefCell::new(body)))
     }
 }
