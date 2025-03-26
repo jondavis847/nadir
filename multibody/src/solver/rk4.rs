@@ -17,8 +17,8 @@ pub fn solve_fixed_rk4(
 
     // Create the vec of SimStates as the initial integration state
     let mut x0 = SimStates(Vec::new());
-    for (_, joint) in sys.joints.iter() {
-        x0.0.push(joint.model.state_vector_init());
+    for joint in sys.joints.iter() {
+        x0.0.push(joint.borrow().model.state_vector_init());
     }
     for (_, actuator) in sys.actuators.iter() {
         x0.0.push(actuator.model.state_vector_init());

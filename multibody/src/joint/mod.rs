@@ -6,7 +6,7 @@ pub mod revolute;
 use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{Body, BodyConnection},
+    body::{Body, BodyConnection, BodyConnectionBuilder},
     solver::SimStateVector,
     system::Id,
 };
@@ -21,7 +21,7 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::fmt::Debug;
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -76,7 +76,7 @@ pub struct JointBuilder {
     pub id: Id,
     pub name: String,
     pub model: JointModelBuilders,
-    pub connections: JointConnection,
+    pub connections: JointConnectionBuilder,
 }
 
 impl JointBuilder {
@@ -88,7 +88,7 @@ impl JointBuilder {
             id,
             name: name.to_string(),
             model,
-            connections: JointConnection::default(),
+            connections: JointConnectionBuilder::default(),
         })
     }
 
@@ -100,7 +100,7 @@ impl JointBuilder {
         if let Some(_) = &self.connections.inner_body {
             return Err(JointErrors::InnerBodyExists(self.name.to_string()));
         } else {
-            self.connections.inner_body = Some(BodyConnection::new(body, transform));
+            self.connections.inner_body = Some(BodyConnectionBuilder::new(body, transform));
         }
         Ok(())
     }
@@ -113,9 +113,26 @@ impl JointBuilder {
         if let Some(_) = &self.connections.outer_body {
             return Err(JointErrors::OuterBodyExists(self.name.clone()));
         } else {
-            self.connections.outer_body = Some(BodyConnection::new(body, transform));
+            self.connections.outer_body = Some(BodyConnectionBuilder::new(body, transform));
         }
         Ok(())
+    }
+
+    fn sample(
+        &mut self,
+        connections: JointConnection,
+        nominal: bool,
+        rng: &mut StdRng,
+    ) -> Result<Joint, JointErrors> {
+        let model = self.model.sample(nominal, rng)?;
+        Ok(Joint {
+            name: self.name.clone(),
+            model,
+            connections,
+            result_id: None,
+            cache: JointCache::default(),
+            inner_joint: None,
+        })
     }
 }
 
@@ -261,29 +278,14 @@ impl ArticulatedBodyAlgorithm for JointModels {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Joint {
     pub name: String,
     pub model: JointModels,
     pub connections: JointConnection,
     result_id: Option<u32>,
-    #[serde(skip)]
     pub cache: JointCache,
-}
-
-impl Uncertainty for JointBuilder {
-    type Error = JointErrors;
-    type Output = Joint;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
-        let model = self.model.sample(nominal, rng)?;
-        Ok(Joint {
-            name: self.name.clone(),
-            model,
-            connections: self.connections.clone(),
-            result_id: None,
-            cache: JointCache::default(),
-        })
-    }
+    inner_joint: Option<JointRef>,
 }
 
 impl Joint {
@@ -337,6 +339,12 @@ impl Joint {
         self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
     }
 
+    pub fn set_inertia(&mut self, mass_properties: &MassProperties) {
+        self.cache.inertia = self
+            .model
+            .calculate_joint_inertia(mass_properties, &self.cache.transforms);
+    }
+
     pub fn state_derivative(&self, derivative: &mut SimStateVector) {
         self.model
             .state_derivative(derivative, &self.cache.transforms);
@@ -345,6 +353,11 @@ impl Joint {
     pub fn update_transforms(&mut self, inner_joint: Option<&Joint>) {
         self.model
             .update_transforms(&mut self.cache.transforms, inner_joint);
+    }
+
+    pub fn with_inner_joint(mut self, inner_joint: JointRef) -> Self {
+        self.inner_joint = Some(inner_joint);
+        self
     }
 }
 
@@ -371,9 +384,15 @@ impl NadirResult for Joint {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct JointConnectionBuilder {
+    pub inner_body: Option<BodyConnectionBuilder>,
+    pub outer_body: Option<BodyConnectionBuilder>,
+}
+
+#[derive(Debug)]
 pub struct JointConnection {
-    pub inner_body: Option<BodyConnection>,
-    pub outer_body: Option<BodyConnection>,
+    pub inner_body: BodyConnection,
+    pub outer_body: BodyConnection,
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
@@ -430,3 +449,5 @@ pub struct JointCache {
     pub transforms: JointTransforms,
     pub aba: AbaCache,
 }
+
+pub type JointRef = Rc<RefCell<Joint>>;

@@ -1,4 +1,7 @@
-use crate::{joint::Joint, system::Id};
+use crate::{
+    joint::{Joint, JointRef},
+    system::Id,
+};
 use celestial::CelestialSystem;
 use gravity::Gravity;
 
@@ -11,7 +14,7 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Force, SpatialTransform};
-use std::{fs::File, io::Write};
+use std::{cell::RefCell, fs::File, io::Write, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::Uncertainty;
@@ -80,6 +83,30 @@ impl BodyBuilder {
         Ok(())
     }
 
+    pub fn sample(
+        &mut self,
+        inner_joint: JointRef,
+        nominal: bool,
+        rng: &mut StdRng,
+    ) -> Result<Body, BodyErrors> {
+        let mass_properties = if let Some(mp_builder) = &mut self.mass_properties {
+            mp_builder.sample(nominal, rng)?
+        } else {
+            return Err(BodyErrors::NoMassProperties(self.name.clone()));
+        };
+
+        let body = Body {
+            inner_joint: None,
+            mass_properties,
+            mesh: self.mesh.clone(),
+            name: self.name.clone(),
+            outer_joints: Vec::new(),
+            state: BodyState::default(),
+            result_id: None,
+        };
+        Ok(body)
+    }
+
     /// Builder method for adding an optional 3d mesh, ideally used when compiling the system
     pub fn with_mesh(mut self, mesh: Mesh) -> Self {
         self.mesh = Some(mesh);
@@ -103,42 +130,13 @@ impl BodyBuilder {
     }
 }
 
-impl Uncertainty for BodyBuilder {
-    type Output = Body;
-    type Error = BodyErrors;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Body, BodyErrors> {
-        let mass_properties = if let Some(mp_builder) = &mut self.mass_properties {
-            mp_builder.sample(nominal, rng)?
-        } else {
-            return Err(BodyErrors::NoMassProperties(self.name.clone()));
-        };
-
-        let inner_joint = if let Some(inner_joint_id) = self.inner_joint {
-            inner_joint_id
-        } else {
-            return Err(BodyErrors::NoInnerJoint(self.name.clone()));
-        };
-
-        let body = Body {
-            inner_joint,
-            mass_properties,
-            mesh: self.mesh.clone(),
-            name: self.name.clone(),
-            outer_joints: self.outer_joints.clone(),
-            state: BodyState::default(),
-            result_id: None,
-        };
-        Ok(body)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Body {
-    pub inner_joint: Id,
+    pub inner_joint: JointRef,
     pub mass_properties: MassProperties,
     pub mesh: Option<Mesh>,
     pub name: String,
-    pub outer_joints: Vec<Id>, // id of joint in system.joints, joint contains the transform information
+    pub outer_joints: Vec<JointRef>,
     pub state: BodyState,
     result_id: Option<u32>,
 }
@@ -423,12 +421,20 @@ pub struct BodyState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BodyConnection {
-    pub body: Id,
+pub struct BodyConnectionBuilder {
+    pub body_id: Id,
     pub transform: Transform,
 }
-impl BodyConnection {
-    pub fn new(body: Id, transform: Transform) -> Self {
-        Self { body, transform }
+impl BodyConnectionBuilder {
+    pub fn new(body_id: Id, transform: Transform) -> Self {
+        Self { body_id, transform }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct BodyConnection {
+    pub body: BodyRef,
+    pub transform: Transform,
+}
+
+pub type BodyRef = Rc<RefCell<Body>>;
