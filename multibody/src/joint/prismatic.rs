@@ -19,7 +19,7 @@ use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
 
-use super::{Joint, JointCache, JointErrors, JointModel, JointParametersBuilder};
+use super::{JointCache, JointErrors, JointModel, JointParametersBuilder, JointRef};
 
 #[derive(Debug, Error)]
 pub enum PrismaticErrors {
@@ -506,7 +506,11 @@ impl JointModel for Prismatic {
         self.state.velocity = state.0[1];
     }
 
-    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>) {
+    fn update_transforms(
+        &mut self,
+        transforms: &mut JointTransforms,
+        inner_joint: &Option<JointRef>,
+    ) {
         let rotation = Rotation::identity();
         let translation = CoordinateSystem::from(Cartesian::new(self.state.position, 0.0, 0.0));
         let transform = Transform::new(rotation, translation);
@@ -556,7 +560,7 @@ struct PrismaticCache {
 }
 
 impl ArticulatedBodyAlgorithm for Prismatic {
-    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&mut Joint>) {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let aba = &mut self.cache.aba;
         let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
@@ -566,6 +570,7 @@ impl ArticulatedBodyAlgorithm for Prismatic {
         aba.lil_u = self.cache.tau - (joint_cache.aba.p_big_a.get_index(4).unwrap()); //note force is 1 indexed, so
 
         if let Some(inner_joint) = inner_joint {
+            let mut inner_joint = inner_joint.borrow_mut();
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
@@ -582,9 +587,9 @@ impl ArticulatedBodyAlgorithm for Prismatic {
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let a_ij = if let Some(inner_joint) = inner_joint {
-            inner_joint.cache.a
+            inner_joint.borrow().cache.a
         } else {
             Acceleration::zeros()
         };

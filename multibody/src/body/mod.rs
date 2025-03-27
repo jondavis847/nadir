@@ -1,6 +1,6 @@
 use crate::{
     base::{Base, BaseRef},
-    joint::{Joint, JointRef},
+    joint::JointRef,
     system::Id,
 };
 use celestial::CelestialSystem;
@@ -143,7 +143,10 @@ pub struct Body {
 }
 
 impl Body {
-    pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &mut Gravity) {
+    pub fn calculate_gravity(&mut self, gravity: &mut Gravity) {
+        // get inner joint transforms
+        let inner_joint = self.inner_joint.borrow();
+        let body_from_base = &inner_joint.cache.transforms.ob_from_base;
         let g_vec = gravity.calculate(&self.state.position_base).unwrap();
 
         // convert g_vec to a force by multiplying by mass
@@ -202,7 +205,8 @@ impl Body {
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
 
-    pub fn update_acceleration(&mut self, inner_joint: &Joint) {
+    pub fn update_acceleration(&mut self) {
+        let inner_joint = self.inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = &(transforms.base_from_jof * transforms.jof_from_ob)
@@ -227,7 +231,8 @@ impl Body {
 
     /// Updates the body's state after integration of the joint states
     /// Forces, torques, and accelerations are updated elsewhere
-    pub fn update_state(&mut self, inner_joint: &Joint) {
+    pub fn update_state(&mut self) {
+        let inner_joint = self.inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;

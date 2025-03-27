@@ -26,7 +26,7 @@ use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimVector3, Uncertainty, UniformError};
 
-use super::{Joint, JointCache, JointErrors, JointModel, JointParametersBuilder};
+use super::{JointCache, JointErrors, JointModel, JointParametersBuilder, JointRef};
 
 #[derive(Debug, Error)]
 pub enum FloatingErrors {
@@ -364,7 +364,11 @@ impl JointModel for Floating {
         self.state.v[2] = state.0[12];
     }
 
-    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>) {
+    fn update_transforms(
+        &mut self,
+        transforms: &mut JointTransforms,
+        inner_joint: &Option<JointRef>,
+    ) {
         let rotation = Rotation::from(&UnitQuaternion::from(&self.state.q));
         let translation = Cartesian::from(self.state.r); // r is already jif to jof
         let transform = Transform::new(rotation, translation.into());
@@ -462,7 +466,7 @@ struct FloatingCache {
 }
 
 impl ArticulatedBodyAlgorithm for Floating {
-    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&mut Joint>) {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let aba = &mut self.cache.aba;
         let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
 
@@ -471,7 +475,8 @@ impl ArticulatedBodyAlgorithm for Floating {
         aba.big_d_inv = aba.big_u.try_inverse().unwrap();
         aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector();
 
-        if let Some(inner_joint) = inner_joint {
+        if let Some(inner_joint_ref) = inner_joint {
+            let mut inner_joint = inner_joint_ref.borrow_mut();
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
                 inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
@@ -488,8 +493,9 @@ impl ArticulatedBodyAlgorithm for Floating {
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
-        let a_ij = if let Some(inner_joint) = inner_joint {
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
+        let a_ij = if let Some(inner_joint_ref) = inner_joint {
+            let inner_joint = inner_joint_ref.borrow();
             inner_joint.cache.a
         } else {
             Acceleration::zeros()

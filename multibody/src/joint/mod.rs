@@ -6,7 +6,7 @@ pub mod revolute;
 use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
-    body::{Body, BodyConnection, BodyConnectionBuilder},
+    body::{BodyConnection, BodyConnectionBuilder},
     solver::SimStateVector,
     system::Id,
 };
@@ -157,7 +157,11 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
     fn state_vector_read(&mut self, state: &SimStateVector);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
-    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>);
+    fn update_transforms(
+        &mut self,
+        transforms: &mut JointTransforms,
+        inner_joint: &Option<JointRef>,
+    );
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
 }
@@ -251,7 +255,11 @@ impl JointModel for JointModels {
             JointModels::Revolute(model) => model.state_vector_read(state),
         }
     }
-    fn update_transforms(&mut self, transforms: &mut JointTransforms, inner_joint: Option<&Joint>) {
+    fn update_transforms(
+        &mut self,
+        transforms: &mut JointTransforms,
+        inner_joint: &Option<JointRef>,
+    ) {
         match self {
             JointModels::Floating(model) => model.update_transforms(transforms, inner_joint),
             JointModels::Prismatic(model) => model.update_transforms(transforms, inner_joint),
@@ -261,7 +269,7 @@ impl JointModel for JointModels {
 }
 
 impl ArticulatedBodyAlgorithm for JointModels {
-    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&mut Joint>) {
+    fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         match self {
             JointModels::Floating(model) => model.aba_second_pass(joint_cache, inner_joint),
             JointModels::Prismatic(model) => model.aba_second_pass(joint_cache, inner_joint),
@@ -269,7 +277,7 @@ impl ArticulatedBodyAlgorithm for JointModels {
         }
     }
 
-    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: Option<&Joint>) {
+    fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         match self {
             JointModels::Floating(model) => model.aba_third_pass(joint_cache, inner_joint),
             JointModels::Prismatic(model) => model.aba_third_pass(joint_cache, inner_joint),
@@ -289,10 +297,10 @@ pub struct Joint {
 }
 
 impl Joint {
-    pub fn aba_first_pass(&mut self, inner_joint: Option<&Joint>, outer_body: &Body) {
+    pub fn aba_first_pass(&mut self) {
         // get the inner joint velocity
-        let v_ij = if let Some(inner_joint) = inner_joint {
-            inner_joint.cache.v
+        let v_ij = if let Some(inner_joint) = &self.inner_joint {
+            inner_joint.borrow().cache.v
         } else {
             // no inner joint, inner body is base, velocity is 0
             Velocity::zeros()
@@ -308,6 +316,13 @@ impl Joint {
         // H in the body is Hs = Hb + Hi, where Hb is wI of the body.
         // need to add in Hi, which is momentum of internally rotating components
         let h_i = {
+            let outer_body = &self
+                .connections
+                .outer_body
+                .as_ref()
+                .expect("validation shuold catch this")
+                .body
+                .borrow();
             let h = c
                 .transforms
                 .jof_from_ob
@@ -320,16 +335,25 @@ impl Joint {
         c.aba.p_big_a = c.v.cross_force(c.inertia * c.v + h_i) - c.f;
     }
 
-    pub fn aba_second_pass(&mut self, inner_joint: Option<&mut Joint>) {
-        self.model.aba_second_pass(&mut self.cache, inner_joint);
+    pub fn aba_second_pass(&mut self) {
+        self.model
+            .aba_second_pass(&mut self.cache, &self.inner_joint);
     }
 
-    pub fn aba_third_pass(&mut self, inner_joint: Option<&Joint>) {
-        self.model.aba_third_pass(&mut self.cache, inner_joint);
+    pub fn aba_third_pass(&mut self) {
+        self.model
+            .aba_third_pass(&mut self.cache, &self.inner_joint);
     }
 
     /// Calculates the mass properties about the joint given mass properties at the outer body
-    pub fn calculate_joint_inertia(&mut self, outer_body: &Body) {
+    pub fn calculate_joint_inertia(&mut self) {
+        let outer_body = self
+            .connections
+            .outer_body
+            .as_ref()
+            .expect("validation should catch this")
+            .body
+            .borrow();
         self.cache.inertia = self
             .model
             .calculate_joint_inertia(&outer_body.mass_properties, &self.cache.transforms);
@@ -350,9 +374,9 @@ impl Joint {
             .state_derivative(derivative, &self.cache.transforms);
     }
 
-    pub fn update_transforms(&mut self, inner_joint: Option<&Joint>) {
+    pub fn update_transforms(&mut self) {
         self.model
-            .update_transforms(&mut self.cache.transforms, inner_joint);
+            .update_transforms(&mut self.cache.transforms, &self.inner_joint);
     }
 
     pub fn with_inner_joint(mut self, inner_joint: JointRef) -> Self {
