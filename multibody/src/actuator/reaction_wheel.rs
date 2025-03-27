@@ -1,13 +1,38 @@
-use crate::{actuator::ActuatorModel, body::Body, solver::SimStateVector};
+use crate::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
 use nalgebra::{Vector3, Vector6};
-use rotations::{Rotation, RotationTrait};
+use rand::rngs::StdRng;
+use rotations::{
+    prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
+    RotationTrait,
+};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
 use thiserror::Error;
-use transforms::Transform;
+use uncertainty::{SimValue, Uncertainty};
 
 #[derive(Debug, Error)]
-pub enum ReactionWheelErrors {}
+pub enum ReactionWheelErrors {
+    #[error("knee speed must be less than or equal to max speed")]
+    KneeGreaterThanMax,
+    #[error("coulomb friction should be greater than 0")]
+    NegativeCoulomb,
+    #[error("stiction should be greater than 0")]
+    NegativeStiction,
+    #[error("stiction threshold should be greater than 0")]
+    NegativeStictionThreshold,
+    #[error("viscous friction should be greater than 0")]
+    NegativeViscous,
+    #[error("windage friction should be greater than 0")]
+    NegativeWindage,
+    #[error("delay must be greater than 0")]
+    NegativeDelay,
+    #[error("inertia must be greater than 0")]
+    NegativeMaxTorque,
+    #[error("max torque must be greater than 0")]
+    SmallInertia,
+    #[error("{0}")]
+    Quaternion(#[from] QuaternionErrors),
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum ReactionWheelCommands {
@@ -16,7 +41,32 @@ pub enum ReactionWheelCommands {
     Torque(f64),
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct TorqueSpeedCurveBuilder {
+    knee_speed: SimValue,
+    max_speed: SimValue,
+}
+
+impl TorqueSpeedCurveBuilder {
+    pub fn new(knee_speed: f64, max_speed: f64) -> Result<Self, ReactionWheelErrors> {
+        if knee_speed > max_speed {
+            return Err(ReactionWheelErrors::KneeGreaterThanMax);
+        }
+        Ok(Self {
+            knee_speed: SimValue::new(knee_speed),
+            max_speed: SimValue::new(max_speed),
+        })
+    }
+
+    pub fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> TorqueSpeedCurve {
+        TorqueSpeedCurve {
+            knee_speed: self.knee_speed.sample(nominal, rng),
+            max_speed: self.max_speed.sample(nominal, rng),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct TorqueSpeedCurve {
     knee_speed: f64, // rad/sec
     max_speed: f64,  // rad/sec
@@ -33,8 +83,28 @@ impl TorqueSpeedCurve {
         }
     }
 }
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct ReactionWheelFrictionBuilder {
+    stiction: SimValue,
+    stiction_threshold: SimValue,
+    coulomb: SimValue,
+    viscous: SimValue,
+    windage: SimValue,
+}
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+impl ReactionWheelFrictionBuilder {
+    pub fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> ReactionWheelFriction {
+        ReactionWheelFriction {
+            stiction: self.stiction.sample(nominal, rng),
+            stiction_threshold: self.stiction_threshold.sample(nominal, rng),
+            coulomb: self.coulomb.sample(nominal, rng),
+            viscous: self.viscous.sample(nominal, rng),
+            windage: self.windage.sample(nominal, rng),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct ReactionWheelFriction {
     stiction: f64,
     stiction_threshold: f64,
@@ -51,18 +121,82 @@ impl ReactionWheelFriction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ReactionWheelParametersBuilder {
+    delay: Option<SimValue>, //sec
+    friction: ReactionWheelFrictionBuilder,
+    inertia: SimValue, // kg-m^2
+    misalignment: Option<UnitQuaternionBuilder>,
+    torque_constant: SimValue,
+    torque_max: Option<SimValue>,
+    torque_speed_curve: Option<TorqueSpeedCurveBuilder>,
+}
+
+impl ReactionWheelParametersBuilder {
+    pub fn new(inertia: f64, torque_constant: f64) -> Result<Self, ReactionWheelErrors> {
+        if inertia < std::f64::EPSILON {
+            return Err(ReactionWheelErrors::SmallInertia);
+        }
+        Ok(Self {
+            delay: None,
+            friction: ReactionWheelFrictionBuilder::default(),
+            inertia: SimValue::new(inertia),
+            misalignment: None,
+            torque_constant: SimValue::new(torque_constant),
+            torque_max: None,
+            torque_speed_curve: None,
+        })
+    }
+
+    pub fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut StdRng,
+    ) -> Result<ReactionWheelParameters, ReactionWheelErrors> {
+        let delay = if let Some(delay) = &mut self.delay {
+            Some(delay.sample(nominal, rng))
+        } else {
+            None
+        };
+        let misalignment = if let Some(misalignment) = &mut self.misalignment {
+            Some(misalignment.sample(nominal, rng)?)
+        } else {
+            None
+        };
+        let torque_max = if let Some(torque_max) = &mut self.torque_max {
+            Some(torque_max.sample(nominal, rng))
+        } else {
+            None
+        };
+        let torque_speed_curve = if let Some(torque_speed_curve) = &mut self.torque_speed_curve {
+            Some(torque_speed_curve.sample(nominal, rng))
+        } else {
+            None
+        };
+        Ok(ReactionWheelParameters {
+            delay,
+            friction: self.friction.sample(nominal, rng),
+            inertia: self.inertia.sample(nominal, rng),
+            misalignment,
+            torque_constant: self.torque_constant.sample(nominal, rng),
+            torque_max,
+            torque_speed_curve,
+        })
+    }
+}
+
+#[derive(Debug)]
 struct ReactionWheelParameters {
     delay: Option<f64>, //sec
-    friction: Option<ReactionWheelFriction>,
+    friction: ReactionWheelFriction,
     inertia: f64, // kg-m^2
-    misalignment: Option<Rotation>,
-    torque_constant: Option<f64>,
-    torque_max: f64,
+    misalignment: Option<UnitQuaternion>,
+    torque_constant: f64,
+    torque_max: Option<f64>,
     torque_speed_curve: Option<TorqueSpeedCurve>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Debug)]
 pub struct ReactionWheelState {
     acceleration: f64, //rad/sec^2
     pub command: ReactionWheelCommands,
@@ -75,117 +209,240 @@ pub struct ReactionWheelState {
 }
 
 impl ReactionWheelState {
-    pub fn new(initial_momentum: f64) -> Self {
+    pub fn new(initial_speed: f64, initial_momentum: f64) -> Self {
         Self {
             acceleration: 0.0,
             command: ReactionWheelCommands::Torque(0.0),
             current: 0.0,
             momentum: initial_momentum,
             momentum_body: Vector3::zeros(),
-            velocity: 0.0,
+            velocity: initial_speed,
             torque: 0.0,
             torque_body: Vector3::zeros(),
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ReactionWheelBuilder {
+    parameters: ReactionWheelParametersBuilder,
+    initial_speed: SimValue,
+}
+
+impl ReactionWheelBuilder {
+    pub fn new(inertia: f64, torque_constant: f64) -> Result<Self, ReactionWheelErrors> {
+        Ok(Self {
+            parameters: ReactionWheelParametersBuilder::new(inertia, torque_constant)?,
+            initial_speed: SimValue::default(),
+        })
+    }
+
+    pub fn set_coulomb(&mut self, coulomb: f64) -> Result<(), ReactionWheelErrors> {
+        if coulomb < 0.0 {
+            return Err(ReactionWheelErrors::NegativeCoulomb);
+        }
+        self.parameters.friction.coulomb.value = coulomb;
+        Ok(())
+    }
+
+    pub fn with_coulomb(mut self, coulomb: f64) -> Result<Self, ReactionWheelErrors> {
+        if coulomb < 0.0 {
+            return Err(ReactionWheelErrors::NegativeCoulomb);
+        }
+        self.parameters.friction.coulomb.value = coulomb;
+        Ok(self)
+    }
+
+    pub fn set_delay(&mut self, delay: f64) -> Result<(), ReactionWheelErrors> {
+        if delay < 0.0 {
+            return Err(ReactionWheelErrors::NegativeDelay);
+        }
+        if let Some(selfdelay) = &mut self.parameters.delay {
+            selfdelay.value = delay;
+        } else {
+            self.parameters.delay = Some(SimValue::new(delay));
+        }
+        Ok(())
+    }
+
+    pub fn with_delay(mut self, delay: f64) -> Result<Self, ReactionWheelErrors> {
+        if delay < 0.0 {
+            return Err(ReactionWheelErrors::NegativeDelay);
+        }
+        if let Some(selfdelay) = &mut self.parameters.delay {
+            selfdelay.value = delay;
+        } else {
+            self.parameters.delay = Some(SimValue::new(delay));
+        }
+        Ok(self)
+    }
+
+    pub fn set_speed(&mut self, speed: f64) {
+        self.initial_speed.value = speed;
+    }
+
+    pub fn with_speed(mut self, speed: f64) -> Self {
+        self.initial_speed.value = speed;
+        self
+    }
+
+    pub fn set_misalignment(&mut self, misalignment: UnitQuaternionBuilder) {
+        self.parameters.misalignment = Some(misalignment);
+    }
+
+    pub fn with_misalignment(mut self, misalignment: UnitQuaternionBuilder) -> Self {
+        self.parameters.misalignment = Some(misalignment);
+        self
+    }
+
+    pub fn set_stiction(&mut self, stiction: f64) -> Result<(), ReactionWheelErrors> {
+        if stiction < 0.0 {
+            return Err(ReactionWheelErrors::NegativeStiction);
+        }
+        self.parameters.friction.stiction.value = stiction;
+        Ok(())
+    }
+
+    pub fn with_stiction(mut self, stiction: f64) -> Result<Self, ReactionWheelErrors> {
+        if stiction < 0.0 {
+            return Err(ReactionWheelErrors::NegativeStiction);
+        }
+        self.parameters.friction.stiction.value = stiction;
+        Ok(self)
+    }
+
+    pub fn set_stiction_threshold(
+        &mut self,
+        stiction_threshold: f64,
+    ) -> Result<(), ReactionWheelErrors> {
+        if stiction_threshold < 0.0 {
+            return Err(ReactionWheelErrors::NegativeStictionThreshold);
+        }
+        self.parameters.friction.stiction_threshold.value = stiction_threshold;
+        Ok(())
+    }
+
+    pub fn with_stiction_threshold(
+        mut self,
+        stiction_threshold: f64,
+    ) -> Result<Self, ReactionWheelErrors> {
+        if stiction_threshold < 0.0 {
+            return Err(ReactionWheelErrors::NegativeStictionThreshold);
+        }
+        self.parameters.friction.stiction_threshold.value = stiction_threshold;
+        Ok(self)
+    }
+
+    pub fn set_torque_max(&mut self, torque_max: f64) -> Result<(), ReactionWheelErrors> {
+        if torque_max < 0.0 {
+            return Err(ReactionWheelErrors::NegativeMaxTorque);
+        }
+        if let Some(simval) = &mut self.parameters.torque_max {
+            simval.value = torque_max;
+        } else {
+            self.parameters.torque_max = Some(SimValue::new(torque_max));
+        }
+        Ok(())
+    }
+
+    pub fn with_torque_max(mut self, torque_max: f64) -> Result<Self, ReactionWheelErrors> {
+        if torque_max < 0.0 {
+            return Err(ReactionWheelErrors::NegativeMaxTorque);
+        }
+        if let Some(simval) = &mut self.parameters.torque_max {
+            simval.value = torque_max;
+        } else {
+            self.parameters.torque_max = Some(SimValue::new(torque_max));
+        }
+        Ok(self)
+    }
+
+    pub fn set_torque_speed_curve(
+        &mut self,
+        knee_speed: f64,
+        max_speed: f64,
+    ) -> Result<(), ReactionWheelErrors> {
+        self.parameters.torque_speed_curve =
+            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        Ok(())
+    }
+
+    pub fn with_torque_speed_curve(
+        mut self,
+        knee_speed: f64,
+        max_speed: f64,
+    ) -> Result<Self, ReactionWheelErrors> {
+        self.parameters.torque_speed_curve =
+            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        Ok(self)
+    }
+
+    pub fn set_viscous(&mut self, viscous: f64) -> Result<(), ReactionWheelErrors> {
+        if viscous < 0.0 {
+            return Err(ReactionWheelErrors::NegativeViscous);
+        }
+        self.parameters.friction.viscous.value = viscous;
+        Ok(())
+    }
+
+    pub fn with_viscous(mut self, viscous: f64) -> Result<Self, ReactionWheelErrors> {
+        if viscous < 0.0 {
+            return Err(ReactionWheelErrors::NegativeViscous);
+        }
+        self.parameters.friction.viscous.value = viscous;
+        Ok(self)
+    }
+
+    pub fn set_windage(&mut self, windage: f64) -> Result<(), ReactionWheelErrors> {
+        if windage < 0.0 {
+            return Err(ReactionWheelErrors::NegativeWindage);
+        }
+        self.parameters.friction.windage.value = windage;
+        Ok(())
+    }
+
+    pub fn with_windage(mut self, windage: f64) -> Result<Self, ReactionWheelErrors> {
+        if windage < 0.0 {
+            return Err(ReactionWheelErrors::NegativeWindage);
+        }
+        self.parameters.friction.windage.value = windage;
+        Ok(self)
+    }
+}
+
+impl Uncertainty for ReactionWheelBuilder {
+    type Error = ReactionWheelErrors;
+    type Output = ReactionWheel;
+
+    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+        let parameters = self.parameters.sample(nominal, rng)?;
+        let initial_speed = self.initial_speed.sample(nominal, rng);
+        let initial_momentum = initial_speed * parameters.inertia;
+        let state = ReactionWheelState::new(initial_speed, initial_momentum);
+        Ok(ReactionWheel { parameters, state })
+    }
+}
+
+#[derive(Debug)]
 pub struct ReactionWheel {
     parameters: ReactionWheelParameters,
     pub state: ReactionWheelState,
 }
 
-impl ReactionWheel {
-    pub fn new(
-        inertia: f64,
-        torque_max: f64,
-        initial_momentum: f64,
-    ) -> Result<Self, ReactionWheelErrors> {
-        let parameters = ReactionWheelParameters {
-            inertia,
-            torque_max,
-            friction: None,
-            torque_constant: None,
-            delay: None,
-            misalignment: None,
-            torque_speed_curve: None,
-        };
-        Ok(Self {
-            parameters,
-            state: ReactionWheelState::new(initial_momentum),
-        })
-    }
-    #[allow(dead_code)]
-    pub fn with_delay(mut self, delay: f64) -> Self {
-        self.parameters.delay = Some(delay);
-        self
-    }
-    #[allow(dead_code)]
-    pub fn with_friction(
-        mut self,
-        stiction: f64,
-        stiction_threshold: f64,
-        coulomb: f64,
-        viscous: f64,
-        windage: f64,
-    ) -> Self {
-        let friction = ReactionWheelFriction {
-            stiction,
-            stiction_threshold,
-            coulomb,
-            viscous,
-            windage,
-        };
-        self.parameters.friction = Some(friction);
-        self
-    }
-    #[allow(dead_code)]
-    pub fn with_misalignment(mut self, misalignment: Rotation) -> Self {
-        self.parameters.misalignment = Some(misalignment);
-        self
-    }
-    #[allow(dead_code)]
-    pub fn with_torque_constant(mut self, torque_constant: f64) -> Self {
-        self.parameters.torque_constant = Some(torque_constant);
-        self
-    }
-    #[allow(dead_code)]
-    pub fn with_torque_speed_curve(mut self, knee_speed: f64, max_speed: f64) -> Self {
-        let torque_speed_curve = TorqueSpeedCurve {
-            knee_speed,
-            max_speed,
-        };
-        self.parameters.torque_speed_curve = Some(torque_speed_curve);
-        self
-    }
-}
-
 impl ActuatorModel for ReactionWheel {
-    fn update(&mut self, body: &mut Body, body_transform: &Transform) {
+    fn update(&mut self, connection: &BodyConnection) {
         // Determine initial torque based on command type
         let mut torque = match self.state.command {
-            ReactionWheelCommands::Current(current) => {
-                if let Some(kt) = &self.parameters.torque_constant {
-                    kt * current
-                } else {
-                    eprintln!(
-                        "Need torque constant (kt) to process current command. Doing nothing"
-                    );
-                    0.0
-                }
-            }
-            ReactionWheelCommands::Speed(target_speed) => {
-                // Simple proportional control: full torque in the direction needed to reach target
-                if self.state.velocity < target_speed {
-                    self.parameters.torque_max
-                } else if self.state.velocity > target_speed {
-                    -self.parameters.torque_max
-                } else {
-                    0.0
-                }
+            ReactionWheelCommands::Current(current) => self.parameters.torque_constant * current,
+            ReactionWheelCommands::Speed(_target_speed) => {
+                todo!()
             }
             ReactionWheelCommands::Torque(requested_torque) => {
-                requested_torque.clamp(-self.parameters.torque_max, self.parameters.torque_max)
+                if let Some(torque_max) = self.parameters.torque_max {
+                    requested_torque.clamp(-torque_max, torque_max)
+                } else {
+                    requested_torque
+                }
             }
         };
 
@@ -195,34 +452,38 @@ impl ActuatorModel for ReactionWheel {
         }
 
         // Apply friction adjustments if provided
-        if let Some(friction) = &self.parameters.friction {
-            if self.state.velocity.abs() > friction.stiction_threshold {
-                // Apply dynamic friction for moving wheel
-                torque += friction.calculate_dynamic_friction(self.state.velocity);
+        if self.state.velocity.abs() > self.parameters.friction.stiction_threshold {
+            // Apply dynamic friction for moving wheel
+            torque += self
+                .parameters
+                .friction
+                .calculate_dynamic_friction(self.state.velocity);
+        } else {
+            // Stiction torque opposes movement; ensure it doesn’t overpower torque
+            torque = if torque.abs() > self.parameters.friction.stiction {
+                let stiction_torque = -torque.signum() * self.parameters.friction.stiction;
+                torque - stiction_torque
             } else {
-                // Stiction torque opposes movement; ensure it doesn’t overpower torque
-                torque = if torque.abs() > friction.stiction {
-                    let stiction_torque = -torque.signum() * friction.stiction;
-                    torque - stiction_torque
-                } else {
-                    0.0 // Torque insufficient to overcome stiction, so no movement
-                };
-            }
+                0.0 // Torque insufficient to overcome stiction, so no movement
+            };
         }
 
         // Update state
         self.state.torque = torque;
         // equal and opposite
-        self.state.torque_body = body_transform
+        self.state.torque_body = connection
+            .transform
             .rotation
             .transform(&Vector3::new(0.0, 0.0, -torque));
         self.state.momentum_body =
-            body_transform
+            connection
+                .transform
                 .rotation
                 .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
         self.state.acceleration = torque / self.parameters.inertia;
 
         // Update body
+        let mut body = connection.body.borrow_mut();
         body.state.internal_momentum_body += self.state.momentum_body;
         body.state.actuator_force_body += Force::from(Vector6::new(
             self.state.torque_body[0],

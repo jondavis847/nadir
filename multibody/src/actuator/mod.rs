@@ -1,29 +1,60 @@
-use indexmap::IndexMap;
 use nadir_result::{NadirResult, ResultManager};
-use reaction_wheel::ReactionWheel;
+use rand::rngs::StdRng;
+use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::Uncertainty;
 
 use crate::{
-    body::{Body, BodyConnection},
+    body::{BodyConnection, BodyConnectionBuilder},
     solver::{SimStateVector, SimStates},
     system::Id,
 };
 
 pub mod reaction_wheel;
 
-#[derive(Debug, Clone, Error)]
+pub struct ActuatorBuilder {
+    pub name: String,
+    pub model: ActuatorModelBuilders,
+    pub connection: Option<BodyConnectionBuilder>,
+}
+
+impl ActuatorBuilder {
+    pub fn connect_to_body(&mut self, body: Id, transform: Transform) {
+        self.connection = Some(BodyConnectionBuilder::new(body, transform));
+    }
+
+    pub fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut StdRng,
+        connection: BodyConnection,
+    ) -> Result<Actuator, ActuatorErrors> {
+        let model = self.model.sample(nominal, rng)?;
+        Ok(Actuator {
+            name: self.name.clone(),
+            model,
+            connection,
+            result_id: None,
+            state_id: None,
+        })
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ActuatorErrors {
     #[error("actuator '{0}' is already connected to body '{1}'")]
     AlreadyConnectedToAnotherBody(String, String),
     #[error("actuator '{0}' is already connected to that body")]
     AlreadyConnectedToThisBody(String),
+    #[error("{0}")]
+    ReactionWheelErrors(#[from] ReactionWheelErrors),
 }
 
 pub trait ActuatorModel {
-    fn update(&mut self, body: &mut Body, body_transform: &Transform);
+    fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
@@ -34,11 +65,11 @@ pub trait ActuatorModel {
     fn state_vector_read(&mut self, state: &SimStateVector);
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Actuator {
     pub name: String,
     pub model: ActuatorModels,
-    pub connection: Option<BodyConnection>,
+    pub connection: BodyConnection,
     /// Id of the result writer in sys.writers
     result_id: Option<u32>,
     /// Id of state index in SimStateVector
@@ -46,37 +77,8 @@ pub struct Actuator {
 }
 
 impl Actuator {
-    pub fn new(name: &str, model: ActuatorModels) -> Self {
-        Self {
-            name: name.to_string(),
-            model,
-            connection: None,
-            result_id: None,
-            state_id: None,
-        }
-    }
-    pub fn connect_to_body(
-        &mut self,
-        body: Id,
-        transform: Transform,
-    ) -> Result<(), ActuatorErrors> {
-        if let Some(connection) = &self.connection {
-            return Err(ActuatorErrors::AlreadyConnectedToAnotherBody(
-                self.name.clone(),
-                connection.body.to_string(),
-            ));
-        }
-
-        self.connection = Some(BodyConnection::new(body, transform));
-        Ok(())
-    }
-
-    pub fn update(&mut self, bodies: &mut IndexMap<Id, Body>) {
-        if let Some(connection) = &mut self.connection {
-            if let Some(body) = bodies.get_mut(&connection.body) {
-                self.model.update(body, &connection.transform);
-            }
-        }
+    pub fn update(&mut self) {
+        self.model.update(&self.connection)
     }
 
     pub fn state_vector_init(&mut self, x0: &mut SimStates) {
@@ -125,6 +127,25 @@ impl NadirResult for Actuator {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ActuatorModelBuilders {
+    ReactionWheel(ReactionWheelBuilder),
+}
+
+impl ActuatorModelBuilders {
+    pub fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut StdRng,
+    ) -> Result<ActuatorModels, ActuatorErrors> {
+        match self {
+            ActuatorModelBuilders::ReactionWheel(builder) => {
+                Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum ActuatorModels {
     ReactionWheel(ReactionWheel),
 }
@@ -160,9 +181,9 @@ impl ActuatorModel for ActuatorModels {
         }
     }
 
-    fn update(&mut self, body: &mut Body, body_transform: &Transform) {
+    fn update(&mut self, connection: &BodyConnection) {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.update(body, body_transform),
+            ActuatorModels::ReactionWheel(act) => act.update(connection),
         }
     }
 }
