@@ -1,4 +1,5 @@
 use crate::{
+    base::{Base, BaseRef},
     joint::{Joint, JointRef},
     system::Id,
 };
@@ -96,7 +97,7 @@ impl BodyBuilder {
         };
 
         let body = Body {
-            inner_joint: None,
+            inner_joint,
             mass_properties,
             mesh: self.mesh.clone(),
             name: self.name.clone(),
@@ -437,4 +438,57 @@ pub struct BodyConnection {
     pub transform: Transform,
 }
 
-pub type BodyRef = Rc<RefCell<Body>>;
+#[derive(Debug, Clone)]
+pub struct BodyRef(BaseOrBody);
+
+impl BodyRef {
+    pub fn new(body: Body) -> Self {
+        Self(BaseOrBody::Body(Rc::new(RefCell::new(body))))
+    }
+
+    pub fn borrow(&self) -> std::cell::Ref<Body> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow(),
+            BaseOrBody::Base(_) => panic!("tried to borrow a base as a body"),
+        }
+    }
+
+    pub fn borrow_mut(&self) -> std::cell::RefMut<Body> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow_mut(),
+            BaseOrBody::Base(_) => panic!("tried to borrow a base as a body"),
+        }
+    }
+
+    // cloning a Vec<Rc<RefCell<Joint>> should be very cheap to do
+    pub fn get_outer_joints(&self) -> Vec<JointRef> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow().outer_joints.clone(),
+            BaseOrBody::Base(base) => base.borrow().outer_joints.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseOrBody {
+    Base(Rc<RefCell<Base>>),
+    Body(Rc<RefCell<Body>>),
+}
+
+impl From<BaseRef> for BodyRef {
+    fn from(base: BaseRef) -> Self {
+        Self(BaseOrBody::Base(base))
+    }
+}
+
+impl From<Rc<RefCell<Body>>> for BodyRef {
+    fn from(body: Rc<RefCell<Body>>) -> Self {
+        Self(BaseOrBody::Body(body))
+    }
+}
+
+impl From<Body> for BodyRef {
+    fn from(body: Body) -> Self {
+        Self(BaseOrBody::Body(Rc::new(RefCell::new(body))))
+    }
+}

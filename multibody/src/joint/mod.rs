@@ -118,7 +118,7 @@ impl JointBuilder {
         Ok(())
     }
 
-    fn sample(
+    pub fn sample(
         &mut self,
         connections: JointConnection,
         nominal: bool,
@@ -392,7 +392,7 @@ pub struct JointConnectionBuilder {
 #[derive(Debug)]
 pub struct JointConnection {
     pub inner_body: BodyConnection,
-    pub outer_body: BodyConnection,
+    pub outer_body: Option<BodyConnection>, // needs to be option just because the body isnt created yet when system is recursively built
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]

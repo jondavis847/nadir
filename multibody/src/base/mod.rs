@@ -1,4 +1,6 @@
-use crate::system::Id;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{joint::JointRef, system::Id};
 
 use celestial::{CelestialErrors, CelestialSystem};
 use gravity::Gravity;
@@ -25,15 +27,15 @@ pub enum BaseSystems {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Base {
+pub struct BaseBuilder {
     pub name: String,
     pub outer_joints: Vec<Id>,
     pub system: BaseSystems,
 }
 
-impl Base {
-    pub fn new() -> Base {
-        Base {
+impl BaseBuilder {
+    pub fn new() -> Self {
+        Self {
             name: "base".to_string(),
             outer_joints: Vec::new(),
             system: BaseSystems::Basic(None),
@@ -66,12 +68,31 @@ impl Base {
         self.system = BaseSystems::Basic(gravity);
         Ok(())
     }
+}
 
+#[derive(Clone, Debug)]
+pub struct Base {
+    pub outer_joints: Vec<JointRef>,
+    pub system: BaseSystems,
+}
+
+impl Base {
     pub fn update(&mut self, t: f64) -> Result<(), Box<dyn std::error::Error>> {
         match &mut self.system {
             BaseSystems::Celestial(celestial) => celestial.update(t)?,
             BaseSystems::Basic(_) => {}
         }
         Ok(())
+    }
+}
+
+pub type BaseRef = Rc<RefCell<Base>>;
+
+impl From<&BaseBuilder> for Base {
+    fn from(builder: &BaseBuilder) -> Self {
+        Self {
+            outer_joints: Vec::new(),
+            system: builder.system.clone(),
+        }
     }
 }
