@@ -3,7 +3,10 @@ use crate::{
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
     body::{BodyBuilder, BodyConnection, BodyRef},
-    joint::{JointBuilder, JointConnection, JointModel, JointRef},
+    joint::{
+        floating::FloatingBuilder, revolute::RevoluteBuilder, JointBuilder, JointConnection,
+        JointModel, JointModelBuilders, JointRef,
+    },
     sensor::{Sensor, SensorBuilder},
     //software::SoftwareSystem,
     solver::{rk4::solve_fixed_rk4, SimStates},
@@ -98,6 +101,29 @@ impl MultibodySystemBuilder {
             sensors: HashMap::new(),
             //software: None,
         }
+    }
+
+    pub fn new_body(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+        let id = self.identifier.next();
+        let body = BodyBuilder::new(name, id)?;
+        self.bodies.insert(id, body);
+        Ok(())
+    }
+
+    pub fn new_floating(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+        let id = self.identifier.next();
+        let model = JointModelBuilders::Floating(FloatingBuilder::default());
+        let joint = JointBuilder::new(id, name, model)?;
+        self.joints.insert(id, joint);
+        Ok(())
+    }
+
+    pub fn new_revolute(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+        let id = self.identifier.next();
+        let model = JointModelBuilders::Revolute(RevoluteBuilder::default());
+        let joint = JointBuilder::new(id, name, model)?;
+        self.joints.insert(id, joint);
+        Ok(())
     }
 
     pub fn save(&self, path: &Path) {

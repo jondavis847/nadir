@@ -77,7 +77,7 @@ impl Uncertainty for RevoluteParametersBuilder {
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct RevoluteParameters(pub JointParameters);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RevoluteBuilder {
     state: RevoluteStateBuilder,
     parameters: RevoluteParametersBuilder,

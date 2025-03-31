@@ -36,7 +36,7 @@ pub enum FloatingErrors {
     Uncertainty(#[from] UncertaintyErrors),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct FloatingParametersBuilder {
     x_rotation: JointParametersBuilder,
     y_rotation: JointParametersBuilder,
@@ -144,7 +144,7 @@ impl MulAssign<f64> for FloatingState {
 }
 
 /// Builder for a 6-DOF Floating joint
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct FloatingBuilder {
     pub parameters: FloatingParametersBuilder,
     pub state: FloatingStateBuilder,
