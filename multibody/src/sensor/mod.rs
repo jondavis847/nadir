@@ -4,12 +4,12 @@ use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
-use gps::Gps;
-use magnetometer::Magnetometer;
+use gps::{Gps, GpsBuilder};
+use magnetometer::{Magnetometer, MagnetometerBuilder};
 use nadir_result::{NadirResult, ResultManager};
-use rate_gyro::RateGyro;
+use rate_gyro::{RateGyro, RateGyroBuilder};
 use serde::{Deserialize, Serialize};
-use star_tracker::StarTracker;
+use star_tracker::{StarTracker, StarTrackerBuilder};
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;

@@ -1,9 +1,8 @@
 use nalgebra::{Matrix3, Vector3};
 use rand::rngs::SmallRng;
-use rand_distr::{Normal, NormalError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
+use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
 
 #[derive(Debug, Error)]
 pub enum MassPropertiesErrors {
@@ -16,11 +15,7 @@ pub enum MassPropertiesErrors {
     #[error("mass cannot be less than or equal to zero")]
     MassLessThanOrEqualToZero,
     #[error("{0}")]
-    NormalErrors(#[from] NormalError),
-    #[error("{0}")]
-    UncertaintyErrors(#[from] uncertainty::Error),
-    #[error("{0}")]
-    UniformErrors(#[from] UniformError),
+    UncertaintyErrors(#[from] UncertaintyErrors),
     #[error("for uniform dist, low must be less than high")]
     UniformLowMustBeGreaterThanHigh,
 }
@@ -59,23 +54,23 @@ impl MassPropertiesBuilder {
         if mass < std::f64::EPSILON {
             Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
         } else {
-            self.mass.value = mass;
+            self.mass.nominal = mass;
             Ok(self)
         }
     }
 
     pub fn with_cmx(mut self, cmx: f64) -> Self {
-        self.cmx.value = cmx;
+        self.cmx.nominal = cmx;
         self
     }
 
     pub fn with_cmy(mut self, cmy: f64) -> Self {
-        self.cmy.value = cmy;
+        self.cmy.nominal = cmy;
         self
     }
 
     pub fn with_cmz(mut self, cmz: f64) -> Self {
-        self.cmz.value = cmz;
+        self.cmz.nominal = cmz;
         self
     }
 
@@ -83,7 +78,7 @@ impl MassPropertiesBuilder {
         if ixx < std::f64::EPSILON {
             Err(MassPropertiesErrors::IxxLessThanOrEqualToZero)
         } else {
-            self.ixx.value = ixx;
+            self.ixx.nominal = ixx;
             Ok(self)
         }
     }
@@ -92,7 +87,7 @@ impl MassPropertiesBuilder {
         if iyy < std::f64::EPSILON {
             Err(MassPropertiesErrors::IyyLessThanOrEqualToZero)
         } else {
-            self.iyy.value = iyy;
+            self.iyy.nominal = iyy;
             Ok(self)
         }
     }
@@ -101,23 +96,23 @@ impl MassPropertiesBuilder {
         if izz < std::f64::EPSILON {
             Err(MassPropertiesErrors::IzzLessThanOrEqualToZero)
         } else {
-            self.izz.value = izz;
+            self.izz.nominal = izz;
             Ok(self)
         }
     }
 
     pub fn with_ixy(mut self, ixy: f64) -> Self {
-        self.ixy.value = ixy;
+        self.ixy.nominal = ixy;
         self
     }
 
     pub fn with_ixz(mut self, ixz: f64) -> Self {
-        self.ixz.value = ixz;
+        self.ixz.nominal = ixz;
         self
     }
 
     pub fn with_iyz(mut self, iyz: f64) -> Self {
-        self.iyz.value = iyz;
+        self.iyz.nominal = iyz;
         self
     }
 

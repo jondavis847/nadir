@@ -1,24 +1,70 @@
 use crate::{
-    body::Body,
+    body::BodyConnection,
     sensor::{
-        noise::{Noise, NoiseModels},
+        noise::{Noise, NoiseBuilder},
         SensorModel,
     },
 };
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use time::Time;
-use transforms::Transform;
+use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
 
-use super::noise::{NoiseBuilder, NoiseModelBuilders};
+use super::noise::NoiseErrors;
+
+#[derive(Debug, Error)]
+pub enum GpsErrors {
+    #[error("gps name cannot be empty")]
+    NameEmpty,
+    #[error("{0}")]
+    Noise(#[from] NoiseErrors),
+    #[error("{0}")]
+    Uncertainty(#[from] UncertaintyErrors),
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct GpsParametersBuilder {
-    delay: Option<f64>,
+    delay: Option<SimValue>,
     position_noise: Option<[NoiseBuilder; 3]>,
     velocity_noise: Option<[NoiseBuilder; 3]>,
 }
 
+impl Uncertainty for GpsParametersBuilder {
+    type Error = GpsErrors;
+    type Output = GpsParameters;
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        let delay = match &mut self.delay {
+            Some(delay) => Some(delay.sample(nominal, rng)),
+            None => None,
+        };
+        let position_noise = match &mut self.position_noise {
+            Some(position_noise) => Some([
+                position_noise[0].sample(nominal, rng)?,
+                position_noise[1].sample(nominal, rng)?,
+                position_noise[2].sample(nominal, rng)?,
+            ]),
+            None => None,
+        };
+        let velocity_noise = match &mut self.velocity_noise {
+            Some(velocity_noise) => Some([
+                velocity_noise[0].sample(nominal, rng)?,
+                velocity_noise[1].sample(nominal, rng)?,
+                velocity_noise[2].sample(nominal, rng)?,
+            ]),
+            None => None,
+        };
+        Ok(GpsParameters {
+            delay,
+            position_noise,
+            velocity_noise,
+        })
+    }
+}
 #[derive(Debug)]
 struct GpsParameters {
     delay: Option<f64>,
@@ -35,17 +81,22 @@ pub struct GpsState {
     velocity_noise: Option<Vector3<f64>>,
 }
 
+impl Default for GpsState {
+    fn default() -> Self {
+        Self {
+            time: Time::from_sec_j2k(0.0, time::TimeSystem::GPS),
+            position: Vector3::zeros(),
+            velocity: Vector3::zeros(),
+            position_noise: None,
+            velocity_noise: None,
+        }
+    }
+}
+
 /// A simple GPS with gaussian white noise & constant delay
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GpsBuilder {
     parameters: GpsParametersBuilder,
-}
-
-/// A simple GPS with gaussian white noise & constant delay
-#[derive(Debug)]
-pub struct Gps {
-    parameters: GpsParameters,
-    pub state: GpsState,
 }
 
 impl GpsBuilder {
@@ -60,39 +111,119 @@ impl GpsBuilder {
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
-        self.parameters.delay = Some(delay);
+        if let Some(selfdelay) = &mut self.parameters.delay {
+            selfdelay.nominal = delay
+        } else {
+            self.parameters.delay = Some(SimValue::new(delay));
+        }
         self
     }
 
-    pub fn with_noise_position_normal(mut self, noise: NoiseModelBuilders) -> Self {
-        let noise = NoiseBuilder::new(noise);
-        let mut noise1 = noise.clone();
-        let mut noise2 = noise.clone();
-        let mut noise3 = noise.clone();
-        noise1.new_seed();
-        noise2.new_seed();
-        noise3.new_seed();
+    pub fn with_uncertain_delay_normal(mut self, mean: f64, std: f64) -> Result<Self, GpsErrors> {
+        let dist = Normal::new(mean, std)?;
+        if let Some(delay) = &mut self.parameters.delay {
+            delay.set_distribution(dist.into());
+        } else {
+            self.parameters.delay = Some(SimValue::new(mean).with_distribution(dist.into())?);
+        }
+        Ok(self)
+    }
+
+    pub fn with_noise_position_normal(mut self, mean: f64, std: f64) -> Self {
+        let noise1 = NoiseBuilder::new_normal(mean, std);
+        let noise2 = NoiseBuilder::new_normal(mean, std);
+        let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
         self.parameters.position_noise = Some(noise);
         self
     }
 
-    pub fn with_noise_velocity(mut self, noise: NoiseModelBuilders) -> Self {
-        let noise = Noise::new(noise);
-        let mut noise1 = noise.clone();
-        let mut noise2 = noise.clone();
-        let mut noise3 = noise.clone();
-        noise1.new_seed();
-        noise2.new_seed();
-        noise3.new_seed();
+    pub fn set_noise_position_normal(&mut self, mean: f64, std: f64) {
+        let noise1 = NoiseBuilder::new_normal(mean, std);
+        let noise2 = NoiseBuilder::new_normal(mean, std);
+        let noise3 = NoiseBuilder::new_normal(mean, std);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.position_noise = Some(noise);
+    }
+
+    pub fn with_noise_position_uniform(mut self, low: f64, high: f64) -> Self {
+        let noise1 = NoiseBuilder::new_uniform(low, high);
+        let noise2 = NoiseBuilder::new_normal(low, high);
+        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.position_noise = Some(noise);
+        self
+    }
+
+    pub fn set_noise_position_uniform(&mut self, low: f64, high: f64) {
+        let noise1 = NoiseBuilder::new_uniform(low, high);
+        let noise2 = NoiseBuilder::new_normal(low, high);
+        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.position_noise = Some(noise);
+    }
+
+    pub fn with_noise_velocity_normal(mut self, mean: f64, std: f64) -> Self {
+        let noise1 = NoiseBuilder::new_normal(mean, std);
+        let noise2 = NoiseBuilder::new_normal(mean, std);
+        let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
         self.parameters.velocity_noise = Some(noise);
         self
     }
+
+    pub fn set_noise_velocity_normal(&mut self, mean: f64, std: f64) {
+        let noise1 = NoiseBuilder::new_normal(mean, std);
+        let noise2 = NoiseBuilder::new_normal(mean, std);
+        let noise3 = NoiseBuilder::new_normal(mean, std);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.velocity_noise = Some(noise);
+    }
+
+    pub fn with_noise_velocity_uniform(mut self, low: f64, high: f64) -> Self {
+        let noise1 = NoiseBuilder::new_uniform(low, high);
+        let noise2 = NoiseBuilder::new_normal(low, high);
+        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.velocity_noise = Some(noise);
+        self
+    }
+
+    pub fn set_noise_velocity_uniform(&mut self, low: f64, high: f64) {
+        let noise1 = NoiseBuilder::new_uniform(low, high);
+        let noise2 = NoiseBuilder::new_normal(low, high);
+        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise = [noise1, noise2, noise3];
+        self.parameters.velocity_noise = Some(noise);
+    }
+}
+
+impl Uncertainty for GpsBuilder {
+    type Error = GpsErrors;
+    type Output = Gps;
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(Gps {
+            parameters: self.parameters.sample(nominal, rng)?,
+            state: GpsState::default(),
+        })
+    }
+}
+
+/// A simple GPS with gaussian white noise & constant delay
+#[derive(Debug)]
+pub struct Gps {
+    parameters: GpsParameters,
+    pub state: GpsState,
 }
 
 impl SensorModel for Gps {
-    fn update(&mut self, body: &Body, _body_transform: &Transform) {
+    fn update(&mut self, connection: &BodyConnection) {
+        let body = connection.body.borrow();
+
         let true_position = body.state.position_base;
         let true_velocity = body.state.velocity_base;
 

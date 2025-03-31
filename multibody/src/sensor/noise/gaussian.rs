@@ -3,7 +3,7 @@ use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 use uncertainty::{SimValue, Uncertainty};
 
-use super::NoiseTrait;
+use super::{NoiseErrors, NoiseTrait};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GaussianBuilder {
@@ -21,7 +21,7 @@ impl GaussianBuilder {
 }
 impl Uncertainty for GaussianBuilder {
     type Output = GaussianNoise;
-    type Error = ();
+    type Error = NoiseErrors;
 
     fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let mean = self.mean.sample(nominal, rng);

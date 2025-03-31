@@ -3,7 +3,7 @@ use rand_distr::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
 use uncertainty::{SimValue, Uncertainty};
 
-use super::NoiseTrait;
+use super::{NoiseErrors, NoiseTrait};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UniformBuilder {
@@ -22,7 +22,7 @@ impl UniformBuilder {
 
 impl Uncertainty for UniformBuilder {
     type Output = UniformNoise;
-    type Error = ();
+    type Error = NoiseErrors;
 
     fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let low = self.low.sample(nominal, rng);

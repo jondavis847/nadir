@@ -1,74 +1,116 @@
+use super::noise::{NoiseErrors, QuaternioNoiseBuilder};
 use crate::{
-    body::Body,
-    sensor::{
-        noise::{NoiseModels, QuaternionNoise},
-        SensorModel,
-    },
+    body::BodyConnection,
+    sensor::{noise::QuaternionNoise, SensorModel},
 };
-
-use rotations::{prelude::UnitQuaternion, Rotation};
+use rotations::prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder};
 use serde::{Deserialize, Serialize};
-use transforms::Transform;
+use thiserror::Error;
+use uncertainty::{SimValue, Uncertainty, UncertaintyErrors};
+
+#[derive(Debug, Error)]
+pub enum StarTrackerErrors {
+    #[error("{0}")]
+    Noise(#[from] NoiseErrors),
+    #[error("{0}")]
+    Quaternion(#[from] QuaternionErrors),
+    #[error("{0}")]
+    Uncertainty(#[from] UncertaintyErrors),
+}
 
 /// Constant parameters for the simple star tracker sensor
 /// delay - a constant in seconds between truth dynamics and the sensor measurement
 /// noise_(x,y,z) - noise in arcseconds for each axis
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+struct StarTrackerParametersBuilder {
+    delay: Option<SimValue>,
+    misalignment: Option<UnitQuaternionBuilder>,
+    noise: Option<QuaternioNoiseBuilder>,
+}
+
+impl Uncertainty for StarTrackerParametersBuilder {
+    type Error = StarTrackerErrors;
+    type Output = StarTrackerParameters;
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        let delay = match &mut self.delay {
+            Some(delay) => Some(delay.sample(nominal, rng)),
+            None => None,
+        };
+        let misalignment = match &mut self.misalignment {
+            Some(misalignment) => Some(misalignment.sample(nominal, rng)?),
+            None => None,
+        };
+        let noise = match &mut self.noise {
+            Some(noise) => Some(noise.sample(nominal, rng)?),
+            None => None,
+        };
+        Ok(StarTrackerParameters {
+            delay,
+            misalignment,
+            noise,
+        })
+    }
+}
+
+/// Constant parameters for the simple star tracker sensor
+/// delay - a constant in seconds between truth dynamics and the sensor measurement
+/// noise_(x,y,z) - noise in arcseconds for each axis
+#[derive(Debug)]
 struct StarTrackerParameters {
     delay: Option<f64>,
-    misalignment: Option<Rotation>,
+    misalignment: Option<UnitQuaternion>,
     noise: Option<QuaternionNoise>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default)]
 pub struct StarTrackerState {
     noise: UnitQuaternion,
     pub measurement: UnitQuaternion,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StarTrackerBuilder {
+    parameters: StarTrackerParametersBuilder,
+}
+
+impl Uncertainty for StarTrackerBuilder {
+    type Error = StarTrackerErrors;
+    type Output = StarTracker;
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        Ok(StarTracker {
+            parameters: self.parameters.sample(nominal, rng)?,
+            state: StarTrackerState::default(),
+        })
+    }
+}
+
 /// A star tracker attitude sensor with gaussian white noise & constant delay
 /// The sensor frame is defined with +Z out the boresight, +X to the right, +Y is up
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct StarTracker {
     parameters: StarTrackerParameters,
     pub state: StarTrackerState,
 }
 
-impl StarTracker {
-    pub fn new() -> Self {
-        Self {
-            parameters: StarTrackerParameters::default(),
-            state: StarTrackerState::default(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn with_delay(mut self, delay: f64) -> Self {
-        self.parameters.delay = Some(delay);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_misalignment(mut self, misalignment: Rotation) -> Self {
-        self.parameters.misalignment = Some(misalignment);
-        self
-    }
-
-    pub fn with_noise(mut self, noise: NoiseModels) -> Self {
-        let noise = QuaternionNoise::new(noise);
-        self.parameters.noise = Some(noise);
-        self
-    }
-}
-
 impl SensorModel for StarTracker {
-    fn update(&mut self, body: &Body, body_transform: &Transform) {
-        let body_to_st = UnitQuaternion::from(&body_transform.rotation);
+    fn update(&mut self, connection: &BodyConnection) {
+        let body = connection.body.borrow();
+        let transform = &connection.transform;
+
+        let body_to_st = UnitQuaternion::from(&transform.rotation);
         // Get the truth attitude
         let mut sensor_attitude = body_to_st * body.state.attitude_base;
         // Apply optional misalignment
         if let Some(misalignment) = &self.parameters.misalignment {
-            sensor_attitude = UnitQuaternion::from(misalignment) * sensor_attitude;
+            sensor_attitude = *misalignment * sensor_attitude;
         }
 
         // Apply optional noise

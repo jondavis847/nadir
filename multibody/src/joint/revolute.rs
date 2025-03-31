@@ -8,7 +8,6 @@ use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
-use rand_distr::{Normal, NormalError};
 use rotations::{
     euler_angles::{EulerAngles, EulerSequence},
     Rotation,
@@ -18,17 +17,13 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimValue, Uncertainty, Uniform, UniformError};
+use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
 
 use super::{JointCache, JointErrors, JointParametersBuilder, JointRef};
 #[derive(Debug, Error)]
 pub enum RevoluteErrors {
     #[error("{0}")]
-    Normal(#[from] NormalError),
-    #[error("{0}")]
-    Uncertainty(#[from] uncertainty::Error),
-    #[error("{0}")]
-    Uniform(#[from] UniformError),
+    Uncertainty(#[from] UncertaintyErrors),
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -91,32 +86,32 @@ pub struct RevoluteBuilder {
 impl RevoluteBuilder {
     /// Sets the nominal initial angular rate state
     pub fn set_angular_rate(&mut self, angular_rate: f64) {
-        self.state.angular_rate.value = angular_rate;
+        self.state.angular_rate.nominal = angular_rate;
     }
 
     /// Sets the nominal initial angle state
     pub fn set_angle(&mut self, angle: f64) {
-        self.state.angle.value = angle;
+        self.state.angle.nominal = angle;
     }
 
     /// Sets the joint damping parameter
     pub fn set_damping(&mut self, damping: f64) {
-        self.parameters.0.damping.value = damping;
+        self.parameters.0.damping.nominal = damping;
     }
 
     /// Sets the joint equilibrium parameter
     pub fn set_equilibrium(&mut self, equilibrium: f64) {
-        self.parameters.0.equilibrium.value = equilibrium;
+        self.parameters.0.equilibrium.nominal = equilibrium;
     }
 
     /// Sets the joint spring_constant parameter
     pub fn set_spring_constant(&mut self, spring_constant: f64) {
-        self.parameters.0.spring_constant.value = spring_constant;
+        self.parameters.0.spring_constant.nominal = spring_constant;
     }
 
     /// Sets the joint constant_force parameter
     pub fn set_constant_force(&mut self, constant_force: f64) {
-        self.parameters.0.constant_force.value = constant_force;
+        self.parameters.0.constant_force.nominal = constant_force;
     }
 
     /// Sets an initial angular rate state uncertainty with a normal distribution
@@ -295,37 +290,37 @@ impl RevoluteBuilder {
 
     /// Builder method to set the nominal initial angle state
     pub fn with_angle(mut self, angle: f64) -> Self {
-        self.state.angle.value = angle;
+        self.state.angle.nominal = angle;
         self
     }
 
     /// Builder method to set the nominal initial angular rate state
     pub fn with_angular_rate(mut self, angular_rate: f64) -> Self {
-        self.state.angular_rate.value = angular_rate;
+        self.state.angular_rate.nominal = angular_rate;
         self
     }
 
     /// Builder method to set the joint damping parameter
     pub fn with_damping(mut self, damping: f64) -> Self {
-        self.parameters.0.damping.value = damping;
+        self.parameters.0.damping.nominal = damping;
         self
     }
 
     /// Builder method to set the joint equilibrium parameter
     pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
-        self.parameters.0.equilibrium.value = equilibrium;
+        self.parameters.0.equilibrium.nominal = equilibrium;
         self
     }
 
     /// Builder method to set the joint spring_constant parameter
     pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
-        self.parameters.0.spring_constant.value = spring_constant;
+        self.parameters.0.spring_constant.nominal = spring_constant;
         self
     }
 
     /// Builder method to set the joint constant_force parameter
     pub fn with_constant_force(mut self, constant_force: f64) -> Self {
-        self.parameters.0.constant_force.value = constant_force;
+        self.parameters.0.constant_force.nominal = constant_force;
         self
     }
 

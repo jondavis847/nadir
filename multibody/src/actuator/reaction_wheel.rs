@@ -241,7 +241,7 @@ impl ReactionWheelBuilder {
         if coulomb < 0.0 {
             return Err(ReactionWheelErrors::NegativeCoulomb);
         }
-        self.parameters.friction.coulomb.value = coulomb;
+        self.parameters.friction.coulomb.nominal = coulomb;
         Ok(())
     }
 
@@ -249,7 +249,7 @@ impl ReactionWheelBuilder {
         if coulomb < 0.0 {
             return Err(ReactionWheelErrors::NegativeCoulomb);
         }
-        self.parameters.friction.coulomb.value = coulomb;
+        self.parameters.friction.coulomb.nominal = coulomb;
         Ok(self)
     }
 
@@ -258,7 +258,7 @@ impl ReactionWheelBuilder {
             return Err(ReactionWheelErrors::NegativeDelay);
         }
         if let Some(selfdelay) = &mut self.parameters.delay {
-            selfdelay.value = delay;
+            selfdelay.nominal = delay;
         } else {
             self.parameters.delay = Some(SimValue::new(delay));
         }
@@ -270,7 +270,7 @@ impl ReactionWheelBuilder {
             return Err(ReactionWheelErrors::NegativeDelay);
         }
         if let Some(selfdelay) = &mut self.parameters.delay {
-            selfdelay.value = delay;
+            selfdelay.nominal = delay;
         } else {
             self.parameters.delay = Some(SimValue::new(delay));
         }
@@ -278,11 +278,11 @@ impl ReactionWheelBuilder {
     }
 
     pub fn set_speed(&mut self, speed: f64) {
-        self.initial_speed.value = speed;
+        self.initial_speed.nominal = speed;
     }
 
     pub fn with_speed(mut self, speed: f64) -> Self {
-        self.initial_speed.value = speed;
+        self.initial_speed.nominal = speed;
         self
     }
 
@@ -299,7 +299,7 @@ impl ReactionWheelBuilder {
         if stiction < 0.0 {
             return Err(ReactionWheelErrors::NegativeStiction);
         }
-        self.parameters.friction.stiction.value = stiction;
+        self.parameters.friction.stiction.nominal = stiction;
         Ok(())
     }
 
@@ -307,7 +307,7 @@ impl ReactionWheelBuilder {
         if stiction < 0.0 {
             return Err(ReactionWheelErrors::NegativeStiction);
         }
-        self.parameters.friction.stiction.value = stiction;
+        self.parameters.friction.stiction.nominal = stiction;
         Ok(self)
     }
 
@@ -318,7 +318,7 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.value = stiction_threshold;
+        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
         Ok(())
     }
 
@@ -329,7 +329,7 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.value = stiction_threshold;
+        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
         Ok(self)
     }
 
@@ -338,7 +338,7 @@ impl ReactionWheelBuilder {
             return Err(ReactionWheelErrors::NegativeMaxTorque);
         }
         if let Some(simval) = &mut self.parameters.torque_max {
-            simval.value = torque_max;
+            simval.nominal = torque_max;
         } else {
             self.parameters.torque_max = Some(SimValue::new(torque_max));
         }
@@ -350,7 +350,7 @@ impl ReactionWheelBuilder {
             return Err(ReactionWheelErrors::NegativeMaxTorque);
         }
         if let Some(simval) = &mut self.parameters.torque_max {
-            simval.value = torque_max;
+            simval.nominal = torque_max;
         } else {
             self.parameters.torque_max = Some(SimValue::new(torque_max));
         }
@@ -381,7 +381,7 @@ impl ReactionWheelBuilder {
         if viscous < 0.0 {
             return Err(ReactionWheelErrors::NegativeViscous);
         }
-        self.parameters.friction.viscous.value = viscous;
+        self.parameters.friction.viscous.nominal = viscous;
         Ok(())
     }
 
@@ -389,7 +389,7 @@ impl ReactionWheelBuilder {
         if viscous < 0.0 {
             return Err(ReactionWheelErrors::NegativeViscous);
         }
-        self.parameters.friction.viscous.value = viscous;
+        self.parameters.friction.viscous.nominal = viscous;
         Ok(self)
     }
 
@@ -397,7 +397,7 @@ impl ReactionWheelBuilder {
         if windage < 0.0 {
             return Err(ReactionWheelErrors::NegativeWindage);
         }
-        self.parameters.friction.windage.value = windage;
+        self.parameters.friction.windage.nominal = windage;
         Ok(())
     }
 
@@ -405,7 +405,7 @@ impl ReactionWheelBuilder {
         if windage < 0.0 {
             return Err(ReactionWheelErrors::NegativeWindage);
         }
-        self.parameters.friction.windage.value = windage;
+        self.parameters.friction.windage.nominal = windage;
         Ok(self)
     }
 }

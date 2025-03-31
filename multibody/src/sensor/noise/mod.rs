@@ -6,8 +6,15 @@ use nalgebra::Vector3;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rotations::{axis_angle::AxisAngle, quaternion::UnitQuaternion};
 use serde::{Deserialize, Serialize};
-use uncertainty::{SimValue, Uncertainty};
+use thiserror::Error;
+use uncertainty::{Uncertainty, UncertaintyErrors};
 use uniform::{UniformBuilder, UniformNoise};
+
+#[derive(Debug, Error)]
+pub enum NoiseErrors {
+    #[error("{0}")]
+    Uncertainty(#[from] UncertaintyErrors),
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum NoiseModelBuilders {
@@ -18,7 +25,7 @@ pub enum NoiseModelBuilders {
 
 impl Uncertainty for NoiseModelBuilders {
     type Output = NoiseModels;
-    type Error = ();
+    type Error = NoiseErrors;
 
     fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let model = match self {
@@ -74,7 +81,7 @@ impl NoiseBuilder {
 
 impl Uncertainty for NoiseBuilder {
     type Output = Noise;
-    type Error = ();
+    type Error = NoiseErrors;
 
     fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let model = match &mut self.model {
@@ -123,13 +130,14 @@ pub trait NoiseTrait {
     fn sample(&self, rng: &mut SmallRng) -> f64;
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuaternioNoiseBuilder {
     magnitude_noise: NoiseBuilder,
 }
 
 impl Uncertainty for QuaternioNoiseBuilder {
     type Output = QuaternionNoise;
-    type Error = ();
+    type Error = NoiseErrors;
 
     fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let magnitude_noise = self.magnitude_noise.sample(nominal, rng)?;

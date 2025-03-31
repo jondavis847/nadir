@@ -24,7 +24,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimVector3, Uncertainty, UniformError};
+use uncertainty::{SimVector3, Uncertainty, UncertaintyErrors};
 
 use super::{JointCache, JointErrors, JointModel, JointParametersBuilder, JointRef};
 
@@ -33,9 +33,7 @@ pub enum FloatingErrors {
     #[error("{0}")]
     Normal(#[from] NormalError),
     #[error("{0}")]
-    Uncertainty(#[from] uncertainty::Error),
-    #[error("{0}")]
-    Uniform(#[from] UniformError),
+    Uncertainty(#[from] UncertaintyErrors),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,24 +157,24 @@ impl FloatingBuilder {
     }
 
     pub fn with_angular_rate(mut self, w: Vector3<f64>) -> Self {
-        self.state.w.x.value = w[0];
-        self.state.w.y.value = w[1];
-        self.state.w.z.value = w[2];
+        self.state.w.x.nominal = w[0];
+        self.state.w.y.nominal = w[1];
+        self.state.w.z.nominal = w[2];
         self
     }
 
     pub fn with_position(mut self, r: Vector3<f64>) -> Self {
-        self.state.r.x.value = r[0];
-        self.state.r.y.value = r[1];
-        self.state.r.z.value = r[2];
+        self.state.r.x.nominal = r[0];
+        self.state.r.y.nominal = r[1];
+        self.state.r.z.nominal = r[2];
         self
     }
 
     /// This is the velocity of the joint outer frame (jof) in the joint inner frame (jif)
     pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
-        self.state.v.x.value = v[0];
-        self.state.v.y.value = v[1];
-        self.state.v.z.value = v[2];
+        self.state.v.x.nominal = v[0];
+        self.state.v.y.nominal = v[1];
+        self.state.v.z.nominal = v[2];
         self
     }
 
