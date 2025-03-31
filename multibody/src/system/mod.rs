@@ -2,9 +2,9 @@ use crate::{
     actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
-    body::{Body, BodyBuilder, BodyConnection, BodyRef},
-    joint::{Joint, JointBuilder, JointConnection, JointModel, JointRef},
-    sensor::Sensor,
+    body::{BodyBuilder, BodyConnection, BodyRef},
+    joint::{JointBuilder, JointConnection, JointModel, JointRef},
+    sensor::{Sensor, SensorBuilder},
     //software::SoftwareSystem,
     solver::{rk4::solve_fixed_rk4, SimStates},
     MultibodyErrors,
@@ -17,11 +17,17 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
 use std::{
-    cell::RefCell, collections::HashMap, fmt::{Display, Formatter}, fs::{create_dir_all, File}, io::Write, path::{Path, PathBuf}, rc::Rc, time::Instant
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    rc::Rc,
+    time::Instant,
 };
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::Uncertainty;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemBuilder {
@@ -32,7 +38,7 @@ pub struct MultibodySystemBuilder {
     pub identifier: Identifier,
     pub joints: HashMap<Id, JointBuilder>,
     seed: u64,
-    pub sensors: HashMap<Id, Sensor>,
+    pub sensors: HashMap<Id, SensorBuilder>,
     //pub software: Option<Box<dyn SoftwareSystem>>,
 }
 
@@ -49,11 +55,11 @@ impl MultibodySystemBuilder {
         match (from, to) {
             (Component::Actuator(from_id), Component::Body(to_id)) => {
                 let actuator = self.actuators.get_mut(&from_id).unwrap();
-                actuator.connect_to_body(to_id, transform);
+                actuator.connect_body(to_id, transform);
             }
             (Component::Sensor(from_id), Component::Body(to_id)) => {
                 let sensor = self.sensors.get_mut(&from_id).unwrap();
-                sensor.connect_to_body(to_id, transform)?;
+                sensor.connect_body(to_id, transform)?;
             }
             (Component::Joint(from_id), Component::Body(to_id)) => {
                 let joint = self.joints.get_mut(&from_id).unwrap();
@@ -134,17 +140,18 @@ impl MultibodySystemBuilder {
             nruns,
         };
 
-        let mut rng = SmallRng::seed_from_u64(self.seed);     
+        let mut rng = SmallRng::seed_from_u64(self.seed);
 
         // run the nominal
         let mut sys = self.sample(true, &mut rng)?;
-        sys.simulate(&options, &result_path);
+        sys.simulate(&options, &result_path)?;
 
-        // run the monte carlo if present        
-        if let Some(nruns) = nruns {       
-            
+        // run the monte carlo if present
+        if let Some(nruns) = nruns {
             for run in 1..=nruns {
                 let mut sys = self.sample(false, &mut rng)?;
+                let run_path = result_path.join(format!("run{run}"));
+                sys.simulate(&options, &run_path)?;
             }
         }
         Ok(())
@@ -213,65 +220,93 @@ impl MultibodySystemBuilder {
         (results_path, sim_name)
     }
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<MultibodySystem, MultibodyErrors> {
+    fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut SmallRng,
+    ) -> Result<MultibodySystem, MultibodyErrors> {
         // ensure builder can produce a valid MultibodySystem
         self.validate()?;
 
         // order matters for bodies and joints
         let mut bodies = Vec::new();
         let mut joints = Vec::new();
+        let mut actuators = Vec::new();
+        let mut sensors = Vec::new();
 
-        // Order does not matter for actuators and sensors
-        let mut actuators = HashMap::new();
-        let mut sensors = HashMap::new();
         let seed = rng.gen::<u64>();
         let mut sys_rng = SmallRng::seed_from_u64(seed);
 
         let baseref = Rc::new(RefCell::new(Base::from(&self.base)));
 
         // Start the recursion from the base's outer joints
-        for i in 0..self.base.outer_joints.len(){
+        for i in 0..self.base.outer_joints.len() {
             let outer_joint_id = self.base.outer_joints[i];
-            let outer_joint_builder = self.joints.get_mut(&outer_joint_id).expect("validation should catch this");
+            let outer_joint_builder = self
+                .joints
+                .get_mut(&outer_joint_id)
+                .expect("validation should catch this");
 
             // Create the outer joints inner connections
             // Outer connections are created during their turn in the recursion
             // TODO: is there a way to set the outer connections directly without using temporary Options?
             let inner_body = baseref.clone();
-            let inner_body_transform = outer_joint_builder.connections.inner_body.as_ref().expect("validation should catch this").transform;
+            let inner_body_transform = outer_joint_builder
+                .connections
+                .inner_body
+                .as_ref()
+                .expect("validation should catch this")
+                .transform;
             let inner_body_connection = BodyConnection {
-                body: inner_body.into(), 
-                transform: inner_body_transform};                 
-            let connections = JointConnection{
+                body: inner_body.into(),
+                transform: inner_body_transform,
+            };
+            let connections = JointConnection {
                 inner_body: inner_body_connection,
                 outer_body: None,
-            };            
+            };
 
             // Create the outer joint from the joint builder, sampling for monte carlo if applicable
             let outer_joint = outer_joint_builder.sample(connections, nominal, &mut sys_rng)?;
             joints.push(Rc::new(RefCell::new(outer_joint)));
 
             // Recurse into connected outer bodies
-            let connection = outer_joint_builder.connections.outer_body.as_ref().expect("validation should catch this");
+            let connection = outer_joint_builder
+                .connections
+                .outer_body
+                .as_ref()
+                .expect("validation should catch this");
             let next_body_id = connection.body_id;
-            traverse_body(self, next_body_id, &mut joints, &mut bodies, nominal, &mut sys_rng)?;                        
+            traverse_body(
+                self,
+                next_body_id,
+                &mut joints,
+                &mut bodies,
+                &mut actuators,
+                &mut sensors,
+                nominal,
+                &mut sys_rng,
+            )?;
         }
 
-        // Set the joint transforms for joint, these are fixed for the duration of the sim             
+        // Set the joint transforms for joint, these are fixed for the duration of the sim
         for jointref in &joints {
-            let mut joint = jointref.borrow_mut();             
-             
+            let mut joint = jointref.borrow_mut();
+
             let inner_transform = joint.connections.inner_body.transform;
             joint.cache.transforms.jif_from_ib = SpatialTransform(inner_transform);
-            joint.cache.transforms.ib_from_jif = SpatialTransform(inner_transform.inv());        
-            let outer_transform = joint.connections.outer_body.as_ref().expect("should be an outer body by now for all joints").transform;
+            joint.cache.transforms.ib_from_jif = SpatialTransform(inner_transform.inv());
+            let outer_transform = joint
+                .connections
+                .outer_body
+                .as_ref()
+                .expect("should be an outer body by now for all joints")
+                .transform;
             joint.cache.transforms.jof_from_ob = SpatialTransform(outer_transform);
-            joint.cache.transforms.ob_from_jof = SpatialTransform(outer_transform.inv());        
+            joint.cache.transforms.ob_from_jof = SpatialTransform(outer_transform.inv());
         }
-       
-        
 
-        let mut sys = MultibodySystem {
+        let sys = MultibodySystem {
             actuators,
             algorithm: self.algorithm,
             base: Rc::new(RefCell::new(Base::from(&self.base))),
@@ -332,34 +367,36 @@ pub struct MultibodySystem {
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
     pub joints: Vec<JointRef>,
-    pub sensors: HashMap<Id, Sensor>,
+    pub sensors: Vec<Sensor>,
     //pub software: Option<Box<dyn SoftwareSystem>>,
     pub sim_time_id: Option<u32>,
 }
 
 impl MultibodySystem {
-    fn initialize_writers(&mut self, results_path: PathBuf) -> ResultManager {
+    fn initialize_writers(&mut self, results_path: &PathBuf) -> ResultManager {
         let mut results = ResultManager::new(results_path.clone());
         let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
         self.sim_time_id = Some(id);
 
-        for body in &self.bodies {                        
-            body.borrow().new_result(&mut results);
+        for body in &self.bodies {
+            body.borrow_mut().new_result(&mut results);
         }
 
         for joint in &self.joints {
-            joint.borrow().new_result(&mut results);
+            joint.borrow_mut().new_result(&mut results);
         }
 
-        self.sensors.initialize_results(&mut results);
-        
-        for actuator in &self.actuators{
+        for sensor in &mut self.sensors {
+            sensor.new_result(&mut results);
+        }
+
+        for actuator in &mut self.actuators {
             actuator.new_result(&mut results);
         }
-        
+
         //self.software.initialize_results(&mut results);
 
-        match &mut self.base.borrow().system {
+        match &mut self.base.borrow_mut().system {
             BaseSystems::Basic(_) => {}
             BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results),
         }
@@ -378,7 +415,7 @@ impl MultibodySystem {
         match self.algorithm {
             MultibodyAlgorithm::ArticulatedBody => {
                 // First Pass
-                for jointref in &mut self.joints {                    
+                for jointref in &mut self.joints {
                     let mut joint = jointref.borrow_mut();
                     joint.aba_first_pass();
                 }
@@ -464,14 +501,16 @@ impl MultibodySystem {
     }
 
     pub fn run_software(&mut self) {
-        self.software.run(&self.sensors, &mut self.actuators);
+        //self.software.run(&self.sensors, &mut self.actuators);
     }
 
     fn set_state(&mut self, states: &SimStates) {
-        for (i, joint) in self.joints.iter().enumerate() {
-            joint.borrow_mut().model.state_vector_read(&states.0[i]);
+        for joint in &self.joints {
+            joint.borrow_mut().state_vector_read(states);
         }
-        self.actuators.state_vector_read(states);
+        for actuator in &mut self.actuators {
+            actuator.state_vector_read(states);
+        }
     }
 
     pub fn simulate(
@@ -524,18 +563,20 @@ impl MultibodySystem {
     }
 
     fn update_actuators(&mut self) {
-        self.actuators.iter_mut().for_each(|actuator| actuator.update());
+        self.actuators
+            .iter_mut()
+            .for_each(|actuator| actuator.update());
     }
 
     fn update_body_acceleration(&mut self) {
         for body in &self.bodies {
-            body.borrow_mut().update_acceleration();            
+            body.borrow_mut().update_acceleration();
         }
     }
 
     fn update_body_states(&mut self) {
         for body in &self.bodies {
-            body.borrow_mut().update_state();            
+            body.borrow_mut().update_state();
         }
     }
 
@@ -543,10 +584,10 @@ impl MultibodySystem {
         self.base.borrow_mut().update(t).unwrap();
     }
 
-    fn update_environments(&mut self) {        
+    fn update_environments(&mut self) {
         match &mut self.base.borrow_mut().system {
             BaseSystems::Celestial(celestial) => {
-                for body in &self.bodies {                    
+                for body in &self.bodies {
                     body.borrow_mut().calculate_magnetic_field(celestial);
                 }
             }
@@ -557,8 +598,8 @@ impl MultibodySystem {
     fn update_forces(&mut self) {
         // forces were already reset and updated from actuators in self.actuators.update()
         // TODO: i dont like this, too inconsistent, do the updating here
-        for body in &self.bodies {            
-            let mut body = body.borrow_mut();            
+        for body in &self.bodies {
+            let mut body = body.borrow_mut();
             match &mut self.base.borrow_mut().system {
                 BaseSystems::Basic(gravity) => {
                     if let Some(gravity) = gravity {
@@ -572,9 +613,10 @@ impl MultibodySystem {
             body.calculate_external_force();
 
             // transform force to joint
-            // cross product terms in spatial calculation will convert force at body cg to torque about joint            
+            // cross product terms in spatial calculation will convert force at body cg to torque about joint
             let mut inner_joint = body.inner_joint.borrow_mut();
-            inner_joint.cache.f = inner_joint.cache.transforms.jof_from_ob * body.state.external_spatial_force_body;
+            inner_joint.cache.f =
+                inner_joint.cache.transforms.jof_from_ob * body.state.external_spatial_force_body;
         }
     }
 
@@ -588,7 +630,9 @@ impl MultibodySystem {
     }
 
     pub fn update_sensors(&mut self) {
-        self.sensors.update();
+        for sensor in &mut self.sensors {
+            sensor.update()
+        }
     }
 
     pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {
@@ -596,20 +640,23 @@ impl MultibodySystem {
             results.write_record(id, &[t.to_string()]);
         }
 
-        for body in &self.bodies {            
+        for body in &self.bodies {
             body.borrow().write_result(results);
         }
 
-        for joint in &self.joints {            
+        for joint in &self.joints {
             joint.borrow().write_result(results);
         }
 
-        for actuator in &self.actuators {            
+        for actuator in &self.actuators {
             actuator.write_result(results);
         }
 
-        self.sensors.write_results(results);
-        self.software.write_results(results);
+        for sensor in &self.sensors {
+            sensor.write_result(results);
+        }
+
+        //self.software.write_results(results);
 
         match &self.base.borrow().system {
             BaseSystems::Basic(_) => {}
@@ -618,16 +665,17 @@ impl MultibodySystem {
     }
 
     fn write_derivative(&self, dx: &mut SimStates) {
-        for (i,joint) in self.joints.iter().enumerate() {
-            joint.borrow().state_derivative(&mut dx.0[i]);
+        for joint in &self.joints {
+            joint.borrow().state_derivative(dx);
         }
-        
-        //TODO: save index in the component rather than enumerating?
-        for self.actuators.state_derivative(dx);
+
+        for actuator in &self.actuators {
+            actuator.state_derivative(dx);
+        }
     }
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-struct Identifier {
+pub struct Identifier {
     current_id: usize,
 }
 
@@ -707,7 +755,7 @@ pub struct SimOptions {
 }
 
 impl SimOptions {
-    fn new(sim_name: &str, tstart: f64, tstop: f64, dt: f64) -> Result<Self, SimOptionsErrors> {
+    pub fn new(sim_name: &str, tstart: f64, tstop: f64, dt: f64) -> Result<Self, SimOptionsErrors> {
         if tstart > tstop {
             return Err(SimOptionsErrors::StartGreaterThanStop);
         }
@@ -736,58 +784,139 @@ fn traverse_body(
     body_id: Id,
     joints: &mut Vec<JointRef>,
     bodies: &mut Vec<BodyRef>,
+    actuators: &mut Vec<Actuator>,
+    sensors: &mut Vec<Sensor>,
     nominal: bool,
     rng: &mut SmallRng,
 ) -> Result<(), MultibodyErrors> {
     let next_outer_joints = {
-        let body_builder = builder.bodies.get_mut(&body_id).expect("validation should catch this");
+        let body_builder = builder
+            .bodies
+            .get_mut(&body_id)
+            .expect("validation should catch this");
         // Create the body from the body builder, sampling for monte carlo if applicable
         let inner_joint = joints.last().expect("should be at least 1 element");
-        let body = body_builder.sample(inner_joint.clone(), nominal,rng)?;   
+        let body = body_builder.sample(inner_joint.clone(), nominal, rng)?;
         // Set inner joint's mass properties
-        inner_joint.borrow_mut().set_inertia(&body.mass_properties);        
-        bodies.push(body.into());     
+        inner_joint.borrow_mut().set_inertia(&body.mass_properties);
+        bodies.push(body.into());
+
+        // add the bodyref to any connected actuators or sensors
+        for (_, actuator_builder) in &mut builder.actuators {
+            if actuator_builder
+                .connection
+                .as_ref()
+                .expect("validation should catch this")
+                .body_id
+                == body_builder.id
+            {
+                let connection = BodyConnection {
+                    body: bodies.last().expect("should be at least 1 element").clone(),
+                    transform: actuator_builder
+                        .connection
+                        .as_ref()
+                        .expect("validation should catch this")
+                        .transform,
+                };
+                let actuator = actuator_builder.sample(nominal, rng, connection)?;
+                actuators.push(actuator);
+            }
+        }
+        for (_, sensor_builder) in &mut builder.sensors {
+            if sensor_builder
+                .connection
+                .as_ref()
+                .expect("validation should catch this")
+                .body_id
+                == body_builder.id
+            {
+                let connection = BodyConnection {
+                    body: bodies.last().expect("should be at least 1 element").clone(),
+                    transform: sensor_builder
+                        .connection
+                        .as_ref()
+                        .expect("validation should catch this")
+                        .transform,
+                };
+                let sensor = sensor_builder.sample(nominal, rng, connection)?;
+                sensors.push(sensor);
+            }
+        }
+
         // Add this bodyref as the outer body of the inner joint
         // Need to annoyingly get the transform
-        let inner_joint_id = body_builder.inner_joint.expect("validation should catch this");
-        let inner_joint_transform = builder.joints.get(&inner_joint_id).expect("validation should catch this").connections.inner_body.as_ref().expect("validation should catch this").transform;        
-        inner_joint.borrow_mut().connections.outer_body = Some(BodyConnection{body: bodies.last().expect("should be at least 1 element").clone(), transform: inner_joint_transform});  
+        let inner_joint_id = body_builder
+            .inner_joint
+            .expect("validation should catch this");
+        let inner_joint_transform = builder
+            .joints
+            .get(&inner_joint_id)
+            .expect("validation should catch this")
+            .connections
+            .inner_body
+            .as_ref()
+            .expect("validation should catch this")
+            .transform;
+        inner_joint.borrow_mut().connections.outer_body = Some(BodyConnection {
+            body: bodies.last().expect("should be at least 1 element").clone(),
+            transform: inner_joint_transform,
+        });
         body_builder.outer_joints.clone()
     };
-    
+
     // Start the recursion from the base's outer joints
-    for outer_joint_id in next_outer_joints{
-        let next_body_id = {            
-            let outer_joint_builder = builder.joints.get_mut(&outer_joint_id).expect("validation should catch this");
+    for outer_joint_id in next_outer_joints {
+        let next_body_id = {
+            let outer_joint_builder = builder
+                .joints
+                .get_mut(&outer_joint_id)
+                .expect("validation should catch this");
 
             // Create the outer joints inner connections
             // Outer connections are created during their turn in the recursion
             // TODO: is there a way to set the outer connections directly without using temporary Options?
             let inner_bodyref = bodies.last().expect("should be at least 1 element").clone();
-            let inner_body_transform = outer_joint_builder.connections.inner_body.as_ref().expect("validation should catch this").transform;
+            let inner_body_transform = outer_joint_builder
+                .connections
+                .inner_body
+                .as_ref()
+                .expect("validation should catch this")
+                .transform;
             let inner_body_connection = BodyConnection {
-                body: inner_bodyref, 
-                transform: inner_body_transform};                 
-            let connections = JointConnection{
+                body: inner_bodyref,
+                transform: inner_body_transform,
+            };
+            let connections = JointConnection {
                 inner_body: inner_body_connection,
                 outer_body: None,
             };
 
-            let outer_joint = outer_joint_builder.sample(connections,nominal,rng)?;
+            let outer_joint = outer_joint_builder.sample(connections, nominal, rng)?;
             joints.push(Rc::new(RefCell::new(outer_joint)));
 
-            // Add the outer joint to the inner body      
-            // TODO: Does the inner body even need the outer joint?      
+            // Add the outer joint to the inner body
+            // TODO: Does the inner body even need the outer joint?
             // let mut inner_body = bodies.last().expect("should be at least 1 element").borrow_mut();
             // inner_body.outer_joints.push(joints.last().expect("should be at least 1 element").clone());
 
             // Recurse into connected outer bodies
-            let connection = outer_joint_builder.connections.outer_body.as_ref().expect("validation should catch this");
+            let connection = outer_joint_builder
+                .connections
+                .outer_body
+                .as_ref()
+                .expect("validation should catch this");
             connection.body_id
         };
-        traverse_body(builder, next_body_id, joints, bodies, nominal,rng)?;                        
-    }   
-    Ok(())    
+        traverse_body(
+            builder,
+            next_body_id,
+            joints,
+            bodies,
+            actuators,
+            sensors,
+            nominal,
+            rng,
+        )?;
+    }
+    Ok(())
 }
-
-

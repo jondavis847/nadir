@@ -7,7 +7,7 @@ use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
-    solver::SimStateVector,
+    solver::{SimStateVector, SimStates},
     system::Id,
 };
 use floating::{Floating, FloatingBuilder, FloatingErrors};
@@ -130,6 +130,7 @@ impl JointBuilder {
             model,
             connections,
             result_id: None,
+            state_id: None,
             cache: JointCache::default(),
             inner_joint: None,
         })
@@ -292,6 +293,7 @@ pub struct Joint {
     pub model: JointModels,
     pub connections: JointConnection,
     result_id: Option<u32>,
+    state_id: Option<usize>,
     pub cache: JointCache,
     inner_joint: Option<JointRef>,
 }
@@ -369,9 +371,12 @@ impl Joint {
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
-    pub fn state_derivative(&self, derivative: &mut SimStateVector) {
-        self.model
-            .state_derivative(derivative, &self.cache.transforms);
+    pub fn state_derivative(&self, derivatives: &mut SimStates) {
+        if let Some(id) = self.state_id {
+            let derivative = &mut derivatives.0[id];
+            self.model
+                .state_derivative(derivative, &self.cache.transforms);
+        }
     }
 
     pub fn update_transforms(&mut self) {
@@ -382,6 +387,17 @@ impl Joint {
     pub fn with_inner_joint(mut self, inner_joint: JointRef) -> Self {
         self.inner_joint = Some(inner_joint);
         self
+    }
+
+    pub fn state_vector_init(&mut self, x0: &mut SimStates) {
+        self.state_id = Some(x0.0.len());
+        x0.0.push(self.model.state_vector_init());
+    }
+
+    pub fn state_vector_read(&mut self, x0: &SimStates) {
+        if let Some(id) = self.state_id {
+            self.model.state_vector_read(&x0.0[id]);
+        }
     }
 }
 

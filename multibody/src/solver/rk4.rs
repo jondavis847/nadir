@@ -1,7 +1,7 @@
 use nadir_result::ResultManager;
 
 use super::SimStates;
-use crate::{actuator::ActuatorModel, joint::JointModel, system::MultibodySystem, MultibodyErrors};
+use crate::{system::MultibodySystem, MultibodyErrors};
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub fn solve_fixed_rk4(
@@ -17,11 +17,11 @@ pub fn solve_fixed_rk4(
 
     // Create the vec of SimStates as the initial integration state
     let mut x0 = SimStates(Vec::new());
-    for joint in sys.joints.iter() {
-        x0.0.push(joint.borrow().model.state_vector_init());
+    for joint in &sys.joints {
+        joint.borrow_mut().state_vector_init(&mut x0);
     }
-    for (_, actuator) in sys.actuators.iter() {
-        x0.0.push(actuator.model.state_vector_init());
+    for actuator in &mut sys.actuators {
+        actuator.state_vector_init(&mut x0);
     }
 
     // define some variables
@@ -50,9 +50,7 @@ pub fn solve_fixed_rk4(
     for _ in 0..result_length {
         progress_bar.inc(1);
         // update sensors
-        sys.sensors
-            .iter_mut()
-            .for_each(|(_, sensor)| sensor.update(&sys.bodies));
+        sys.sensors.iter_mut().for_each(|sensor| sensor.update());
 
         // logic to change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {

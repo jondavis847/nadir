@@ -4,27 +4,39 @@ use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
-use gps::{Gps, GpsBuilder};
-use magnetometer::{Magnetometer, MagnetometerBuilder};
+use gps::{Gps, GpsBuilder, GpsErrors};
+use magnetometer::{Magnetometer, MagnetometerBuilder, MagnetometerErrors};
 use nadir_result::{NadirResult, ResultManager};
-use rate_gyro::{RateGyro, RateGyroBuilder};
+use rand::rngs::SmallRng;
+use rate_gyro::{RateGyro, RateGyroBuilder, RateGyroErrors};
 use serde::{Deserialize, Serialize};
-use star_tracker::{StarTracker, StarTrackerBuilder};
+use star_tracker::{StarTracker, StarTrackerBuilder, StarTrackerErrors};
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::{Uncertainty, UncertaintyErrors};
 
 pub mod gps;
 pub mod magnetometer;
 pub mod rate_gyro;
 pub mod star_tracker;
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Error)]
 pub enum SensorErrors {
     #[error("sensor '{0}' is already connected to body '{1}'")]
     AlreadyConnectedToAnotherBody(String, String),
     #[error("sensor '{0}' is already connected to that body")]
     AlreadyConnectedToThisBody(String),
+    #[error("{0}")]
+    Gps(#[from] GpsErrors),
+    #[error("{0}")]
+    Magnetometer(#[from] MagnetometerErrors),
+    #[error("{0}")]
+    RateGyro(#[from] RateGyroErrors),
+    #[error("{0}")]
+    StarTracker(#[from] StarTrackerErrors),
+    #[error("{0}")]
+    Uncertainty(#[from] UncertaintyErrors),
 }
 
 pub trait SensorModel {
@@ -51,6 +63,21 @@ impl SensorBuilder {
             model,
             connection: None,
         }
+    }
+
+    pub fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut SmallRng,
+        connection: BodyConnection,
+    ) -> Result<Sensor, SensorErrors> {
+        let model = self.model.sample(nominal, rng)?;
+        Ok(Sensor {
+            name: self.name.clone(),
+            model,
+            connection,
+            result_id: None,
+        })
     }
 }
 
@@ -96,6 +123,29 @@ pub enum SensorModelBuilders {
     Magnetometer(MagnetometerBuilder),
     RateGyro(RateGyroBuilder),
     StarTracker(StarTrackerBuilder),
+}
+
+impl SensorModelBuilders {
+    pub fn sample(
+        &mut self,
+        nominal: bool,
+        rng: &mut SmallRng,
+    ) -> Result<SensorModels, SensorErrors> {
+        match self {
+            SensorModelBuilders::Gps(builder) => {
+                Ok(SensorModels::Gps(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::Magnetometer(builder) => {
+                Ok(SensorModels::Magnetometer(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::RateGyro(builder) => {
+                Ok(SensorModels::RateGyro(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::StarTracker(builder) => {
+                Ok(SensorModels::StarTracker(builder.sample(nominal, rng)?))
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -23,7 +23,7 @@ pub struct ActuatorBuilder {
 }
 
 impl ActuatorBuilder {
-    pub fn connect_to_body(&mut self, body: Id, transform: Transform) {
+    pub fn connect_body(&mut self, body: Id, transform: Transform) {
         self.connection = Some(BodyConnectionBuilder::new(body, transform));
     }
 
