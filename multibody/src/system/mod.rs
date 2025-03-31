@@ -1,5 +1,5 @@
 use crate::{
-    actuator::Actuator,
+    actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
     body::{Body, BodyBuilder, BodyConnection, BodyRef},
@@ -12,7 +12,7 @@ use crate::{
 
 use core::fmt;
 use nadir_result::{NadirResult, ResultManager};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
@@ -25,7 +25,7 @@ use uncertainty::Uncertainty;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemBuilder {
-    pub actuators: HashMap<Id, Actuator>,
+    pub actuators: HashMap<Id, ActuatorBuilder>,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseBuilder,
     pub bodies: HashMap<Id, BodyBuilder>,
@@ -49,7 +49,7 @@ impl MultibodySystemBuilder {
         match (from, to) {
             (Component::Actuator(from_id), Component::Body(to_id)) => {
                 let actuator = self.actuators.get_mut(&from_id).unwrap();
-                actuator.connect_to_body(to_id, transform)?;
+                actuator.connect_to_body(to_id, transform);
             }
             (Component::Sensor(from_id), Component::Body(to_id)) => {
                 let sensor = self.sensors.get_mut(&from_id).unwrap();
@@ -134,7 +134,7 @@ impl MultibodySystemBuilder {
             nruns,
         };
 
-        let mut rng = StdRng::seed_from_u64(self.seed);     
+        let mut rng = SmallRng::seed_from_u64(self.seed);     
 
         // run the nominal
         let mut sys = self.sample(true, &mut rng)?;
@@ -213,7 +213,7 @@ impl MultibodySystemBuilder {
         (results_path, sim_name)
     }
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<MultibodySystem, MultibodyErrors> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<MultibodySystem, MultibodyErrors> {
         // ensure builder can produce a valid MultibodySystem
         self.validate()?;
 
@@ -225,7 +225,7 @@ impl MultibodySystemBuilder {
         let mut actuators = HashMap::new();
         let mut sensors = HashMap::new();
         let seed = rng.gen::<u64>();
-        let mut sys_rng = StdRng::seed_from_u64(seed);
+        let mut sys_rng = SmallRng::seed_from_u64(seed);
 
         let baseref = Rc::new(RefCell::new(Base::from(&self.base)));
 
@@ -327,7 +327,7 @@ impl MultibodySystemBuilder {
 
 #[derive(Debug)]
 pub struct MultibodySystem {
-    pub actuators: HashMap<Id, Actuator>,
+    pub actuators: Vec<Actuator>,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
@@ -352,7 +352,11 @@ impl MultibodySystem {
         }
 
         self.sensors.initialize_results(&mut results);
-        self.actuators.initialize_results(&mut results);
+        
+        for actuator in &self.actuators{
+            actuator.new_result(&mut results);
+        }
+        
         //self.software.initialize_results(&mut results);
 
         match &mut self.base.borrow().system {
@@ -367,7 +371,7 @@ impl MultibodySystem {
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-        self.actuators.update(); // update the actuators before updating forces on the bodies
+        self.update_actuators(); // update the actuators before updating forces on the bodies
         self.update_environments(); //update the environmental forces before updating forcces on the bodies
         self.update_forces(); // update body forces
 
@@ -520,7 +524,7 @@ impl MultibodySystem {
     }
 
     fn update_actuators(&mut self) {
-        self.actuators.iter_mut().for_each(|(_, actuator)| actuator.update());
+        self.actuators.iter_mut().for_each(|actuator| actuator.update());
     }
 
     fn update_body_acceleration(&mut self) {
@@ -600,8 +604,11 @@ impl MultibodySystem {
             joint.borrow().write_result(results);
         }
 
+        for actuator in &self.actuators {            
+            actuator.write_result(results);
+        }
+
         self.sensors.write_results(results);
-        self.actuators.write_results(results);
         self.software.write_results(results);
 
         match &self.base.borrow().system {
@@ -730,7 +737,7 @@ fn traverse_body(
     joints: &mut Vec<JointRef>,
     bodies: &mut Vec<BodyRef>,
     nominal: bool,
-    rng: &mut StdRng,
+    rng: &mut SmallRng,
 ) -> Result<(), MultibodyErrors> {
     let next_outer_joints = {
         let body_builder = builder.bodies.get_mut(&body_id).expect("validation should catch this");

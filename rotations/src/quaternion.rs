@@ -648,7 +648,7 @@ pub struct UnitQuaternionBuilder {
 impl Uncertainty for UnitQuaternionBuilder {
     type Output = UnitQuaternion;
     type Error = QuaternionErrors;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         if nominal {
             return Ok(self.nominal);
         }

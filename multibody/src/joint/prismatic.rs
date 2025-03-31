@@ -9,7 +9,7 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rand_distr::{Normal, NormalError};
 use rotations::{Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
@@ -41,7 +41,7 @@ impl Uncertainty for PrismaticStateBuilder {
     type Output = PrismaticState;
     type Error = PrismaticErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(PrismaticState {
             position: self.position.sample(nominal, rng),
             velocity: self.velocity.sample(nominal, rng),
@@ -78,7 +78,7 @@ impl Uncertainty for PrismaticParametersBuilder {
     type Output = PrismaticParameters;
     type Error = JointErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(PrismaticParameters(self.0.sample(nominal, rng)?))
     }
 }
@@ -436,7 +436,7 @@ impl Uncertainty for PrismaticBuilder {
 
     /// Creates a Prismatic joint from the PrismaticBuilder
     /// Samples the parameters and state uncertainty if present
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Prismatic::new(
             self.parameters.sample(nominal, rng)?,
             self.state.sample(nominal, rng)?,

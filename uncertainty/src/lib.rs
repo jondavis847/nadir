@@ -1,5 +1,5 @@
 use nalgebra::Vector3;
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rand_distr::{Distribution, Normal, NormalError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -33,7 +33,7 @@ impl Uniform {
 pub trait Uncertainty {
     type Output;
     type Error;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error>;
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error>;
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -50,7 +50,7 @@ impl SimValue {
         }
     }
 
-    pub fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> f64 {
+    pub fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> f64 {
         if nominal {
             return self.value;
         }
@@ -107,7 +107,7 @@ pub struct Dispersion {
 }
 
 impl Dispersion {
-    pub fn sample(&mut self, rng: &mut StdRng) -> f64 {
+    pub fn sample(&mut self, rng: &mut SmallRng) -> f64 {
         match &self.distribution {
             Distributions::Normal(dist) => dist.sample(rng),
             Distributions::Uniform(dist) => dist.0.sample(rng),
@@ -126,7 +126,7 @@ impl Uncertainty for SimVector3 {
     type Error = ();
     type Output = Vector3<f64>;
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let x = self.x.sample(nominal, rng);
         let y = self.y.sample(nominal, rng);
         let z = self.z.sample(nominal, rng);

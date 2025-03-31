@@ -16,7 +16,7 @@ use mass_properties::MassProperties;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector6;
 use prismatic::{Prismatic, PrismaticBuilder, PrismaticErrors};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
@@ -56,7 +56,7 @@ pub enum JointModelBuilders {
 impl Uncertainty for JointModelBuilders {
     type Error = JointErrors;
     type Output = JointModels;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         match self {
             JointModelBuilders::Floating(builder) => {
                 Ok(JointModels::Floating(builder.sample(nominal, rng)?))
@@ -122,7 +122,7 @@ impl JointBuilder {
         &mut self,
         connections: JointConnection,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
     ) -> Result<Joint, JointErrors> {
         let model = self.model.sample(nominal, rng)?;
         Ok(Joint {
@@ -447,7 +447,7 @@ impl Uncertainty for JointParametersBuilder {
     fn sample(
         &mut self,
         nominal: bool,
-        rng: &mut rand::rngs::StdRng,
+        rng: &mut rand::rngs::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(JointParameters {
             constant_force: self.constant_force.sample(nominal, rng),

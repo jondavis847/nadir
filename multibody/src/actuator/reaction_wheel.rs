@@ -1,6 +1,6 @@
 use crate::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
 use nalgebra::{Vector3, Vector6};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rotations::{
     prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
     RotationTrait,
@@ -58,7 +58,7 @@ impl TorqueSpeedCurveBuilder {
         })
     }
 
-    pub fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> TorqueSpeedCurve {
+    pub fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> TorqueSpeedCurve {
         TorqueSpeedCurve {
             knee_speed: self.knee_speed.sample(nominal, rng),
             max_speed: self.max_speed.sample(nominal, rng),
@@ -93,7 +93,7 @@ pub struct ReactionWheelFrictionBuilder {
 }
 
 impl ReactionWheelFrictionBuilder {
-    pub fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> ReactionWheelFriction {
+    pub fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> ReactionWheelFriction {
         ReactionWheelFriction {
             stiction: self.stiction.sample(nominal, rng),
             stiction_threshold: self.stiction_threshold.sample(nominal, rng),
@@ -151,7 +151,7 @@ impl ReactionWheelParametersBuilder {
     pub fn sample(
         &mut self,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
     ) -> Result<ReactionWheelParameters, ReactionWheelErrors> {
         let delay = if let Some(delay) = &mut self.delay {
             Some(delay.sample(nominal, rng))
@@ -414,7 +414,7 @@ impl Uncertainty for ReactionWheelBuilder {
     type Error = ReactionWheelErrors;
     type Output = ReactionWheel;
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let parameters = self.parameters.sample(nominal, rng)?;
         let initial_speed = self.initial_speed.sample(nominal, rng);
         let initial_momentum = initial_speed * parameters.inertia;

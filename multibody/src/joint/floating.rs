@@ -11,7 +11,7 @@ use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rand_distr::NormalError;
 use rotations::{
     euler_angles::EulerAngles,
@@ -62,7 +62,7 @@ impl Uncertainty for FloatingParametersBuilder {
     type Error = JointErrors;
     type Output = FloatingParameters;
 
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(FloatingParameters {
             x_rotation: self.x_rotation.sample(nominal, rng)?,
             y_rotation: self.y_rotation.sample(nominal, rng)?,
@@ -91,7 +91,7 @@ impl FloatingStateBuilder {
 impl Uncertainty for FloatingStateBuilder {
     type Error = JointErrors;
     type Output = FloatingState;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let q = self.q.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
         let w = self.w.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
         let r = self.r.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
@@ -201,7 +201,7 @@ pub struct Floating {
 impl Uncertainty for FloatingBuilder {
     type Error = JointErrors;
     type Output = Floating;
-    fn sample(&mut self, nominal: bool, rng: &mut StdRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Floating {
             parameters: self.parameters.sample(nominal, rng)?,
             state: self.state.sample(nominal, rng)?,

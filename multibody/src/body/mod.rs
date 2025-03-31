@@ -10,11 +10,11 @@ use mass_properties::{MassProperties, MassPropertiesBuilder, MassPropertiesError
 use nadir_3d::mesh::Mesh;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::{Vector3, Vector6};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Force, SpatialTransform};
+use spatial_algebra::Force;
 use std::{cell::RefCell, fs::File, io::Write, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
@@ -88,7 +88,7 @@ impl BodyBuilder {
         &mut self,
         inner_joint: JointRef,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
     ) -> Result<Body, BodyErrors> {
         let mass_properties = if let Some(mp_builder) = &mut self.mass_properties {
             mp_builder.sample(nominal, rng)?

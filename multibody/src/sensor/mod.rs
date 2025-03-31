@@ -1,11 +1,10 @@
 pub mod noise;
 
 use crate::{
-    body::{Body, BodyConnection},
+    body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
 use gps::Gps;
-use indexmap::IndexMap;
 use magnetometer::Magnetometer;
 use nadir_result::{NadirResult, ResultManager};
 use rate_gyro::RateGyro;
@@ -29,47 +28,43 @@ pub enum SensorErrors {
 }
 
 pub trait SensorModel {
-    fn update(&mut self, body: &Body, body_transform: &Transform);
+    fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
 }
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Sensor {
+pub struct SensorBuilder {
     pub name: String,
-    pub model: SensorModels,
-    pub connection: Option<BodyConnection>,
-    result_id: Option<u32>,
+    pub model: SensorModelBuilders,
+    pub connection: Option<BodyConnectionBuilder>,
 }
 
-impl Sensor {
-    pub fn connect_to_body(&mut self, body: Id, transform: Transform) -> Result<(), SensorErrors> {
-        if let Some(connection) = &self.connection {
-            return Err(SensorErrors::AlreadyConnectedToAnotherBody(
-                self.name.clone(),
-                connection.body.to_string(),
-            ));
-        }
-
-        self.connection = Some(BodyConnection::new(body.clone(), transform));
+impl SensorBuilder {
+    pub fn connect_body(&mut self, body: Id, transform: Transform) -> Result<(), SensorErrors> {
+        self.connection = Some(BodyConnectionBuilder::new(body.clone(), transform));
         Ok(())
     }
 
-    pub fn new(name: &str, model: SensorModels) -> Self {
+    pub fn new(name: &str, model: SensorModelBuilders) -> Self {
         Self {
             name: name.to_string(),
             model,
             connection: None,
-            result_id: None,
         }
     }
+}
 
-    pub fn update(&mut self, bodies: &IndexMap<Id, Body>) {
-        if let Some(connection) = &self.connection {
-            if let Some(body) = bodies.get(&connection.body) {
-                self.model.update(body, &connection.transform);
-            }
-        }
+#[derive(Debug)]
+pub struct Sensor {
+    pub name: String,
+    pub model: SensorModels,
+    pub connection: BodyConnection,
+    result_id: Option<u32>,
+}
+
+impl Sensor {
+    pub fn update(&mut self) {
+        self.model.update(&self.connection);
     }
 }
 
@@ -96,6 +91,14 @@ impl NadirResult for Sensor {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum SensorModelBuilders {
+    Gps(GpsBuilder),
+    Magnetometer(MagnetometerBuilder),
+    RateGyro(RateGyroBuilder),
+    StarTracker(StarTrackerBuilder),
+}
+
+#[derive(Debug)]
 pub enum SensorModels {
     Gps(Gps),
     Magnetometer(Magnetometer),
@@ -122,12 +125,12 @@ impl SensorModel for SensorModels {
         }
     }
 
-    fn update(&mut self, body: &Body, body_transform: &Transform) {
+    fn update(&mut self, connection: &BodyConnection) {
         match self {
-            SensorModels::Gps(sensor) => sensor.update(body, body_transform),
-            SensorModels::Magnetometer(sensor) => sensor.update(body, body_transform),
-            SensorModels::RateGyro(sensor) => sensor.update(body, body_transform),
-            SensorModels::StarTracker(sensor) => sensor.update(body, body_transform),
+            SensorModels::Gps(sensor) => sensor.update(connection),
+            SensorModels::Magnetometer(sensor) => sensor.update(connection),
+            SensorModels::RateGyro(sensor) => sensor.update(connection),
+            SensorModels::StarTracker(sensor) => sensor.update(connection),
         }
     }
 }

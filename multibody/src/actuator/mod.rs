@@ -1,5 +1,5 @@
 use nadir_result::{NadirResult, ResultManager};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -15,6 +15,7 @@ use crate::{
 
 pub mod reaction_wheel;
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActuatorBuilder {
     pub name: String,
     pub model: ActuatorModelBuilders,
@@ -29,7 +30,7 @@ impl ActuatorBuilder {
     pub fn sample(
         &mut self,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
         connection: BodyConnection,
     ) -> Result<Actuator, ActuatorErrors> {
         let model = self.model.sample(nominal, rng)?;
@@ -135,7 +136,7 @@ impl ActuatorModelBuilders {
     pub fn sample(
         &mut self,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
     ) -> Result<ActuatorModels, ActuatorErrors> {
         match self {
             ActuatorModelBuilders::ReactionWheel(builder) => {

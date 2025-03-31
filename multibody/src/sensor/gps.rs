@@ -10,15 +10,24 @@ use serde::{Deserialize, Serialize};
 use time::Time;
 use transforms::Transform;
 
+use super::noise::{NoiseBuilder, NoiseModelBuilders};
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct Parameters {
+struct GpsParametersBuilder {
+    delay: Option<f64>,
+    position_noise: Option<[NoiseBuilder; 3]>,
+    velocity_noise: Option<[NoiseBuilder; 3]>,
+}
+
+#[derive(Debug)]
+struct GpsParameters {
     delay: Option<f64>,
     position_noise: Option<[Noise; 3]>,
     velocity_noise: Option<[Noise; 3]>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct State {
+#[derive(Debug)]
+pub struct GpsState {
     pub time: Time,
     pub position: Vector3<f64>,
     pub velocity: Vector3<f64>,
@@ -28,36 +37,35 @@ pub struct State {
 
 /// A simple GPS with gaussian white noise & constant delay
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Gps {
-    parameters: Parameters,
-    pub state: State,
+pub struct GpsBuilder {
+    parameters: GpsParametersBuilder,
 }
 
-impl Gps {
+/// A simple GPS with gaussian white noise & constant delay
+#[derive(Debug)]
+pub struct Gps {
+    parameters: GpsParameters,
+    pub state: GpsState,
+}
+
+impl GpsBuilder {
     pub fn new() -> Self {
         Self {
-            parameters: Parameters {
+            parameters: GpsParametersBuilder {
                 delay: None,
-                position_noise: None,
-                velocity_noise: None,
-            },
-            state: State {
-                time: Time::from_sec_j2k(0.0, time::TimeSystem::GPS),
-                position: Vector3::zeros(),
-                velocity: Vector3::zeros(),
                 position_noise: None,
                 velocity_noise: None,
             },
         }
     }
-    #[allow(dead_code)]
+
     pub fn with_delay(mut self, delay: f64) -> Self {
         self.parameters.delay = Some(delay);
         self
     }
 
-    pub fn with_noise_position(mut self, noise: NoiseModels) -> Self {
-        let noise = Noise::new(noise);
+    pub fn with_noise_position_normal(mut self, noise: NoiseModelBuilders) -> Self {
+        let noise = NoiseBuilder::new(noise);
         let mut noise1 = noise.clone();
         let mut noise2 = noise.clone();
         let mut noise3 = noise.clone();
@@ -69,7 +77,7 @@ impl Gps {
         self
     }
 
-    pub fn with_noise_velocity(mut self, noise: NoiseModels) -> Self {
+    pub fn with_noise_velocity(mut self, noise: NoiseModelBuilders) -> Self {
         let noise = Noise::new(noise);
         let mut noise1 = noise.clone();
         let mut noise2 = noise.clone();

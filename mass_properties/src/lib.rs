@@ -1,5 +1,5 @@
 use nalgebra::{Matrix3, Vector3};
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rand_distr::{Normal, NormalError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -293,7 +293,7 @@ impl Uncertainty for MassPropertiesBuilder {
     fn sample(
         &mut self,
         nominal: bool,
-        rng: &mut StdRng,
+        rng: &mut SmallRng,
     ) -> Result<Self::Output, MassPropertiesErrors> {
         Ok(MassProperties {
             mass: self.mass.sample(nominal, rng),
