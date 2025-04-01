@@ -1,72 +1,30 @@
-use std::{cell::RefCell, rc::Rc};
-
 use color::Color;
-use gravity::{constant::ConstantGravity, Gravity};
-use mass_properties::{CenterOfMass, Inertia, MassProperties};
-use multibody::{
-    base::Base,
-    body::{Body, BodyTrait},
-    joint::{
-        revolute::{Revolute, RevoluteParameters, RevoluteState},
-        Joint,
-    },
-    system::MultibodySystem,
-};
-use nadir_3d::{
-    geometry::{cuboid::Cuboid, Geometry, GeometryState},
-    material::Material,
-    mesh::Mesh,
-};
+use mass_properties::MassPropertiesBuilder;
+use multibody::system::MultibodySystemBuilder;
 
-use rotations::Rotation;
-use transforms::{prelude::Cartesian, Transform};
-fn main() {
-    let base = Base::new(
-        "base",
-        multibody::base::BaseSystems::Basic(Some(Gravity::Constant(ConstantGravity::new(
-            0.0, 0.0, -9.8,
-        )))),
-    );
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a new system
+    let mut sys = MultibodySystemBuilder::new();
+    // Add some constant gravity to the frame
+    sys.set_gravity_constant(0.0, 0.0, -9.8)?;
 
-    // create the revolute bodies/links
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap();
-    let mp = MassProperties::new(1.0, cm, inertia).unwrap();
-    let geometry = Geometry::Cuboid(Cuboid::new(0.1, 0.1, 1.0));
-    let material = Material::Phong {
-        color: Color::RED,
-        specular_power: 32.0,
-    };
-    let b1_mesh = Mesh {
-        name: "b1".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
-    let b1 = Rc::new(RefCell::new(
-        Body::new("b1", mp).unwrap().with_mesh(b1_mesh),
-    ));
+    // Create the bodies
+    let mut b1 = sys.new_body("b1")?;
+    b1.set_mass_properties(MassPropertiesBuilder::new());
+    b1.set_geometry_cuboid(0.1,0.1,1.0);
+    b1.set_material_phong(Color::RED, 32.0);
 
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap();
-    let mp = MassProperties::new(1.0, cm, inertia).unwrap();
-    let geometry = Geometry::Cuboid(Cuboid::new(0.1, 0.1, 1.0));
-    let material = Material::Phong {
-        color: Color::BLUE,
-        specular_power: 32.0,
-    };
-    let b2_mesh = Mesh {
-        name: "b2".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
-    let b2 = Rc::new(RefCell::new(
-        Body::new("b2", mp).unwrap().with_mesh(b2_mesh),
-    ));
+    let mut b2 = sys.new_body("b2")?;
+    b2.set_mass_properties(MassPropertiesBuilder::new());
+    b2.set_geometry_cuboid(0.1,0.1,1.0);
+    b2.set_material_phong(Color::BLUE, 32.0);
 
+    // Create the joints
+
+
+
+    let r1 = sys.new_revolute("r1")?;
+    r1.model.
     // create the revolute joints
     let r1_state = RevoluteState::new(1.0, 0.0);
     let r1_parameters = RevoluteParameters::default();

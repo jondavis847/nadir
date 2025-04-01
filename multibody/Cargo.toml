@@ -10,6 +10,7 @@ bincode.workspace = true
 celestial.workspace = true
 chrono.workspace = true
 clap.workspace = true
+color.workspace = true
 coordinate_systems.workspace = true
 csv.workspace = true
 gravity.workspace = true

@@ -87,7 +87,7 @@ impl MagnetometerBuilder {
     ) -> Result<Self, MagnetometerErrors> {
         let dist = Normal::new(mean, std)?;
         if let Some(delay) = &mut self.parameters.delay {
-            delay.set_distribution(dist.into());
+            delay.set_distribution(dist.into())?;
         } else {
             self.parameters.delay = Some(SimValue::new(mean).with_distribution(dist.into())?);
         }
@@ -148,7 +148,6 @@ impl Uncertainty for MagnetometerBuilder {
 pub struct MagnetometerState {
     noise: Option<Vector3<f64>>,
     pub measurement: Vector3<f64>,
-    position_base: Vector3<f64>,
 }
 
 /// A simple rate sensor with gaussian white noise & constant delay

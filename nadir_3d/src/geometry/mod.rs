@@ -2,13 +2,22 @@ use std::fmt::Debug;
 
 use glam::{DQuat, DVec3, Mat3, Mat4};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod cuboid;
 //pub mod cylinder;
 pub mod ellipsoid;
 
-use cuboid::Cuboid;
-use ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64};
+use cuboid::{Cuboid, CuboidErrors};
+use ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64, EllipsoidErrors};
+
+#[derive(Debug, Error)]
+pub enum GeometryErrors {
+    #[error("{0}")]
+    CuboidErrors(#[from] CuboidErrors),
+    #[error("{0}")]
+    EllipsoidErrors(#[from] EllipsoidErrors),
+}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Geometry {
@@ -16,6 +25,16 @@ pub enum Geometry {
     Ellipsoid32(Ellipsoid32),
     Ellipsoid64(Ellipsoid64),
     Cuboid(Cuboid),
+}
+
+impl Default for Geometry {
+    fn default() -> Self {
+        Geometry::Cuboid(Cuboid {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

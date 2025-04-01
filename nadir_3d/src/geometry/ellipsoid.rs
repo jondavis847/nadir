@@ -3,23 +3,34 @@ use crate::vertex::Vertex;
 use glam::{vec2, vec3, Mat3, Mat4, Quat};
 use serde::{Deserialize, Serialize};
 
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum EllipsoidErrors {
+    #[error("ellipsoid dimensions must be greater than 0")]
+    Dimension,
+}
+
 // I wanted to make this a generic Ellipsoid<LAT,LON> but struggled to find a way to make it dynamic and generic for the gpu
 // maybe 1 day
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid {
+struct Ellipsoid {
     pub radius_x: f64, // Radius along the x-axis
     pub radius_y: f64, // Radius along the y-axis
     pub radius_z: f64, // Radius along the z-axis
 }
 
 impl Ellipsoid {
-    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
-        Self {
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
+        if radius_x <= 0.0 || radius_y <= 0.0 || radius_z <= 0.0 {
+            return Err(EllipsoidErrors::Dimension);
+        }
+        Ok(Self {
             radius_x,
             radius_y,
             radius_z,
-        }
+        })
     }
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
@@ -47,10 +58,10 @@ impl Ellipsoid {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid16(pub Ellipsoid);
+pub struct Ellipsoid16(Ellipsoid);
 impl Ellipsoid16 {
-    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
-        Self(Ellipsoid::new(radius_x, radius_y, radius_z))
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
+        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(16)
@@ -64,10 +75,10 @@ impl GeometryTrait for Ellipsoid16 {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid32(pub Ellipsoid);
+pub struct Ellipsoid32(Ellipsoid);
 impl Ellipsoid32 {
-    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
-        Self(Ellipsoid::new(radius_x, radius_y, radius_z))
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
+        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(32)
@@ -81,10 +92,10 @@ impl GeometryTrait for Ellipsoid32 {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub struct Ellipsoid64(pub Ellipsoid);
+pub struct Ellipsoid64(Ellipsoid);
 impl Ellipsoid64 {
-    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Self {
-        Self(Ellipsoid::new(radius_x, radius_y, radius_z))
+    pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
+        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(64)

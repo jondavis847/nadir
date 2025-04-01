@@ -122,7 +122,7 @@ impl GpsBuilder {
     pub fn with_uncertain_delay_normal(mut self, mean: f64, std: f64) -> Result<Self, GpsErrors> {
         let dist = Normal::new(mean, std)?;
         if let Some(delay) = &mut self.parameters.delay {
-            delay.set_distribution(dist.into());
+            delay.set_distribution(dist.into())?;
         } else {
             self.parameters.delay = Some(SimValue::new(mean).with_distribution(dist.into())?);
         }

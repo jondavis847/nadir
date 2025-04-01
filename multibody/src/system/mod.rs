@@ -14,7 +14,9 @@ use crate::{
 };
 
 use core::fmt;
+use gravity::{constant::ConstantGravity, newtonian::NewtonianGravity, Gravity};
 use nadir_result::{NadirResult, ResultManager};
+use nalgebra::Vector3;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
@@ -103,27 +105,36 @@ impl MultibodySystemBuilder {
         }
     }
 
-    pub fn new_body(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+    pub fn new_body(&mut self, name: &str) -> Result<&mut BodyBuilder, MultibodyErrors> {
         let id = self.identifier.next();
         let body = BodyBuilder::new(name, id)?;
         self.bodies.insert(id, body);
-        Ok(())
+        Ok(self
+            .bodies
+            .get_mut(&id)
+            .expect("we just inserted so must be there"))
     }
 
-    pub fn new_floating(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+    pub fn new_floating(&mut self, name: &str) -> Result<&mut JointBuilder, MultibodyErrors> {
         let id = self.identifier.next();
         let model = JointModelBuilders::Floating(FloatingBuilder::default());
         let joint = JointBuilder::new(id, name, model)?;
         self.joints.insert(id, joint);
-        Ok(())
+        Ok(self
+            .joints
+            .get_mut(&id)
+            .expect("we just inserted so must be there"))
     }
 
-    pub fn new_revolute(&mut self, name: &str) -> Result<(), MultibodyErrors> {
+    pub fn new_revolute(&mut self, name: &str) -> Result<&mut JointBuilder, MultibodyErrors> {
         let id = self.identifier.next();
         let model = JointModelBuilders::Revolute(RevoluteBuilder::default());
         let joint = JointBuilder::new(id, name, model)?;
         self.joints.insert(id, joint);
-        Ok(())
+        Ok(self
+            .joints
+            .get_mut(&id)
+            .expect("we just inserted so must be there"))
     }
 
     pub fn save(&self, path: &Path) {
@@ -146,6 +157,22 @@ impl MultibodySystemBuilder {
             Ok(_) => {}
             Err(e) => panic!("{e}"),
         }
+    }
+
+    pub fn set_gravity_constant(
+        &mut self,
+        gx: f64,
+        gy: f64,
+        gz: f64,
+    ) -> Result<(), MultibodyErrors> {
+        self.base.system =
+            BaseSystems::Basic(Some(Gravity::Constant(ConstantGravity::new(gx, gy, gz))));
+        Ok(())
+    }
+
+    pub fn set_gravity_newtonian(&mut self, mu: f64) -> Result<(), MultibodyErrors> {
+        self.base.system = BaseSystems::Basic(Some(Gravity::Newtonian(NewtonianGravity::new(mu))));
+        Ok(())
     }
 
     pub fn simulate(

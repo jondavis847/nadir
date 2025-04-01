@@ -3584,6 +3584,7 @@ dependencies = [
  "celestial",
  "chrono",
  "clap",
+ "color",
  "coordinate_systems",
  "csv",
  "gravity",
@@ -3633,6 +3634,7 @@ dependencies = [
  "glam 0.29.2",
  "iced",
  "serde",
+ "thiserror 2.0.11",
 ]
 
 [[package]]

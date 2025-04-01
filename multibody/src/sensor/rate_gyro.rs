@@ -87,7 +87,7 @@ impl RateGyroBuilder {
     ) -> Result<Self, RateGyroErrors> {
         let dist = Normal::new(mean, std)?;
         if let Some(delay) = &mut self.parameters.delay {
-            delay.set_distribution(dist.into());
+            delay.set_distribution(dist.into())?;
         } else {
             self.parameters.delay = Some(SimValue::new(mean).with_distribution(dist.into())?);
         }

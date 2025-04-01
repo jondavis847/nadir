@@ -4,10 +4,19 @@ use crate::{
     system::Id,
 };
 use celestial::CelestialSystem;
+use color::Color;
 use gravity::Gravity;
 
 use mass_properties::{MassProperties, MassPropertiesBuilder, MassPropertiesErrors};
-use nadir_3d::mesh::Mesh;
+use nadir_3d::{
+    geometry::{
+        cuboid::{Cuboid, CuboidErrors},
+        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64, EllipsoidErrors},
+        Geometry,
+    },
+    material::Material,
+    mesh::Mesh,
+};
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
@@ -22,6 +31,10 @@ use uncertainty::Uncertainty;
 
 #[derive(Debug, Error)]
 pub enum BodyErrors {
+    #[error("{0}")]
+    Cuboid(#[from] CuboidErrors),
+    #[error("{0}")]
+    Ellipsoid(#[from] EllipsoidErrors),
     #[error("name cannot be empty for body")]
     EmptyName,
     #[error("attempted to connect inner joint to body '{0}', but it already has an inner joint")]
@@ -108,24 +121,81 @@ impl BodyBuilder {
         Ok(body)
     }
 
-    /// Builder method for adding an optional 3d mesh, ideally used when compiling the system
-    pub fn with_mesh(mut self, mesh: Mesh) -> Self {
-        self.mesh = Some(mesh);
-        self
-    }
-
-    /// Setter method for adding an optional 3d mesh, ideally used interactively from the REPL
+    /// Setter method for adding an optional 3d mesh
     pub fn set_mesh(&mut self, mesh: Mesh) {
         self.mesh = Some(mesh);
     }
 
-    /// Builder method for mass properties, ideally used when compiling the system
-    pub fn with_mass_properties(mut self, mass_properties: MassPropertiesBuilder) -> Self {
-        self.mass_properties = Some(mass_properties);
-        self
+    pub fn set_geometry_cuboid(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = Geometry::Cuboid(Cuboid::new(x, y, z)?);
+        }
+        Ok(())
     }
 
-    /// Setter method for mass properties, ideally used interactively from the REPL
+    pub fn set_geometry_ellipsoid16(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid16(Ellipsoid16::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_geometry_ellipsoid32(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid32(Ellipsoid32::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_geometry_ellipsoid64(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid64(Ellipsoid64::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_material_basic(&mut self, color: Color) {
+        if let Some(mesh) = &mut self.mesh {
+            mesh.material = Material::Basic { color };
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.material = Material::Basic { color };
+            self.mesh = Some(mesh);
+        }
+    }
+
+    pub fn set_material_phong(&mut self, color: Color, specular_power: f32) {
+        if let Some(mesh) = &mut self.mesh {
+            mesh.material = Material::Phong {
+                color,
+                specular_power,
+            };
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.material = Material::Phong {
+                color,
+                specular_power,
+            };
+            self.mesh = Some(mesh);
+        }
+    }
+
+    /// Setter method for mass properties
     pub fn set_mass_properties(&mut self, mass_properties: MassPropertiesBuilder) {
         self.mass_properties = Some(mass_properties);
     }

@@ -145,7 +145,6 @@ impl Uncertainty for QuaternioNoiseBuilder {
         let axis_rng = SmallRng::seed_from_u64(axis_seed);
         Ok(QuaternionNoise {
             magnitude_noise,
-            axis_seed,
             axis_rng,
         })
     }
@@ -154,7 +153,6 @@ impl Uncertainty for QuaternioNoiseBuilder {
 #[derive(Debug)]
 pub struct QuaternionNoise {
     magnitude_noise: Noise,
-    axis_seed: u64,
     axis_rng: SmallRng,
 }
 
