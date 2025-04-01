@@ -84,6 +84,13 @@ pub struct RevoluteBuilder {
 }
 
 impl RevoluteBuilder {
+    pub fn new() -> Self {
+        Self {
+            state: RevoluteStateBuilder::default(),
+            parameters: RevoluteParametersBuilder::default(),
+        }
+    }
+
     /// Sets the nominal initial angular rate state
     pub fn set_angular_rate(&mut self, angular_rate: f64) {
         self.state.angular_rate.nominal = angular_rate;

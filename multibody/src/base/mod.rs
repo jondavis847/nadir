@@ -1,12 +1,17 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{joint::JointRef, system::Id};
+use crate::{
+    body::BodyConnectionBuilder,
+    joint::{JointBuilder, JointErrors, JointRef},
+    system::Id,
+};
 
 use celestial::{CelestialErrors, CelestialSystem};
 use gravity::Gravity;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use transforms::Transform;
 
 #[derive(Debug, Error)]
 pub enum BaseErrors {
@@ -16,6 +21,8 @@ pub enum BaseErrors {
     BaseIsNotCelestial,
     #[error("CelestialError: {0}")]
     CelestialError(#[from] CelestialErrors),
+    #[error("{0}")]
+    Joint(#[from] JointErrors),
     #[error("joint '{0}' already connected to {1} as an outer joint")]
     OuterJointExists(String, String),
 }
@@ -28,28 +35,38 @@ pub enum BaseSystems {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BaseBuilder {
+    pub id: Id,
     pub name: String,
     pub outer_joints: Vec<Id>,
     pub system: BaseSystems,
 }
 
 impl BaseBuilder {
-    pub fn new() -> Self {
+    pub fn new(id: Id) -> Self {
         Self {
+            id,
             name: "base".to_string(),
             outer_joints: Vec::new(),
             system: BaseSystems::Basic(None),
         }
     }
 
-    pub fn connect_outer_joint(&mut self, outer_joint: Id) -> Result<(), BaseErrors> {
-        if self.outer_joints.contains(&outer_joint) {
+    pub fn connect_outer_joint(
+        &mut self,
+        outer_joint: &mut JointBuilder,
+        transform: Transform,
+    ) -> Result<(), BaseErrors> {
+        if self.outer_joints.contains(&outer_joint.id) {
             return Err(BaseErrors::OuterJointExists(
                 self.name.clone(),
-                outer_joint.to_string(),
+                outer_joint.name.clone(),
             ));
         }
-        self.outer_joints.push(outer_joint);
+        if outer_joint.connections.inner_body.is_some() {
+            return Err(JointErrors::InnerBodyExists(outer_joint.name.clone()).into());
+        }
+        self.outer_joints.push(outer_joint.id);
+        outer_joint.connections.inner_body = Some(BodyConnectionBuilder::new(self.id, transform));
         Ok(())
     }
 

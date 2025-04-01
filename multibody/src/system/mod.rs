@@ -48,56 +48,57 @@ pub struct MultibodySystemBuilder {
 }
 
 impl MultibodySystemBuilder {
-    pub fn connect(
-        &mut self,
-        from_name: &str,
-        to_name: &str,
-        transform: Transform,
-    ) -> Result<(), MultibodyErrors> {
-        let from = find_by_name(self, from_name)?;
-        let to = find_by_name(self, to_name)?;
+    // pub fn connect(
+    //     &mut self,
+    //     from_name: &str,
+    //     to_name: &str,
+    //     transform: Transform,
+    // ) -> Result<(), MultibodyErrors> {
+    //     let from = find_by_name(self, from_name)?;
+    //     let to = find_by_name(self, to_name)?;
 
-        match (from, to) {
-            (Component::Actuator(from_id), Component::Body(to_id)) => {
-                let actuator = self.actuators.get_mut(&from_id).unwrap();
-                actuator.connect_body(to_id, transform);
-            }
-            (Component::Sensor(from_id), Component::Body(to_id)) => {
-                let sensor = self.sensors.get_mut(&from_id).unwrap();
-                sensor.connect_body(to_id, transform)?;
-            }
-            (Component::Joint(from_id), Component::Body(to_id)) => {
-                let joint = self.joints.get_mut(&from_id).unwrap();
-                let body = self.bodies.get_mut(&to_id).unwrap();
-                joint.connect_inner_body(to_id, transform)?;
-                body.connect_outer_joint(from_id)?;
-            }
-            (Component::Body(from_id), Component::Joint(to_id)) => {
-                let body = self.bodies.get_mut(&from_id).unwrap();
-                let joint = self.joints.get_mut(&to_id).unwrap();
-                joint.connect_outer_body(from_id, transform)?;
-                body.connect_inner_joint(to_id)?;
-            }
-            (Component::Joint(from_id), Component::Base(to_id)) => {
-                let joint = self.joints.get_mut(&from_id).unwrap();
-                let base = &mut self.base;
-                joint.connect_inner_body(to_id, transform)?;
-                base.connect_outer_joint(from_id)?;
-            }
-            _ => return Err(MultibodyErrors::InvalidConnection),
-        }
-        Ok(())
-    }
+    //     match (from, to) {
+    //         (Component::Actuator(from_id), Component::Body(to_id)) => {
+    //             let actuator = self.actuators.get_mut(&from_id).unwrap();
+    //             actuator.connect_body(to_id, transform);
+    //         }
+    //         (Component::Sensor(from_id), Component::Body(to_id)) => {
+    //             let sensor = self.sensors.get_mut(&from_id).unwrap();
+    //             sensor.connect_body(to_id, transform)?;
+    //         }
+    //         (Component::Joint(from_id), Component::Body(to_id)) => {
+    //             let joint = self.joints.get_mut(&from_id).unwrap();
+    //             let body = self.bodies.get_mut(&to_id).unwrap();
+    //             joint.connect_inner_body(to_id, transform)?;
+    //             body.connect_outer_joint(from_id)?;
+    //         }
+    //         (Component::Body(from_id), Component::Joint(to_id)) => {
+    //             let body = self.bodies.get_mut(&from_id).unwrap();
+    //             let joint = self.joints.get_mut(&to_id).unwrap();
+    //             joint.connect_outer_body(from_id, transform)?;
+    //             body.connect_inner_joint(to_id)?;
+    //         }
+    //         (Component::Joint(from_id), Component::Base(to_id)) => {
+    //             let joint = self.joints.get_mut(&from_id).unwrap();
+    //             let base = &mut self.base;
+    //             joint.connect_inner_body(to_id, transform)?;
+    //             base.connect_outer_joint(from_id)?;
+    //         }
+    //         _ => return Err(MultibodyErrors::InvalidConnection),
+    //     }
+    //     Ok(())
+    // }
 
     pub fn new() -> Self {
         let mut thread_rng = rand::thread_rng(); // Use a fast non-deterministic RNG
         let seed = thread_rng.gen::<u64>(); // Generate a random seed
+        let mut id = Identifier::new();
         Self {
             actuators: HashMap::new(),
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
-            base: BaseBuilder::new(),
+            base: BaseBuilder::new(id.next()),
             bodies: HashMap::new(),
-            identifier: Identifier::new(),
+            identifier: id,
             joints: HashMap::new(),
             seed,
             sensors: HashMap::new(),
@@ -115,20 +116,12 @@ impl MultibodySystemBuilder {
             .expect("we just inserted so must be there"))
     }
 
-    pub fn new_floating(&mut self, name: &str) -> Result<&mut JointBuilder, MultibodyErrors> {
+    pub fn new_joint(
+        &mut self,
+        name: &str,
+        model: JointModelBuilders,
+    ) -> Result<&mut JointBuilder, MultibodyErrors> {
         let id = self.identifier.next();
-        let model = JointModelBuilders::Floating(FloatingBuilder::default());
-        let joint = JointBuilder::new(id, name, model)?;
-        self.joints.insert(id, joint);
-        Ok(self
-            .joints
-            .get_mut(&id)
-            .expect("we just inserted so must be there"))
-    }
-
-    pub fn new_revolute(&mut self, name: &str) -> Result<&mut JointBuilder, MultibodyErrors> {
-        let id = self.identifier.next();
-        let model = JointModelBuilders::Revolute(RevoluteBuilder::default());
         let joint = JointBuilder::new(id, name, model)?;
         self.joints.insert(id, joint);
         Ok(self

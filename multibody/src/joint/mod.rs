@@ -3,7 +3,6 @@ pub mod joint_transforms;
 pub mod prismatic;
 pub mod revolute;
 
-use super::body::BodyErrors;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
@@ -28,8 +27,6 @@ use uncertainty::{SimValue, Uncertainty};
 
 #[derive(Debug, Error)]
 pub enum JointErrors {
-    #[error("{0}")]
-    BodyErrors(#[from] BodyErrors),
     #[error("name cannot be empty for joint")]
     EmptyName,
     #[error("{0}")]
@@ -68,6 +65,22 @@ impl Uncertainty for JointModelBuilders {
                 Ok(JointModels::Prismatic(builder.sample(nominal, rng)?))
             }
         }
+    }
+}
+
+impl From<FloatingBuilder> for JointModelBuilders {
+    fn from(value: FloatingBuilder) -> Self {
+        JointModelBuilders::Floating(value)
+    }
+}
+impl From<RevoluteBuilder> for JointModelBuilders {
+    fn from(value: RevoluteBuilder) -> Self {
+        JointModelBuilders::Revolute(value)
+    }
+}
+impl From<PrismaticBuilder> for JointModelBuilders {
+    fn from(value: PrismaticBuilder) -> Self {
+        JointModelBuilders::Prismatic(value)
     }
 }
 

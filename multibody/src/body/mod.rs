@@ -1,6 +1,6 @@
 use crate::{
     base::{Base, BaseRef},
-    joint::JointRef,
+    joint::{JointBuilder, JointErrors, JointRef},
     system::Id,
 };
 use celestial::CelestialSystem;
@@ -39,6 +39,8 @@ pub enum BodyErrors {
     EmptyName,
     #[error("attempted to connect inner joint to body '{0}', but it already has an inner joint")]
     InnerJointExists(String),
+    #[error("{0}")]
+    Joint(#[from] JointErrors),
     #[error("no inner joint found for body '{0}'")]
     NoInnerJoint(String),
     #[error("no mass properties found for body '{0}'")]
@@ -78,22 +80,38 @@ impl BodyBuilder {
         })
     }
 
-    pub fn connect_inner_joint(&mut self, inner_joint: Id) -> Result<(), BodyErrors> {
+    pub fn connect_inner_joint(
+        &mut self,
+        inner_joint: &mut JointBuilder,
+        transform: Transform,
+    ) -> Result<(), BodyErrors> {
         if self.inner_joint.is_some() {
             return Err(BodyErrors::InnerJointExists(self.name.clone()));
         }
-        self.inner_joint = Some(inner_joint);
+        if inner_joint.connections.outer_body.is_some() {
+            return Err(JointErrors::OuterBodyExists(inner_joint.name.clone()).into());
+        }
+        self.inner_joint = Some(inner_joint.id);
+        inner_joint.connections.outer_body = Some(BodyConnectionBuilder::new(self.id, transform));
         Ok(())
     }
 
-    pub fn connect_outer_joint(&mut self, outer_joint: Id) -> Result<(), BodyErrors> {
-        if self.outer_joints.contains(&outer_joint) {
+    pub fn connect_outer_joint(
+        &mut self,
+        outer_joint: &mut JointBuilder,
+        transform: Transform,
+    ) -> Result<(), BodyErrors> {
+        if self.outer_joints.contains(&outer_joint.id) {
             return Err(BodyErrors::OuterJointExists(
                 self.name.clone(),
-                outer_joint.to_string(),
+                outer_joint.name.clone(),
             ));
         }
-        self.outer_joints.push(outer_joint);
+        if outer_joint.connections.inner_body.is_some() {
+            return Err(JointErrors::InnerBodyExists(outer_joint.name.clone()).into());
+        }
+        self.outer_joints.push(outer_joint.id);
+        outer_joint.connections.inner_body = Some(BodyConnectionBuilder::new(self.id, transform));
         Ok(())
     }
 
