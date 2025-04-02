@@ -2,7 +2,7 @@ use crate::{
     actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
-    body::{BaseOrBody, BodyBuilder, BodyConnection, BodyRef},
+    body::{BodyBuilder, BodyConnection, BodyRef},
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
     //software::SoftwareSystem,
@@ -92,6 +92,34 @@ impl MultibodySystemBuilder {
     //     }
     //     Ok(())
     // }
+
+    pub fn find_by_name(&self, name: &str) -> Result<Component, MultibodyErrors> {
+        if name == self.base.name {
+            return Ok(Component::Base(Id(0)));
+        }
+
+        if let Some(body) = self.bodies.iter().find(|(_, body)| body.name == name) {
+            return Ok(Component::Body(*body.0));
+        }
+
+        if let Some(joint) = self.joints.iter().find(|(_, joint)| joint.name == name) {
+            return Ok(Component::Joint(*joint.0));
+        }
+
+        if let Some(actuator) = self
+            .actuators
+            .iter()
+            .find(|(_, actuator)| actuator.name == name)
+        {
+            return Ok(Component::Actuator(*actuator.0));
+        }
+
+        if let Some(sensor) = self.sensors.iter().find(|(_, sensor)| sensor.name == name) {
+            return Ok(Component::Sensor(*sensor.0));
+        }
+
+        Err(MultibodyErrors::ComponentNotFound(name.to_string()))
+    }
 
     pub fn new() -> Self {
         let mut thread_rng = rand::thread_rng(); // Use a fast non-deterministic RNG
@@ -771,34 +799,6 @@ impl Display for Id {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
-}
-
-fn find_by_name(sys: &MultibodySystemBuilder, name: &str) -> Result<Component, MultibodyErrors> {
-    if name == sys.base.name {
-        return Ok(Component::Base(Id(0)));
-    }
-
-    if let Some(body) = sys.bodies.iter().find(|(_, body)| body.name == name) {
-        return Ok(Component::Body(*body.0));
-    }
-
-    if let Some(joint) = sys.joints.iter().find(|(_, joint)| joint.name == name) {
-        return Ok(Component::Joint(*joint.0));
-    }
-
-    if let Some(actuator) = sys
-        .actuators
-        .iter()
-        .find(|(_, actuator)| actuator.name == name)
-    {
-        return Ok(Component::Actuator(*actuator.0));
-    }
-
-    if let Some(sensor) = sys.sensors.iter().find(|(_, sensor)| sensor.name == name) {
-        return Ok(Component::Sensor(*sensor.0));
-    }
-
-    Err(MultibodyErrors::ComponentNotFound(name.to_string()))
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

@@ -151,30 +151,34 @@ pub struct FloatingBuilder {
 }
 
 impl FloatingBuilder {
+    pub fn new() -> Self {
+        FloatingBuilder::default()
+    }
+
     pub fn with_attitude(mut self, q: UnitQuaternion) -> Self {
         self.state.q.nominal = q;
         self
     }
 
-    pub fn with_angular_rate(mut self, w: Vector3<f64>) -> Self {
-        self.state.w.x.nominal = w[0];
-        self.state.w.y.nominal = w[1];
-        self.state.w.z.nominal = w[2];
+    pub fn with_angular_rate(mut self, wx: f64, wy: f64, wz: f64) -> Self {
+        self.state.w.x.nominal = wx;
+        self.state.w.y.nominal = wy;
+        self.state.w.z.nominal = wz;
         self
     }
 
-    pub fn with_position(mut self, r: Vector3<f64>) -> Self {
-        self.state.r.x.nominal = r[0];
-        self.state.r.y.nominal = r[1];
-        self.state.r.z.nominal = r[2];
+    pub fn with_position(mut self, rx: f64, ry: f64, rz: f64) -> Self {
+        self.state.r.x.nominal = rx;
+        self.state.r.y.nominal = ry;
+        self.state.r.z.nominal = rz;
         self
     }
 
     /// This is the velocity of the joint outer frame (jof) in the joint inner frame (jif)
-    pub fn with_velocity(mut self, v: Vector3<f64>) -> Self {
-        self.state.v.x.nominal = v[0];
-        self.state.v.y.nominal = v[1];
-        self.state.v.z.nominal = v[2];
+    pub fn with_velocity(mut self, vx: f64, vy: f64, vz: f64) -> Self {
+        self.state.v.x.nominal = vx;
+        self.state.v.y.nominal = vy;
+        self.state.v.z.nominal = vz;
         self
     }
 
@@ -182,7 +186,9 @@ impl FloatingBuilder {
         let (r, v) = match orbit {
             Orbit::Keplerian(kep) => kep.get_rv(),
         };
-        self = self.with_position(r).with_velocity(v);
+        self = self
+            .with_position(r[0], r[1], r[2])
+            .with_velocity(v[0], v[1], v[2]);
         self
     }
 }

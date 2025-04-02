@@ -1,69 +1,30 @@
 use color::Color;
-use mass_properties::{CenterOfMass, Inertia, MassProperties};
-use multibody::{
-    base::{Base, BaseSystems},
-    body::{Body, BodyTrait},
-    joint::{
-        floating::{Floating, FloatingParameters, FloatingState},
-        Joint,
-    },
-    system::MultibodySystem,
-};
-use std::{cell::RefCell, error::Error, rc::Rc};
-
-use nadir_3d::{
-    geometry::{cuboid::Cuboid, Geometry, GeometryState},
-    material::Material,
-    mesh::Mesh,
-};
+use mass_properties::MassPropertiesBuilder;
+use multibody::{joint::floating::FloatingBuilder, system::MultibodySystemBuilder};
+use std::error::Error;
 use transforms::Transform;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Create the base reference frame of the system and add the CelestialSystem
-    let base = Base::new("base", BaseSystems::Basic(None));
+    let mut sys = MultibodySystemBuilder::new();
 
     // create a floating joint
-    let state = FloatingState::new()
-        .with_rates([1.0, 1.0, 1.0].into())
-        .with_velocity([0.0, 1.0, 0.0].into());
+    let f = FloatingBuilder::new()
+        .with_angular_rate(1.0, 1.0, 1.0)
+        .with_velocity(0.0, 1.0, 0.0);
+    let mut j = sys.new_joint("j", f.into())?;
 
-    let parameters = FloatingParameters::new();
-    let f_model = Floating::new(parameters, state);
-    let f = Rc::new(RefCell::new(Joint::new("f", f_model).unwrap()));
+    let mut b = sys.new_body("b")?;
+    b.set_mass_properties(MassPropertiesBuilder::new());
+    b.set_geometry_cuboid(1.0, 1.0, 1.0)?;
+    b.set_material_phong(Color::RED, 32.0);
 
-    // Create the a body
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0).unwrap();
-    let mp = MassProperties::new(1000.0, cm, inertia).unwrap();
-    let geometry = Geometry::Cuboid(Cuboid::new(1.0, 1.0, 1.0));
-    let material = Material::Phong {
-        color: Color::GREEN,
-        specular_power: 32.0,
-    };
-    let mesh = Mesh {
-        name: "b".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
+    sys.base.connect_outer_joint(&mut j, Transform::IDENTITY)?;
+    b.connect_inner_joint(&mut j, Transform::IDENTITY)?;
 
-    let b = Rc::new(RefCell::new(Body::new("b", mp).unwrap().with_mesh(mesh)));
+    sys.add_body(b);
+    sys.add_joint(j);
 
-    // Connect the components together.
-    // Connections are made by the components names.
-    // The direction of the connection matters - (from,to)
-    base.borrow_mut().connect_outer_joint(&f).unwrap();
-    f.borrow_mut()
-        .connect_base(&base, Transform::IDENTITY)
-        .unwrap();
-    b.borrow_mut().connect_inner_joint(&f).unwrap();
-    f.borrow_mut()
-        .connect_outer_body(&b, Transform::IDENTITY)
-        .unwrap();
-
-    let mut sys = MultibodySystem::new(base, [b], [f], (), (), ());
     // Run the simulation
-    sys.simulate("", 0.0, 10.0, 0.1);
+    sys.simulate("", 0.0, 10.0, 0.1, None)?;
     Ok(())
 }
