@@ -2,7 +2,6 @@ use crate::hardware::{actuators::SpacecraftActuators, sensors::SpacecraftSensors
 use actuators::ActuatorFsw;
 use control::ControlFsw;
 use guidance::GuidanceFsw;
-use multibody::software::SoftwareSystem;
 use nadir_result::NadirResult;
 use navigation::NavigationFsw;
 use sensors::SensorFsw;

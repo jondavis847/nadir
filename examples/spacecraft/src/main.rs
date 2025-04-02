@@ -1,4 +1,6 @@
-use std::{cell::RefCell, error::Error, f64::consts::PI, rc::Rc};
+//mod software;
+
+use std::{error::Error, f64::consts::PI};
 
 use aerospace::orbit::KeplerianElements;
 use celestial::{CelestialBodies, CelestialBody, CelestialSystem};
@@ -7,51 +9,18 @@ use gravity::{
     egm::{EgmGravity, EgmModel},
     Gravity,
 };
-use hardware::{
-    actuators::{reaction_wheel::ReactionWheel, SpacecraftActuators},
-    sensors::{
-        gps::Gps, magnetometer::Magnetometer, rate_gyro::RateGyro, star_tracker::StarTracker,
-        SpacecraftSensors,
-    },
-};
 use magnetics::{igrf::Igrf, MagneticField};
-use mass_properties::{CenterOfMass, Inertia, MassProperties};
+use mass_properties::MassPropertiesBuilder;
 use multibody::{
-    actuator::Actuator,
-    base::{Base, BaseSystems},
-    body::{Body, BodyTrait},
-    joint::{
-        floating::{Floating, FloatingParameters, FloatingState},
-        revolute::{Revolute, RevoluteParameters, RevoluteState},
-        Joint, JointParameters,
-    },
-    sensor::{
-        noise::{gaussian::GaussianNoise, NoiseModels},
-        Sensor,
-    },
-    system::MultibodySystem,
+    joint::{floating::FloatingBuilder, revolute::RevoluteBuilder, JointBuilder},
+    system::MultibodySystemBuilder,
 };
-
-use nadir_3d::{
-    geometry::{cuboid::Cuboid, Geometry, GeometryState},
-    material::Material,
-    mesh::Mesh,
-};
-use rotations::{
-    prelude::{AlignedAxes, Axis, AxisPair, Quaternion},
-    Rotation,
-};
-use software::SpacecraftFsw;
+use rotations::prelude::{Quaternion, UnitQuaternion};
 use time::Time;
-use transforms::{
-    prelude::{Cartesian, CoordinateSystem},
-    Transform,
-};
-
-mod hardware;
-mod software;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let mut sys = MultibodySystemBuilder::new();
+
     // Create the CelestialSystem which contains the planetary models
     // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
     let epoch = Time::now()?;
@@ -63,132 +32,86 @@ fn main() -> Result<(), Box<dyn Error>> {
     let celestial = CelestialSystem::new(epoch)?
         .with_body(earth)?
         .with_body(CelestialBody::new(CelestialBodies::Moon))?;
-
-    // Create the base reference frame of the system and add the CelestialSystem
-    let base = Base::new("base", BaseSystems::Celestial(celestial));
+    sys.base.set_celestial(celestial);
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
     let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
-    let state = FloatingState::new()
-        .with_rates([0.0, 0.0, 0.0].into())
-        .with_attitude(Quaternion::new(-0.4, -0.5, 0.5, 0.5))
+    let f = FloatingBuilder::new()
+        .with_attitude(UnitQuaternion::new(-0.4, -0.5, 0.5, 0.5))
         .with_orbit(orbit.into());
-    let parameters = FloatingParameters::new();
-    let f_model = Floating::new(parameters, state);
-
-    // TODO: This isnt the ideal interface and will be improved in the future
-    let f = Rc::new(RefCell::new(Joint::new("f", f_model)?));
+    let j = sys.new_joint("f", f.into())?;
 
     // Create the main body of the spacecraft
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0)?;
-    let mp = MassProperties::new(1000.0, cm, inertia)?;
-
-    // Add a mesh for 3d animation
-    let geometry = Geometry::Cuboid(Cuboid::new(3.0, 2.0, 2.0));
-    let material = Material::Phong {
-        color: Color::new(0.5, 0.5, 0.5, 1.0),
-        specular_power: 32.0,
-    };
-    let mesh = Mesh {
-        name: "bus".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
-
-    let bus = Rc::new(RefCell::new(Body::new("bus", mp)?.with_mesh(mesh)));
+    let mut bus = sys.new_body("bus")?;
+    bus.set_mass_properties(
+        MassPropertiesBuilder::new()
+            .with_mass(1000.0)?
+            .with_ixx(1000.0)?
+            .with_iyy(1000.0)?
+            .with_izz(1000.0)?,
+    );
+    bus.set_geometry_cuboid(3.0, 2.0, 2.0)?;
+    bus.set_material_phong(Color::new(0.5, 0.5, 0.5, 1.0), 32.0);
 
     // Create the solar array panels of the spacecraft
-    //solar array 1
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
-    let mp = MassProperties::new(100.0, cm, inertia)?;
-    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
-    let material = Material::Phong {
-        color: Color::new(0.05, 0.05, 0.05, 1.0),
-        specular_power: 32.0,
-    };
-    let mesh = Mesh {
-        name: "sa1".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
+    // solar array 1
+    let mut sa1 = sys.new_body("sa1")?;
+    sa1.set_mass_properties(
+        MassPropertiesBuilder::new()
+            .with_mass(100.0)?
+            .with_ixx(100.0)?
+            .with_iyy(100.0)?
+            .with_izz(100.0)?,
+    );
+    sa1.set_geometry_cuboid(2.0, 2.0, 0.1)?;
+    sa1.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
 
-    let sa1 = Rc::new(RefCell::new(Body::new("sa1", mp)?.with_mesh(mesh)));
+    // solar array 2
+    let mut sa2 = sys.new_body("sa2")?;
+    sa2.set_mass_properties(
+        MassPropertiesBuilder::new()
+            .with_mass(100.0)?
+            .with_ixx(100.0)?
+            .with_iyy(100.0)?
+            .with_izz(100.0)?,
+    );
+    sa2.set_geometry_cuboid(2.0, 2.0, 0.1)?;
+    sa2.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
 
-    //solar array 2
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
-    let mp = MassProperties::new(100.0, cm, inertia)?;
-    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
-    let material = Material::Phong {
-        color: Color::new(0.05, 0.05, 0.05, 1.05),
-        specular_power: 32.0,
-    };
-    let mesh = Mesh {
-        name: "sa2".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
-
-    let sa2 = Rc::new(RefCell::new(Body::new("sa2", mp)?.with_mesh(mesh)));
-
-    //solar array 3
-    let cm = CenterOfMass::new(0.0, 0.0, 0.0);
-    let inertia = Inertia::new(100.0, 100.0, 100.0, 0.0, 0.0, 0.0)?;
-    let mp = MassProperties::new(100.0, cm, inertia)?;
-    let geometry = Geometry::Cuboid(Cuboid::new(2.0, 2.0, 0.1));
-    let material = Material::Phong {
-        color: Color::new(0.05, 0.05, 0.05, 1.0),
-        specular_power: 32.0,
-    };
-    let mesh = Mesh {
-        name: "sa3".to_string(),
-        geometry,
-        material,
-        state: GeometryState::default(),
-        texture: None,
-    };
-
-    let sa3 = Rc::new(RefCell::new(Body::new("sa3", mp)?.with_mesh(mesh)));
+    // solar array 3
+    let mut sa3 = sys.new_body("sa3")?;
+    sa3.set_mass_properties(
+        MassPropertiesBuilder::new()
+            .with_mass(100.0)?
+            .with_ixx(100.0)?
+            .with_iyy(100.0)?
+            .with_izz(100.0)?,
+    );
+    sa3.set_geometry_cuboid(2.0, 2.0, 0.1)?;
+    sa3.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
 
     // create solar array hinges
     // hinge 1
-    let p = RevoluteParameters(JointParameters {
-        constant_force: 0.0,
-        damping: 100.0,
-        equilibrium: 0.0,
-        spring_constant: 10.0,
-    });
-    let x = RevoluteState::new(PI / 2.0, 0.0);
-    let hinge1 = Rc::new(RefCell::new(Joint::new("hinge1", Revolute::new(p, x))?));
+    let r1 = RevoluteBuilder::new()
+        .with_angle(PI / 2.0)
+        .with_damping(100.0)
+        .with_spring_constant(10.0);
+    let mut h1 = sys.new_joint("hinge1", r1.into())?;
 
-    // hinge 2
-    let p = RevoluteParameters(JointParameters {
-        constant_force: 0.0,
-        damping: 100.0,
-        equilibrium: 0.0,
-        spring_constant: 10.0,
-    });
-    let x = RevoluteState::new(-3.14, 0.0);
-    let hinge2 = Rc::new(RefCell::new(Joint::new("hinge2", Revolute::new(p, x))?));
+    // hinge 1
+    let r2 = RevoluteBuilder::new()
+        .with_angle(PI / 2.0)
+        .with_damping(100.0)
+        .with_spring_constant(10.0);
+    let mut h2 = sys.new_joint("hinge2", r2.into())?;
 
-    // hinge 3
-    let p = RevoluteParameters(JointParameters {
-        constant_force: 0.0,
-        damping: 100.0,
-        equilibrium: 0.0,
-        spring_constant: 10.0,
-    });
-    let x = RevoluteState::new(3.14, 0.0);
-    let hinge3 = Rc::new(RefCell::new(Joint::new("hinge3", Revolute::new(p, x))?));
+    // hinge 1
+    let r3 = RevoluteBuilder::new()
+        .with_angle(PI / 2.0)
+        .with_damping(100.0)
+        .with_spring_constant(10.0);
+    let mut h3 = sys.new_joint("hinge3", r3.into())?;
 
     // Add a GPS model
     let mut gps = Sensor::new(
