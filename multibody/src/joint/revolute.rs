@@ -665,6 +665,9 @@ impl ArticulatedBodyAlgorithm for Revolute {
             inner_joint.cache.aba.p_big_a +=
                 joint_cache.transforms.ij_jof_from_jof * joint_cache.aba.p_lil_a;
         }
+
+        // dbg!(self);
+        // dbg!(joint_cache);
     }
 
     fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
@@ -678,6 +681,8 @@ impl ArticulatedBodyAlgorithm for Revolute {
             * (self.cache.aba.lil_u - (self.cache.aba.big_u.transpose() * a_prime.vector())[0]);
         joint_cache.a =
             a_prime + Acceleration::from(Vector6::new(self.cache.q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
+        // dbg!(self);
+        // dbg!(joint_cache);
     }
 }
 

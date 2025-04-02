@@ -1,6 +1,6 @@
 use crate::{
     base::{Base, BaseRef},
-    joint::{JointBuilder, JointErrors, JointRef},
+    joint::{Joint, JointBuilder, JointErrors, JointRef},
     system::Id,
 };
 use celestial::CelestialSystem;
@@ -24,7 +24,12 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
-use std::{cell::RefCell, fs::File, io::Write, rc::Rc};
+use std::{
+    cell::RefCell,
+    fs::File,
+    io::Write,
+    rc::{Rc, Weak},
+};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::Uncertainty;
@@ -128,7 +133,7 @@ impl BodyBuilder {
         };
 
         let body = Body {
-            inner_joint,
+            inner_joint: Rc::downgrade(&inner_joint),
             mass_properties,
             mesh: self.mesh.clone(),
             name: self.name.clone(),
@@ -145,8 +150,13 @@ impl BodyBuilder {
     }
 
     pub fn set_geometry_cuboid(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Cuboid(Cuboid::new(x, y, z)?);
         if let Some(mesh) = &mut self.mesh {
-            mesh.geometry = Geometry::Cuboid(Cuboid::new(x, y, z)?);
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
         }
         Ok(())
     }
@@ -221,11 +231,11 @@ impl BodyBuilder {
 
 #[derive(Debug, Clone)]
 pub struct Body {
-    pub inner_joint: JointRef,
+    pub inner_joint: Weak<RefCell<Joint>>,
     pub mass_properties: MassProperties,
     pub mesh: Option<Mesh>,
     pub name: String,
-    pub outer_joints: Vec<JointRef>,
+    pub outer_joints: Vec<Weak<RefCell<Joint>>>,
     pub state: BodyState,
     result_id: Option<u32>,
 }
@@ -233,7 +243,11 @@ pub struct Body {
 impl Body {
     pub fn calculate_gravity(&mut self, gravity: &mut Gravity) {
         // get inner joint transforms
-        let inner_joint = self.inner_joint.borrow();
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
         let body_from_base = &inner_joint.cache.transforms.ob_from_base;
         let g_vec = gravity.calculate(&self.state.position_base).unwrap();
 
@@ -294,7 +308,11 @@ impl Body {
     }
 
     pub fn update_acceleration(&mut self) {
-        let inner_joint = self.inner_joint.borrow();
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = &(transforms.base_from_jof * transforms.jof_from_ob)
@@ -320,7 +338,11 @@ impl Body {
     /// Updates the body's state after integration of the joint states
     /// Forces, torques, and accelerations are updated elsewhere
     pub fn update_state(&mut self) {
-        let inner_joint = self.inner_joint.borrow();
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
@@ -535,6 +557,19 @@ pub struct BodyConnection {
 pub struct BodyRef(BaseOrBody);
 
 impl BodyRef {
+    pub fn is_base(&self) -> bool {
+        match &self.0 {
+            BaseOrBody::Base(_) => true,
+            BaseOrBody::Body(_) => false,
+        }
+    }
+    pub fn is_body(&self) -> bool {
+        match &self.0 {
+            BaseOrBody::Base(_) => false,
+            BaseOrBody::Body(_) => true,
+        }
+    }
+
     pub fn new(body: Body) -> Self {
         Self(BaseOrBody::Body(Rc::new(RefCell::new(body))))
     }
@@ -554,7 +589,7 @@ impl BodyRef {
     }
 
     // cloning a Vec<Rc<RefCell<Joint>> should be very cheap to do
-    pub fn get_outer_joints(&self) -> Vec<JointRef> {
+    pub fn get_outer_joints(&self) -> Vec<Weak<RefCell<Joint>>> {
         match &self.0 {
             BaseOrBody::Body(body) => body.borrow().outer_joints.clone(),
             BaseOrBody::Base(base) => base.borrow().outer_joints.clone(),

@@ -1,8 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use crate::{
     body::BodyConnectionBuilder,
-    joint::{JointBuilder, JointErrors, JointRef},
+    joint::{Joint, JointBuilder, JointErrors},
     system::Id,
 };
 
@@ -89,7 +92,7 @@ impl BaseBuilder {
 
 #[derive(Clone, Debug)]
 pub struct Base {
-    pub outer_joints: Vec<JointRef>,
+    pub outer_joints: Vec<Weak<RefCell<Joint>>>,
     pub system: BaseSystems,
 }
 

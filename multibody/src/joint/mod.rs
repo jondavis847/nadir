@@ -308,7 +308,7 @@ pub struct Joint {
     result_id: Option<u32>,
     state_id: Option<usize>,
     pub cache: JointCache,
-    inner_joint: Option<JointRef>,
+    pub inner_joint: Option<JointRef>,
 }
 
 impl Joint {
