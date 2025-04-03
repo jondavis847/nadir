@@ -111,14 +111,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_spring_constant(10.0);
     let mut h1 = sys.new_joint("hinge1", r1.into())?;
 
-    // hinge 1
+    // hinge 2
     let r2 = RevoluteBuilder::new()
         .with_angle(-PI)
         .with_damping(100.0)
         .with_spring_constant(10.0);
     let mut h2 = sys.new_joint("hinge2", r2.into())?;
 
-    // hinge 1
+    // hinge 3
     let r3 = RevoluteBuilder::new()
         .with_angle(PI)
         .with_damping(100.0)

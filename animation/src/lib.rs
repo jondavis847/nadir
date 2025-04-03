@@ -88,7 +88,7 @@ pub fn main(result_path: Option<PathBuf>) -> iced::Result {
     window_settings.icon = Some(icon);
 
     iced::application("NADIR", AnimationGui::update, AnimationGui::view)
-        .antialiasing(true)
+        .antialiasing(false)
         .window(window_settings)
         .subscription(AnimationGui::subscription)
         .theme(AnimationGui::theme)
