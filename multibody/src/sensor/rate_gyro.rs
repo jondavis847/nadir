@@ -71,6 +71,12 @@ pub struct RateGyroBuilder {
 }
 
 impl RateGyroBuilder {
+    pub fn new() -> Self {
+        RateGyroBuilder {
+            parameters: RateGyroParametersBuilder::default(),
+        }
+    }
+
     pub fn with_delay(mut self, delay: f64) -> Self {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay

@@ -32,24 +32,32 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultibodySystemBuilder {
-    pub actuators: HashMap<Id, ActuatorBuilder>,
+    pub actuators: Vec<ActuatorBuilder>,
     pub algorithm: MultibodyAlgorithm,
     pub base: BaseBuilder,
     pub bodies: HashMap<Id, BodyBuilder>,
     pub identifier: Identifier,
     pub joints: HashMap<Id, JointBuilder>,
     seed: u64,
-    pub sensors: HashMap<Id, SensorBuilder>,
+    pub sensors: Vec<SensorBuilder>,
     //pub software: Option<Box<dyn SoftwareSystem>>,
 }
 
 impl MultibodySystemBuilder {
+    pub fn add_actuator(&mut self, actuator: ActuatorBuilder) {
+        self.actuators.push(actuator);
+    }
+
     pub fn add_body(&mut self, body: BodyBuilder) {
         self.bodies.insert(body.id, body);
     }
 
     pub fn add_joint(&mut self, joint: JointBuilder) {
         self.joints.insert(joint.id, joint);
+    }
+
+    pub fn add_sensor(&mut self, sensor: SensorBuilder) {
+        self.sensors.push(sensor);
     }
 
     // pub fn connect(
@@ -93,47 +101,19 @@ impl MultibodySystemBuilder {
     //     Ok(())
     // }
 
-    pub fn find_by_name(&self, name: &str) -> Result<Component, MultibodyErrors> {
-        if name == self.base.name {
-            return Ok(Component::Base(Id(0)));
-        }
-
-        if let Some(body) = self.bodies.iter().find(|(_, body)| body.name == name) {
-            return Ok(Component::Body(*body.0));
-        }
-
-        if let Some(joint) = self.joints.iter().find(|(_, joint)| joint.name == name) {
-            return Ok(Component::Joint(*joint.0));
-        }
-
-        if let Some(actuator) = self
-            .actuators
-            .iter()
-            .find(|(_, actuator)| actuator.name == name)
-        {
-            return Ok(Component::Actuator(*actuator.0));
-        }
-
-        if let Some(sensor) = self.sensors.iter().find(|(_, sensor)| sensor.name == name) {
-            return Ok(Component::Sensor(*sensor.0));
-        }
-
-        Err(MultibodyErrors::ComponentNotFound(name.to_string()))
-    }
-
     pub fn new() -> Self {
         let mut thread_rng = rand::thread_rng(); // Use a fast non-deterministic RNG
         let seed = thread_rng.gen::<u64>(); // Generate a random seed
         let mut id = Identifier::new();
         Self {
-            actuators: HashMap::new(),
+            actuators: Vec::new(),
             algorithm: MultibodyAlgorithm::ArticulatedBody, // for now, default to this
             base: BaseBuilder::new(id.next()),
             bodies: HashMap::new(),
             identifier: id,
             joints: HashMap::new(),
             seed,
-            sensors: HashMap::new(),
+            sensors: Vec::new(),
             //software: None,
         }
     }
@@ -423,33 +403,82 @@ impl MultibodySystemBuilder {
             return Err(MultibodyErrors::BaseMissingOuterJoint);
         }
 
+        // check that all outer joints exist in the hashmap
+        for outer_joint_id in base_outer_joints {
+            if !self.joints.contains_key(outer_joint_id) {
+                return Err(MultibodyErrors::JointNotFound(outer_joint_id.to_string()));
+            }
+        }
+
         // check that every body has an inner joint
         for (_, body) in &self.bodies {
-            if body.inner_joint.is_none() {
+            if let Some(inner_joint_id) = &body.inner_joint {
+                // check that the inner joint exists in the hashmap
+                if !self.joints.contains_key(inner_joint_id) {
+                    return Err(MultibodyErrors::JointNotFound(inner_joint_id.to_string()));
+                }
+            } else {
                 return Err(MultibodyErrors::BodyMissingInnerJoint(body.name.clone()));
+            }
+
+            // check that if the body has outer joints, that they all exist in the hashmap
+            for outer_joint_id in &body.outer_joints {
+                if !self.joints.contains_key(outer_joint_id) {
+                    return Err(MultibodyErrors::JointNotFound(outer_joint_id.to_string()));
+                }
             }
         }
 
         // check that every joint has an inner and outer body connection
         for (_, joint) in &self.joints {
-            if joint.connections.inner_body.is_none() {
+            if let Some(inner_body_connection) = &joint.connections.inner_body {
+                // check that the inner body exists in the hashmap
+                if !self.bodies.contains_key(&inner_body_connection.body_id)
+                    && &inner_body_connection.body_id != &self.base.id
+                {
+                    return Err(MultibodyErrors::BodyNotFound(
+                        inner_body_connection.body_id.to_string(),
+                    ));
+                }
+            } else {
                 return Err(MultibodyErrors::JointMissingInnerBody(joint.name.clone()));
-            }
-            if joint.connections.outer_body.is_none() {
+            };
+            if let Some(outer_body_connection) = &joint.connections.outer_body {
+                // check that the outer body exists in the hashmap
+                if !self.bodies.contains_key(&outer_body_connection.body_id) {
+                    return Err(MultibodyErrors::BodyNotFound(
+                        outer_body_connection.body_id.to_string(),
+                    ));
+                }
+            } else {
                 return Err(MultibodyErrors::JointMissingOuterBody(joint.name.clone()));
             }
         }
 
         // check that every actuator has a body connection
-        for (_, actuator) in &self.actuators {
-            if actuator.connection.is_none() {
+        for actuator in &self.actuators {
+            if let Some(connection) = &actuator.connection {
+                //check that the body exists in the hashmap
+                if !self.bodies.contains_key(&connection.body_id) {
+                    return Err(MultibodyErrors::BodyNotFound(
+                        connection.body_id.to_string(),
+                    ));
+                }
+            } else {
                 return Err(MultibodyErrors::ActuatorMissingBody(actuator.name.clone()));
             }
         }
 
         // check that every actuator has a body connection
-        for (_, sensor) in &self.sensors {
-            if sensor.connection.is_none() {
+        for sensor in &self.sensors {
+            if let Some(connection) = &sensor.connection {
+                //check that the body exists in the hashmap
+                if !self.bodies.contains_key(&connection.body_id) {
+                    return Err(MultibodyErrors::BodyNotFound(
+                        connection.body_id.to_string(),
+                    ));
+                }
+            } else {
                 return Err(MultibodyErrors::SensorMissingBody(sensor.name.clone()));
             }
         }
@@ -873,7 +902,7 @@ fn traverse_body(
         bodies.push(body.into());
 
         // add the bodyref to any connected actuators or sensors
-        for (_, actuator_builder) in &mut builder.actuators {
+        for actuator_builder in &mut builder.actuators {
             if actuator_builder
                 .connection
                 .as_ref()
@@ -893,7 +922,7 @@ fn traverse_body(
                 actuators.push(actuator);
             }
         }
-        for (_, sensor_builder) in &mut builder.sensors {
+        for sensor_builder in &mut builder.sensors {
             if sensor_builder
                 .connection
                 .as_ref()

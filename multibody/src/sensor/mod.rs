@@ -148,6 +148,27 @@ impl SensorModelBuilders {
     }
 }
 
+impl From<GpsBuilder> for SensorModelBuilders {
+    fn from(builder: GpsBuilder) -> Self {
+        SensorModelBuilders::Gps(builder)
+    }
+}
+impl From<MagnetometerBuilder> for SensorModelBuilders {
+    fn from(builder: MagnetometerBuilder) -> Self {
+        SensorModelBuilders::Magnetometer(builder)
+    }
+}
+impl From<RateGyroBuilder> for SensorModelBuilders {
+    fn from(builder: RateGyroBuilder) -> Self {
+        SensorModelBuilders::RateGyro(builder)
+    }
+}
+impl From<StarTrackerBuilder> for SensorModelBuilders {
+    fn from(builder: StarTrackerBuilder) -> Self {
+        SensorModelBuilders::StarTracker(builder)
+    }
+}
+
 #[derive(Debug)]
 pub enum SensorModels {
     Gps(Gps),

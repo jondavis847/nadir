@@ -77,6 +77,29 @@ pub struct StarTrackerBuilder {
     parameters: StarTrackerParametersBuilder,
 }
 
+impl StarTrackerBuilder {
+    pub fn new() -> Self {
+        Self {
+            parameters: StarTrackerParametersBuilder::default(),
+        }
+    }
+
+    pub fn with_delay(mut self, delay: f64) -> Self {
+        self.parameters.delay = Some(SimValue::new(delay));
+        self
+    }
+
+    pub fn with_misalignment(mut self, misalignment: UnitQuaternionBuilder) -> Self {
+        self.parameters.misalignment = Some(misalignment);
+        self
+    }
+
+    pub fn with_noise(mut self, noise: QuaternioNoiseBuilder) -> Self {
+        self.parameters.noise = Some(noise);
+        self
+    }
+}
+
 impl Uncertainty for StarTrackerBuilder {
     type Error = StarTrackerErrors;
     type Output = StarTracker;

@@ -23,6 +23,13 @@ pub struct ActuatorBuilder {
 }
 
 impl ActuatorBuilder {
+    pub fn new(name: &str, model: ActuatorModelBuilders) -> Self {
+        Self {
+            name: name.to_string(),
+            model,
+            connection: None,
+        }
+    }
     pub fn connect_body(&mut self, body: Id, transform: Transform) {
         self.connection = Some(BodyConnectionBuilder::new(body, transform));
     }
@@ -143,6 +150,12 @@ impl ActuatorModelBuilders {
                 Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
             }
         }
+    }
+}
+
+impl From<ReactionWheelBuilder> for ActuatorModelBuilders {
+    fn from(builder: ReactionWheelBuilder) -> Self {
+        ActuatorModelBuilders::ReactionWheel(builder)
     }
 }
 
