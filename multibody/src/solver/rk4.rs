@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use nadir_result::ResultManager;
 
 use super::SimStates;
 use crate::{system::MultibodySystem, MultibodyErrors};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 pub fn solve_fixed_rk4(
     sys: &mut MultibodySystem,
@@ -10,6 +12,7 @@ pub fn solve_fixed_rk4(
     tstop: f64,
     mut dt: f64,
     results: &mut ResultManager,
+    progress_bars: Option<Arc<MultiProgress>>,
 ) -> Result<(), MultibodyErrors> {
     if dt.abs() <= f64::EPSILON {
         return Err(MultibodyErrors::DtCantBeZero);
@@ -40,15 +43,37 @@ pub fn solve_fixed_rk4(
     let result_length = ((tstop - tstart) / dt).floor() as usize + 1;
 
     // RUN THE RK4 LOOP
-    let progress_bar = ProgressBar::new(result_length as u64);
-    progress_bar.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.cyan} [{elapsed_precise}] {bar:40.cyan/black} {percent}%")
-            .unwrap()
-            .progress_chars("=> "),
-    );
+    let mut progress_bar = if let Some(mp) = progress_bars {
+        let pb = mp.add(ProgressBar::new(result_length as u64));
+        if let Some(run_id) = sys.run_id {
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template(&format!(
+                        "Run {run_id:>3}: {{bar:40.cyan/black}} {{percent}}%"
+                    ))
+                    .unwrap()
+                    .progress_chars("=> "),
+            );
+            Some(pb)
+        } else {
+            None
+        }
+    } else {
+        let progress_bar = ProgressBar::new(result_length as u64);
+        progress_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.cyan} [{elapsed_precise}] {bar:40.cyan/black} {percent}%")
+                .unwrap()
+                .progress_chars("=> "),
+        );
+        Some(progress_bar)
+    };
+
     for _ in 0..result_length {
-        progress_bar.inc(1);
+        if let Some(progress_bar) = &mut progress_bar {
+            progress_bar.inc(1);
+        }
+
         // update sensors
         sys.sensors.iter_mut().for_each(|sensor| sensor.update());
 
@@ -115,7 +140,9 @@ pub fn solve_fixed_rk4(
     }
 
     results.flush();
-    progress_bar.finish();
+    if let Some(progress_bar) = &mut progress_bar {
+        progress_bar.finish();
+    }
 
     Ok(())
 }

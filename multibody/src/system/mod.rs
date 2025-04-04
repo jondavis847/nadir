@@ -12,6 +12,7 @@ use crate::{
 
 use core::fmt;
 use gravity::{constant::ConstantGravity, newtonian::NewtonianGravity, Gravity};
+use indicatif::MultiProgress;
 use nadir_result::{NadirResult, ResultManager};
 
 use rand::{
@@ -30,6 +31,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     rc::Rc,
+    sync::Arc,
     time::Instant,
 };
 use thiserror::Error;
@@ -196,10 +198,12 @@ impl MultibodySystemBuilder {
 
         // run the monte carlo if present
         if let Some(nruns) = nruns {
+            // create progress bars
+            let progress_bars = Arc::new(MultiProgress::new());
             // run the nominal
             let nominal_path = result_path.join("nominal");
-            let mut sys = self.sample(true, &mut rng)?;
-            sys.simulate(&options, &nominal_path)?;
+            let mut sys = self.sample(None, true, &mut rng)?;
+            sys.simulate(&options, &nominal_path, None)?;
             // parallel Monte Carlo runs
             // create a vec of seeds for the local thread rngs
             let seeds: Vec<u64> = (0..nruns).map(|_| rng.gen::<u64>()).collect();
@@ -207,18 +211,19 @@ impl MultibodySystemBuilder {
             (1..=nruns)
                 .into_par_iter()
                 .try_for_each(|run| -> Result<(), MultibodyErrors> {
+                    let progress_bars = Arc::clone(&progress_bars);
                     let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
-                    let mut sys = self.sample(false, &mut local_rng)?;
+                    let mut sys = self.sample(Some(run), false, &mut local_rng)?;
                     let run_path = result_path.join(format!("run{run}"));
-                    sys.simulate(&options, &run_path)?;
+                    sys.simulate(&options, &run_path, Some(progress_bars))?;
                     Ok(())
                 })?;
         } else {
             // just run the nominal
             // this is separated logic so we can send the nominal folder as a result  path for monte carlo
             // where as this is just stored at the sim level
-            let mut sys = self.sample(true, &mut rng)?;
-            sys.simulate(&options, &result_path)?;
+            let mut sys = self.sample(None, true, &mut rng)?;
+            sys.simulate(&options, &result_path, None)?;
         }
         Ok(())
     }
@@ -288,6 +293,7 @@ impl MultibodySystemBuilder {
 
     fn sample(
         &self,
+        run_id: Option<usize>,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<MultibodySystem, MultibodyErrors> {
@@ -407,6 +413,7 @@ impl MultibodySystemBuilder {
             base: Rc::new(RefCell::new(Base::from(&self.base))),
             bodies,
             joints,
+            run_id,
             sensors,
             sim_time_id: None,
         };
@@ -511,6 +518,7 @@ pub struct MultibodySystem {
     pub base: BaseRef,
     pub bodies: Vec<BodyRef>,
     pub joints: Vec<JointRef>,
+    pub run_id: Option<usize>, // Monte Carlo run number for progress bar
     pub sensors: Vec<Sensor>,
     //pub software: Option<Box<dyn SoftwareSystem>>,
     pub sim_time_id: Option<u32>,
@@ -661,6 +669,7 @@ impl MultibodySystem {
         &mut self,
         options: &SimOptions,
         result_path: &PathBuf,
+        progress_bars: Option<Arc<MultiProgress>>,
     ) -> Result<(), MultibodyErrors> {
         let start_time = Instant::now();
         let mut results = self.initialize_writers(result_path);
@@ -684,6 +693,7 @@ impl MultibodySystem {
             options.tstop,
             options.dt,
             &mut results,
+            progress_bars,
         )?;
 
         // save the body meshes to the result
@@ -697,11 +707,14 @@ impl MultibodySystem {
 
         let sim_duration = start_time.elapsed();
         let sim_duration_str = utilities::format_duration(sim_duration);
-        println!(
-            "Simulation '{}' completed in {sim_duration_str}.",
-            options.sim_name
-        );
-        // collect meshes from the system into the result so we can use for animation
+
+        // only print sim  time info if not a monte carlo, otherwise it gets ugly
+        if self.run_id.is_none() {
+            println!(
+                "Simulation '{}' completed in {sim_duration_str}.",
+                options.sim_name
+            );
+        }
 
         Ok(())
     }
