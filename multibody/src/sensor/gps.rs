@@ -5,6 +5,7 @@ use crate::{
         SensorModel,
     },
 };
+use indicatif::style::TemplateError;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

@@ -237,7 +237,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 1.0, Some(20))?;
+    sys.simulate("", 0.0, 1000.0, 1.0, None)?;
 
     Ok(())
 }

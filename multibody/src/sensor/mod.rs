@@ -44,6 +44,7 @@ pub trait SensorModel {
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SensorBuilder {
     pub name: String,
