@@ -23,7 +23,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create the joints
 
-    let r1 = RevoluteBuilder::new().with_angle(1.0);
+    let r1 = RevoluteBuilder::new()
+        .with_angle(1.0)
+        .with_uncertain_angle_normal(1.0, 0.1)?;
     let mut j1 = sys.new_joint("r1", r1.into())?;
 
     let r2 = RevoluteBuilder::new().with_angular_rate(0.1);
@@ -45,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j2);
 
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, None)?;
+    sys.simulate("", 0.0, 20.0, 0.1, Some(5))?;
 
     Ok(())
 }

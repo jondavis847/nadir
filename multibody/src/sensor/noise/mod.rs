@@ -27,7 +27,7 @@ impl Uncertainty for NoiseModelBuilders {
     type Output = NoiseModels;
     type Error = NoiseErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let model = match self {
             NoiseModelBuilders::None => NoiseModels::None,
             NoiseModelBuilders::Gaussian(model) => {
@@ -83,8 +83,8 @@ impl Uncertainty for NoiseBuilder {
     type Output = Noise;
     type Error = NoiseErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let model = match &mut self.model {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+        let model = match &self.model {
             NoiseModelBuilders::None => NoiseModels::None,
             NoiseModelBuilders::Gaussian(model) => {
                 let noise = model.sample(nominal, rng)?;
@@ -139,7 +139,7 @@ impl Uncertainty for QuaternioNoiseBuilder {
     type Output = QuaternionNoise;
     type Error = NoiseErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let magnitude_noise = self.magnitude_noise.sample(nominal, rng)?;
         let axis_seed = rng.gen();
         let axis_rng = SmallRng::seed_from_u64(axis_seed);

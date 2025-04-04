@@ -648,11 +648,11 @@ pub struct UnitQuaternionBuilder {
 impl Uncertainty for UnitQuaternionBuilder {
     type Output = UnitQuaternion;
     type Error = QuaternionErrors;
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         if nominal {
             return Ok(self.nominal);
         }
-        if let Some(dispersion) = &mut self.dispersion {
+        if let Some(dispersion) = &self.dispersion {
             let angle = dispersion.sample(rng);
             // uniformly sample the rotation axis
             let axis = Vector3::new(

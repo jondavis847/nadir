@@ -121,12 +121,12 @@ impl BodyBuilder {
     }
 
     pub fn sample(
-        &mut self,
+        &self,
         inner_joint: JointRef,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<Body, BodyErrors> {
-        let mass_properties = if let Some(mp_builder) = &mut self.mass_properties {
+        let mass_properties = if let Some(mp_builder) = &self.mass_properties {
             mp_builder.sample(nominal, rng)?
         } else {
             return Err(BodyErrors::NoMassProperties(self.name.clone()));

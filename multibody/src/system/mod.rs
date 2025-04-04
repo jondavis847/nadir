@@ -14,7 +14,11 @@ use core::fmt;
 use gravity::{constant::ConstantGravity, newtonian::NewtonianGravity, Gravity};
 use nadir_result::{NadirResult, ResultManager};
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{
+    rngs::{SmallRng, ThreadRng},
+    Rng, SeedableRng,
+};
+use rayon::prelude::*;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
@@ -190,17 +194,31 @@ impl MultibodySystemBuilder {
 
         let mut rng = SmallRng::seed_from_u64(self.seed);
 
-        // run the nominal
-        let mut sys = self.sample(true, &mut rng)?;
-        sys.simulate(&options, &result_path)?;
-
         // run the monte carlo if present
         if let Some(nruns) = nruns {
-            for run in 1..=nruns {
-                let mut sys = self.sample(false, &mut rng)?;
-                let run_path = result_path.join(format!("run{run}"));
-                sys.simulate(&options, &run_path)?;
-            }
+            // run the nominal
+            let nominal_path = result_path.join("nominal");
+            let mut sys = self.sample(true, &mut rng)?;
+            sys.simulate(&options, &nominal_path)?;
+            // parallel Monte Carlo runs
+            // create a vec of seeds for the local thread rngs
+            let seeds: Vec<u64> = (0..nruns).map(|_| rng.gen::<u64>()).collect();
+
+            (1..=nruns)
+                .into_par_iter()
+                .try_for_each(|run| -> Result<(), MultibodyErrors> {
+                    let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
+                    let mut sys = self.sample(false, &mut local_rng)?;
+                    let run_path = result_path.join(format!("run{run}"));
+                    sys.simulate(&options, &run_path)?;
+                    Ok(())
+                })?;
+        } else {
+            // just run the nominal
+            // this is separated logic so we can send the nominal folder as a result  path for monte carlo
+            // where as this is just stored at the sim level
+            let mut sys = self.sample(true, &mut rng)?;
+            sys.simulate(&options, &result_path)?;
         }
         Ok(())
     }
@@ -269,7 +287,7 @@ impl MultibodySystemBuilder {
     }
 
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<MultibodySystem, MultibodyErrors> {
@@ -292,7 +310,7 @@ impl MultibodySystemBuilder {
             let outer_joint_id = self.base.outer_joints[i];
             let outer_joint_builder = self
                 .joints
-                .get_mut(&outer_joint_id)
+                .get(&outer_joint_id)
                 .expect("validation should catch this");
 
             // Create the outer joints inner connections
@@ -882,7 +900,7 @@ impl SimOptions {
 
 // Helper function to recursively traverse joints and bodies
 fn traverse_body(
-    builder: &mut MultibodySystemBuilder,
+    builder: &MultibodySystemBuilder,
     body_id: Id,
     joints: &mut Vec<JointRef>,
     bodies: &mut Vec<BodyRef>,
@@ -894,7 +912,7 @@ fn traverse_body(
     let next_outer_joints = {
         let body_builder = builder
             .bodies
-            .get_mut(&body_id)
+            .get(&body_id)
             .expect("validation should catch this");
         // Create the body from the body builder, sampling for monte carlo if applicable
         let inner_joint = joints.last().expect("should be at least 1 element");
@@ -902,7 +920,7 @@ fn traverse_body(
         bodies.push(body.into());
 
         // add the bodyref to any connected actuators or sensors
-        for actuator_builder in &mut builder.actuators {
+        for actuator_builder in &builder.actuators {
             if actuator_builder
                 .connection
                 .as_ref()
@@ -922,7 +940,7 @@ fn traverse_body(
                 actuators.push(actuator);
             }
         }
-        for sensor_builder in &mut builder.sensors {
+        for sensor_builder in &builder.sensors {
             if sensor_builder
                 .connection
                 .as_ref()
@@ -969,7 +987,7 @@ fn traverse_body(
         let next_body_id = {
             let outer_joint_builder = builder
                 .joints
-                .get_mut(&outer_joint_id)
+                .get(&outer_joint_id)
                 .expect("validation should catch this");
 
             // Create the outer joints inner connections

@@ -36,7 +36,7 @@ impl Uncertainty for PrismaticStateBuilder {
     type Output = PrismaticState;
     type Error = PrismaticErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(PrismaticState {
             position: self.position.sample(nominal, rng),
             velocity: self.velocity.sample(nominal, rng),
@@ -73,7 +73,7 @@ impl Uncertainty for PrismaticParametersBuilder {
     type Output = PrismaticParameters;
     type Error = JointErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(PrismaticParameters(self.0.sample(nominal, rng)?))
     }
 }
@@ -431,7 +431,7 @@ impl Uncertainty for PrismaticBuilder {
 
     /// Creates a Prismatic joint from the PrismaticBuilder
     /// Samples the parameters and state uncertainty if present
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Prismatic::new(
             self.parameters.sample(nominal, rng)?,
             self.state.sample(nominal, rng)?,

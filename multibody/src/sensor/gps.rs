@@ -34,15 +34,15 @@ impl Uncertainty for GpsParametersBuilder {
     type Error = GpsErrors;
     type Output = GpsParameters;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
-        let delay = match &mut self.delay {
+        let delay = match &self.delay {
             Some(delay) => Some(delay.sample(nominal, rng)),
             None => None,
         };
-        let position_noise = match &mut self.position_noise {
+        let position_noise = match &self.position_noise {
             Some(position_noise) => Some([
                 position_noise[0].sample(nominal, rng)?,
                 position_noise[1].sample(nominal, rng)?,
@@ -50,7 +50,7 @@ impl Uncertainty for GpsParametersBuilder {
             ]),
             None => None,
         };
-        let velocity_noise = match &mut self.velocity_noise {
+        let velocity_noise = match &self.velocity_noise {
             Some(velocity_noise) => Some([
                 velocity_noise[0].sample(nominal, rng)?,
                 velocity_noise[1].sample(nominal, rng)?,
@@ -202,7 +202,7 @@ impl Uncertainty for GpsBuilder {
     type Error = GpsErrors;
     type Output = Gps;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {

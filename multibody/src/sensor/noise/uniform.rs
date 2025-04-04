@@ -24,7 +24,7 @@ impl Uncertainty for UniformBuilder {
     type Output = UniformNoise;
     type Error = NoiseErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let low = self.low.sample(nominal, rng);
         let high = self.high.sample(nominal, rng);
         Ok(UniformNoise::new(low, high))

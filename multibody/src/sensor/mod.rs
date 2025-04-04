@@ -66,7 +66,7 @@ impl SensorBuilder {
     }
 
     pub fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
         connection: BodyConnection,
@@ -126,11 +126,7 @@ pub enum SensorModelBuilders {
 }
 
 impl SensorModelBuilders {
-    pub fn sample(
-        &mut self,
-        nominal: bool,
-        rng: &mut SmallRng,
-    ) -> Result<SensorModels, SensorErrors> {
+    pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<SensorModels, SensorErrors> {
         match self {
             SensorModelBuilders::Gps(builder) => {
                 Ok(SensorModels::Gps(builder.sample(nominal, rng)?))

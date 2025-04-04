@@ -58,7 +58,7 @@ impl TorqueSpeedCurveBuilder {
         })
     }
 
-    pub fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> TorqueSpeedCurve {
+    pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> TorqueSpeedCurve {
         TorqueSpeedCurve {
             knee_speed: self.knee_speed.sample(nominal, rng),
             max_speed: self.max_speed.sample(nominal, rng),
@@ -93,7 +93,7 @@ pub struct ReactionWheelFrictionBuilder {
 }
 
 impl ReactionWheelFrictionBuilder {
-    pub fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> ReactionWheelFriction {
+    pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> ReactionWheelFriction {
         ReactionWheelFriction {
             stiction: self.stiction.sample(nominal, rng),
             stiction_threshold: self.stiction_threshold.sample(nominal, rng),
@@ -149,26 +149,26 @@ impl ReactionWheelParametersBuilder {
     }
 
     pub fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<ReactionWheelParameters, ReactionWheelErrors> {
-        let delay = if let Some(delay) = &mut self.delay {
+        let delay = if let Some(delay) = &self.delay {
             Some(delay.sample(nominal, rng))
         } else {
             None
         };
-        let misalignment = if let Some(misalignment) = &mut self.misalignment {
+        let misalignment = if let Some(misalignment) = &self.misalignment {
             Some(misalignment.sample(nominal, rng)?)
         } else {
             None
         };
-        let torque_max = if let Some(torque_max) = &mut self.torque_max {
+        let torque_max = if let Some(torque_max) = &self.torque_max {
             Some(torque_max.sample(nominal, rng))
         } else {
             None
         };
-        let torque_speed_curve = if let Some(torque_speed_curve) = &mut self.torque_speed_curve {
+        let torque_speed_curve = if let Some(torque_speed_curve) = &self.torque_speed_curve {
             Some(torque_speed_curve.sample(nominal, rng))
         } else {
             None
@@ -414,7 +414,7 @@ impl Uncertainty for ReactionWheelBuilder {
     type Error = ReactionWheelErrors;
     type Output = ReactionWheel;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let parameters = self.parameters.sample(nominal, rng)?;
         let initial_speed = self.initial_speed.sample(nominal, rng);
         let initial_momentum = initial_speed * parameters.inertia;

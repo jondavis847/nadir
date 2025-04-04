@@ -286,7 +286,7 @@ impl Uncertainty for MassPropertiesBuilder {
     type Error = MassPropertiesErrors;
 
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<Self::Output, MassPropertiesErrors> {

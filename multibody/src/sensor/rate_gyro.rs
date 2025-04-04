@@ -29,15 +29,15 @@ impl Uncertainty for RateGyroParametersBuilder {
     type Error = RateGyroErrors;
     type Output = RateGyroParameters;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
-        let delay = match &mut self.delay {
+        let delay = match &self.delay {
             Some(delay) => Some(delay.sample(nominal, rng)),
             None => None,
         };
-        let noise = match &mut self.noise {
+        let noise = match &self.noise {
             Some(noise) => Some([
                 noise[0].sample(nominal, rng)?,
                 noise[1].sample(nominal, rng)?,
@@ -139,7 +139,7 @@ impl Uncertainty for RateGyroBuilder {
     type Error = RateGyroErrors;
     type Output = RateGyro;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {

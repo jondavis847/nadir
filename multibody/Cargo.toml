@@ -22,6 +22,7 @@ nadir_result.workspace = true
 nalgebra.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
+rayon.workspace = true
 ron.workspace = true
 rotations.workspace = true
 serde.workspace = true

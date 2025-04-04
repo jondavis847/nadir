@@ -53,7 +53,7 @@ pub enum JointModelBuilders {
 impl Uncertainty for JointModelBuilders {
     type Error = JointErrors;
     type Output = JointModels;
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         match self {
             JointModelBuilders::Floating(builder) => {
                 Ok(JointModels::Floating(builder.sample(nominal, rng)?))
@@ -132,7 +132,7 @@ impl JointBuilder {
     }
 
     pub fn sample(
-        &mut self,
+        &self,
         connections: JointConnection,
         nominal: bool,
         rng: &mut SmallRng,
@@ -474,7 +474,7 @@ impl Uncertainty for JointParametersBuilder {
     type Error = JointErrors;
 
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::rngs::SmallRng,
     ) -> Result<Self::Output, Self::Error> {

@@ -32,19 +32,19 @@ impl Uncertainty for StarTrackerParametersBuilder {
     type Error = StarTrackerErrors;
     type Output = StarTrackerParameters;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
-        let delay = match &mut self.delay {
+        let delay = match &self.delay {
             Some(delay) => Some(delay.sample(nominal, rng)),
             None => None,
         };
-        let misalignment = match &mut self.misalignment {
+        let misalignment = match &self.misalignment {
             Some(misalignment) => Some(misalignment.sample(nominal, rng)?),
             None => None,
         };
-        let noise = match &mut self.noise {
+        let noise = match &self.noise {
             Some(noise) => Some(noise.sample(nominal, rng)?),
             None => None,
         };
@@ -104,7 +104,7 @@ impl Uncertainty for StarTrackerBuilder {
     type Error = StarTrackerErrors;
     type Output = StarTracker;
     fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {

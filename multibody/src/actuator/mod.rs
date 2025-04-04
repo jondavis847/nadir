@@ -35,7 +35,7 @@ impl ActuatorBuilder {
     }
 
     pub fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
         connection: BodyConnection,
@@ -141,7 +141,7 @@ pub enum ActuatorModelBuilders {
 
 impl ActuatorModelBuilders {
     pub fn sample(
-        &mut self,
+        &self,
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<ActuatorModels, ActuatorErrors> {

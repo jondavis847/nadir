@@ -23,7 +23,7 @@ impl Uncertainty for GaussianBuilder {
     type Output = GaussianNoise;
     type Error = NoiseErrors;
 
-    fn sample(&mut self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let mean = self.mean.sample(nominal, rng);
         let sigma = self.sigma.sample(nominal, rng);
         Ok(GaussianNoise::new(mean, sigma))
