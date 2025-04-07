@@ -1,6 +1,7 @@
 use crate::{
     body::BodyConnection,
     sensor::{noise::Noise, SensorModel},
+    software::CInterface,
 };
 use nalgebra::Vector3;
 use rotations::RotationTrait;
@@ -224,8 +225,8 @@ impl SensorModel for RateGyro {
         }
     }
 
-    fn telemetry(&self) -> &[u8] {
-        self.telemetry.as_bytes()
+    fn read_telemetry(&self) -> CInterface {
+        self.telemetry.as_interface()
     }
 }
 
@@ -235,12 +236,10 @@ pub struct RateGyroTelemetry {
     measurement: Vector3<f64>,
 }
 impl RateGyroTelemetry {
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                (self as *const Self).cast::<u8>(),
-                std::mem::size_of::<Self>(),
-            )
+    pub fn as_interface(&self) -> CInterface {
+        CInterface {
+            data_ptr: self as *const Self as *const u8,
+            data_len: std::mem::size_of::<Self>(),
         }
     }
 }

@@ -219,6 +219,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     imu.connect_body(bus.id, Transform::IDENTITY)?;
     mag.connect_body(bus.id, Transform::IDENTITY)?;
 
+    sys.add_software(SoftwareInterface::C("dione_fsw.dll"));
+
     sys.add_body(bus);
     sys.add_body(sa1);
     sys.add_body(sa2);
@@ -237,7 +239,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 1.0, None)?;
+    sys.simulate("", 0.0, 1000.0, 1.0, Some(10))?;
 
     Ok(())
 }

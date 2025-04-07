@@ -2,6 +2,7 @@ pub mod noise;
 
 use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
+    software::CInterface,
     system::Id,
 };
 use gps::{Gps, GpsBuilder, GpsErrors};
@@ -49,7 +50,7 @@ pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
-    fn telemetry(&self) -> &[u8];
+    fn read_telemetry(&self) -> CInterface;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -209,22 +210,12 @@ impl SensorModel for SensorModels {
         }
     }
 
-    fn telemetry(&self) -> &[u8] {
+    fn read_telemetry(&self) -> CInterface {
         match self {
-            SensorModels::Gps(sensor) => sensor.telemetry(),
-            SensorModels::Magnetometer(sensor) => sensor.telemetry(),
-            SensorModels::RateGyro(sensor) => sensor.telemetry(),
-            SensorModels::StarTracker(sensor) => sensor.telemetry(),
+            SensorModels::Gps(sensor) => sensor.read_telemetry(),
+            SensorModels::Magnetometer(sensor) => sensor.read_telemetry(),
+            SensorModels::RateGyro(sensor) => sensor.read_telemetry(),
+            SensorModels::StarTracker(sensor) => sensor.read_telemetry(),
         }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn get_sensor_telemetry(sensor: *const Sensor) -> TelemetryData {
-    let sensor = unsafe { &*sensor };
-    let bytes = sensor.model.telemetry();
-    TelemetryData {
-        data: bytes.as_ptr(),
-        length: bytes.len(),
     }
 }

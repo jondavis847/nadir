@@ -2,6 +2,7 @@ use super::noise::{NoiseErrors, QuaternioNoiseBuilder};
 use crate::{
     body::BodyConnection,
     sensor::{noise::QuaternionNoise, SensorModel},
+    software::CInterface,
 };
 use rotations::prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder};
 use serde::{Deserialize, Serialize};
@@ -180,8 +181,8 @@ impl SensorModel for StarTracker {
         ]
     }
 
-    fn telemetry(&self) -> &[u8] {
-        self.telemetry.as_bytes()
+    fn read_telemetry(&self) -> CInterface {
+        self.telemetry.as_interface()
     }
 }
 
@@ -194,12 +195,10 @@ pub struct StarTrackerTelemetry {
     w: f64,
 }
 impl StarTrackerTelemetry {
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                (self as *const Self).cast::<u8>(),
-                std::mem::size_of::<Self>(),
-            )
+    pub fn as_interface(&self) -> CInterface {
+        CInterface {
+            data_ptr: self as *const Self as *const u8,
+            data_len: std::mem::size_of::<Self>(),
         }
     }
 }

@@ -75,6 +75,8 @@ pub trait ActuatorModel {
     fn state_vector_init(&self) -> SimStateVector;
     /// Reads a state vector into the sim state
     fn state_vector_read(&mut self, state: &SimStateVector);
+    // Write the command bytes to the actuator model, which must check the length of the bytes and cast the bytes to the proper type
+    fn write_command(&mut self, cmd: &[u8]) -> Result<(), ActuatorErrors>;
 }
 
 #[derive(Debug)]
@@ -219,6 +221,13 @@ impl ActuatorModel for ActuatorModels {
         match self {
             ActuatorModels::ReactionWheel(act) => act.update(connection),
             ActuatorModels::Thruster(act) => act.update(connection),
+        }
+    }
+
+    fn write_command(&mut self, cmd: &[u8]) -> Result<(), ActuatorErrors> {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.write_command(cmd),
+            ActuatorModels::Thruster(act) => act.write_command(cmd),
         }
     }
 }

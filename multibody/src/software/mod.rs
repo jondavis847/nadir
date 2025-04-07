@@ -1,32 +1,28 @@
 use crate::{
-    actuator::Actuator,
+    actuator::{Actuator, ActuatorModel},
     sensor::{Sensor, SensorModel},
 };
 
 #[repr(C)]
-pub struct SensorData {
+pub struct CInterface {
     pub data_ptr: *const u8,
     pub data_len: usize,
 }
 
-#[repr(C)]
-pub struct ActuatorCommand {
-    pub actuator_index: usize,
-    pub data_ptr: *const u8,
-    pub data_len: usize,
+pub trait RustSoftware {
+    fn step(&mut self, sensors: &[CInterface], actuators: &mut Vec<CInterface>);
 }
 
 pub enum SoftwareInterface {
-    Rust(SoftwareEntryFnRust),
-    C(SoftwareEntryFnC),
+    Rust(Box<dyn RustSoftware>),
+    C(CEntryFn),
 }
 
-pub type SoftwareEntryFnRust = fn(sensors: &[SensorData], commands: &mut Vec<ActuatorCommand>);
-
-pub type SoftwareEntryFnC = unsafe extern "C" fn(
-    sensors: *const SensorData,
+// Define the C FFI function type
+pub type CEntryFn = unsafe extern "C" fn(
+    sensors: *const CInterface,
     sensor_count: usize,
-    commands: *mut ActuatorCommand,
+    commands: *mut CInterface,
     max_count: usize,
     out_count: *mut usize,
 );
@@ -35,51 +31,48 @@ pub struct Software {
     interface: SoftwareInterface,
     sensor_indices: Vec<usize>,
     actuator_indices: Vec<usize>,
-    sensor_data: Vec<SensorData>,
-    actuator_commands: Vec<ActuatorCommand>,
+    sensor_telemetry_cache: Vec<CInterface>,
+    actuator_command_cache: Vec<CInterface>,
 }
 
 impl Software {
     pub fn step(&mut self, sensors: &[Sensor], actuators: &mut [Actuator]) {
-        // clear old commands
-        self.actuator_commands.clear();
-
         // collect sensor data
-        for (j, &i) in self.sensor_indices.iter().enumerate() {
-            let telemetry = sensors[i].model.telemetry();
-            self.sensor_data[j] = SensorData {
-                data_ptr: telemetry.as_ptr(),
-                data_len: telemetry.len(),
-            };
+        for (i, &s) in self.sensor_indices.iter().enumerate() {
+            self.sensor_telemetry_cache[i] = sensors[s].model.read_telemetry();
         }
 
-        match self.interface {
-            SoftwareInterface::Rust(entry_fn) => {
+        match &mut self.interface {
+            SoftwareInterface::Rust(fsw) => {
                 // run Rust software logic
-                entry_fn(&self.sensor_data, &mut self.actuator_commands);
+                fsw.step(
+                    &self.sensor_telemetry_cache,
+                    &mut self.actuator_command_cache,
+                );
             }
             SoftwareInterface::C(entry_fn) => {
-                // run C software logic
+                // Run C software logic
                 let mut out_count: usize = 0;
                 unsafe {
                     entry_fn(
-                        self.sensor_data.as_ptr(),
-                        self.sensor_data.len(),
-                        self.actuator_commands.as_mut_ptr(),
-                        self.actuator_commands.capacity(),
+                        self.sensor_telemetry_cache.as_ptr(),
+                        self.sensor_telemetry_cache.len(),
+                        self.actuator_command_cache.as_mut_ptr(),
+                        self.actuator_command_cache.capacity(),
                         &mut out_count,
                     );
-                    self.actuator_commands.set_len(out_count);
+                    self.actuator_command_cache.set_len(out_count);
                 }
             }
         }
 
         // apply actuator commands
-        for cmd in &self.actuator_commands {
-            let act = &mut actuators[cmd.actuator_index];
+        for (i, &a) in self.actuator_indices.iter().enumerate() {
+            let act = &mut actuators[a];
+            let cmd = &self.actuator_command_cache[i];
             unsafe {
                 let bytes = std::slice::from_raw_parts(cmd.data_ptr, cmd.data_len);
-                act.model.apply_command(bytes);
+                act.model.write_command(bytes);
             }
         }
     }
