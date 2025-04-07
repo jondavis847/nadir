@@ -88,6 +88,13 @@ pub struct PrismaticBuilder {
 }
 
 impl PrismaticBuilder {
+    pub fn new() -> Self {
+        Self {
+            parameters: PrismaticParametersBuilder::default(),
+            state: PrismaticStateBuilder::default(),
+        }
+    }
+
     /// Sets the nominal initial position state
     pub fn set_position(&mut self, position: f64) {
         self.state.position = SimValue::new(position);
@@ -590,7 +597,7 @@ impl ArticulatedBodyAlgorithm for Prismatic {
         };
         let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
         self.cache.q_ddot = self.cache.aba.big_d_inv
-            * (self.cache.aba.lil_u - (self.cache.aba.big_u.transpose() * a_prime.vector())[3]);
+            * (self.cache.aba.lil_u - (self.cache.aba.big_u.transpose() * a_prime.vector())[0]); // indexing just pull value out of 1x1 vector
         joint_cache.a =
             a_prime + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, self.cache.q_ddot, 0.0, 0.0));
     }

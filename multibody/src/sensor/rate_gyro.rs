@@ -146,6 +146,7 @@ impl Uncertainty for RateGyroBuilder {
         Ok(RateGyro {
             parameters: self.parameters.sample(nominal, rng)?,
             state: RateGyroState::default(),
+            telemetry: RateGyroTelemetry::default(),
         })
     }
 }
@@ -159,6 +160,7 @@ impl Uncertainty for RateGyroBuilder {
 pub struct RateGyro {
     parameters: RateGyroParameters,
     pub state: RateGyroState,
+    telemetry: RateGyroTelemetry,
 }
 
 impl SensorModel for RateGyro {
@@ -177,6 +179,9 @@ impl SensorModel for RateGyro {
         } else {
             self.state.measurement = sensor_rate;
         }
+
+        //update telemetry
+        self.telemetry.measurement = self.state.measurement;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -216,6 +221,26 @@ impl SensorModel for RateGyro {
             ]
         } else {
             &["measurement[x]", "measurement[y]", "measurement[z]"]
+        }
+    }
+
+    fn telemetry(&self) -> &[u8] {
+        self.telemetry.as_bytes()
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+#[repr(C)]
+pub struct RateGyroTelemetry {
+    measurement: Vector3<f64>,
+}
+impl RateGyroTelemetry {
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                (self as *const Self).cast::<u8>(),
+                std::mem::size_of::<Self>(),
+            )
         }
     }
 }

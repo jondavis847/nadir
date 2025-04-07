@@ -4,6 +4,7 @@ use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
+use thruster::{Thruster, ThrusterBuilder, ThrusterErrors};
 use transforms::Transform;
 use uncertainty::Uncertainty;
 
@@ -14,6 +15,7 @@ use crate::{
 };
 
 pub mod reaction_wheel;
+pub mod thruster;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActuatorBuilder {
@@ -59,6 +61,8 @@ pub enum ActuatorErrors {
     AlreadyConnectedToThisBody(String),
     #[error("{0}")]
     ReactionWheelErrors(#[from] ReactionWheelErrors),
+    #[error("{0}")]
+    ThrusterErrors(#[from] ThrusterErrors),
 }
 
 pub trait ActuatorModel {
@@ -137,6 +141,7 @@ impl NadirResult for Actuator {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ActuatorModelBuilders {
     ReactionWheel(ReactionWheelBuilder),
+    Thruster(ThrusterBuilder),
 }
 
 impl ActuatorModelBuilders {
@@ -149,6 +154,9 @@ impl ActuatorModelBuilders {
             ActuatorModelBuilders::ReactionWheel(builder) => {
                 Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
             }
+            ActuatorModelBuilders::Thruster(builder) => {
+                Ok(ActuatorModels::Thruster(builder.sample(nominal, rng)?))
+            }
         }
     }
 }
@@ -159,45 +167,58 @@ impl From<ReactionWheelBuilder> for ActuatorModelBuilders {
     }
 }
 
+impl From<ThrusterBuilder> for ActuatorModelBuilders {
+    fn from(builder: ThrusterBuilder) -> Self {
+        ActuatorModelBuilders::Thruster(builder)
+    }
+}
+
 #[derive(Debug)]
 pub enum ActuatorModels {
     ReactionWheel(ReactionWheel),
+    Thruster(Thruster),
 }
 
 impl ActuatorModel for ActuatorModels {
     fn result_content(&self, id: u32, results: &mut ResultManager) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.result_content(id, results),
+            ActuatorModels::Thruster(act) => act.result_content(id, results),
         }
     }
 
     fn result_headers(&self) -> &[&str] {
         match self {
             ActuatorModels::ReactionWheel(act) => act.result_headers(),
+            ActuatorModels::Thruster(act) => act.result_headers(),
         }
     }
 
     fn state_derivative(&self, derivative: &mut SimStateVector) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
+            ActuatorModels::Thruster(act) => act.state_derivative(derivative),
         }
     }
 
     fn state_vector_init(&self) -> SimStateVector {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
+            ActuatorModels::Thruster(act) => act.state_vector_init(),
         }
     }
 
     fn state_vector_read(&mut self, state: &SimStateVector) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
+            ActuatorModels::Thruster(act) => act.state_vector_read(state),
         }
     }
 
     fn update(&mut self, connection: &BodyConnection) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.update(connection),
+            ActuatorModels::Thruster(act) => act.update(connection),
         }
     }
 }

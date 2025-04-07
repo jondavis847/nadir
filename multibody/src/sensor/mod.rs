@@ -39,10 +39,17 @@ pub enum SensorErrors {
     Uncertainty(#[from] UncertaintyErrors),
 }
 
+#[repr(C)]
+pub struct TelemetryData {
+    pub data: *const u8,
+    pub length: usize,
+}
+
 pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
+    fn telemetry(&self) -> &[u8];
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -200,5 +207,24 @@ impl SensorModel for SensorModels {
             SensorModels::RateGyro(sensor) => sensor.update(connection),
             SensorModels::StarTracker(sensor) => sensor.update(connection),
         }
+    }
+
+    fn telemetry(&self) -> &[u8] {
+        match self {
+            SensorModels::Gps(sensor) => sensor.telemetry(),
+            SensorModels::Magnetometer(sensor) => sensor.telemetry(),
+            SensorModels::RateGyro(sensor) => sensor.telemetry(),
+            SensorModels::StarTracker(sensor) => sensor.telemetry(),
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_sensor_telemetry(sensor: *const Sensor) -> TelemetryData {
+    let sensor = unsafe { &*sensor };
+    let bytes = sensor.model.telemetry();
+    TelemetryData {
+        data: bytes.as_ptr(),
+        length: bytes.len(),
     }
 }

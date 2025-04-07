@@ -140,6 +140,7 @@ impl Uncertainty for MagnetometerBuilder {
         Ok(Magnetometer {
             parameters: self.parameters.sample(nominal, rng)?,
             state: MagnetometerState::default(),
+            telemetry: MagnetometerTelemetry::default(),
         })
     }
 }
@@ -159,6 +160,7 @@ pub struct MagnetometerState {
 pub struct Magnetometer {
     parameters: MagnetometerParameters,
     pub state: MagnetometerState,
+    telemetry: MagnetometerTelemetry,
 }
 
 impl Magnetometer {}
@@ -181,6 +183,9 @@ impl SensorModel for Magnetometer {
         } else {
             self.state.measurement = sensor_b
         }
+
+        // update telemetry
+        self.telemetry.measurement = self.state.measurement;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -220,6 +225,26 @@ impl SensorModel for Magnetometer {
             ]
         } else {
             &["measurement[x]", "measurement[y]", "measurement[z]"]
+        }
+    }
+
+    fn telemetry(&self) -> &[u8] {
+        self.telemetry.as_bytes()
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+#[repr(C)]
+pub struct MagnetometerTelemetry {
+    measurement: Vector3<f64>,
+}
+impl MagnetometerTelemetry {
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                (self as *const Self).cast::<u8>(),
+                std::mem::size_of::<Self>(),
+            )
         }
     }
 }

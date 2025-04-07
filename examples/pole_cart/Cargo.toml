@@ -1,0 +1,18 @@
+[package]
+name = "pole_cart"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aerospace.workspace = true
+color.workspace = true
+gravity.workspace = true
+mass_properties.workspace = true
+multibody.workspace = true
+nadir_3d.workspace = true
+nalgebra.workspace = true
+rotations.workspace = true 
+ron.workspace = true
+transforms.workspace = true

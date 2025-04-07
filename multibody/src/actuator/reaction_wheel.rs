@@ -480,6 +480,13 @@ impl ActuatorModel for ReactionWheel {
                 .transform
                 .rotation
                 .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
+
+        // apply misaligntment if applicable
+        if let Some(misalignment) = &self.parameters.misalignment {
+            self.state.torque_body = misalignment.transform(&self.state.torque_body);
+            self.state.momentum_body = misalignment.transform(&self.state.momentum_body);
+        }
+
         self.state.acceleration = torque / self.parameters.inertia;
 
         // Update body
@@ -535,7 +542,7 @@ impl ActuatorModel for ReactionWheel {
     }
 
     fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.acceleration])
+        SimStateVector(vec![self.state.velocity])
     }
 
     fn state_vector_read(&mut self, state: &SimStateVector) {

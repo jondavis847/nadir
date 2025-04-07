@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j2);
 
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, None)?;
+    sys.simulate("", 0.0, 20.0, 0.1, Some(50))?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::{
-    actuator::{Actuator, ActuatorBuilder},
+    actuator::{Actuator, ActuatorBuilder, ActuatorModelBuilders},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
     body::{BodyBuilder, BodyConnection, BodyRef},

@@ -111,6 +111,7 @@ impl Uncertainty for StarTrackerBuilder {
         Ok(StarTracker {
             parameters: self.parameters.sample(nominal, rng)?,
             state: StarTrackerState::default(),
+            telemetry: StarTrackerTelemetry::default(),
         })
     }
 }
@@ -121,6 +122,7 @@ impl Uncertainty for StarTrackerBuilder {
 pub struct StarTracker {
     parameters: StarTrackerParameters,
     pub state: StarTrackerState,
+    telemetry: StarTrackerTelemetry,
 }
 
 impl SensorModel for StarTracker {
@@ -143,6 +145,12 @@ impl SensorModel for StarTracker {
             self.state.noise = quaternion_noise;
         } // else keep as identity from initialization
         self.state.measurement = sensor_attitude;
+
+        //update telemetry
+        self.telemetry.x = self.state.measurement.0.x;
+        self.telemetry.y = self.state.measurement.0.y;
+        self.telemetry.z = self.state.measurement.0.z;
+        self.telemetry.w = self.state.measurement.0.w;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -170,5 +178,28 @@ impl SensorModel for StarTracker {
             "noise[z]",
             "noise[w]",
         ]
+    }
+
+    fn telemetry(&self) -> &[u8] {
+        self.telemetry.as_bytes()
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+#[repr(C)]
+pub struct StarTrackerTelemetry {
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64,
+}
+impl StarTrackerTelemetry {
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                (self as *const Self).cast::<u8>(),
+                std::mem::size_of::<Self>(),
+            )
+        }
     }
 }

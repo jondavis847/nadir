@@ -5,7 +5,7 @@ use crate::{
         SensorModel,
     },
 };
-use indicatif::style::TemplateError;
+
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -210,6 +210,7 @@ impl Uncertainty for GpsBuilder {
         Ok(Gps {
             parameters: self.parameters.sample(nominal, rng)?,
             state: GpsState::default(),
+            telemetry: GpsTelemetry::default(),
         })
     }
 }
@@ -219,6 +220,7 @@ impl Uncertainty for GpsBuilder {
 pub struct Gps {
     parameters: GpsParameters,
     pub state: GpsState,
+    telemetry: GpsTelemetry,
 }
 
 impl SensorModel for Gps {
@@ -249,6 +251,10 @@ impl SensorModel for Gps {
         } else {
             self.state.velocity = true_velocity;
         }
+
+        // update telemetry
+        self.telemetry.position = self.state.position;
+        self.telemetry.velocity = self.state.velocity;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -304,5 +310,27 @@ impl SensorModel for Gps {
             "velocity_noise[y]",
             "velocity_noise[z]",
         ]
+    }
+
+    fn telemetry(&self) -> &[u8] {
+        self.telemetry.as_bytes()
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+#[repr(C)]
+struct GpsTelemetry {
+    position: Vector3<f64>,
+    velocity: Vector3<f64>,
+}
+
+impl GpsTelemetry {
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                (self as *const Self).cast::<u8>(),
+                std::mem::size_of::<Self>(),
+            )
+        }
     }
 }
