@@ -12,6 +12,8 @@ use uncertainty::{SimValue, Uncertainty};
 
 #[derive(Debug, Error)]
 pub enum ThrusterErrors {
+    #[error("invalid command length fo thruster, should be 1 byte")]
+    InvalidCommand,
     #[error("{0}")]
     Quaternion(#[from] QuaternionErrors),
     #[error("thruster force must be greater than 0.0")]
@@ -218,4 +220,12 @@ impl ActuatorModel for Thruster {
     }
 
     fn state_vector_read(&mut self, _state: &SimStateVector) {}
+
+    fn write_command(&mut self, cmd: &[u8]) -> Result<(), super::ActuatorErrors> {
+        if cmd.len() != 1 {
+            return Err(ThrusterErrors::InvalidCommand.into());
+        }
+        self.state.command = cmd[0] != 0;
+        Ok(())
+    }
 }

@@ -219,8 +219,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     imu.connect_body(bus.id, Transform::IDENTITY)?;
     mag.connect_body(bus.id, Transform::IDENTITY)?;
 
-    sys.add_software(SoftwareInterface::C("dione_fsw.dll"));
-
     sys.add_body(bus);
     sys.add_body(sa1);
     sys.add_body(sa2);
