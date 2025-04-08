@@ -1,10 +1,10 @@
 pub mod noise;
-
 use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
-    software::CInterface,
     system::Id,
+    HardwareBuffer,
 };
+
 use gps::{Gps, GpsBuilder, GpsErrors};
 use magnetometer::{Magnetometer, MagnetometerBuilder, MagnetometerErrors};
 use nadir_result::{NadirResult, ResultManager};
@@ -40,17 +40,12 @@ pub enum SensorErrors {
     Uncertainty(#[from] UncertaintyErrors),
 }
 
-#[repr(C)]
-pub struct TelemetryData {
-    pub data: *const u8,
-    pub length: usize,
-}
-
 pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
-    fn read_telemetry(&self) -> CInterface;
+    fn init_buffer(&self) -> HardwareBuffer;
+    fn write_buffer(&self, buffer: &mut HardwareBuffer);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -81,11 +76,13 @@ impl SensorBuilder {
         connection: BodyConnection,
     ) -> Result<Sensor, SensorErrors> {
         let model = self.model.sample(nominal, rng)?;
+        let buffer = model.init_buffer();
         Ok(Sensor {
             name: self.name.clone(),
             model,
             connection,
             result_id: None,
+            telemetry_buffer: buffer,
         })
     }
 }
@@ -95,6 +92,7 @@ pub struct Sensor {
     pub name: String,
     pub model: SensorModels,
     pub connection: BodyConnection,
+    telemetry_buffer: HardwareBuffer,
     result_id: Option<u32>,
 }
 
@@ -210,12 +208,21 @@ impl SensorModel for SensorModels {
         }
     }
 
-    fn read_telemetry(&self) -> CInterface {
+    fn init_buffer(&self) -> HardwareBuffer {
         match self {
-            SensorModels::Gps(sensor) => sensor.read_telemetry(),
-            SensorModels::Magnetometer(sensor) => sensor.read_telemetry(),
-            SensorModels::RateGyro(sensor) => sensor.read_telemetry(),
-            SensorModels::StarTracker(sensor) => sensor.read_telemetry(),
+            SensorModels::Gps(sensor) => sensor.init_buffer(),
+            SensorModels::Magnetometer(sensor) => sensor.init_buffer(),
+            SensorModels::RateGyro(sensor) => sensor.init_buffer(),
+            SensorModels::StarTracker(sensor) => sensor.init_buffer(),
+        }
+    }
+
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+        match self {
+            SensorModels::Gps(sensor) => sensor.write_buffer(buffer),
+            SensorModels::Magnetometer(sensor) => sensor.write_buffer(buffer),
+            SensorModels::RateGyro(sensor) => sensor.write_buffer(buffer),
+            SensorModels::StarTracker(sensor) => sensor.write_buffer(buffer),
         }
     }
 }

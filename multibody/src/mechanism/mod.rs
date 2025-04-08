@@ -1,4 +1,5 @@
-use indexmap::IndexMap;
+use std::collections::HashMap;
+
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 
@@ -22,7 +23,7 @@ impl Mechanism {
         self
     }
 
-    pub fn update(&mut self, bodies: &IndexMap<Id, Body>) {
+    pub fn update(&mut self, bodies: &HashMap<Id, Body>) {
         self.state.kinetic_energy = 0.0;
         self.state.potential_energy = 0.0;
         self.state.total_energy = 0.0;

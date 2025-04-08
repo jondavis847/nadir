@@ -1,8 +1,9 @@
 use crate::{
     body::BodyConnection,
     sensor::{noise::Noise, SensorModel},
-    software::CInterface,
+    HardwareBuffer,
 };
+use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
@@ -182,7 +183,7 @@ impl SensorModel for RateGyro {
         }
 
         //update telemetry
-        self.telemetry.measurement = self.state.measurement;
+        self.telemetry.measurement = self.state.measurement.into();
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -225,21 +226,17 @@ impl SensorModel for RateGyro {
         }
     }
 
-    fn read_telemetry(&self) -> CInterface {
-        self.telemetry.as_interface()
+    fn init_buffer(&self) -> HardwareBuffer {
+        HardwareBuffer::new::<RateGyroTelemetry>()
+    }
+
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+        buffer.write(&self.telemetry);
     }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct RateGyroTelemetry {
-    measurement: Vector3<f64>,
-}
-impl RateGyroTelemetry {
-    pub fn as_interface(&self) -> CInterface {
-        CInterface {
-            data_ptr: self as *const Self as *const u8,
-            data_len: std::mem::size_of::<Self>(),
-        }
-    }
+    measurement: [f64; 3],
 }

@@ -12,6 +12,7 @@ pub mod system;
 use actuator::ActuatorErrors;
 use base::BaseErrors;
 use body::BodyErrors;
+use bytemuck::Pod;
 use celestial::CelestialErrors;
 
 use joint::JointErrors;
@@ -65,4 +66,54 @@ pub enum MultibodyErrors {
     SensorMissingBody(String),
     #[error("{0}")]
     SpiceErrors(#[from] SpiceErrors),
+}
+
+#[derive(Debug)]
+pub struct HardwareBuffer(Vec<u8>);
+
+impl HardwareBuffer {
+    // Create a new buffer with capacity for a specific type
+    pub fn new<T: Pod>() -> Self {
+        let size = std::mem::size_of::<T>();
+        HardwareBuffer(Vec::with_capacity(size))
+    }
+
+    // Write a struct into the buffer
+    pub fn write<T: Pod>(&mut self, data: &T) {
+        let size = std::mem::size_of::<T>();
+
+        // Ensure the buffer has enough capacity
+        if self.0.capacity() < size {
+            self.0.reserve(size - self.0.capacity());
+        }
+
+        // Reset the buffer
+        self.0.clear();
+
+        // Convert the struct to bytes and extend the buffer
+        let bytes = bytemuck::bytes_of(data);
+        self.0.extend_from_slice(bytes);
+    }
+
+    // Read a struct from the buffer
+    pub fn read<T: Pod>(&self) -> Option<T> {
+        let size = std::mem::size_of::<T>();
+
+        if self.0.len() != size {
+            return None; // Buffer doesn't contain exactly one T
+        }
+
+        // Convert bytes back to the struct
+        Some(*bytemuck::from_bytes::<T>(&self.0))
+    }
+
+    // Get a reference to the underlying bytes
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    // Get a mutable reference to the underlying bytes
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
 }

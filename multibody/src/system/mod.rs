@@ -1,5 +1,5 @@
 use crate::{
-    actuator::{Actuator, ActuatorBuilder, ActuatorModelBuilders},
+    actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
     body::{BodyBuilder, BodyConnection, BodyRef},
@@ -15,10 +15,7 @@ use gravity::{constant::ConstantGravity, newtonian::NewtonianGravity, Gravity};
 use indicatif::MultiProgress;
 use nadir_result::{NadirResult, ResultManager};
 
-use rand::{
-    rngs::{SmallRng, ThreadRng},
-    Rng, SeedableRng,
-};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
 use rayon::prelude::*;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use serde::{Deserialize, Serialize};

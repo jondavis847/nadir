@@ -12,7 +12,7 @@ members = [
     "color", 
     "coordinate_systems",     
     "examples/*",
-    "gravity", 
+    "gravity",
     "legendre", 
     "magnetics", 
     "mass_properties",
@@ -21,9 +21,8 @@ members = [
     "nadir_3d",     
     "nadir_result", "pest", 
     "plotting", 
-    "plotting_egui",
-    "rotations", 
-    "software",    
+    "plotting_egui", "plugins",
+    "rotations",     
     "spatial_algebra",
     "spherical_harmonics", 
     "spice",
@@ -57,7 +56,6 @@ gravity = {path = "gravity"}
 httpdate = "1.0.3"
 iced = { version = "0.13.1", features = ["debug","advanced","canvas","image","tokio"] }
 image = "0.25.5"
-indexmap = {version = "2.8.0", feature = ["serde"]}
 indicatif = "0.17.9"
 inquire = "0.7.5"
 interp = "2.0.1"
@@ -85,7 +83,6 @@ rotations = {path = "rotations"}
 rustyline = {version = "15.0.0", features = ["with-file-history"]}
 rustyline-derive = "0.11.0"
 serde = {version = "1.0.215" , features = ["derive", "rc"]}
-software = {path = "software"} 
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"} 

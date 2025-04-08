@@ -4,9 +4,10 @@ use crate::{
         noise::{Noise, NoiseBuilder},
         SensorModel,
     },
-    software::CInterface,
+    HardwareBuffer,
 };
 
+use bytemuck::{Pod, Zeroable};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -254,8 +255,8 @@ impl SensorModel for Gps {
         }
 
         // update telemetry
-        self.telemetry.position = self.state.position;
-        self.telemetry.velocity = self.state.velocity;
+        self.telemetry.position = self.state.position.into();
+        self.telemetry.velocity = self.state.velocity.into();
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -313,23 +314,18 @@ impl SensorModel for Gps {
         ]
     }
 
-    fn read_telemetry(&self) -> CInterface {
-        self.telemetry.as_interface()
+    fn init_buffer(&self) -> HardwareBuffer {
+        HardwareBuffer::new::<GpsTelemetry>()
+    }
+
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+        buffer.write(&self.telemetry);
     }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct GpsTelemetry {
-    position: Vector3<f64>,
-    velocity: Vector3<f64>,
-}
-
-impl GpsTelemetry {
-    pub fn as_interface(&self) -> CInterface {
-        CInterface {
-            data_ptr: self as *const Self as *const u8,
-            data_len: std::mem::size_of::<Self>(),
-        }
-    }
+    position: [f64; 3],
+    velocity: [f64; 3],
 }
