@@ -4616,10 +4616,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "plugins"
-version = "0.0.1"
-
-[[package]]
 name = "png"
 version = "0.17.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5588,6 +5584,13 @@ dependencies = [
  "web-sys",
  "windows-sys 0.59.0",
  "x11rb",
+]
+
+[[package]]
+name = "software"
+version = "0.1.0"
+dependencies = [
+ "nadir_result",
 ]
 
 [[package]]

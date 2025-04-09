@@ -1,11 +1,9 @@
-use crate::hardware::{actuators::SpacecraftActuators, sensors::SpacecraftSensors};
 use actuators::ActuatorFsw;
 use control::ControlFsw;
 use guidance::GuidanceFsw;
 use nadir_result::NadirResult;
 use navigation::NavigationFsw;
 use sensors::SensorFsw;
-use serde::{Deserialize, Serialize};
 
 pub mod actuators;
 mod control;
@@ -13,7 +11,7 @@ mod guidance;
 mod navigation;
 mod sensors;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct SpacecraftFsw {
     sensors: SensorFsw,
     navigation: NavigationFsw,
@@ -22,11 +20,8 @@ pub struct SpacecraftFsw {
     actuators: ActuatorFsw,
 }
 
-impl SoftwareSystem for SpacecraftFsw {
-    type Actuators = SpacecraftActuators;
-    type Sensors = SpacecraftSensors;
-
-    fn run(&mut self, sensors: &Self::Sensors, actuators: &mut Self::Actuators) {
+impl SpacecraftFsw {
+    fn step(&mut self, sensors: &Self::Sensors, actuators: &mut Self::Actuators) {
         self.sensors.run(sensors);
         self.navigation.run(&self.sensors);
         self.guidance.run(&self.navigation);

@@ -1,8 +1,0 @@
-[package]
-name = "plugins"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-rust-version.workspace = true
-
-[dependencies]
