@@ -18,6 +18,7 @@ use multibody::{
         gps::GpsBuilder, magnetometer::MagnetometerBuilder, rate_gyro::RateGyroBuilder,
         star_tracker::StarTrackerBuilder, SensorBuilder,
     },
+    software::Software,
     system::MultibodySystemBuilder,
 };
 use rotations::{
@@ -50,7 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A with_orbit() method is provided for Floating joints
     let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let f = FloatingBuilder::new()
-        .with_attitude(UnitQuaternion::new(-0.4, -0.5, 0.5, 0.5))
+        .with_attitude(UnitQuaternion::new(-0.4, -0.5, 0.5, 0.5)?)
         .with_orbit(orbit.into());
     let mut j = sys.new_joint("f", f.into())?;
 
@@ -235,6 +236,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw2);
     sys.add_actuator(rw3);
     sys.add_actuator(rw4);
+
+    // Add the software
+    let software = Software::new("fsw", "../../target/release/software.dll")
+        .with_actuator_indices(vec![0, 1, 2, 3])
+        .with_sensor_indices(vec![0, 1, 2, 3]);
+    sys.add_software(software);
 
     // Run the simulation
     sys.simulate("", 0.0, 1000.0, 1.0, Some(10))?;

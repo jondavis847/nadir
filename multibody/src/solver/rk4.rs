@@ -75,7 +75,9 @@ pub fn solve_fixed_rk4(
         }
 
         // update sensors
-        sys.sensors.iter_mut().for_each(|sensor| sensor.update());
+        sys.sensors
+            .iter_mut()
+            .try_for_each(|sensor| sensor.update())?;
 
         // logic to change dt near end of sim to capture end point
         if (tstop - t) < dt && (tstop - t) > f64::EPSILON {

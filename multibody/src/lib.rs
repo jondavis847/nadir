@@ -77,6 +77,12 @@ pub struct CInterface {
     pub data_len: usize,
 }
 
+#[derive(Debug, Error)]
+pub enum BufferError {
+    #[error("attempted to read buffer but size was not correct")]
+    SizeMismatch,
+}
+
 #[derive(Debug, Pod, Zeroable, Clone, Copy)]
 #[repr(C)]
 pub struct HardwareBuffer {
@@ -121,13 +127,13 @@ impl HardwareBuffer {
     }
 
     /// Read a struct back out of the buffer
-    pub fn read<T: Pod>(&self) -> Option<T> {
+    pub fn read<T: Pod>(&self) -> Result<T, BufferError> {
         let t_size = size_of::<T>();
         if self.size != t_size {
-            return None;
+            return Err(BufferError::SizeMismatch);
         }
 
-        Some(*from_bytes(&self.data[..t_size]))
+        Ok(*from_bytes(&self.data[..t_size]))
     }
 
     /// Return the used slice of the buffer

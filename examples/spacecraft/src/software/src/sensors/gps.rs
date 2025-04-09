@@ -57,8 +57,9 @@ impl GpsFsw {
     }
 
     pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
-        if let Some(telemetry) = buffer.read::<GpsTelemetry>() {
-            self.telemetry.clone_from(&telemetry);
+        match buffer.read::<GpsTelemetry>() {
+            Ok(telemetry) => self.telemetry.clone_from(&telemetry),
+            Err(e) => eprintln!("{e}"),
         }
     }
 }

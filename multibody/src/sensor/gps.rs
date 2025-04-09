@@ -323,6 +323,9 @@ impl SensorModel for Gps {
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct GpsTelemetry {
+    time: f64,
     position: [f64; 3],
     velocity: [f64; 3],
+    valid: u8,
+    _padding: [u8; 7],
 }

@@ -578,10 +578,7 @@ impl ActuatorModel for ReactionWheel {
     }
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
-        self.state.command = match cmd.read::<ReactionWheelCommand>() {
-            Some(command) => command,
-            None => ReactionWheelCommand::ZERO,
-        };
+        self.state.command = cmd.read::<ReactionWheelCommand>()?;
         Ok(())
     }
 }

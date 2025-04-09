@@ -1,7 +1,7 @@
 use nalgebra::{DMatrix, DVector};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
-use rotations::prelude::{Quaternion, UnitQuaternion};
+use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::collections::HashMap;
 use thiserror::Error;
 use time::{Time, TimeErrors};
@@ -16,6 +16,8 @@ pub enum RegistryErrors {
     StructNotFound(String),
     #[error("method '{1}' not found for struct '{0}'")]
     MethodNotFound(String, String),
+    #[error("{0}")]
+    QuaternionErrors(#[from] QuaternionErrors),
     #[error("{0}")]
     TimeErrors(#[from] TimeErrors),
     #[error("{0}")]
@@ -225,10 +227,10 @@ impl Registry {
                         quat_args[1],
                         quat_args[2],
                         quat_args[3],
-                    ))))
+                    )?)))
                 }
                 ("UnitQuaternion", "rand") => {
-                    Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand())))
+                    Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand()?)))
                 }
 
                 // -- Vector methods --

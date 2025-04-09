@@ -12,7 +12,7 @@ use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
     solver::{SimStateVector, SimStates},
     system::Id,
-    HardwareBuffer,
+    BufferError, HardwareBuffer,
 };
 
 pub mod reaction_wheel;
@@ -60,6 +60,8 @@ pub enum ActuatorErrors {
     AlreadyConnectedToAnotherBody(String, String),
     #[error("actuator '{0}' is already connected to that body")]
     AlreadyConnectedToThisBody(String),
+    #[error("{0}")]
+    BufferError(#[from] BufferError),
     #[error("{0}")]
     ReactionWheelErrors(#[from] ReactionWheelErrors),
     #[error("{0}")]

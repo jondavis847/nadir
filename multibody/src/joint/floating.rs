@@ -126,7 +126,7 @@ pub struct FloatingState {
 impl<'a> AddAssign<&'a Self> for FloatingState {
     fn add_assign(&mut self, rhs: &'a Self) {
         self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
-        self.q = self.q.normalize(); // manually normalize since we can't use UnitQuaternions
+        self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w += &rhs.w;
         self.r += &rhs.r;
         self.v += &rhs.v;
@@ -136,7 +136,7 @@ impl<'a> AddAssign<&'a Self> for FloatingState {
 impl MulAssign<f64> for FloatingState {
     fn mul_assign(&mut self, rhs: f64) {
         self.q *= rhs;
-        self.q = self.q.normalize(); // manually normalize since we can't use UnitQuaternions
+        self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w *= rhs;
         self.r *= rhs;
         self.v *= rhs;
@@ -355,7 +355,9 @@ impl JointModel for Floating {
 
     fn state_vector_read(&mut self, state: &SimStateVector) {
         // need to normalize the integrated quaternion
-        let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3]).normalize();
+        let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3])
+            .normalize()
+            .unwrap();
         self.state.q = q;
         self.state.r[0] = state.0[4];
         self.state.r[1] = state.0[5];
@@ -373,7 +375,7 @@ impl JointModel for Floating {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     ) {
-        let rotation = Rotation::from(&UnitQuaternion::from(&self.state.q));
+        let rotation = Rotation::from(&UnitQuaternion::try_from(&self.state.q).unwrap());
         let translation = Cartesian::from(self.state.r); // r is already jif to jof
         let transform = Transform::new(rotation, translation.into());
 

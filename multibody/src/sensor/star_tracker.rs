@@ -152,10 +152,10 @@ impl SensorModel for StarTracker {
         self.state.measurement = sensor_attitude;
 
         //update telemetry
-        self.telemetry.x = self.state.measurement.0.x;
-        self.telemetry.y = self.state.measurement.0.y;
-        self.telemetry.z = self.state.measurement.0.z;
-        self.telemetry.w = self.state.measurement.0.w;
+        self.telemetry.q[0] = self.state.measurement.0.x;
+        self.telemetry.q[1] = self.state.measurement.0.y;
+        self.telemetry.q[2] = self.state.measurement.0.z;
+        self.telemetry.q[3] = self.state.measurement.0.w;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -194,8 +194,7 @@ impl SensorModel for StarTracker {
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct StarTrackerTelemetry {
-    x: f64,
-    y: f64,
-    z: f64,
-    w: f64,
+    q: [f64; 4],
+    valid: u8,
+    _padding: [u8; 7],
 }

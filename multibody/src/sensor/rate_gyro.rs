@@ -187,6 +187,7 @@ impl SensorModel for RateGyro {
 
         //update telemetry
         self.telemetry.measurement = self.state.measurement.into();
+        self.telemetry.valid = 1u8;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -239,4 +240,6 @@ impl SensorModel for RateGyro {
 #[repr(C)]
 pub struct RateGyroTelemetry {
     measurement: [f64; 3],
+    valid: u8,
+    _padding: [u8; 7],
 }

@@ -195,7 +195,8 @@ impl Spice {
         //TODO: include century calculation for obliquity for completeness?
         let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
         let j2000_equatorial_from_ecliptic =
-            UnitQuaternion::new((-obliquity / 2.0).sin(), 0.0, 0.0, (-obliquity / 2.0).cos());
+            UnitQuaternion::new((-obliquity / 2.0).sin(), 0.0, 0.0, (-obliquity / 2.0).cos())
+                .unwrap();
 
         let result = segment.evaluate(t)?;
         let ra = result[0];

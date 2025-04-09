@@ -38,7 +38,8 @@ impl StarTrackerFsw {
             self.telemetry.q_st[1],
             self.telemetry.q_st[2],
             self.telemetry.q_st[3],
-        );
+        )
+        .unwrap();
         self.state.q_body = self.parameters.st_to_body * self.state.q_st;
         self.state.valid = match self.telemetry.valid {
             0u8 => false,
@@ -48,8 +49,9 @@ impl StarTrackerFsw {
     }
 
     pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
-        if let Some(telemetry) = buffer.read::<StarTrackerTelemetry>() {
-            self.telemetry.clone_from(&telemetry);
+        match buffer.read::<StarTrackerTelemetry>() {
+            Ok(telemetry) => self.telemetry.clone_from(&telemetry),
+            Err(e) => eprintln!("{e}"),
         }
     }
 }

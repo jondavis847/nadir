@@ -1,5 +1,6 @@
 use crate::{
-    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, HardwareBuffer,
+    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, BufferError,
+    HardwareBuffer,
 };
 use bytemuck::{Pod, Zeroable};
 use nalgebra::{Vector3, Vector6};
@@ -17,6 +18,8 @@ use super::ActuatorErrors;
 
 #[derive(Debug, Error)]
 pub enum ThrusterErrors {
+    #[error("{0}")]
+    BufferError(#[from] BufferError),
     #[error("invalid command for thruster")]
     InvalidCommand,
     #[error("{0}")]
@@ -231,13 +234,7 @@ impl ActuatorModel for Thruster {
     fn state_vector_read(&mut self, _state: &SimStateVector) {}
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
-        self.state.command = match cmd.read::<ThrusterCommand>() {
-            Some(command) => match command {
-                ThrusterCommand::ON | ThrusterCommand::OFF => command,
-                _ => return Err(ThrusterErrors::InvalidCommand.into()),
-            },
-            None => ThrusterCommand::OFF,
-        };
+        self.state.command = cmd.read::<ThrusterCommand>()?;
         Ok(())
     }
 }

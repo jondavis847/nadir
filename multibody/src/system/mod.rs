@@ -63,6 +63,10 @@ impl MultibodySystemBuilder {
         self.sensors.push(sensor);
     }
 
+    pub fn add_software(&mut self, software: Software) {
+        self.software.push(software);
+    }
+
     // pub fn connect(
     //     &mut self,
     //     from_name: &str,
@@ -805,10 +809,11 @@ impl MultibodySystem {
         }
     }
 
-    pub fn update_sensors(&mut self) {
+    pub fn update_sensors(&mut self) -> Result<(), MultibodyErrors> {
         for sensor in &mut self.sensors {
-            sensor.update()
+            sensor.update()?;
         }
+        Ok(())
     }
 
     pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {

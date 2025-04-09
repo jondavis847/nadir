@@ -95,8 +95,10 @@ pub struct Sensor {
 }
 
 impl Sensor {
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> Result<(), SensorErrors> {
         self.model.update(&self.connection);
+        self.model.write_buffer(&mut self.telemetry_buffer)?;
+        Ok(())
     }
 }
 
