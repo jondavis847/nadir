@@ -3600,6 +3600,7 @@ dependencies = [
  "csv",
  "gravity",
  "indicatif",
+ "libloading 0.8.6",
  "mass_properties",
  "nadir_3d",
  "nadir_result",

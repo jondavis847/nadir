@@ -17,7 +17,7 @@ use celestial::CelestialErrors;
 
 use joint::JointErrors;
 use sensor::SensorErrors;
-use software::CInterface;
+use software::SoftwareErrors;
 use spice::SpiceErrors;
 use thiserror::Error;
 
@@ -66,7 +66,15 @@ pub enum MultibodyErrors {
     #[error("sensor '{0}' is not connected to a body")]
     SensorMissingBody(String),
     #[error("{0}")]
+    SoftwareErrors(#[from] SoftwareErrors),
+    #[error("{0}")]
     SpiceErrors(#[from] SpiceErrors),
+}
+
+#[repr(C)]
+pub struct CInterface {
+    pub data_ptr: *const u8,
+    pub data_len: usize,
 }
 
 #[derive(Debug, Pod, Zeroable, Clone, Copy)]

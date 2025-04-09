@@ -16,6 +16,7 @@ coordinate_systems.workspace = true
 csv.workspace = true
 gravity.workspace = true
 indicatif.workspace = true
+libloading.workspace = true
 mass_properties.workspace = true
 nadir_3d.workspace = true
 nadir_result.workspace = true

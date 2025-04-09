@@ -1,22 +1,28 @@
-use crate::{actuator::Actuator, sensor::Sensor, HardwareBuffer};
+use crate::{
+    actuator::{Actuator, ActuatorErrors},
+    sensor::Sensor,
+    HardwareBuffer,
+};
+use libloading::{Library, Symbol};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-#[repr(C)]
-pub struct CInterface {
-    pub data_ptr: *const u8,
-    pub data_len: usize,
+#[derive(Debug, Error)]
+pub enum SoftwareErrors {
+    #[error("{0}")]
+    Actuator(#[from] ActuatorErrors),
+    #[error("Failed to load library: {0}")]
+    LibraryLoadError(String),
+    #[error("Failed to load symbol: {0}")]
+    MissingEntryPoint(String),
 }
 
-pub trait RustSoftware {
-    fn step(
-        &mut self,
-        sensor_telemetry: &[HardwareBuffer],
-        actuator_commands: &mut [HardwareBuffer],
-    );
-}
-
-pub enum SoftwareInterface {
-    Rust(Box<dyn RustSoftware>),
-    C(FnC),
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Software {
+    pub name: String,
+    pub lib: String,
+    pub sensor_indices: Vec<usize>,
+    pub actuator_indices: Vec<usize>,
 }
 
 // Define the C FFI function type
@@ -27,64 +33,85 @@ pub type FnC = unsafe extern "C" fn(
     actuator_count: usize,
 );
 
-pub struct Software {
-    interface: SoftwareInterface,
+#[derive(Debug)]
+pub struct SoftwareSim {
+    entry: FnC,
     sensor_indices: Vec<usize>,
     actuator_indices: Vec<usize>,
     sensor_telemetry_cache: Vec<HardwareBuffer>,
     actuator_command_cache: Vec<HardwareBuffer>,
+    _lib: Library, // to keep it alive
 }
 
-impl Software {
+impl SoftwareSim {
     pub fn new(
-        interface: SoftwareInterface,
+        entry: FnC,
         sensor_indices: Vec<usize>,
         actuator_indices: Vec<usize>,
+        lib: Library,
     ) -> Self {
         let sensor_telemetry_cache = vec![HardwareBuffer::new(); sensor_indices.len()];
         let actuator_command_cache = vec![HardwareBuffer::new(); actuator_indices.len()];
 
         Self {
-            interface,
+            entry,
             sensor_indices,
             actuator_indices,
             sensor_telemetry_cache,
             actuator_command_cache,
+            _lib: lib,
         }
     }
-}
 
-impl Software {
-    pub fn step(&mut self, sensors: &[Sensor], actuators: &mut [Actuator]) {
+    pub fn step(
+        &mut self,
+        sensors: &[Sensor],
+        actuators: &mut [Actuator],
+    ) -> Result<(), SoftwareErrors> {
         // write sensor telemetry to cache
         for &i in &self.sensor_indices {
             self.sensor_telemetry_cache[i].write_bytes(sensors[i].telemetry_buffer.as_bytes());
         }
 
-        match &mut self.interface {
-            SoftwareInterface::Rust(fsw) => {
-                // run Rust software logic
-                fsw.step(
-                    self.sensor_telemetry_cache.as_slice(),
-                    self.actuator_command_cache.as_mut_slice(),
-                );
-            }
-            SoftwareInterface::C(c_fn) => {
-                // Run C software logic
-                unsafe {
-                    (c_fn)(
-                        self.sensor_telemetry_cache.as_ptr(),
-                        self.sensor_telemetry_cache.len(),
-                        self.actuator_command_cache.as_mut_ptr(),
-                        self.actuator_command_cache.capacity(),
-                    );
-                }
-            }
+        // Run C software logic
+        unsafe {
+            (self.entry)(
+                self.sensor_telemetry_cache.as_ptr(),
+                self.sensor_telemetry_cache.len(),
+                self.actuator_command_cache.as_mut_ptr(),
+                self.actuator_command_cache.capacity(),
+            );
         }
 
         // read actuator commands
         for (i, &a) in self.actuator_indices.iter().enumerate() {
-            actuators[a].read_command(&self.actuator_command_cache[i]);
+            actuators[a].read_command(&self.actuator_command_cache[i])?;
         }
+        Ok(())
+    }
+}
+
+impl TryFrom<&Software> for SoftwareSim {
+    type Error = SoftwareErrors;
+    fn try_from(soft: &Software) -> Result<Self, SoftwareErrors> {
+        let path = soft.lib.as_str();
+        let lib = unsafe {
+            Library::new(path).unwrap_or_else(|e| panic!("Failed to load C cdylib {}: {}", path, e))
+        };
+
+        // Look up the entry point fns
+        let step_fn: Symbol<FnC> = unsafe {
+            lib.get(b"step")
+                .unwrap_or_else(|e| panic!("Missing step in {}: {}", path, e))
+        };
+
+        let entry = *step_fn;
+
+        Ok(SoftwareSim::new(
+            entry,
+            soft.sensor_indices.clone(),
+            soft.actuator_indices.clone(),
+            lib,
+        ))
     }
 }

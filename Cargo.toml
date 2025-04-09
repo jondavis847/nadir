@@ -60,6 +60,7 @@ indicatif = "0.17.9"
 inquire = "0.7.5"
 interp = "2.0.1"
 legendre = {path = "legendre"}
+libloading = "0.8.6"
 magnetics = {path = "magnetics"}
 mass_properties = {path = "mass_properties"} 
 multibody = {path = "multibody"}  

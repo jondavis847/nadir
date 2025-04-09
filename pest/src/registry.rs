@@ -119,7 +119,7 @@ impl Default for Registry {
         structs.insert("Vector", Struct::new(vector_methods));
 
         // Standalone Functions
-        let mut functions = HashMap::new();
+        let functions = HashMap::new();
 
         Self { structs, functions }
     }

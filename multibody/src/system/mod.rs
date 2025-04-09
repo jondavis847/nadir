@@ -5,7 +5,7 @@ use crate::{
     body::{BodyBuilder, BodyConnection, BodyRef},
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
-    //software::SoftwareSystem,
+    software::{Software, SoftwareSim},
     solver::{rk4::solve_fixed_rk4, SimStates},
     MultibodyErrors,
 };
@@ -43,7 +43,7 @@ pub struct MultibodySystemBuilder {
     pub joints: HashMap<Id, JointBuilder>,
     seed: u64,
     pub sensors: Vec<SensorBuilder>,
-    //pub software: Option<Box<dyn SoftwareSystem>>,
+    pub software: Vec<Software>,
 }
 
 impl MultibodySystemBuilder {
@@ -117,7 +117,7 @@ impl MultibodySystemBuilder {
             joints: HashMap::new(),
             seed,
             sensors: Vec::new(),
-            //software: None,
+            software: Vec::new(),
         }
     }
 
@@ -302,6 +302,7 @@ impl MultibodySystemBuilder {
         let mut joints = Vec::new();
         let mut actuators = Vec::new();
         let mut sensors = Vec::new();
+        let mut software = Vec::new();
 
         let seed = rng.gen::<u64>();
         let mut sys_rng = SmallRng::seed_from_u64(seed);
@@ -404,6 +405,11 @@ impl MultibodySystemBuilder {
             joint.inner_joint = inner_joint;
         }
 
+        // create software
+        for sw in &self.software {
+            software.push(SoftwareSim::try_from(sw)?);
+        }
+
         let sys = MultibodySystem {
             actuators,
             algorithm: self.algorithm,
@@ -412,6 +418,7 @@ impl MultibodySystemBuilder {
             joints,
             run_id,
             sensors,
+            software,
             sim_time_id: None,
         };
 
@@ -517,7 +524,7 @@ pub struct MultibodySystem {
     pub joints: Vec<JointRef>,
     pub run_id: Option<usize>, // Monte Carlo run number for progress bar
     pub sensors: Vec<Sensor>,
-    //pub software: Option<Box<dyn SoftwareSystem>>,
+    pub software: Vec<SoftwareSim>,
     pub sim_time_id: Option<u32>,
 }
 
@@ -558,7 +565,7 @@ impl MultibodySystem {
         x: &SimStates,
         t: f64,
     ) -> Result<(), MultibodyErrors> {
-        self.set_state(x); // write the integrated states back in to the joints
+        self.update_state(x); // write the integrated states back in to the joints
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
@@ -656,11 +663,14 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn run_software(&mut self) {
-        //self.software.run(&self.sensors, &mut self.actuators);
+    pub fn update_software(&mut self) -> Result<(), MultibodyErrors> {
+        for software in &mut self.software {
+            software.step(&self.sensors, &mut self.actuators)?;
+        }
+        Ok(())
     }
 
-    fn set_state(&mut self, states: &SimStates) {
+    fn update_state(&mut self, states: &SimStates) {
         for joint in &self.joints {
             joint.borrow_mut().state_vector_read(states);
         }

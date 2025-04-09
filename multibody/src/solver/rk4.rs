@@ -88,7 +88,7 @@ pub fn solve_fixed_rk4(
         //println!("k1");
         // calculate k1 = f(x,t)
         tmp.clone_from(&x);
-        sys.run(&mut k1, &tmp, t);
+        sys.run(&mut k1, &tmp, t)?;
         //dbg!(&k1);
 
         // run software and update the results vectors here since we just updated all secondary states based on integrated state 'x'
@@ -96,29 +96,26 @@ pub fn solve_fixed_rk4(
         // If not, call sys.run one more time before or after the stages to update
         // (or only call what's needed to update secondary states instead of sys.run)
         // add initial conditions to results storage
-        sys.run_software();
+        sys.update_software()?;
         sys.write_result_files(t, results);
 
-        //println!("k2");
         // calculate k2 = f(x + 0.5*k1 , t + 0.5dt)
         tmp.clone_from(&k1);
         tmp *= half_dt;
         tmp += &x;
-        sys.run(&mut k2, &tmp, t + half_dt);
+        sys.run(&mut k2, &tmp, t + half_dt)?;
 
-        //println!("k3");
         // calculate k3 = f(x + 0.5*k2 , t + 0.5dt)
         tmp.clone_from(&k2);
         tmp *= half_dt;
         tmp += &x;
-        sys.run(&mut k3, &tmp, t + half_dt);
+        sys.run(&mut k3, &tmp, t + half_dt)?;
 
-        //println!("k4");
         // calculate k4 = f(x + k3 , t + dt)
         tmp.clone_from(&k3);
         tmp *= dt;
         tmp += &x;
-        sys.run(&mut k4, &tmp, t + dt);
+        sys.run(&mut k4, &tmp, t + dt)?;
 
         // calculate x = x + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * dt / 6.0;
 
