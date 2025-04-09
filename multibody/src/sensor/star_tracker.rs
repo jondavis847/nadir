@@ -1,4 +1,7 @@
-use super::noise::{NoiseErrors, QuaternioNoiseBuilder};
+use super::{
+    noise::{NoiseErrors, QuaternioNoiseBuilder},
+    SensorErrors,
+};
 use crate::{
     body::BodyConnection,
     sensor::{noise::QuaternionNoise, SensorModel},
@@ -182,12 +185,9 @@ impl SensorModel for StarTracker {
         ]
     }
 
-    fn init_buffer(&self) -> HardwareBuffer {
-        HardwareBuffer::new::<StarTrackerTelemetry>()
-    }
-
-    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {
         buffer.write(&self.telemetry);
+        Ok(())
     }
 }
 

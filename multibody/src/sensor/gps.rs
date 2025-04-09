@@ -14,7 +14,7 @@ use thiserror::Error;
 use time::Time;
 use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
 
-use super::noise::NoiseErrors;
+use super::{noise::NoiseErrors, SensorErrors};
 
 #[derive(Debug, Error)]
 pub enum GpsErrors {
@@ -314,12 +314,9 @@ impl SensorModel for Gps {
         ]
     }
 
-    fn init_buffer(&self) -> HardwareBuffer {
-        HardwareBuffer::new::<GpsTelemetry>()
-    }
-
-    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {
         buffer.write(&self.telemetry);
+        Ok(())
     }
 }
 

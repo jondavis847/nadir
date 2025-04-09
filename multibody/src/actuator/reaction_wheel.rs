@@ -1,4 +1,7 @@
-use crate::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
+use crate::{
+    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, HardwareBuffer,
+};
+use bytemuck::{Pod, Zeroable};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
@@ -10,12 +13,14 @@ use spatial_algebra::Force;
 use thiserror::Error;
 use uncertainty::{SimValue, Uncertainty};
 
+use super::ActuatorErrors;
+
 #[derive(Debug, Error)]
 pub enum ReactionWheelErrors {
     #[error("knee speed must be less than or equal to max speed")]
     KneeGreaterThanMax,
-    #[error("invalid command length for reaction wheel")]
-    InvalidCommandLength,
+    #[error("invalid command for reaction wheel")]
+    InvalidCommand,
     #[error("coulomb friction should be greater than 0")]
     NegativeCoulomb,
     #[error("stiction should be greater than 0")]
@@ -36,15 +41,23 @@ pub enum ReactionWheelErrors {
     Quaternion(#[from] QuaternionErrors),
 }
 
-const COMMAND_TORQUE: u8 = 0;
-const COMMAND_CURRENT: u8 = 1;
-const COMMAND_SPEED: u8 = 2;
-
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct ReactionWheelCommand {
-    pub command: u8,
     pub value: f64,
+    pub command: u8,
+    _padding: [u8; 7],
+}
+
+impl ReactionWheelCommand {
+    const TORQUE: u8 = 0;
+    const CURRENT: u8 = 1;
+    const SPEED: u8 = 2;
+    const ZERO: Self = Self {
+        value: 0.0,
+        command: 0,
+        _padding: [0; 7],
+    };
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -436,10 +449,10 @@ pub struct ReactionWheel {
 }
 
 impl ActuatorModel for ReactionWheel {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         // Determine initial torque based on command type
         let mut torque = match self.state.command.command {
-            COMMAND_TORQUE => {
+            ReactionWheelCommand::TORQUE => {
                 let desired_torque = self.state.command.value;
                 // apply max torque limit if provided
                 if let Some(torque_max) = self.parameters.torque_max {
@@ -448,12 +461,14 @@ impl ActuatorModel for ReactionWheel {
                     desired_torque
                 }
             }
-            COMMAND_CURRENT => self.parameters.torque_constant * self.state.command.value,
-            COMMAND_SPEED => {
+            ReactionWheelCommand::CURRENT => {
+                self.parameters.torque_constant * self.state.command.value
+            }
+            ReactionWheelCommand::SPEED => {
                 todo!()
             }
             _ => {
-                panic!("Invalid command type");
+                return Err(ReactionWheelErrors::InvalidCommand.into());
             }
         };
 
@@ -511,6 +526,7 @@ impl ActuatorModel for ReactionWheel {
             0.0,
             0.0,
         ));
+        Ok(())
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
@@ -561,12 +577,11 @@ impl ActuatorModel for ReactionWheel {
         self.state.momentum = self.state.velocity * self.parameters.inertia;
     }
 
-    fn write_command(&mut self, cmd: &[u8]) -> Result<(), super::ActuatorErrors> {
-        if cmd.len() != 9 {
-            return Err(ReactionWheelErrors::InvalidCommandLength.into());
-        }
-        self.state.command.command = cmd[0];
-        self.state.command.value = f64::from_le_bytes(cmd[1..9].try_into().unwrap());
+    fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
+        self.state.command = match cmd.read::<ReactionWheelCommand>() {
+            Some(command) => command,
+            None => ReactionWheelCommand::ZERO,
+        };
         Ok(())
     }
 }

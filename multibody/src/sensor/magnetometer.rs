@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
 
-use super::noise::{NoiseBuilder, NoiseErrors};
+use super::{
+    noise::{NoiseBuilder, NoiseErrors},
+    SensorErrors,
+};
 
 #[derive(Debug, Error)]
 pub enum MagnetometerErrors {
@@ -230,12 +233,9 @@ impl SensorModel for Magnetometer {
         }
     }
 
-    fn init_buffer(&self) -> HardwareBuffer {
-        HardwareBuffer::new::<MagnetometerTelemetry>()
-    }
-
-    fn write_buffer(&self, buffer: &mut HardwareBuffer) {
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {
         buffer.write(&self.telemetry);
+        Ok(())
     }
 }
 

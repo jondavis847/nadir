@@ -12,11 +12,12 @@ pub mod system;
 use actuator::ActuatorErrors;
 use base::BaseErrors;
 use body::BodyErrors;
-use bytemuck::Pod;
+use bytemuck::{bytes_of, checked::from_bytes, Pod, Zeroable};
 use celestial::CelestialErrors;
 
 use joint::JointErrors;
 use sensor::SensorErrors;
+use software::CInterface;
 use spice::SpiceErrors;
 use thiserror::Error;
 
@@ -68,52 +69,81 @@ pub enum MultibodyErrors {
     SpiceErrors(#[from] SpiceErrors),
 }
 
-#[derive(Debug)]
-pub struct HardwareBuffer(Vec<u8>);
+#[derive(Debug, Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+pub struct HardwareBuffer {
+    data: [u8; 1024],
+    size: usize,
+}
 
 impl HardwareBuffer {
     // Create a new buffer with capacity for a specific type
-    pub fn new<T: Pod>() -> Self {
-        let size = std::mem::size_of::<T>();
-        HardwareBuffer(Vec::with_capacity(size))
-    }
-
-    // Write a struct into the buffer
-    pub fn write<T: Pod>(&mut self, data: &T) {
-        let size = std::mem::size_of::<T>();
-
-        // Ensure the buffer has enough capacity
-        if self.0.capacity() < size {
-            self.0.reserve(size - self.0.capacity());
+    pub fn new() -> Self {
+        HardwareBuffer {
+            data: [0u8; 1024],
+            size: 0,
         }
-
-        // Reset the buffer
-        self.0.clear();
-
-        // Convert the struct to bytes and extend the buffer
-        let bytes = bytemuck::bytes_of(data);
-        self.0.extend_from_slice(bytes);
     }
 
-    // Read a struct from the buffer
+    /// Write a struct into the buffer
+    pub fn write<T: Pod>(&mut self, val: &T) {
+        let t_size = size_of::<T>();
+        assert!(
+            t_size <= self.data.len(),
+            "Type too large for HardwareBuffer ({} > {})",
+            t_size,
+            self.data.len()
+        );
+
+        let bytes = bytes_of(val);
+        self.data[..t_size].copy_from_slice(bytes);
+        self.size = t_size;
+    }
+
+    /// Write a raw byte slice into the buffer
+    pub fn write_bytes(&mut self, data: &[u8]) {
+        assert!(
+            data.len() <= self.data.len(),
+            "Buffer overflow: tried to write {} bytes into {}-byte buffer",
+            data.len(),
+            self.data.len()
+        );
+        self.data[..data.len()].copy_from_slice(data);
+        self.size = data.len();
+    }
+
+    /// Read a struct back out of the buffer
     pub fn read<T: Pod>(&self) -> Option<T> {
-        let size = std::mem::size_of::<T>();
-
-        if self.0.len() != size {
-            return None; // Buffer doesn't contain exactly one T
+        let t_size = size_of::<T>();
+        if self.size != t_size {
+            return None;
         }
 
-        // Convert bytes back to the struct
-        Some(*bytemuck::from_bytes::<T>(&self.0))
+        Some(*from_bytes(&self.data[..t_size]))
     }
 
-    // Get a reference to the underlying bytes
+    /// Return the used slice of the buffer
     pub fn as_bytes(&self) -> &[u8] {
-        &self.0
+        &self.data[..self.size]
     }
 
-    // Get a mutable reference to the underlying bytes
+    /// Return a mutable slice to the used portion
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.0
+        &mut self.data[..self.size]
+    }
+
+    /// Return the raw pointer and length (e.g., for FFI)
+    pub fn as_c_interface(&self) -> CInterface {
+        CInterface {
+            data_ptr: self.data.as_ptr(),
+            data_len: self.size,
+        }
+    }
+
+    pub fn as_c_interface_mut(&mut self) -> CInterface {
+        CInterface {
+            data_ptr: self.data.as_mut_ptr(),
+            data_len: self.size,
+        }
     }
 }

@@ -1,4 +1,7 @@
-use crate::{actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector};
+use crate::{
+    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, HardwareBuffer,
+};
+use bytemuck::{Pod, Zeroable};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
@@ -10,14 +13,25 @@ use spatial_algebra::Force;
 use thiserror::Error;
 use uncertainty::{SimValue, Uncertainty};
 
+use super::ActuatorErrors;
+
 #[derive(Debug, Error)]
 pub enum ThrusterErrors {
-    #[error("invalid command length fo thruster, should be 1 byte")]
+    #[error("invalid command for thruster")]
     InvalidCommand,
     #[error("{0}")]
     Quaternion(#[from] QuaternionErrors),
     #[error("thruster force must be greater than 0.0")]
     NegativeDelay,
+}
+
+#[derive(Clone, Copy, Debug, Pod, PartialEq, Zeroable)]
+#[repr(C)]
+pub struct ThrusterCommand(u8);
+
+impl ThrusterCommand {
+    const OFF: Self = Self(0);
+    const ON: Self = Self(1);
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -68,7 +82,7 @@ struct ThrusterParameters {
 
 #[derive(Debug)]
 pub struct ThrusterState {
-    pub command: bool,
+    pub command: ThrusterCommand,
     force: f64,                // N
     force_body: Vector3<f64>,  // N
     torque_body: Vector3<f64>, //Nm
@@ -77,7 +91,7 @@ pub struct ThrusterState {
 impl ThrusterState {
     pub fn new() -> Self {
         Self {
-            command: false,
+            command: ThrusterCommand::OFF,
             force: 0.0,
             force_body: Vector3::zeros(),
             torque_body: Vector3::zeros(),
@@ -149,12 +163,12 @@ pub struct Thruster {
 }
 
 impl ActuatorModel for Thruster {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         // Determine initial torque based on command type
-        let force = if self.state.command {
-            self.parameters.force
-        } else {
-            0.0
+        let force = match self.state.command {
+            ThrusterCommand::ON => self.parameters.force,
+            ThrusterCommand::OFF => 0.0,
+            _ => return Err(ThrusterErrors::InvalidCommand.into()),
         };
 
         // Update state
@@ -182,13 +196,14 @@ impl ActuatorModel for Thruster {
             self.state.force_body[1],
             self.state.force_body[2],
         ));
+        Ok(())
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
         results.write_record(
             id,
             &[
-                self.state.command.to_string(),
+                self.state.command.0.to_string(),
                 self.state.force.to_string(),
                 self.state.force_body[0].to_string(),
                 self.state.force_body[1].to_string(),
@@ -213,19 +228,16 @@ impl ActuatorModel for Thruster {
         ]
     }
 
-    fn state_derivative(&self, _derivative: &mut SimStateVector) {}
-
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![])
-    }
-
     fn state_vector_read(&mut self, _state: &SimStateVector) {}
 
-    fn write_command(&mut self, cmd: &[u8]) -> Result<(), super::ActuatorErrors> {
-        if cmd.len() != 1 {
-            return Err(ThrusterErrors::InvalidCommand.into());
-        }
-        self.state.command = cmd[0] != 0;
+    fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
+        self.state.command = match cmd.read::<ThrusterCommand>() {
+            Some(command) => match command {
+                ThrusterCommand::ON | ThrusterCommand::OFF => command,
+                _ => return Err(ThrusterErrors::InvalidCommand.into()),
+            },
+            None => ThrusterCommand::OFF,
+        };
         Ok(())
     }
 }

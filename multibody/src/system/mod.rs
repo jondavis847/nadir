@@ -552,12 +552,17 @@ impl MultibodySystem {
         results
     }
 
-    pub fn run(&mut self, dx: &mut SimStates, x: &SimStates, t: f64) {
+    pub fn run(
+        &mut self,
+        dx: &mut SimStates,
+        x: &SimStates,
+        t: f64,
+    ) -> Result<(), MultibodyErrors> {
         self.set_state(x); // write the integrated states back in to the joints
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-        self.update_actuators(); // update the actuators before updating forces on the bodies
+        self.update_actuators()?; // update the actuators before updating forces on the bodies
         self.update_environments(); //update the environmental forces before updating forcces on the bodies
         self.update_forces(); // update body forces
 
@@ -647,6 +652,8 @@ impl MultibodySystem {
         self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
                                          //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
         self.write_derivative(dx);
+
+        Ok(())
     }
 
     pub fn run_software(&mut self) {
@@ -716,10 +723,11 @@ impl MultibodySystem {
         Ok(())
     }
 
-    fn update_actuators(&mut self) {
+    fn update_actuators(&mut self) -> Result<(), MultibodyErrors> {
         self.actuators
             .iter_mut()
-            .for_each(|actuator| actuator.update());
+            .try_for_each(|actuator| actuator.update())?;
+        Ok(())
     }
 
     fn update_body_acceleration(&mut self) {

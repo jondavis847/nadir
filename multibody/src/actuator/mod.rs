@@ -12,6 +12,7 @@ use crate::{
     body::{BodyConnection, BodyConnectionBuilder},
     solver::{SimStateVector, SimStates},
     system::Id,
+    HardwareBuffer,
 };
 
 pub mod reaction_wheel;
@@ -66,17 +67,18 @@ pub enum ActuatorErrors {
 }
 
 pub trait ActuatorModel {
-    fn update(&mut self, connection: &BodyConnection);
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors>;
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
-    fn state_derivative(&self, derivative: &mut SimStateVector);
+    fn state_derivative(&self, _derivative: &mut SimStateVector) {}
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector;
+    fn state_vector_init(&self) -> SimStateVector {
+        SimStateVector(vec![])
+    }
     /// Reads a state vector into the sim state
     fn state_vector_read(&mut self, state: &SimStateVector);
-    // Write the command bytes to the actuator model, which must check the length of the bytes and cast the bytes to the proper type
-    fn write_command(&mut self, cmd: &[u8]) -> Result<(), ActuatorErrors>;
+    fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors>;
 }
 
 #[derive(Debug)]
@@ -91,7 +93,7 @@ pub struct Actuator {
 }
 
 impl Actuator {
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> Result<(), ActuatorErrors> {
         self.model.update(&self.connection)
     }
 
@@ -110,6 +112,10 @@ impl Actuator {
         if let Some(id) = self.state_id {
             self.model.state_derivative(&mut x0.0[id as usize]);
         }
+    }
+
+    pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
+        self.model.read_command(buffer)
     }
 }
 
@@ -217,17 +223,17 @@ impl ActuatorModel for ActuatorModels {
         }
     }
 
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         match self {
             ActuatorModels::ReactionWheel(act) => act.update(connection),
             ActuatorModels::Thruster(act) => act.update(connection),
         }
     }
 
-    fn write_command(&mut self, cmd: &[u8]) -> Result<(), ActuatorErrors> {
+    fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.write_command(cmd),
-            ActuatorModels::Thruster(act) => act.write_command(cmd),
+            ActuatorModels::ReactionWheel(act) => act.read_command(cmd),
+            ActuatorModels::Thruster(act) => act.read_command(cmd),
         }
     }
 }
