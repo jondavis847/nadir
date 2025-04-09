@@ -1,17 +1,16 @@
-use crate::software::sensors::{imu::RateGyroFsw, star_tracker::StarTrackerFsw};
+use crate::sensors::{imu::RateGyroFsw, star_tracker::StarTrackerFsw};
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use rotations::prelude::UnitQuaternion;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct AttitudeDetermination {
     pub state: State,
     parameters: Parameters,
     result_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 enum AttitudeSource {
     MEKF,
     #[default]
@@ -19,7 +18,7 @@ enum AttitudeSource {
     Triad,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 enum RateSource {
     MEKF,
     #[default]
@@ -27,7 +26,7 @@ enum RateSource {
     Bdot,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct State {
     pub attitude: UnitQuaternion,
     attitude_source: AttitudeSource,
@@ -35,7 +34,7 @@ pub struct State {
     rate_source: RateSource,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct Parameters {}
 
 impl AttitudeDetermination {

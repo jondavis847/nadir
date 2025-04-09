@@ -1,16 +1,14 @@
 use gps::GpsFsw;
 use imu::RateGyroFsw;
+use multibody::HardwareBuffer;
 use nadir_result::{NadirResult, ResultManager};
-use serde::{Deserialize, Serialize};
 use star_tracker::StarTrackerFsw;
-
-use crate::hardware::sensors::SpacecraftSensors;
 
 pub mod gps;
 pub mod imu;
 pub mod star_tracker;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct SensorFsw {
     pub gps: GpsFsw,
     pub imu: RateGyroFsw,
@@ -18,10 +16,15 @@ pub struct SensorFsw {
 }
 
 impl SensorFsw {
-    pub fn run(&mut self, sensors: &SpacecraftSensors) {
-        self.gps.run(&sensors.gps.model);
-        self.imu.run(&sensors.imu.model);
-        self.st.run(&sensors.st.model);
+    pub fn read_buffers(&mut self, sensor_data: &[HardwareBuffer]) {
+        self.gps.read_buffer(&sensor_data[0]);
+        self.imu.read_buffer(&sensor_data[1]);
+        self.st.read_buffer(&sensor_data[2]);
+    }
+    pub fn run(&mut self) {
+        self.gps.run();
+        self.imu.run();
+        self.st.run();
     }
 
     pub fn write_results(&self, results: &mut ResultManager) {

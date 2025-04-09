@@ -1,20 +1,24 @@
-use nadir_result::{NadirResult, ResultManager};
-use serde::{Deserialize, Serialize};
-pub mod reaction_wheel;
-use reaction_wheel::ReactionWheelFsw;
-
-use crate::hardware::actuators::SpacecraftActuators;
-
 use super::control::ControlFsw;
+use multibody::HardwareBuffer;
+use nadir_result::{NadirResult, ResultManager};
+use reaction_wheel::ReactionWheelFsw;
+pub mod reaction_wheel;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct ActuatorFsw {
     rw: ReactionWheelFsw,
 }
 
 impl ActuatorFsw {
-    pub fn run(&mut self, control: &ControlFsw, actuators: &mut SpacecraftActuators) {
-        self.rw.run(control, &mut actuators.rw);
+    pub fn run(&mut self, control: &ControlFsw) {
+        self.rw.run(control);
+    }
+
+    pub fn write_buffers(&self, buffers: &mut [HardwareBuffer]) {
+        buffers[0].write(&self.rw.state.command[0]);
+        buffers[1].write(&self.rw.state.command[1]);
+        buffers[2].write(&self.rw.state.command[2]);
+        buffers[3].write(&self.rw.state.command[3]);
     }
 
     pub fn write_results(&self, results: &mut ResultManager) {

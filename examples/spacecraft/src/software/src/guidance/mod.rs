@@ -1,28 +1,27 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use rotations::prelude::{RotationMatrix, UnitQuaternion};
-use serde::{Deserialize, Serialize};
 
 use super::navigation::NavigationFsw;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 enum TargetMode {
     #[default]
     Nadir,
     Sun,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct GuidanceFsw {
     parameters: Parameters,
     pub state: State,
     result_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct Parameters {}
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct State {
     pub target_attitude: UnitQuaternion,
     pub target_rate: Vector3<f64>,

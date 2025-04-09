@@ -1,6 +1,7 @@
 use actuators::ActuatorFsw;
 use control::ControlFsw;
 use guidance::GuidanceFsw;
+use multibody::HardwareBuffer;
 use nadir_result::NadirResult;
 use navigation::NavigationFsw;
 use sensors::SensorFsw;
@@ -21,12 +22,14 @@ pub struct SpacecraftFsw {
 }
 
 impl SpacecraftFsw {
-    fn step(&mut self, sensors: &Self::Sensors, actuators: &mut Self::Actuators) {
-        self.sensors.run(sensors);
+    fn step(&mut self, sensor_buffers: &[HardwareBuffer], actuator_buffers: &mut [HardwareBuffer]) {
+        self.sensors.read_buffers(sensor_buffers);
+        self.sensors.run();
         self.navigation.run(&self.sensors);
         self.guidance.run(&self.navigation);
         self.control.run(&self.navigation, &self.guidance);
-        self.actuators.run(&self.control, actuators);
+        self.actuators.run(&self.control);
+        self.actuators.write_buffers(actuator_buffers);
     }
 
     fn initialize_results(&mut self, results: &mut nadir_result::ResultManager) {

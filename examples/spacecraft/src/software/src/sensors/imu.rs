@@ -1,36 +1,52 @@
-use crate::hardware::sensors::rate_gyro::RateGyro;
+use bytemuck::{Pod, Zeroable};
+use multibody::HardwareBuffer;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use rotations::{prelude::UnitQuaternion, RotationTrait};
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RateGyroFsw {
     pub state: State,
     parameters: Parameters,
     result_id: Option<u32>,
+    telemetry: RateGyroTelemetry,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct State {
     w_imu: Vector3<f64>,
     pub w_body: Vector3<f64>,
     pub valid: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+pub struct RateGyroTelemetry {
+    w: [f64; 3],
+    valid: u8,
+    _padding: [u8; 7],
+}
+
+#[derive(Clone, Debug, Default)]
 struct Parameters {
     imu_to_body: UnitQuaternion,
 }
 
 impl RateGyroFsw {
-    pub fn run(&mut self, imu: &RateGyro) {
-        self.state.w_imu = imu.state.measurement;
-        self.state.w_body = self
-            .parameters
-            .imu_to_body
-            .transform(&imu.state.measurement);
-        self.state.valid = true;
+    pub fn run(&mut self) {
+        self.state.w_imu = self.telemetry.w.into();
+        self.state.w_body = self.parameters.imu_to_body.transform(&self.state.w_imu);
+        self.state.valid = match self.telemetry.valid {
+            0u8 => false,
+            1u8 => true,
+            _ => panic!("invalid rate gyro validity flag"),
+        };
+    }
+
+    pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
+        if let Some(telemetry) = buffer.read::<RateGyroTelemetry>() {
+            self.telemetry.clone_from(&telemetry);
+        }
     }
 }
 

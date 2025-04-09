@@ -1,32 +1,56 @@
-use crate::hardware::sensors::star_tracker::StarTracker;
+use bytemuck::{Pod, Zeroable};
+use multibody::HardwareBuffer;
 use nadir_result::{NadirResult, ResultManager};
 use rotations::prelude::UnitQuaternion;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct StarTrackerFsw {
     pub state: State,
     parameters: Parameters,
+    telemetry: StarTrackerTelemetry,
     result_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct State {
     pub q_st: UnitQuaternion,
     pub q_body: UnitQuaternion,
     pub valid: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct Parameters {
     st_to_body: UnitQuaternion,
 }
 
+#[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+pub struct StarTrackerTelemetry {
+    q_st: [f64; 4],
+    valid: u8,
+    _padding: [u8; 7],
+}
+
 impl StarTrackerFsw {
-    pub fn run(&mut self, st: &StarTracker) {
-        self.state.q_st = st.state.measurement;
-        self.state.q_body = self.parameters.st_to_body * st.state.measurement;
-        self.state.valid = true;
+    pub fn run(&mut self) {
+        self.state.q_st = UnitQuaternion::new(
+            self.telemetry.q_st[0],
+            self.telemetry.q_st[1],
+            self.telemetry.q_st[2],
+            self.telemetry.q_st[3],
+        );
+        self.state.q_body = self.parameters.st_to_body * self.state.q_st;
+        self.state.valid = match self.telemetry.valid {
+            0u8 => false,
+            1u8 => true,
+            _ => panic!("invalid star tracker validity flag"),
+        };
+    }
+
+    pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
+        if let Some(telemetry) = buffer.read::<StarTrackerTelemetry>() {
+            self.telemetry.clone_from(&telemetry);
+        }
     }
 }
 

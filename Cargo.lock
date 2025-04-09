@@ -5590,7 +5590,14 @@ dependencies = [
 name = "software"
 version = "0.1.0"
 dependencies = [
+ "aerospace",
+ "bytemuck",
+ "celestial",
+ "multibody",
  "nadir_result",
+ "nalgebra",
+ "rotations",
+ "time",
 ]
 
 [[package]]

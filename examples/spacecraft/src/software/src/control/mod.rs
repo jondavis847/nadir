@@ -1,18 +1,17 @@
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
 use rotations::RotationTrait;
-use serde::{Deserialize, Serialize};
 
 use super::{guidance::GuidanceFsw, navigation::NavigationFsw};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct ControlFsw {
     parameters: Parameters,
     pub state: State,
     result_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct Parameters {
     // Control gains
     k_p: f64,
@@ -34,7 +33,7 @@ impl Default for Parameters {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct State {
     attitude_error: Vector3<f64>,
     rate_error: Vector3<f64>,

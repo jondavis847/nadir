@@ -1,20 +1,18 @@
+use crate::sensors::gps::GpsFsw;
 use aerospace::orbit::KeplerianElements;
 use celestial::CelestialBodies;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use serde::{Deserialize, Serialize};
 use time::{Time, TimeSystem};
 
-use crate::software::sensors::gps::GpsFsw;
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct OrbitDetermination {
     pub state: State,
     parameters: Parameters,
     result_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct State {
     pub position: Vector3<f64>,
     pub velocity: Vector3<f64>,
@@ -47,7 +45,7 @@ impl Default for State {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 struct Parameters {
     //propagator:
 }

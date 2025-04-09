@@ -1,17 +1,18 @@
-use crate::hardware::sensors::gps::Gps;
+use bytemuck::{Pod, Zeroable};
+use multibody::HardwareBuffer;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector3;
-use serde::{Deserialize, Serialize};
 use time::Time;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct GpsFsw {
     pub state: State,
     parameters: Parameters,
     result_id: Option<u32>,
+    telemetry: GpsTelemetry,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct State {
     pub time: Time,
     pub position: Vector3<f64>,
@@ -30,15 +31,35 @@ impl Default for State {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+pub struct GpsTelemetry {
+    time: f64,
+    position: [f64; 3],
+    velocity: [f64; 3],
+    valid: u8,
+    _padding: [u8; 7],
+}
+
+#[derive(Debug, Default)]
 struct Parameters {}
 
 impl GpsFsw {
-    pub fn run(&mut self, gps: &Gps) {
-        self.state.time = gps.state.time;
-        self.state.position = gps.state.position;
-        self.state.velocity = gps.state.velocity;
-        self.state.valid = true;
+    pub fn run(&mut self) {
+        self.state.time = Time::from_sec_j2k(self.telemetry.time, time::TimeSystem::TAI);
+        self.state.position = self.telemetry.position.into();
+        self.state.velocity = self.telemetry.velocity.into();
+        self.state.valid = match self.telemetry.valid {
+            0u8 => false,
+            1u8 => true,
+            _ => panic!("invalid gps validity flag"),
+        };
+    }
+
+    pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
+        if let Some(telemetry) = buffer.read::<GpsTelemetry>() {
+            self.telemetry.clone_from(&telemetry);
+        }
     }
 }
 

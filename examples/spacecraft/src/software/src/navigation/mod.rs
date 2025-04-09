@@ -1,5 +1,4 @@
 use nadir_result::{NadirResult, ResultManager};
-use serde::{Deserialize, Serialize};
 
 use super::sensors::SensorFsw;
 
@@ -8,7 +7,7 @@ mod od;
 use ad::AttitudeDetermination;
 use od::OrbitDetermination;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Default)]
 pub struct NavigationFsw {
     pub od: OrbitDetermination,
     pub ad: AttitudeDetermination,

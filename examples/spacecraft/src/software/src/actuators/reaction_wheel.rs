@@ -1,27 +1,29 @@
-use multibody::actuator::Actuator;
+use crate::control::ControlFsw;
+use bytemuck::{Pod, Zeroable};
+use multibody::HardwareBuffer;
 use nadir_result::{NadirResult, ResultManager};
-use nalgebra::{Matrix4x3, Vector4};
-use serde::{Deserialize, Serialize};
+use nalgebra::Matrix4x3;
 
-use crate::{
-    hardware::actuators::reaction_wheel::{ReactionWheel, ReactionWheelCommands},
-    software::control::ControlFsw,
-};
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct ReactionWheelFsw {
-    state: State,
-    parameters: Parameters,
-    result_id: Option<u32>,
+#[derive(Debug, Default, Pod, Zeroable, Copy, Clone)]
+#[repr(C)]
+pub struct ReactionWheelCommand {
+    value: f64,
+    command: u8,
+    _padding: [u8; 7],
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-struct State {
-    wheel_torque_commands: Vector4<f64>,
-    wheel_current_commands: Vector4<f64>,
+impl ReactionWheelCommand {
+    const TORQUE: u8 = 0;
+    const CURRENT: u8 = 1;
+    const SPEED: u8 = 2;
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Default)]
+pub struct State {
+    pub command: [ReactionWheelCommand; 4],
+}
+
+#[derive(Debug)]
 struct Parameters {
     kt: [f64; 4],
     body_to_wheel: Matrix4x3<f64>,
@@ -40,8 +42,15 @@ impl Default for Parameters {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ReactionWheelFsw {
+    pub state: State,
+    parameters: Parameters,
+    result_id: Option<u32>,
+}
+
 impl ReactionWheelFsw {
-    pub fn run(&mut self, control: &ControlFsw, rw: &mut [Actuator<ReactionWheel>; 4]) {
+    pub fn run(&mut self, control: &ControlFsw) {
         // wheel torque commands need to be equal and oppositie of body torque commmands, so negative sign
 
         let wheel_torque_commands =
@@ -66,14 +75,17 @@ impl ReactionWheelFsw {
         };
 
         for i in 0..4 {
-            self.state.wheel_torque_commands[i] = scaling_factor * wheel_torque_commands[i];
-            self.state.wheel_current_commands[i] =
-                self.state.wheel_torque_commands[i] / self.parameters.kt[i];
+            self.state.command[i] = ReactionWheelCommand {
+                command: ReactionWheelCommand::TORQUE,
+                value: scaling_factor * wheel_torque_commands[i],
+                _padding: [0; 7],
+            };
         }
+    }
 
-        for (i, wheel) in rw.iter_mut().enumerate() {
-            wheel.model.state.command =
-                ReactionWheelCommands::Torque(self.state.wheel_torque_commands[i]);
+    pub fn write_buffer(&self, buffer: &mut [HardwareBuffer]) {
+        for (i, rw) in self.state.command.iter().enumerate() {
+            buffer[i].write(rw)
         }
     }
 }
@@ -90,14 +102,14 @@ impl NadirResult for ReactionWheelFsw {
 
         // Initialize writer using the updated path
         let headers = [
-            "wheel_torque_commands[0]",
-            "wheel_torque_commands[1]",
-            "wheel_torque_commands[2]",
-            "wheel_torque_commands[3]",
-            "wheel_current_commands[0]",
-            "wheel_current_commands[1]",
-            "wheel_current_commands[2]",
-            "wheel_current_commands[3]",
+            "wheel_command_mode[0]",
+            "wheel_command_mode[1]",
+            "wheel_command_mode[2]",
+            "wheel_command_mode[3]",
+            "wheel_command_value[0]",
+            "wheel_command_value[1]",
+            "wheel_command_value[2]",
+            "wheel_command_value[3]",
         ];
         let id = results.new_writer("fsw_rw", &fsw_folder_path, &headers);
         self.result_id = Some(id);
@@ -108,14 +120,14 @@ impl NadirResult for ReactionWheelFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.wheel_torque_commands[0].to_string(),
-                    self.state.wheel_torque_commands[1].to_string(),
-                    self.state.wheel_torque_commands[2].to_string(),
-                    self.state.wheel_torque_commands[3].to_string(),
-                    self.state.wheel_current_commands[0].to_string(),
-                    self.state.wheel_current_commands[1].to_string(),
-                    self.state.wheel_current_commands[2].to_string(),
-                    self.state.wheel_current_commands[3].to_string(),
+                    self.state.command[0].command.to_string(),
+                    self.state.command[1].command.to_string(),
+                    self.state.command[2].command.to_string(),
+                    self.state.command[3].command.to_string(),
+                    self.state.command[0].value.to_string(),
+                    self.state.command[1].value.to_string(),
+                    self.state.command[2].value.to_string(),
+                    self.state.command[3].value.to_string(),
                 ],
             );
         }
