@@ -83,11 +83,20 @@ pub enum BufferError {
     SizeMismatch,
 }
 
-#[derive(Debug, Pod, Zeroable, Clone, Copy)]
+#[derive(Pod, Zeroable, Clone, Copy)]
 #[repr(C)]
 pub struct HardwareBuffer {
     data: [u8; 1024],
     size: usize,
+}
+
+impl std::fmt::Debug for HardwareBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HardwareBuffer")
+            .field("size", &self.size)
+            .field("data", &&self.data[..self.size.min(self.data.len())])
+            .finish()
+    }
 }
 
 impl HardwareBuffer {

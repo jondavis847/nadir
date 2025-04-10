@@ -257,6 +257,7 @@ impl SensorModel for Gps {
         // update telemetry
         self.telemetry.position = self.state.position.into();
         self.telemetry.velocity = self.state.velocity.into();
+        self.telemetry.valid = 1u8;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
