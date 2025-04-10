@@ -2,7 +2,7 @@ use crate::axis_angle::AxisAngleErrors;
 
 use super::*;
 use nalgebra::{Matrix3, Vector3, Vector4};
-use rand::prelude::*;
+use rand::{prelude::*, rng};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{AddAssign, Mul, MulAssign, Neg};
@@ -131,11 +131,11 @@ impl Quaternion {
     ///
     /// A random `Quaternion`.
     pub fn rand() -> Quaternion {
-        let mut rng = thread_rng();
-        let x = rng.gen_range(-1.0..1.0);
-        let y = rng.gen_range(-1.0..1.0);
-        let z = rng.gen_range(-1.0..1.0);
-        let s = rng.gen_range(-1.0..1.0);
+        let mut rng = rng();
+        let x = rng.random_range(-1.0..1.0);
+        let y = rng.random_range(-1.0..1.0);
+        let z = rng.random_range(-1.0..1.0);
+        let s = rng.random_range(-1.0..1.0);
 
         Quaternion::new(x, y, z, s)
     }
@@ -680,9 +680,9 @@ impl Uncertainty for UnitQuaternionBuilder {
             let angle = dispersion.sample(rng);
             // uniformly sample the rotation axis
             let axis = Vector3::new(
-                rng.gen_range(-1.0..1.0),
-                rng.gen_range(-1.0..1.0),
-                rng.gen_range(-1.0..1.0),
+                rng.random_range(-1.0..1.0),
+                rng.random_range(-1.0..1.0),
+                rng.random_range(-1.0..1.0),
             )
             .normalize();
             Ok(UnitQuaternion::from(&AxisAngle::new(angle, axis)?))

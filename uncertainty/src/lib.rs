@@ -1,6 +1,6 @@
 use nalgebra::Vector3;
 use rand::rngs::SmallRng;
-use rand_distr::{Distribution, Normal as RNormal, NormalError};
+use rand_distr::{Distribution, Normal as RNormal, NormalError, uniform::Error as UniformError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -8,6 +8,8 @@ use thiserror::Error;
 pub enum UncertaintyErrors {
     #[error("{0}")]
     NormalError(#[from] NormalError),
+    #[error("{0}")]
+    UniformError(#[from] UniformError),
     #[error("'low' can't be greater than 'high' for uniform distribution")]
     LowGreaterThanHigh,
 }
@@ -20,7 +22,7 @@ impl Uniform {
         if low > high {
             return Err(UncertaintyErrors::LowGreaterThanHigh);
         }
-        Ok(Self(rand_distr::Uniform::new(low, high)))
+        Ok(Self(rand_distr::Uniform::new(low, high)?))
     }
 }
 

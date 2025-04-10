@@ -27,7 +27,7 @@ impl Uncertainty for UniformBuilder {
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let low = self.low.sample(nominal, rng);
         let high = self.high.sample(nominal, rng);
-        Ok(UniformNoise::new(low, high))
+        Ok(UniformNoise::new(low, high)?)
     }
 }
 
@@ -37,9 +37,9 @@ pub struct UniformNoise {
 }
 
 impl UniformNoise {
-    pub fn new(min: f64, max: f64) -> Self {
-        let dist = Uniform::from(min..max);
-        Self { dist }
+    pub fn new(min: f64, max: f64) -> Result<Self, NoiseErrors> {
+        let dist = Uniform::new(min, max)?;
+        Ok(Self { dist })
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::{
+    MultibodyErrors,
     actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems},
@@ -6,18 +7,17 @@ use crate::{
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
     software::{Software, SoftwareSim},
-    solver::{rk4::solve_fixed_rk4, SimStates},
-    MultibodyErrors,
+    solver::{SimStates, rk4::solve_fixed_rk4},
 };
 
 use core::fmt;
-use gravity::{constant::ConstantGravity, newtonian::NewtonianGravity, Gravity};
+use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use indicatif::MultiProgress;
 use nadir_result::{NadirResult, ResultManager};
 
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
-use ron::ser::{to_string_pretty, PrettyConfig};
+use ron::ser::{PrettyConfig, to_string_pretty};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
 use std::{
@@ -109,8 +109,8 @@ impl MultibodySystemBuilder {
     // }
 
     pub fn new() -> Self {
-        let mut thread_rng = rand::thread_rng(); // Use a fast non-deterministic RNG
-        let seed = thread_rng.gen::<u64>(); // Generate a random seed
+        let mut thread_rng = rand::rng(); // Use a fast non-deterministic RNG
+        let seed = thread_rng.random::<u64>(); // Generate a random seed
         let mut id = Identifier::new();
         Self {
             actuators: Vec::new(),
@@ -207,7 +207,7 @@ impl MultibodySystemBuilder {
             sys.simulate(&options, &nominal_path, None)?;
             // parallel Monte Carlo runs
             // create a vec of seeds for the local thread rngs
-            let seeds: Vec<u64> = (0..nruns).map(|_| rng.gen::<u64>()).collect();
+            let seeds: Vec<u64> = (0..nruns).map(|_| rng.random::<u64>()).collect();
 
             (1..=nruns)
                 .into_par_iter()
@@ -308,7 +308,7 @@ impl MultibodySystemBuilder {
         let mut sensors = Vec::new();
         let mut software = Vec::new();
 
-        let seed = rng.gen::<u64>();
+        let seed = rng.random::<u64>();
         let mut sys_rng = SmallRng::seed_from_u64(seed);
 
         let baseref = Rc::new(RefCell::new(Base::from(&self.base)));
@@ -661,7 +661,7 @@ impl MultibodySystem {
             }
         }
         self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
-                                         //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
+        //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
         self.write_derivative(dx);
 
         Ok(())

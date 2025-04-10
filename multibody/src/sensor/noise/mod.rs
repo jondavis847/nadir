@@ -3,7 +3,7 @@ pub mod uniform;
 
 use gaussian::{GaussianBuilder, GaussianNoise};
 use nalgebra::Vector3;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rotations::{axis_angle::AxisAngle, quaternion::UnitQuaternion};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,6 +12,8 @@ use uniform::{UniformBuilder, UniformNoise};
 
 #[derive(Debug, Error)]
 pub enum NoiseErrors {
+    #[error("{0}")]
+    UniformError(#[from] rand_distr::uniform::Error),
     #[error("{0}")]
     Uncertainty(#[from] UncertaintyErrors),
 }
@@ -95,7 +97,7 @@ impl Uncertainty for NoiseBuilder {
                 NoiseModels::Uniform(noise)
             }
         };
-        let seed = rng.gen();
+        let seed = rng.random();
         let rng = SmallRng::seed_from_u64(seed);
         Ok(Noise { model, rng, seed })
     }
@@ -110,13 +112,13 @@ pub struct Noise {
 
 impl Noise {
     pub fn new(model: NoiseModels) -> Self {
-        let seed = rand::thread_rng().gen();
+        let seed = rand::rng().random();
         let rng = SmallRng::seed_from_u64(seed);
         Self { rng, seed, model }
     }
 
     pub fn new_seed(&mut self) {
-        let seed = rand::thread_rng().gen();
+        let seed = rand::rng().random();
         self.seed = seed;
         self.rng = SmallRng::seed_from_u64(seed);
     }
@@ -141,7 +143,7 @@ impl Uncertainty for QuaternioNoiseBuilder {
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         let magnitude_noise = self.magnitude_noise.sample(nominal, rng)?;
-        let axis_seed = rng.gen();
+        let axis_seed = rng.random();
         let axis_rng = SmallRng::seed_from_u64(axis_seed);
         Ok(QuaternionNoise {
             magnitude_noise,
@@ -162,9 +164,9 @@ impl QuaternionNoise {
         let noise_angle = self.magnitude_noise.sample();
 
         let random_axis = Vector3::new(
-            self.axis_rng.gen(),
-            self.axis_rng.gen(),
-            self.axis_rng.gen(),
+            self.axis_rng.random(),
+            self.axis_rng.random(),
+            self.axis_rng.random(),
         )
         .normalize();
 

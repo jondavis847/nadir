@@ -1,5 +1,5 @@
 use nalgebra::{DMatrix, DVector};
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::collections::HashMap;
@@ -178,8 +178,8 @@ impl Registry {
                         _ => unreachable!("arg size must have matched by now"),
                     };
 
-                    let mut rng = rand::thread_rng();
-                    let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.gen()).collect();
+                    let mut rng = rand::rng();
+                    let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.random()).collect();
                     let matrix = DMatrix::from_vec(rows, cols, data);
                     Ok(Value::Matrix(Box::new(matrix)))
                 }
@@ -187,7 +187,7 @@ impl Registry {
                     let rows = args[0].as_usize()?;
                     let cols = args[1].as_usize()?;
 
-                    let mut rng = thread_rng();
+                    let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0).unwrap();
 
                     let data: Vec<f64> = (0..(rows * cols))
@@ -235,15 +235,15 @@ impl Registry {
 
                 // -- Vector methods --
                 ("Vector", "rand") => {
-                    let mut rng = rand::thread_rng();
+                    let mut rng = rand::rng();
                     let vector =
-                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.gen()).collect());
+                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
                     Ok(Value::Vector(Box::new(vector)))
                 }
                 ("Vector", "randn") => {
                     let size = args[0].as_usize()?;
 
-                    let mut rng = thread_rng();
+                    let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0).unwrap();
                     let vector =
                         DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());

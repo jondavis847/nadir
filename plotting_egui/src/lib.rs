@@ -55,9 +55,10 @@ impl eframe::App for NadirPlots {
                                         .height(plot_height) // Set plot height
                                         .show(ui, |plot_ui| {
                                             for series in &series_map.map {
-                                                let line =
-                                                    egui_plot::Line::new(series.points.clone())
-                                                        .name(&series.y_name);
+                                                let line = egui_plot::Line::new(
+                                                    &series.y_name,
+                                                    series.points.clone(),
+                                                );
                                                 plot_ui.line(line);
                                             }
                                         });
