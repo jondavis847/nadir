@@ -1,8 +1,8 @@
+use rustyline::Context;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
 use rustyline::validate::MatchingBracketValidator;
-use rustyline::Context;
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::cell::RefCell;
@@ -96,37 +96,108 @@ impl FunctionCompleter {
             .collect()
     }
 
+    /// Helper to complete variable names based on prefix
+    fn complete_vars(&self, prefix: &str) -> Vec<String> {
+        let storage = self.storage.borrow();
+        let vars = storage.get_names();
+        vars.iter()
+            .filter(|&s| s.starts_with(prefix))
+            .map(|s| s.to_string())
+            .collect()
+    }
+
     /// Helper to complete struct methods (e.g., "StructName::method")
-    fn complete_methods(&self, prefix: &str) -> Vec<String> {
+    fn complete_struct_methods(&self, prefix: &str) -> Vec<String> {
         // We'll collect all possible completions into this vector
         let mut completions = vec![];
+        // Handle "::" delimiters
+        let (type_name, method_prefix, delimiter) =
+            if let Some((type_name, method_prefix)) = prefix.split_once("::") {
+                (type_name, method_prefix, "::")
+            } else {
+                // No delimiter found, return empty completions
+                return completions;
+            };
 
-        // If the user typed something like "MyStruct::f", we split it.
-        if let Some((type_name, method_prefix)) = prefix.split_once("::") {
-            // Get the actual struct info. You might need a function like `get_struct`.
-            // This is different from `get_struct_methods` which only returns method names.
-            if let Some(struc) = self.registry.borrow().structs.get(type_name) {
-                // `struc.methods` is a HashMap<&'static str, Vec<Method>>
-                for (name, overloads) in &struc.methods {
-                    // Does this method name match the partial input?
-                    if name.starts_with(method_prefix) {
-                        // Each `Method` can have a list of possible argument signatures (overloads).
-                        for method in overloads {
-                            // Build something like "rand(rows: i64, cols: i64)".
-                            let arg_string = method
-                                .args
-                                .iter()
-                                .map(|arg| {
-                                    format!("{}:{}", arg.name, crate::value::label(arg.type_name))
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
+        // Get the actual struct info
+        if let Some(struc) = self.registry.borrow().structs.get(type_name) {
+            // `struc.methods` is a HashMap<&'static str, Vec<StructMethod>>
+            for (name, overloads) in &struc.struct_methods {
+                // Does this method name match the partial input?
+                if name.starts_with(method_prefix) {
+                    // Each `Method` can have a list of possible argument signatures (overloads).
+                    for method in overloads {
+                        // Build something like "rand(rows: i64, cols: i64)".
+                        let arg_string = method
+                            .0
+                            .args
+                            .iter()
+                            .map(|arg| {
+                                format!("{}:{}", arg.name, crate::value::label(arg.type_name))
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
 
-                            // Combine it back into "StructName::methodName(arg: type, ...)"
-                            let completion = format!("{}::{}({})", type_name, name, arg_string);
+                        // Combine it back using the same delimiter the user provided
+                        let completion =
+                            format!("{}{delimiter}{}({})", type_name, name, arg_string);
 
-                            completions.push(completion);
-                        }
+                        completions.push(completion);
+                    }
+                }
+            }
+        }
+
+        completions
+    }
+
+    /// Helper to complete instance methods (e.g., "var.method")
+    fn complete_instance_methods(
+        &self,
+        prefix: &str,
+        storage: &Rc<RefCell<Storage>>,
+    ) -> Vec<String> {
+        // We'll collect all possible completions into this vector
+        let mut completions = vec![];
+        // Handle "." delimiters
+        dbg!(prefix);
+        let (type_name, method_prefix, delimiter) =
+            if let Some((var_name, method_prefix)) = prefix.split_once(".") {
+                dbg!(var_name);
+                match storage.borrow().get(var_name) {
+                    Ok(value) => (value.to_string(), method_prefix, "."),
+                    Err(_) => return completions,
+                }
+            } else {
+                // No delimiter found, return empty completions
+                return completions;
+            };
+        dbg!(&type_name);
+        // Get the actual struct info
+        if let Some(struc) = self.registry.borrow().structs.get(type_name.as_str()) {
+            dbg!(&struc);
+            // `struc.methods` is a HashMap<&'static str, Vec<StructMethod>>
+            for (name, overloads) in &struc.instance_methods {
+                // Does this method name match the partial input?
+                if name.starts_with(method_prefix) {
+                    // Each `Method` can have a list of possible argument signatures (overloads).
+                    for method in overloads {
+                        // Build something like "rand(rows: i64, cols: i64)".
+                        let arg_string = method
+                            .0
+                            .args
+                            .iter()
+                            .map(|arg| {
+                                format!("{}:{}", arg.name, crate::value::label(arg.type_name))
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+
+                        // Combine it back using the same delimiter the user provided
+                        let completion =
+                            format!("{}{delimiter}{}({})", type_name, name, arg_string);
+
+                        completions.push(completion);
                     }
                 }
             }
@@ -152,38 +223,34 @@ impl Completer for FunctionCompleter {
         let mut matches = Vec::new();
 
         // Check if it's an instance method (e.g., "var.method")
-        if prefix.contains('.') {
-            matches.extend(
-                self.complete_methods(prefix).into_iter().map(|method| {
-                    format!("{}{}", prefix, method.strip_prefix(prefix).unwrap_or(""))
-                }),
-            );
+        if prefix.contains(".") {
+            matches.extend(self.complete_instance_methods(prefix, &self.storage));
         }
+
         // Check if it's a struct method (e.g., "Struct::method")
-        else if prefix.contains("::") {
+        if prefix.contains("::") {
             matches.extend(
-                self.complete_methods(prefix).into_iter().map(|method| {
-                    format!("{}{}", prefix, method.strip_prefix(prefix).unwrap_or(""))
-                }),
-            );
-        } else {
-            // Otherwise, check for function or struct or enum completions
-            // matches.extend(
-            //     Self::complete_functions(prefix)
-            //         .into_iter()
-            //         .map(|s| s.to_string()),
-            // );
-            matches.extend(
-                self.complete_structs(prefix)
+                self.complete_struct_methods(prefix)
                     .into_iter()
-                    .map(|s| format!("{}::", s)),
+                    .map(|method| {
+                        format!("{}{}", prefix, method.strip_prefix(prefix).unwrap_or(""))
+                    }),
             );
-            // matches.extend(
-            //     Self::complete_enums(prefix)
-            //         .into_iter()
-            //         .map(|s| s.to_string()),
-            // );
         }
+
+        // Check if it's a stored variable
+        matches.extend(
+            self.complete_vars(prefix)
+                .into_iter()
+                .map(|var| format!("{var}")),
+        );
+
+        // Check if it's a struct type before :: is written
+        matches.extend(
+            self.complete_structs(prefix)
+                .into_iter()
+                .map(|s| format!("{}::", s)),
+        );
 
         // Return the starting index and the matches
         Ok((start, matches))

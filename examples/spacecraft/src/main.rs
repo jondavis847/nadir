@@ -6,29 +6,29 @@ use aerospace::orbit::KeplerianElements;
 use celestial::{CelestialBodies, CelestialBody, CelestialSystem};
 use color::Color;
 use gravity::{
-    egm::{EgmGravity, EgmModel},
     Gravity,
+    egm::{EgmGravity, EgmModel},
 };
-use magnetics::{igrf::Igrf, MagneticField};
+use magnetics::{MagneticField, igrf::Igrf};
 use mass_properties::MassPropertiesBuilder;
 use multibody::{
-    actuator::{reaction_wheel::ReactionWheelBuilder, ActuatorBuilder},
+    actuator::{ActuatorBuilder, reaction_wheel::ReactionWheelBuilder},
     joint::{floating::FloatingBuilder, revolute::RevoluteBuilder},
     sensor::{
-        gps::GpsBuilder, magnetometer::MagnetometerBuilder, rate_gyro::RateGyroBuilder,
-        star_tracker::StarTrackerBuilder, SensorBuilder,
+        SensorBuilder, gps::GpsBuilder, magnetometer::MagnetometerBuilder,
+        rate_gyro::RateGyroBuilder, star_tracker::StarTrackerBuilder,
     },
     software::Software,
     system::MultibodySystemBuilder,
 };
 use rotations::{
-    prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
     Rotation,
+    prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
 use time::Time;
 use transforms::{
-    prelude::{Cartesian, CoordinateSystem},
     Transform,
+    prelude::{Cartesian, CoordinateSystem},
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -238,15 +238,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    //let path = "../../target/release/software.dll"; //windows
-    let path = "../../target/release/libsoftware.so"; //linux
+    let path = "../../target/release/software.dll"; //windows
+    //let path = "../../target/release/libsoftware.so"; //linux
     let software = Software::new("fsw", path)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 1.0, Some(10))?;
+    sys.simulate("", 0.0, 1000.0, 0.1, None)?;
 
     Ok(())
 }
