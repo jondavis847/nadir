@@ -554,7 +554,14 @@ impl MultibodySystem {
             actuator.new_result(&mut results);
         }
 
-        //self.software.initialize_results(&mut results);
+        for software in &mut self.software {
+            if let Err(e) = software.initialize_results(&mut results) {
+                eprintln!(
+                    "Failed to initialize results for software component: {:?}",
+                    e
+                );
+            }
+        }
 
         match &mut self.base.borrow_mut().system {
             BaseSystems::Basic(_) => {}
@@ -837,7 +844,11 @@ impl MultibodySystem {
             sensor.write_result(results);
         }
 
-        //self.software.write_results(results);
+        for software in &self.software {
+            if let Err(e) = software.write_results(results) {
+                eprintln!("Failed to write results for software component: {:?}", e);
+            }
+        }
 
         match &self.base.borrow().system {
             BaseSystems::Basic(_) => {}

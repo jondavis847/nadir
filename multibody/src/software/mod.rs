@@ -1,11 +1,12 @@
 use crate::{
+    HardwareBuffer,
     actuator::{Actuator, ActuatorErrors},
     sensor::Sensor,
-    HardwareBuffer,
 };
 use libloading::{Library, Symbol};
+use nadir_result::ResultManager;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{ffi::c_void, path::Path};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -57,6 +58,8 @@ impl Software {
 
 // Enhanced FFI function types with proper state handling and error codes
 pub type InitFnC = unsafe extern "C" fn() -> *mut std::ffi::c_void;
+pub type InitResultsFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> i32;
+pub type WriteResultsFn = unsafe extern "C" fn(*mut c_void, *mut c_void) -> i32;
 pub type StepFnC = unsafe extern "C" fn(
     software_state: *mut std::ffi::c_void,
     sensors: *const HardwareBuffer,
@@ -70,6 +73,8 @@ pub type CleanupFnC = unsafe extern "C" fn(software_state: *mut std::ffi::c_void
 pub struct SoftwareSim {
     init_fn: InitFnC,
     step_fn: StepFnC,
+    init_results_fn: InitResultsFn,
+    write_results_fn: WriteResultsFn,
     cleanup_fn: CleanupFnC,
     software_state: *mut std::ffi::c_void,
     sensor_indices: Vec<usize>,
@@ -101,6 +106,28 @@ impl SoftwareSim {
             lib.get(b"initialize_software").map_err(|e| {
                 SoftwareErrors::MissingEntryPoint(format!(
                     "Missing initialize_software in {}: {}",
+                    lib_path.as_ref().display(),
+                    e
+                ))
+            })?
+        };
+
+        // Get the initialization results function
+        let init_results_fn: Symbol<InitResultsFn> = unsafe {
+            lib.get(b"initialize_results").map_err(|e| {
+                SoftwareErrors::MissingEntryPoint(format!(
+                    "Missing initialize_results in {}: {}",
+                    lib_path.as_ref().display(),
+                    e
+                ))
+            })?
+        };
+
+        // Get the write results function
+        let write_results_fn: Symbol<WriteResultsFn> = unsafe {
+            lib.get(b"write_results").map_err(|e| {
+                SoftwareErrors::MissingEntryPoint(format!(
+                    "Missing write_results in {}: {}",
                     lib_path.as_ref().display(),
                     e
                 ))
@@ -142,6 +169,8 @@ impl SoftwareSim {
         Ok(Self {
             init_fn: *init_fn,
             step_fn: *step_fn,
+            init_results_fn: *init_results_fn,
+            write_results_fn: *write_results_fn,
             cleanup_fn: *cleanup_fn,
             software_state,
             sensor_indices,
@@ -210,6 +239,44 @@ impl SoftwareSim {
         }
 
         Ok(())
+    }
+
+    pub fn initialize_results(&self, results: &mut ResultManager) -> Result<(), SoftwareErrors> {
+        // Ensure the software state is valid
+        if self.software_state.is_null() {
+            return Err(SoftwareErrors::NullStatePointer);
+        }
+
+        // Convert the results reference to a raw pointer
+        let results_ptr = results as *mut _ as *mut c_void;
+
+        // Call the FFI function
+        let status = unsafe { (self.init_results_fn)(self.software_state, results_ptr) };
+
+        if status != 0 {
+            Err(SoftwareErrors::ExecutionError(status))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn write_results(&self, results: &mut ResultManager) -> Result<(), SoftwareErrors> {
+        // Ensure the software state is valid
+        if self.software_state.is_null() {
+            return Err(SoftwareErrors::NullStatePointer);
+        }
+
+        // Convert the results reference to a raw pointer
+        let results_ptr = results as *mut _ as *mut c_void;
+
+        // Call the FFI function
+        let status = unsafe { (self.write_results_fn)(self.software_state, results_ptr) };
+
+        if status != 0 {
+            Err(SoftwareErrors::ExecutionError(status))
+        } else {
+            Ok(())
+        }
     }
 }
 
