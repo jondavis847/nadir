@@ -385,7 +385,7 @@ impl AddAssign<&Quaternion> for Quaternion {
         self.y += rhs.y;
         self.z += rhs.z;
         self.w += rhs.w;
-        self.normalize(); // normalize here since this is last step of ODE
+        self.normalize().unwrap(); // normalize here since this is last step of ODE todo: error handling
     }
 }
 

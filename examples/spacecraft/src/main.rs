@@ -238,8 +238,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    //let path = "../../target/release/software.dll"; //windows
-    let path = "../../target/release/libsoftware.so"; //linux
+    let path = "../../target/release/software.dll"; //windows
+    //let path = "../../target/release/libsoftware.so"; //linux
     let software = Software::new("fsw", path)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
