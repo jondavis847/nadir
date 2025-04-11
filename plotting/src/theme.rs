@@ -1,4 +1,4 @@
-use iced::{color, Color};
+use iced::{Color, color};
 
 #[derive(Debug, Default)]
 pub enum PlotThemes {
@@ -22,10 +22,10 @@ impl PlotThemes {
         match self {
             PlotThemes::Dark => PlotTheme {
                 dark_background: color!(0x111111),
-                light_background: color!(0x232323),
+                light_background: color!(0x202020),
                 border: color!(0x000000),
-                axis_color: color!(0x000000),
-                grid_color: color!(0x000000),
+                axis_color: color!(0x202020),
+                grid_color: color!(0x202020),
                 text_color: color!(0x565656),
                 line_colors: [
                     color!(0xf94144), //red

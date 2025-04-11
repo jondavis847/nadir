@@ -1,15 +1,15 @@
 use crate::{
+    SeriesMap,
     application::Message,
     theme::{PlotTheme, PlotThemes},
-    SeriesMap,
 };
 use axes::Axes;
 use iced::{
+    Point, Rectangle, Renderer, Size, Theme, Vector,
     advanced::mouse,
     event::Status,
     mouse::{Button, Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
-    Point, Rectangle, Renderer, Size, Theme, Vector,
 };
 
 mod axes;
@@ -146,11 +146,9 @@ impl PlotCanvas {
 
         for axes in &mut self.axes {
             axes.bounds.x *= x_scale;
-            axes.bounds.width *= x_scale;
             axes.bounds.y *= y_scale;
+            axes.bounds.width *= x_scale;
             axes.bounds.height *= y_scale;
-            axes.axis.x_padding *= x_scale;
-            axes.axis.y_padding *= y_scale;
         }
         self.canvas_bounds.width = window_size.width;
         self.canvas_bounds.height = window_size.height;

@@ -2,11 +2,11 @@ use iced::mouse::ScrollDelta;
 use iced::widget::canvas;
 use iced::window::icon;
 
-use crate::canvas::PlotCanvas;
 use crate::SeriesMap;
-use iced::{window, Settings};
+use crate::canvas::PlotCanvas;
 use iced::{Element, Fill, Size, Subscription};
 use iced::{Point, Task};
+use iced::{Settings, window};
 use std::time::Instant;
 
 const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
@@ -36,7 +36,7 @@ pub fn main(series: Vec<SeriesMap>) -> iced::Result {
         ..Default::default()
     };
 
-    let window_size = Size::new(700.0, 350.0);
+    let window_size = Size::new(800.0, 400.0);
     let window_settings = window::Settings {
         size: window_size,
         icon: Some(icon),
