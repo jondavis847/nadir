@@ -58,6 +58,7 @@ pub struct PlotApp {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
+    // CursorMoved(Point),
     Tick(Instant),
     MouseLeftPressed(Point),
     MouseLeftReleased(Point),
@@ -77,6 +78,7 @@ impl PlotApp {
     }
     fn update(&mut self, message: Message) {
         match message {
+            // Message::CursorMoved(position) => self.canvas.cursor_moved(point),
             Message::Tick(instant) => self.state.update(instant),
             Message::MouseLeftPressed(point) => self.canvas.mouse_left_clicked(point),
             Message::MouseLeftReleased(point) => self.canvas.mouse_left_released(point),

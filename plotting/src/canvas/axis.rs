@@ -116,7 +116,7 @@ impl Axis {
                                 &zero_axis,
                                 Stroke::default()
                                     .with_width(line_width)
-                                    .with_color(theme.axis_color),
+                                    .with_color(theme.border),
                             );
                             (v, cp)
                         } else {

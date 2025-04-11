@@ -19,7 +19,7 @@ members = [
     "mass_properties",
     "multibody", 
     "nadir",    
-    "nadir_3d",     
+    "nadir_3d", "nadir_repl",     
     "nadir_result", 
     "pest", 
     "plotting", 

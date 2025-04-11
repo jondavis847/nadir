@@ -29,12 +29,10 @@ fn main() {
     // Handle subcommands
     match cli.command {
         Commands::Animate => {
-            let pwd = std::env::current_dir().unwrap();
             let result_path = std::env::current_dir().unwrap();
             animation::main(Some(result_path)).unwrap();
         }
         Commands::Plot => {
-            let pwd = std::env::current_dir().unwrap();
             let result_path = std::env::current_dir().unwrap();
             plotting::main(Some(result_path));
         }

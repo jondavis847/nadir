@@ -242,8 +242,8 @@ impl Program<Message> for PlotCanvas {
                     }
                     _ => (Status::Captured, None),
                 },
-                // mouse::Event::CursorMoved(position) => {
-
+                // mouse::Event::CursorMoved { position } => {
+                //     (Status::Captured, Some(Message::CursorMoved(position)))
                 // }
                 _ => (Status::Captured, None),
             },

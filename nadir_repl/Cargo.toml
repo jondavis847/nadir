@@ -1,0 +1,8 @@
+[package]
+name = "nadir_repl"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
