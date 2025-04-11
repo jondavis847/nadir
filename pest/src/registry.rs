@@ -119,7 +119,7 @@ impl Default for Registry {
                 Argument::new("w", "f64"),
             ])],
         );
-        quaternion_struct_methods.insert("rand", vec![]);
+        quaternion_struct_methods.insert("rand", vec![StructMethod::new(vec![])]);
         let mut quaternion_instance_methods = HashMap::new();
         quaternion_instance_methods.insert("inv", vec![InstanceMethod::new(vec![])]);
 

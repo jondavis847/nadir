@@ -225,10 +225,11 @@ fn main() {
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                break;
+                // Ctrl+C
+                continue;
             }
             Err(ReadlineError::Eof) => {
-                // Handle Ctrl+D (end-of-file) signal
+                // Ctrl+D
                 break;
             }
             Err(err) => {
