@@ -1,9 +1,9 @@
 use crate::{
     SeriesMap,
-    application::Message,
+    figure::Message,
     theme::{PlotTheme, PlotThemes},
 };
-use axes::Axes;
+
 use iced::{
     Point, Rectangle, Renderer, Size, Theme, Vector,
     advanced::mouse,
@@ -11,10 +11,6 @@ use iced::{
     mouse::{Button, Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
 };
-
-mod axes;
-mod axis;
-mod line;
 
 #[derive(Debug)]
 pub struct CanvasState {
@@ -36,12 +32,11 @@ impl Default for CanvasState {
 #[derive(Debug, Default)]
 pub struct PlotCanvas {
     pub cache: Cache,
-    axes: Vec<Axes>,
     canvas_bounds: Rectangle,
 }
 
 impl PlotCanvas {
-    pub fn new(series_map: &Vec<SeriesMap>, window_size: Size) -> Self {
+    pub fn new(window_size: Size) -> Self {
         let mut canvas = Self::default();
         canvas.canvas_bounds = Rectangle::new(Point::ORIGIN, window_size);
 

@@ -64,8 +64,8 @@ impl Axis {
         let draw_ticks_labels_and_grids =
             |frame: &mut Frame,
              theme: &PlotTheme,
-             axis_start: Point,
-             axis_end: Point,
+             axis_start: Point<f32>,
+             axis_end: Point<f32>,
              axes_size: Size,
              value_range: (f32, f32),
              canvas_span: f32,

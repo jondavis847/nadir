@@ -298,9 +298,7 @@ impl Default for Registry {
 
         // Standalone Functions
         let mut functions = HashMap::new();
-        // functions.insert("fig", vec![FunctionMethod::new(vec![], |args| {
-
-        // })]);
+        functions.insert("fig", vec![FunctionMethod::new(vec![], |args| {})]);
 
         Self { structs, functions }
     }

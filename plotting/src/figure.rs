@@ -2,16 +2,17 @@ use iced::mouse::ScrollDelta;
 use iced::widget::canvas;
 use iced::window::icon;
 
-use crate::SeriesMap;
+use crate::axes::Axes;
 use crate::canvas::PlotCanvas;
 use iced::{Element, Fill, Size, Subscription};
 use iced::{Point, Task};
 use iced::{Settings, window};
+use std::collections::HashMap;
 use std::time::Instant;
 
 const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
 
-pub fn main(series: Vec<SeriesMap>) -> iced::Result {
+pub fn main(id: usize) -> iced::Result {
     // let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     // let icon_path = PathBuf::from(manifest_dir).join("resources/nasa_aquamarine.png");
     //let icon_path = Path::new("./resources/nasa_aquamarine.png");
@@ -43,17 +44,19 @@ pub fn main(series: Vec<SeriesMap>) -> iced::Result {
         ..Default::default()
     };
 
-    iced::application("NADIR Plot", PlotApp::update, PlotApp::view)
-        .subscription(PlotApp::subscription)
+    iced::application("NADIR Plot", Figure::update, Figure::view)
+        .subscription(Figure::subscription)
         .centered()
         .settings(settings)
         .window(window_settings)
-        .run_with(move || PlotApp::new(series, window_size))
+        .run_with(move || Figure::new(id, window_size))
 }
 
-pub struct PlotApp {
+pub struct Figure {
+    id: usize,
     state: AppState,
     canvas: PlotCanvas,
+    axes: HashMap<u32, Axes>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,12 +69,14 @@ pub enum Message {
     WindowResized(Size),
 }
 
-impl PlotApp {
-    fn new(series: Vec<SeriesMap>, window_size: Size) -> (Self, Task<Message>) {
+impl Figure {
+    fn new(id: usize, window_size: Size) -> (Self, Task<Message>) {
         (
             Self {
+                id,
+                axes: HashMap::new(),
                 state: AppState::default(),
-                canvas: PlotCanvas::new(&series, window_size),
+                canvas: PlotCanvas::new(window_size),
             },
             window::get_latest().and_then(window::gain_focus),
         )

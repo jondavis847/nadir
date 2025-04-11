@@ -2,7 +2,7 @@ use super::{
     // legend::{Legend, LegendEntry},
     line::Line,
 };
-use crate::{Series, theme::PlotTheme};
+use crate::{Series, series::PlotPoint, theme::PlotTheme};
 use iced::{
     Color, Font, Point, Rectangle, Size,
     widget::canvas::{Frame, Path, Stroke, Text},
@@ -84,27 +84,27 @@ impl Axes {
         let y_scale = height / (y_max - y_min);
 
         // Helper to transform data points to canvas coordinates
-        let to_canvas = |p: &Point| -> Point {
-            Point::new(
-                (p.x - x_min) * x_scale + left + axis.line_width / 2.0,
-                bottom + axis.line_width / 2.0 - (p.y - y_min) * y_scale,
-            )
+        let update_canvas_point = |p: &mut PlotPoint| {
+            p.canvas_position.x =
+                (p.data.x as f32 - x_min) * x_scale + left + axis.line_width / 2.0;
+            p.canvas_position.y =
+                bottom + axis.line_width / 2.0 - (p.data.y as f32 - y_min) * y_scale;
         };
 
         // Determine if a point is out of bounds and identify the boundary
-        let out_of_bounds = |p: &Point| -> Option<Bound> {
+        let out_of_bounds = |p: &PlotPoint| -> Option<Bound> {
             let mut candidates = Vec::new();
-            if p.x < left {
-                candidates.push((Bound::Left, left - p.x));
+            if p.canvas_position.x < left {
+                candidates.push((Bound::Left, left - p.canvas_position.x));
             }
-            if p.x > right {
-                candidates.push((Bound::Right, p.x - right));
+            if p.canvas_position.x > right {
+                candidates.push((Bound::Right, p.canvas_position.x - right));
             }
-            if p.y < top {
-                candidates.push((Bound::Top, top - p.y));
+            if p.canvas_position.y < top {
+                candidates.push((Bound::Top, top - p.canvas_position.y));
             }
-            if p.y > bottom {
-                candidates.push((Bound::Bottom, p.y - bottom));
+            if p.canvas_position.y > bottom {
+                candidates.push((Bound::Bottom, p.canvas_position.y - bottom));
             }
             candidates
                 .into_iter()
@@ -113,23 +113,43 @@ impl Axes {
         };
 
         // Compute intersection point with a boundary
-        let intersect = |p0: &Point, p1: &Point, bound: Bound| -> Point {
+        let intersect = |p0: &PlotPoint, p1: &PlotPoint, bound: Bound| -> PlotPoint {
             match bound {
                 Bound::Bottom => {
-                    let t = (bottom - p0.y) / (p1.y - p0.y);
-                    Point::new(p0.x + t * (p1.x - p0.x), bottom)
+                    let t = (bottom - p0.canvas_position.y)
+                        / (p1.canvas_position.y - p0.canvas_position.y);
+                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
+                    p.canvas_position.x =
+                        p0.canvas_position.x + t * (p1.canvas_position.x - p0.canvas_position.x);
+                    p.canvas_position.y = bottom;
+                    p
                 }
                 Bound::Top => {
-                    let t = (top - p0.y) / (p1.y - p0.y);
-                    Point::new(p0.x + t * (p1.x - p0.x), top)
+                    let t = (top - p0.canvas_position.y)
+                        / (p1.canvas_position.y - p0.canvas_position.y);
+                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
+                    p.canvas_position.x =
+                        p0.canvas_position.x + t * (p1.canvas_position.x - p0.canvas_position.x);
+                    p.canvas_position.y = top;
+                    p
                 }
                 Bound::Left => {
-                    let t = (left - p0.x) / (p1.x - p0.x);
-                    Point::new(left, p0.y + t * (p1.y - p0.y))
+                    let t = (left - p0.canvas_position.x)
+                        / (p1.canvas_position.x - p0.canvas_position.x);
+                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
+                    p.canvas_position.x = left;
+                    p.canvas_position.y =
+                        p0.canvas_position.y + t * (p1.canvas_position.y - p0.canvas_position.y);
+                    p
                 }
                 Bound::Right => {
-                    let t = (right - p0.x) / (p1.x - p0.x);
-                    Point::new(right, p0.y + t * (p1.y - p0.y))
+                    let t = (right - p0.canvas_position.x)
+                        / (p1.canvas_position.x - p0.canvas_position.x);
+                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
+                    p.canvas_position.x = right;
+                    p.canvas_position.y =
+                        p0.canvas_position.y + t * (p1.canvas_position.y - p0.canvas_position.y);
+                    p
                 }
             }
         };
@@ -147,13 +167,16 @@ impl Axes {
             }
 
             let color = line.color.unwrap_or(theme.line_colors[i]);
-            let canvas_points: Vec<Point> = line.data.iter().map(to_canvas).collect();
+            line.data
+                .points
+                .iter_mut()
+                .for_each(|point| update_canvas_point(point));
 
             // Split lines into sublines based on clipping
             let mut sublines = Vec::new();
             let mut current = Vec::new();
 
-            for (idx, &pt) in canvas_points.iter().enumerate() {
+            for (idx, &pt) in line.data.points.iter().enumerate() {
                 if let Some(bound) = out_of_bounds(&pt) {
                     if !current.is_empty() {
                         let prev = current.last().unwrap();

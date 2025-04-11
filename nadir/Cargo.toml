@@ -11,6 +11,7 @@ dirs.workspace = true
 nalgebra.workspace = true
 pest.workspace = true
 pest_derive.workspace = true
+plotting.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
 rotations.workspace = true
