@@ -6,3 +6,21 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ansi_term.workspace = true
+dirs.workspace = true
+nalgebra.workspace = true
+pest.workspace = true
+pest_derive.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+rotations.workspace = true
+rustyline.workspace = true
+rustyline-derive.workspace = true
+thiserror.workspace = true
+time.workspace = true
+unicode-width.workspace = true
+
+[features]
+default = ["with-file-history"]
+
+with-file-history = []
