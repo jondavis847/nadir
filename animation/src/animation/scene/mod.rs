@@ -1,3 +1,5 @@
+use bytemuck::{Pod, Zeroable};
+use fxaa_pipeline::FxaaPipeline;
 use glam::{DVec3, Vec3};
 use iced::{
     advanced::Shell,
@@ -24,6 +26,7 @@ use image::{load_from_memory, GenericImageView};
 
 pub mod camera;
 pub mod earth_pipeline;
+pub mod fxaa_pipeline;
 pub mod moon_pipeline;
 pub mod pipeline;
 pub mod sun_pipeline;
@@ -116,6 +119,27 @@ pub struct SceneState {
 
 #[derive(Debug)]
 struct DepthView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct FxaaView(wgpu::TextureView);
+
+#[derive(Debug)]
+struct FxaaBindGroup(wgpu::BindGroup);
+
+#[derive(Debug)]
+struct FxaaBindGroupLayout(wgpu::BindGroupLayout);
+
+#[derive(Debug)]
+struct FxaaUniformBuffer(wgpu::Buffer);
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+struct FxaaUniform {
+    reciprocal_screen_size: [f32; 2],
+    subpix_shift: f32,
+    subpix_trim: f32,
+    reduce_min: f32,
+    reduce_mul: f32,
+}
 
 #[derive(Debug)]
 struct MultisampleView(wgpu::TextureView);
@@ -590,6 +614,195 @@ impl Primitive for ScenePrimitive {
             }
         }
 
+        // Create and store the fxaa uniform buffer
+        if !storage.has::<FxaaUniformBuffer>() || resize {
+            let reciprocal_screen_size = [
+                1.0 / current_viewport_size.width as f32,
+                1.0 / current_viewport_size.height as f32,
+            ];
+
+            let fxaa_uniform = FxaaUniform {
+                reciprocal_screen_size,
+                subpix_shift: 1.0 / 4.0, // Typical value
+                subpix_trim: 1.0 / 12.0, // Typical value
+                reduce_min: 1.0 / 128.0, // Typical value
+                reduce_mul: 1.0 / 8.0,   // Typical value
+            };
+
+            let fxaa_uniform_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("fxaa uniform buffer"),
+                    contents: bytemuck::bytes_of(&fxaa_uniform),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+            storage.store(FxaaUniformBuffer(fxaa_uniform_buffer));
+        }
+
+        if !storage.has::<FxaaView>() || resize {
+            let fxaa_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("fxaa.texture"),
+                size: wgpu::Extent3d {
+                    width: current_viewport_size.width,
+                    height: current_viewport_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format, // Same format as swapchain (likely surface format)
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+
+            let fxaa_texture_view =
+                fxaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+            storage.store(FxaaView(fxaa_texture_view));
+        }
+        if !storage.has::<FxaaBindGroupLayout>() {
+            // Create the bind group layout for FXAA (texture + sampler)
+            let fxaa_bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("fxaa_bind_group_layout"),
+                    entries: &[
+                        // Texture (the scene rendered to the fxaa texture view)
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        // Sampler for the texture
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        // Uniform buffer (screen size inverse)
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+            storage.store(FxaaBindGroupLayout(fxaa_bind_group_layout));
+        }
+        if !storage.has::<FxaaBindGroup>() {
+            let fxaa_bind_group_layout = &storage
+                .get::<FxaaBindGroupLayout>()
+                .expect("FxaaBindGroupLayout not found")
+                .0;
+            // Create a sampler for FXAA if you don't have one already.
+            let fxaa_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("fxaa_sampler"),
+                ..Default::default()
+            });
+            let fxaa_uniform_buffer = &storage.get::<FxaaUniformBuffer>().unwrap().0;
+            // fxaa_texture_view should be the one you stored earlier in FxaaView.
+            // (Assuming you retrieved it as below.)
+            let fxaa_texture_view = &storage.get::<FxaaView>().unwrap().0;
+            // Create the bind group for FXAA.
+            let fxaa_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("fxaa_bind_group"),
+                layout: fxaa_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(fxaa_texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&fxaa_sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: fxaa_uniform_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+            storage.store(FxaaBindGroup(fxaa_bind_group));
+        }
+        if !storage.has::<FxaaPipeline>() {
+            let fxaa_bind_group_layout = &storage
+                .get::<FxaaBindGroupLayout>()
+                .expect("FxaaBindGroupLayout not found")
+                .0;
+            // Create the pipeline layout for FXAA.
+            let fxaa_pipeline_layout =
+                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("fxaa_pipeline_layout"),
+                    bind_group_layouts: &[&fxaa_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            // Load your FXAA shader (which should include a vertex entry "vs_main" and fragment entry "fs_main").
+            const FXAA_SHADER: &str = include_str!("shaders/fxaa.wgsl");
+            let fxaa_shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("fxaa_shader_module"),
+                source: wgpu::ShaderSource::Wgsl(FXAA_SHADER.into()),
+            });
+
+            // Create the render pipeline for FXAA.
+            let fxaa_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("fxaa_pipeline"),
+                layout: Some(&fxaa_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &fxaa_shader_module,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                    // buffers: &[wgpu::VertexBufferLayout {
+                    //     array_stride: 2 * std::mem::size_of::<f32>() as wgpu::BufferAddress,
+                    //     step_mode: wgpu::VertexStepMode::Vertex,
+                    //     attributes: &[wgpu::VertexAttribute {
+                    //         offset: 0,
+                    //         shader_location: 0,
+                    //         format: wgpu::VertexFormat::Float32x2,
+                    //     }],
+                    // }],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &fxaa_shader_module,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format, // same as your swapchain/surface format
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: None,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+            });
+
+            // Finally, store the FxaaPipeline into your storage
+            storage.store(FxaaPipeline(fxaa_pipeline));
+        }
+
         //cuboids
         let cuboids: Vec<MeshGpu> = self
             .meshes
@@ -746,11 +959,12 @@ impl Primitive for ScenePrimitive {
     ) {
         // unpack the depth_view and uniform_bind_group from storage
         let depth_view = &storage.get::<DepthView>().unwrap().0;
+        let fxaa_view = &storage.get::<FxaaView>().unwrap().0;
         let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
         let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
 
         let (view, resolve_target) = match self.sample_count {
-            1 => (target, None),
+            1 => (fxaa_view, None),
             4 => (multisample_view, Some(target)),
             _ => unreachable!("needs to be 1 or 4, error should be thrown earlier"),
         };
@@ -866,6 +1080,38 @@ impl Primitive for ScenePrimitive {
             pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
             pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
             pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+        }
+
+        drop(pass);
+
+        // apply fxaa
+        if self.sample_count == 1 {
+            if let Some(fxaa_pipeline) = storage.get::<FxaaPipeline>() {
+                let fxaa_bind_group = &storage.get::<FxaaBindGroup>().unwrap().0;
+
+                // Create a new render pass for FXAA
+                let mut encoder = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("fxaa.render_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: target,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                // Set the pipeline and bind group for FXAA
+                encoder.set_pipeline(&fxaa_pipeline.0);
+                encoder.set_bind_group(0, fxaa_bind_group, &[]);
+
+                // Draw a fullscreen triangle for FXAA
+                encoder.draw(0..3, 0..1); // fullscreen triangle
+            }
         }
     }
 }

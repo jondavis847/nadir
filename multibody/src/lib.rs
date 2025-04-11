@@ -9,29 +9,37 @@ pub mod software;
 pub mod solver;
 pub mod system;
 
+use actuator::ActuatorErrors;
 use base::BaseErrors;
 use body::BodyErrors;
+use bytemuck::{bytes_of, checked::from_bytes, Pod, Zeroable};
 use celestial::CelestialErrors;
-use joint::{revolute::RevoluteErrors, JointErrors};
+
+use joint::JointErrors;
 use sensor::SensorErrors;
+use software::SoftwareErrors;
 use spice::SpiceErrors;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MultibodyErrors {
-    #[error("base error:")]
+    #[error("{0}")]
+    ActuatorErrors(#[from] ActuatorErrors),
+    #[error("actuator '{0}' is not connected to a body")]
+    ActuatorMissingBody(String),
+    #[error("{0}")]
     BaseErrors(#[from] BaseErrors),
     #[error("base does not have any outer joints")]
     BaseMissingOuterJoint,
     #[error("could not find body '{0}' in the system")]
     BodyNotFound(String),
-    #[error("BodyError: {0}")]
+    #[error("{0}")]
     Body(#[from] BodyErrors),
     #[error("body '{0}' does not have an inner joint")]
     BodyMissingInnerJoint(String),
     #[error("base cannot be deleted")]
     CantDeleteBase,
-    #[error("celestial error:")]
+    #[error("{0}")]
     CelestialErrors(#[from] CelestialErrors),
     #[error("could not find component {0} in the system")]
     ComponentNotFound(String),
@@ -41,7 +49,7 @@ pub enum MultibodyErrors {
     DtCantBeZero,
     #[error("invalid connection")]
     InvalidConnection,
-    #[error("joint error")]
+    #[error("{0}")]
     JointErrors(#[from] JointErrors),
     #[error("joint '{0}' must have an inner body")]
     JointMissingInnerBody(String),
@@ -53,10 +61,112 @@ pub enum MultibodyErrors {
     NameTaken(String),
     #[error("could not find transform")]
     NoTransformFound,
-    #[error("revolute error: {0}")]
-    Revolute(#[from] RevoluteErrors),
-    #[error("sensor error: {0}")]
+    #[error("{0}")]
     SensorErrors(#[from] SensorErrors),
-    #[error("spice error: {0}")]
+    #[error("sensor '{0}' is not connected to a body")]
+    SensorMissingBody(String),
+    #[error("{0}")]
+    SoftwareErrors(#[from] SoftwareErrors),
+    #[error("{0}")]
     SpiceErrors(#[from] SpiceErrors),
+}
+
+#[repr(C)]
+pub struct CInterface {
+    pub data_ptr: *const u8,
+    pub data_len: usize,
+}
+
+#[derive(Debug, Error)]
+pub enum BufferError {
+    #[error("attempted to read buffer but size was not correct")]
+    SizeMismatch,
+}
+
+#[derive(Pod, Zeroable, Clone, Copy)]
+#[repr(C)]
+pub struct HardwareBuffer {
+    data: [u8; 1024],
+    size: usize,
+}
+
+impl std::fmt::Debug for HardwareBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HardwareBuffer")
+            .field("size", &self.size)
+            .field("data", &&self.data[..self.size.min(self.data.len())])
+            .finish()
+    }
+}
+
+impl HardwareBuffer {
+    // Create a new buffer with capacity for a specific type
+    pub fn new() -> Self {
+        HardwareBuffer {
+            data: [0u8; 1024],
+            size: 0,
+        }
+    }
+
+    /// Write a struct into the buffer
+    pub fn write<T: Pod>(&mut self, val: &T) {
+        let t_size = size_of::<T>();
+        assert!(
+            t_size <= self.data.len(),
+            "Type too large for HardwareBuffer ({} > {})",
+            t_size,
+            self.data.len()
+        );
+
+        let bytes = bytes_of(val);
+        self.data[..t_size].copy_from_slice(bytes);
+        self.size = t_size;
+    }
+
+    /// Write a raw byte slice into the buffer
+    pub fn write_bytes(&mut self, data: &[u8]) {
+        assert!(
+            data.len() <= self.data.len(),
+            "Buffer overflow: tried to write {} bytes into {}-byte buffer",
+            data.len(),
+            self.data.len()
+        );
+        self.data[..data.len()].copy_from_slice(data);
+        self.size = data.len();
+    }
+
+    /// Read a struct back out of the buffer
+    pub fn read<T: Pod>(&self) -> Result<T, BufferError> {
+        let t_size = size_of::<T>();
+        if self.size != t_size {
+            return Err(BufferError::SizeMismatch);
+        }
+
+        Ok(*from_bytes(&self.data[..t_size]))
+    }
+
+    /// Return the used slice of the buffer
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data[..self.size]
+    }
+
+    /// Return a mutable slice to the used portion
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.data[..self.size]
+    }
+
+    /// Return the raw pointer and length (e.g., for FFI)
+    pub fn as_c_interface(&self) -> CInterface {
+        CInterface {
+            data_ptr: self.data.as_ptr(),
+            data_len: self.size,
+        }
+    }
+
+    pub fn as_c_interface_mut(&mut self) -> CInterface {
+        CInterface {
+            data_ptr: self.data.as_mut_ptr(),
+            data_len: self.size,
+        }
+    }
 }

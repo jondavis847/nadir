@@ -1,416 +1,386 @@
-use std::{
-    error::Error,
-    fmt::{self, Display},
-};
-
 use nalgebra::{Matrix3, Vector3};
+use rand::rngs::SmallRng;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
-pub struct CenterOfMass {
-    cmx: f64,
-    cmy: f64,
-    cmz: f64,
+#[derive(Debug, Error)]
+pub enum MassPropertiesErrors {
+    #[error("Ixx cant be less than or equal to  zero")]
+    IxxLessThanOrEqualToZero,
+    #[error("Iyy cant be less than or equal to zero")]
+    IyyLessThanOrEqualToZero,
+    #[error("Izz cant be less than or equal to zero")]
+    IzzLessThanOrEqualToZero,
+    #[error("mass cannot be less than or equal to zero")]
+    MassLessThanOrEqualToZero,
+    #[error("{0}")]
+    UncertaintyErrors(#[from] UncertaintyErrors),
+    #[error("for uniform dist, low must be less than high")]
+    UniformLowMustBeGreaterThanHigh,
 }
 
-impl CenterOfMass {
-    pub fn new(cmx: f64, cmy: f64, cmz: f64) -> Self {
-        Self { cmx, cmy, cmz }
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MassPropertiesBuilder {
+    mass: SimValue,
+    cmx: SimValue,
+    cmy: SimValue,
+    cmz: SimValue,
+    ixx: SimValue,
+    iyy: SimValue,
+    izz: SimValue,
+    ixy: SimValue,
+    ixz: SimValue,
+    iyz: SimValue,
+}
+
+impl MassPropertiesBuilder {
+    pub fn new() -> Self {
+        Self {
+            mass: SimValue::new(1.0),
+            cmx: SimValue::new(0.0),
+            cmy: SimValue::new(0.0),
+            cmz: SimValue::new(0.0),
+            ixx: SimValue::new(1.0),
+            iyy: SimValue::new(1.0),
+            izz: SimValue::new(1.0),
+            ixy: SimValue::new(0.0),
+            ixz: SimValue::new(0.0),
+            iyz: SimValue::new(0.0),
+        }
     }
 
-    pub fn vector(&self) -> Vector3<f64> {
+    pub fn with_mass(mut self, mass: f64) -> Result<Self, MassPropertiesErrors> {
+        if mass < std::f64::EPSILON {
+            Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
+        } else {
+            self.mass.nominal = mass;
+            Ok(self)
+        }
+    }
+
+    pub fn with_cmx(mut self, cmx: f64) -> Self {
+        self.cmx.nominal = cmx;
+        self
+    }
+
+    pub fn with_cmy(mut self, cmy: f64) -> Self {
+        self.cmy.nominal = cmy;
+        self
+    }
+
+    pub fn with_cmz(mut self, cmz: f64) -> Self {
+        self.cmz.nominal = cmz;
+        self
+    }
+
+    pub fn with_ixx(mut self, ixx: f64) -> Result<Self, MassPropertiesErrors> {
+        if ixx < std::f64::EPSILON {
+            Err(MassPropertiesErrors::IxxLessThanOrEqualToZero)
+        } else {
+            self.ixx.nominal = ixx;
+            Ok(self)
+        }
+    }
+
+    pub fn with_iyy(mut self, iyy: f64) -> Result<Self, MassPropertiesErrors> {
+        if iyy < std::f64::EPSILON {
+            Err(MassPropertiesErrors::IyyLessThanOrEqualToZero)
+        } else {
+            self.iyy.nominal = iyy;
+            Ok(self)
+        }
+    }
+
+    pub fn with_izz(mut self, izz: f64) -> Result<Self, MassPropertiesErrors> {
+        if izz < std::f64::EPSILON {
+            Err(MassPropertiesErrors::IzzLessThanOrEqualToZero)
+        } else {
+            self.izz.nominal = izz;
+            Ok(self)
+        }
+    }
+
+    pub fn with_ixy(mut self, ixy: f64) -> Self {
+        self.ixy.nominal = ixy;
+        self
+    }
+
+    pub fn with_ixz(mut self, ixz: f64) -> Self {
+        self.ixz.nominal = ixz;
+        self
+    }
+
+    pub fn with_iyz(mut self, iyz: f64) -> Self {
+        self.iyz.nominal = iyz;
+        self
+    }
+
+    pub fn with_mass_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if mass can be less than 0.0, return an error
+        // sample should be redrawing if mass is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.mass = self.mass.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_mass_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if mass can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
+        }
+
+        let dist = Uniform::new(low, high)?;
+        self.mass = self.mass.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmx_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.cmx = self.cmx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.cmx = self.cmx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.cmy = self.cmy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.cmy = self.cmy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.cmz = self.cmz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_cmz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.cmz = self.cmz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixx_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.ixx = self.ixx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
+        }
+
+        let dist = Uniform::new(low, high)?;
+        self.ixx = self.ixx.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.iyy = self.iyy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+
+        let dist = Uniform::new(low, high)?;
+        self.iyy = self.iyy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_izz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        // sample should be redrawing if moi is ever sampled below 0.0 on outliers
+        if mean < std::f64::EPSILON || mean - 3.0 * std < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+
+        let dist = Normal::new(mean, std)?;
+        self.izz = self.izz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_izz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        // if moi can be less than 0.0, return an error
+        if low < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+
+        let dist = Uniform::new(low, high)?;
+        self.izz = self.izz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.ixy = self.ixy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.ixy = self.ixy.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.ixz = self.ixz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_ixz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.ixz = self.ixz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Normal::new(mean, std)?;
+        self.iyz = self.iyz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+
+    pub fn with_iyz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
+        let dist = Uniform::new(low, high)?;
+        self.iyz = self.iyz.with_distribution(dist.into())?;
+        Ok(self)
+    }
+}
+
+impl Uncertainty for MassPropertiesBuilder {
+    type Output = MassProperties;
+    type Error = MassPropertiesErrors;
+
+    fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut SmallRng,
+    ) -> Result<Self::Output, MassPropertiesErrors> {
+        Ok(MassProperties {
+            mass: self.mass.sample(nominal, rng),
+            cmx: self.cmx.sample(nominal, rng),
+            cmy: self.cmy.sample(nominal, rng),
+            cmz: self.cmz.sample(nominal, rng),
+            ixx: self.ixx.sample(nominal, rng),
+            iyy: self.iyy.sample(nominal, rng),
+            izz: self.izz.sample(nominal, rng),
+            ixy: self.ixy.sample(nominal, rng),
+            ixz: self.ixz.sample(nominal, rng),
+            iyz: self.iyz.sample(nominal, rng),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Copy, Serialize, Deserialize)]
+pub struct MassProperties {
+    pub mass: f64,
+    pub cmx: f64,
+    pub cmy: f64,
+    pub cmz: f64,
+    pub ixx: f64,
+    pub iyy: f64,
+    pub izz: f64,
+    pub ixy: f64,
+    pub ixz: f64,
+    pub iyz: f64,
+}
+
+impl MassProperties {
+    pub fn new(mass: f64, cm: Vector3<f64>, inertia: Matrix3<f64>) -> Self {
+        Self {
+            mass,
+            cmx: cm.x,
+            cmy: cm.y,
+            cmz: cm.z,
+            ixx: inertia[(0, 0)],
+            iyy: inertia[(1, 1)],
+            izz: inertia[(2, 2)],
+            ixy: inertia[(0, 1)],
+            ixz: inertia[(0, 2)],
+            iyz: inertia[(1, 2)],
+        }
+    }
+
+    pub fn mass(&self) -> f64 {
+        self.mass
+    }
+
+    pub fn cm(&self) -> Vector3<f64> {
         Vector3::new(self.cmx, self.cmy, self.cmz)
     }
 
-    /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> f64 {
-        self.cmx
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> f64 {
-        self.cmy
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> f64 {
-        self.cmz
-    }
-
-    /// Sets the x-coordinate of the center of mass.
-    pub fn set_cmx(&mut self, cmx: f64) {
-        self.cmx = cmx;
-    }
-
-    /// Sets the y-coordinate of the center of mass.
-    pub fn set_cmy(&mut self, cmy: f64) {
-        self.cmy = cmy;
-    }
-
-    /// Sets the z-coordinate of the center of mass.
-    pub fn set_cmz(&mut self, cmz: f64) {
-        self.cmz = cmz;
-    }
-}
-
-impl From<Vector3<f64>> for CenterOfMass {
-    fn from(v: Vector3<f64>) -> CenterOfMass {
-        CenterOfMass {
-            cmx: v[0],
-            cmy: v[1],
-            cmz: v[2],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct Inertia {
-    pub ixx: f64,
-    pub ixy: f64,
-    pub ixz: f64,
-    pub iyy: f64,
-    pub iyz: f64,
-    pub izz: f64,
-}
-
-#[derive(Debug)]
-pub enum InertiaErrors {
-    IxxLessThanOrEqualToZero,
-    IyyLessThanOrEqualToZero,
-    IzzLessThanOrEqualToZero,
-}
-
-impl std::fmt::Display for InertiaErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::IxxLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
-            Self::IyyLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
-            Self::IzzLessThanOrEqualToZero => writeln!(f, "Ixx cannot be less than zero."),
-        }
-    }
-}
-
-impl std::error::Error for InertiaErrors {}
-
-impl Inertia {
-    pub fn new(
-        ixx: f64,
-        iyy: f64,
-        izz: f64,
-        ixy: f64,
-        ixz: f64,
-        iyz: f64,
-    ) -> Result<Self, InertiaErrors> {
-        if ixx <= f64::EPSILON {
-            return Err(InertiaErrors::IxxLessThanOrEqualToZero);
-        }
-        if iyy <= f64::EPSILON {
-            return Err(InertiaErrors::IyyLessThanOrEqualToZero);
-        }
-        if izz <= f64::EPSILON {
-            return Err(InertiaErrors::IzzLessThanOrEqualToZero);
-        }
-        Ok(Self {
-            ixx,
-            iyy,
-            izz,
-            ixy,
-            ixz,
-            iyz,
-        })
-    }
-
-    pub fn matrix(&self) -> Matrix3<f64> {
+    pub fn inertia(&self) -> Matrix3<f64> {
         Matrix3::new(
             self.ixx, self.ixy, self.ixz, self.ixy, self.iyy, self.iyz, self.ixz, self.iyz,
             self.izz,
         )
     }
 
-    pub fn get_ixx(&self) -> f64 {
-        self.ixx
-    }
-    pub fn get_iyy(&self) -> f64 {
-        self.iyy
-    }
-    pub fn get_izz(&self) -> f64 {
-        self.izz
-    }
-    pub fn get_ixy(&self) -> f64 {
-        self.ixy
-    }
-    pub fn get_ixz(&self) -> f64 {
-        self.ixz
-    }
-    pub fn get_iyz(&self) -> f64 {
-        self.iyz
+    pub fn set_cm(&mut self, cm: Vector3<f64>) {
+        self.cmx = cm.x;
+        self.cmy = cm.y;
+        self.cmz = cm.z;
     }
 
-    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), InertiaErrors> {
-        if ixx < f64::EPSILON {
-            return Err(InertiaErrors::IxxLessThanOrEqualToZero);
+    pub fn set_inertia(&mut self, inertia: Matrix3<f64>) -> Result<(), MassPropertiesErrors> {
+        if inertia[(0, 0)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IxxLessThanOrEqualToZero);
         }
-        self.ixx = ixx;
+        if inertia[(1, 1)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IyyLessThanOrEqualToZero);
+        }
+        if inertia[(2, 2)] < std::f64::EPSILON {
+            return Err(MassPropertiesErrors::IzzLessThanOrEqualToZero);
+        }
+        self.ixx = inertia[(0, 0)];
+        self.iyy = inertia[(1, 1)];
+        self.izz = inertia[(2, 2)];
+        self.ixy = inertia[(0, 1)];
+        self.ixz = inertia[(0, 2)];
+        self.iyz = inertia[(1, 2)];
         Ok(())
     }
 
-    /// Sets the product of inertia for the xy-plane.
-    pub fn set_ixy(&mut self, ixy: f64) {
-        self.ixy = ixy;
-    }
-
-    /// Sets the product of inertia for the xz-plane.
-    pub fn set_ixz(&mut self, ixz: f64) {
-        self.ixz = ixz;
-    }
-
-    /// Sets the moment of inertia around the y-axis.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::IyyLessThanOrEqualToZero` if `iyy` is less than or equal to zero.
-    pub fn set_iyy(&mut self, iyy: f64) -> Result<(), InertiaErrors> {
-        if iyy < f64::EPSILON {
-            return Err(InertiaErrors::IyyLessThanOrEqualToZero);
-        }
-        self.iyy = iyy;
-        Ok(())
-    }
-
-    /// Sets the product of inertia for the yz-plane.
-    pub fn set_iyz(&mut self, iyz: f64) {
-        self.iyz = iyz;
-    }
-
-    /// Sets the moment of inertia around the z-axis.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::IzzLessThanOrEqualToZero` if `izz` is less than or equal to zero.
-    pub fn set_izz(&mut self, izz: f64) -> Result<(), InertiaErrors> {
-        if izz < f64::EPSILON {
-            return Err(InertiaErrors::IzzLessThanOrEqualToZero);
-        }
-        self.izz = izz;
-        Ok(())
-    }
-}
-
-impl From<Matrix3<f64>> for Inertia {
-    fn from(m: Matrix3<f64>) -> Inertia {
-        //TODO add checks on the matrix
-        Inertia::new(
-            m[(0, 0)],
-            m[(1, 1)],
-            m[(2, 2)],
-            m[(0, 1)],
-            m[(0, 2)],
-            m[(2, 1)],
-        )
-        .unwrap()
-    }
-}
-
-/// Enum representing possible errors when creating or modifying `MassProperties`.
-#[derive(Debug)]
-pub enum MassPropertiesErrors {
-    InertiaErrors(InertiaErrors),
-    MassLessThanOrEqualToZero,
-}
-
-impl Display for MassPropertiesErrors {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InertiaErrors(e) => writeln!(f, "Inertia Error: {e}"),
-            Self::MassLessThanOrEqualToZero => {
-                writeln!(f, "Mass cannot be less than or equal to zero.")
-            }
-        }
-    }
-}
-
-impl Error for MassPropertiesErrors {}
-
-/// Represents the mass properties of an object
-/// Mass, Center of Mass, Inertia
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct MassProperties {
-    pub center_of_mass: CenterOfMass,
-    pub mass: f64,
-    pub inertia: Inertia,
-}
-
-impl Default for MassProperties {
-    fn default() -> Self {
-        let mass = 1.0;
-        let center_of_mass = CenterOfMass::new(0.0, 0.0, 0.0);
-        let inertia = Inertia::new(1.0, 1.0, 1.0, 0.0, 0.0, 0.0).unwrap();
-        Self {
-            center_of_mass,
-            mass,
-            inertia,
-        }
-    }
-}
-
-impl MassProperties {
-    /// Creates a new `MassProperties` instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `mass` - The mass of the object.
-    /// * `cmx` - The x-coordinate of the center of mass.
-    /// * `cmy` - The y-coordinate of the center of mass.
-    /// * `cmz` - The z-coordinate of the center of mass.
-    /// * `ixx` - The moment of inertia around the x-axis.
-    /// * `iyy` - The moment of inertia around the y-axis.
-    /// * `izz` - The moment of inertia around the z-axis.
-    /// * `ixy` - The product of inertia for the xy-plane.
-    /// * `ixz` - The product of inertia for the xz-plane.
-    /// * `iyz` - The product of inertia for the yz-plane.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError` if any of the mass or principal moments of inertia
-    /// are less than or equal to zero.
-    pub fn new(
-        mass: f64,
-        center_of_mass: CenterOfMass,
-        inertia: Inertia,
-    ) -> Result<Self, MassPropertiesErrors> {
-        if mass <= f64::EPSILON {
-            return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
-        }
-        Ok(MassProperties {
-            mass,
-            center_of_mass,
-            inertia,
-        })
-    }
-
-    /// Returns the x-coordinate of the center of mass.
-    pub fn get_cmx(&self) -> f64 {
-        self.center_of_mass.get_cmx()
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmy(&self) -> f64 {
-        self.center_of_mass.get_cmy()
-    }
-
-    /// Returns the y-coordinate of the center of mass.
-    pub fn get_cmz(&self) -> f64 {
-        self.center_of_mass.get_cmz()
-    }
-
-    /// Returns the moment of inertia around the x-axis.
-    pub fn get_ixx(&self) -> f64 {
-        self.inertia.get_ixx()
-    }
-
-    /// Returns the product of inertia for the xy-plane.
-    pub fn get_ixy(&self) -> f64 {
-        self.inertia.get_ixy()
-    }
-
-    /// Returns the product of inertia for the xz-plane.
-    pub fn get_ixz(&self) -> f64 {
-        self.inertia.get_ixz()
-    }
-
-    /// Returns the moment of inertia around the y-axis.
-    pub fn get_iyy(&self) -> f64 {
-        self.inertia.get_iyy()
-    }
-
-    /// Returns the product of inertia for the yz-plane.
-    pub fn get_iyz(&self) -> f64 {
-        self.inertia.get_iyz()
-    }
-
-    /// Returns the moment of inertia around the z-axis.
-    pub fn get_izz(&self) -> f64 {
-        self.inertia.get_izz()
-    }
-
-    /// Returns the mass of the object.
-    pub fn get_mass(&self) -> f64 {
-        self.mass
-    }
-
-    /// Sets the x-coordinate of the center of mass.
-    pub fn set_cmx(&mut self, cmx: f64) {
-        self.center_of_mass.set_cmx(cmx);
-    }
-
-    /// Sets the y-coordinate of the center of mass.
-    pub fn set_cmy(&mut self, cmy: f64) {
-        self.center_of_mass.set_cmy(cmy);
-    }
-
-    /// Sets the z-coordinate of the center of mass.
-    pub fn set_cmz(&mut self, cmz: f64) {
-        self.center_of_mass.set_cmz(cmz);
-    }
-
-    /// Sets the moment of inertia around the x-axis.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::IxxLessThanOrEqualToZero` if `ixx` is less than or equal to zero.
-    pub fn set_ixx(&mut self, ixx: f64) -> Result<(), InertiaErrors> {
-        self.inertia.set_ixx(ixx)
-    }
-
-    /// Sets the product of inertia for the xy-plane.
-    pub fn set_ixy(&mut self, ixy: f64) {
-        self.inertia.set_ixy(ixy);
-    }
-
-    /// Sets the product of inertia for the xz-plane.
-    pub fn set_ixz(&mut self, ixz: f64) {
-        self.inertia.set_ixz(ixz);
-    }
-    /// Sets the moment of inertia around the y-axis.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::IyyLessThanOrEqualToZero` if `iyy` is less than or equal to zero.
-    pub fn set_iyy(&mut self, iyy: f64) -> Result<(), MassPropertiesErrors> {
-        match self.inertia.set_iyy(iyy) {
-            Ok(_) => Ok(()),
-            Err(error) => Err(MassPropertiesErrors::InertiaErrors(error)),
-        }
-    }
-
-    /// Sets the product of inertia for the yz-plane.
-    pub fn set_iyz(&mut self, iyz: f64) -> Result<(), MassPropertiesErrors> {
-        self.inertia.set_iyz(iyz);
-        Ok(())
-    }
-
-    /// Sets the moment of inertia around the z-axis.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::IzzLessThanOrEqualToZero` if `izz` is less than or equal to zero.
-    pub fn set_izz(&mut self, izz: f64) -> Result<(), MassPropertiesErrors> {
-        match self.inertia.set_izz(izz) {
-            Ok(_) => Ok(()),
-            Err(error) => Err(MassPropertiesErrors::InertiaErrors(error)),
-        }
-    }
-
-    /// Sets the mass of the object.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MassPropertiesError::MassLessThanOrEqualToZero` if `mass` is less than or equal to zero.
     pub fn set_mass(&mut self, mass: f64) -> Result<(), MassPropertiesErrors> {
-        if mass < f64::EPSILON {
-            return Err(MassPropertiesErrors::MassLessThanOrEqualToZero);
+        if mass < std::f64::EPSILON {
+            Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
+        } else {
+            self.mass = mass;
+            Ok(())
         }
-        self.mass = mass;
-        Ok(())
     }
 }

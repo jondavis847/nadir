@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::RotationTrait;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Copy, Clone)]
 pub enum AxisAngleErrors {
     #[error("magnitude of the axis is too small, should be normalizable to a magnitude of 1.0")]
     ZeroMagnitudeAxis,

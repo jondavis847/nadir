@@ -110,14 +110,13 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
         let t = (view_angle - fade_start) / (fade_end - fade_start);
         fade_factor = pow(t, fade_strength);
     }
-
+    
     //let scattering = pow(1.0 - light_angle,light_angle_factor) * pow(1.0 - view_angle, view_angle_factor) * pow(1.0 - night_angle,night_angle_factor) * fade_factor* scatter_color * scatter_factor ;    
     let scattering = pow(1.0 - night_angle,night_angle_factor) * fade_factor * scatter_color * scatter_factor ;    
     
-    let final_color = vec3<f32>(scattering);
-
+    let final_color = vec3<f32>(scattering);    
     var out: FragmentOutput;
-    out.color = vec4<f32>(final_color, 0.5);        
+    out.color = vec4<f32>(final_color, 0.5); // premultiplied    
 
     return out;
 }

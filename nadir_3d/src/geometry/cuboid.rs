@@ -2,6 +2,13 @@ use super::{GeometryState, GeometryTrait, GeometryTransform};
 use crate::vertex::Vertex;
 use glam::{vec2, vec3, Mat3, Mat4, Quat};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum CuboidErrors {
+    #[error("cuboid dimension must be greater than 0")]
+    Dimension,
+}
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Cuboid {
@@ -11,8 +18,11 @@ pub struct Cuboid {
 }
 
 impl Cuboid {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z }
+    pub fn new(x: f64, y: f64, z: f64) -> Result<Self, CuboidErrors> {
+        if x <= 0.0 || y <= 0.0 || z <= 0.0 {
+            return Err(CuboidErrors::Dimension);
+        }
+        Ok(Self { x, y, z })
     }
 
     pub fn vertices() -> Vec<Vertex> {

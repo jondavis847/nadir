@@ -1,10 +1,10 @@
 use ansi_term::Colour;
 use nalgebra::{DMatrix, DVector};
-use pest::iterators::Pair;
 use pest::Parser;
+use pest::iterators::Pair;
 use pest_derive::Parser;
 use registry::{Registry, RegistryErrors};
-use rotations::prelude::Quaternion;
+use rotations::prelude::{Quaternion, RotationTrait};
 use rustyline::error::ReadlineError;
 use rustyline::{CompletionType, Config, EditMode, Editor};
 use std::cell::RefCell;
@@ -225,10 +225,11 @@ fn main() {
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                break;
+                // Ctrl+C
+                continue;
             }
             Err(ReadlineError::Eof) => {
-                // Handle Ctrl+D (end-of-file) signal
+                // Ctrl+D
                 break;
             }
             Err(err) => {
@@ -737,6 +738,14 @@ fn evaluate_instance_call(
     match &instance {
         Value::Quaternion(q) => match method_name {
             "inv" => Ok(Value::Quaternion(Box::new(q.inv()))),
+            _ => Err(ReplErrors::InvalidMethod(
+                instance_name.to_string(),
+                method_name.to_string(),
+                instance.to_string(),
+            )),
+        },
+        Value::UnitQuaternion(q) => match method_name {
+            "inv" => Ok(Value::UnitQuaternion(Box::new(q.inv()))),
             _ => Err(ReplErrors::InvalidMethod(
                 instance_name.to_string(),
                 method_name.to_string(),

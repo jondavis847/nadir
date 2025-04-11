@@ -1,78 +1,108 @@
 pub mod noise;
+use crate::{
+    body::{BodyConnection, BodyConnectionBuilder},
+    system::Id,
+    HardwareBuffer,
+};
 
-use crate::body::{BodyConnection, BodyRef};
+use gps::{Gps, GpsBuilder, GpsErrors};
+use magnetometer::{Magnetometer, MagnetometerBuilder, MagnetometerErrors};
 use nadir_result::{NadirResult, ResultManager};
+use rand::rngs::SmallRng;
+use rate_gyro::{RateGyro, RateGyroBuilder, RateGyroErrors};
 use serde::{Deserialize, Serialize};
+use star_tracker::{StarTracker, StarTrackerBuilder, StarTrackerErrors};
 use std::fmt::Debug;
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::{Uncertainty, UncertaintyErrors};
 
-#[derive(Debug, Clone, Error)]
+pub mod gps;
+pub mod magnetometer;
+pub mod rate_gyro;
+pub mod star_tracker;
+
+#[derive(Debug, Error)]
 pub enum SensorErrors {
     #[error("sensor '{0}' is already connected to body '{1}'")]
     AlreadyConnectedToAnotherBody(String, String),
     #[error("sensor '{0}' is already connected to that body")]
     AlreadyConnectedToThisBody(String),
+    #[error("{0}")]
+    Gps(#[from] GpsErrors),
+    #[error("{0}")]
+    Magnetometer(#[from] MagnetometerErrors),
+    #[error("{0}")]
+    RateGyro(#[from] RateGyroErrors),
+    #[error("{0}")]
+    StarTracker(#[from] StarTrackerErrors),
+    #[error("{0}")]
+    Uncertainty(#[from] UncertaintyErrors),
 }
 
 pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Sensor<T>
-where
-    T: SensorModel,
-{
+pub struct SensorBuilder {
     pub name: String,
-    pub model: T,
-    connection: Option<BodyConnection>,
-    result_id: Option<u32>,
+    pub model: SensorModelBuilders,
+    pub connection: Option<BodyConnectionBuilder>,
 }
 
-impl<T> Sensor<T>
-where
-    T: SensorModel,
-{
-    pub fn connect_to_body(
-        &mut self,
-        body: &BodyRef,
-        transform: Transform,
-    ) -> Result<(), SensorErrors> {
-        if let Some(connection) = &self.connection {
-            return Err(SensorErrors::AlreadyConnectedToAnotherBody(
-                self.name.clone(),
-                connection.body.borrow().name.clone(),
-            ));
-        }
-
-        self.connection = Some(BodyConnection::new(body.clone(), transform));
+impl SensorBuilder {
+    pub fn connect_body(&mut self, body: Id, transform: Transform) -> Result<(), SensorErrors> {
+        self.connection = Some(BodyConnectionBuilder::new(body.clone(), transform));
         Ok(())
     }
 
-    pub fn new(name: &str, model: T) -> Self
-    where
-        T: SensorModel,
-    {
+    pub fn new(name: &str, model: SensorModelBuilders) -> Self {
         Self {
             name: name.to_string(),
             model,
             connection: None,
-            result_id: None,
         }
     }
 
-    pub fn update(&mut self) {
-        self.model.update(&self.connection.as_ref().unwrap());
+    pub fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut SmallRng,
+        connection: BodyConnection,
+    ) -> Result<Sensor, SensorErrors> {
+        let model = self.model.sample(nominal, rng)?;
+        Ok(Sensor {
+            name: self.name.clone(),
+            model,
+            connection,
+            result_id: None,
+            telemetry_buffer: HardwareBuffer::new(),
+        })
     }
 }
 
-impl<T> NadirResult for Sensor<T>
-where
-    T: SensorModel,
-{
+#[derive(Debug)]
+pub struct Sensor {
+    pub name: String,
+    pub model: SensorModels,
+    pub connection: BodyConnection,
+    pub telemetry_buffer: HardwareBuffer,
+    result_id: Option<u32>,
+}
+
+impl Sensor {
+    pub fn update(&mut self) -> Result<(), SensorErrors> {
+        self.model.update(&self.connection);
+        self.model.write_buffer(&mut self.telemetry_buffer)?;
+        Ok(())
+    }
+}
+
+impl NadirResult for Sensor {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the sensor subfolder folder path
         let sensor_folder_path = results.result_path.join("sensors");
@@ -94,14 +124,96 @@ where
     }
 }
 
-pub trait SensorSystem: Serialize {
-    fn update(&mut self);
-    fn initialize_results(&mut self, results: &mut ResultManager);
-    fn write_results(&self, results: &mut ResultManager);
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum SensorModelBuilders {
+    Gps(GpsBuilder),
+    Magnetometer(MagnetometerBuilder),
+    RateGyro(RateGyroBuilder),
+    StarTracker(StarTrackerBuilder),
 }
 
-impl SensorSystem for () {
-    fn update(&mut self) {}
-    fn initialize_results(&mut self, _results: &mut ResultManager) {}
-    fn write_results(&self, _results: &mut ResultManager) {}
+impl SensorModelBuilders {
+    pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<SensorModels, SensorErrors> {
+        match self {
+            SensorModelBuilders::Gps(builder) => {
+                Ok(SensorModels::Gps(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::Magnetometer(builder) => {
+                Ok(SensorModels::Magnetometer(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::RateGyro(builder) => {
+                Ok(SensorModels::RateGyro(builder.sample(nominal, rng)?))
+            }
+            SensorModelBuilders::StarTracker(builder) => {
+                Ok(SensorModels::StarTracker(builder.sample(nominal, rng)?))
+            }
+        }
+    }
+}
+
+impl From<GpsBuilder> for SensorModelBuilders {
+    fn from(builder: GpsBuilder) -> Self {
+        SensorModelBuilders::Gps(builder)
+    }
+}
+impl From<MagnetometerBuilder> for SensorModelBuilders {
+    fn from(builder: MagnetometerBuilder) -> Self {
+        SensorModelBuilders::Magnetometer(builder)
+    }
+}
+impl From<RateGyroBuilder> for SensorModelBuilders {
+    fn from(builder: RateGyroBuilder) -> Self {
+        SensorModelBuilders::RateGyro(builder)
+    }
+}
+impl From<StarTrackerBuilder> for SensorModelBuilders {
+    fn from(builder: StarTrackerBuilder) -> Self {
+        SensorModelBuilders::StarTracker(builder)
+    }
+}
+
+#[derive(Debug)]
+pub enum SensorModels {
+    Gps(Gps),
+    Magnetometer(Magnetometer),
+    RateGyro(RateGyro),
+    StarTracker(StarTracker),
+}
+
+impl SensorModel for SensorModels {
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        match self {
+            SensorModels::Gps(sensor) => sensor.result_content(id, results),
+            SensorModels::Magnetometer(sensor) => sensor.result_content(id, results),
+            SensorModels::RateGyro(sensor) => sensor.result_content(id, results),
+            SensorModels::StarTracker(sensor) => sensor.result_content(id, results),
+        }
+    }
+
+    fn result_headers(&self) -> &[&str] {
+        match self {
+            SensorModels::Gps(sensor) => sensor.result_headers(),
+            SensorModels::Magnetometer(sensor) => sensor.result_headers(),
+            SensorModels::RateGyro(sensor) => sensor.result_headers(),
+            SensorModels::StarTracker(sensor) => sensor.result_headers(),
+        }
+    }
+
+    fn update(&mut self, connection: &BodyConnection) {
+        match self {
+            SensorModels::Gps(sensor) => sensor.update(connection),
+            SensorModels::Magnetometer(sensor) => sensor.update(connection),
+            SensorModels::RateGyro(sensor) => sensor.update(connection),
+            SensorModels::StarTracker(sensor) => sensor.update(connection),
+        }
+    }
+
+    fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {
+        match self {
+            SensorModels::Gps(sensor) => sensor.write_buffer(buffer),
+            SensorModels::Magnetometer(sensor) => sensor.write_buffer(buffer),
+            SensorModels::RateGyro(sensor) => sensor.write_buffer(buffer),
+            SensorModels::StarTracker(sensor) => sensor.write_buffer(buffer),
+        }
+    }
 }

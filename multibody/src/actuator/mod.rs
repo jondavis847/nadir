@@ -1,80 +1,102 @@
 use nadir_result::{NadirResult, ResultManager};
+use rand::rngs::SmallRng;
+use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use thiserror::Error;
+use thruster::{Thruster, ThrusterBuilder, ThrusterErrors};
 use transforms::Transform;
+use uncertainty::Uncertainty;
 
 use crate::{
-    body::{BodyConnection, BodyRef},
+    body::{BodyConnection, BodyConnectionBuilder},
     solver::{SimStateVector, SimStates},
+    system::Id,
+    BufferError, HardwareBuffer,
 };
 
-#[derive(Debug, Clone, Error)]
+pub mod reaction_wheel;
+pub mod thruster;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ActuatorBuilder {
+    pub name: String,
+    pub model: ActuatorModelBuilders,
+    pub connection: Option<BodyConnectionBuilder>,
+}
+
+impl ActuatorBuilder {
+    pub fn new(name: &str, model: ActuatorModelBuilders) -> Self {
+        Self {
+            name: name.to_string(),
+            model,
+            connection: None,
+        }
+    }
+    pub fn connect_body(&mut self, body: Id, transform: Transform) {
+        self.connection = Some(BodyConnectionBuilder::new(body, transform));
+    }
+
+    pub fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut SmallRng,
+        connection: BodyConnection,
+    ) -> Result<Actuator, ActuatorErrors> {
+        let model = self.model.sample(nominal, rng)?;
+        Ok(Actuator {
+            name: self.name.clone(),
+            model,
+            connection,
+            result_id: None,
+            state_id: None,
+        })
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum ActuatorErrors {
     #[error("actuator '{0}' is already connected to body '{1}'")]
     AlreadyConnectedToAnotherBody(String, String),
     #[error("actuator '{0}' is already connected to that body")]
     AlreadyConnectedToThisBody(String),
+    #[error("{0}")]
+    BufferError(#[from] BufferError),
+    #[error("{0}")]
+    ReactionWheelErrors(#[from] ReactionWheelErrors),
+    #[error("{0}")]
+    ThrusterErrors(#[from] ThrusterErrors),
 }
 
 pub trait ActuatorModel {
-    type Command;
-    fn update(&mut self, connection: &mut BodyConnection);
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors>;
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
-    fn state_derivative(&self, derivative: &mut SimStateVector);
+    fn state_derivative(&self, _derivative: &mut SimStateVector) {}
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector;
+    fn state_vector_init(&self) -> SimStateVector {
+        SimStateVector(vec![])
+    }
     /// Reads a state vector into the sim state
     fn state_vector_read(&mut self, state: &SimStateVector);
+    fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors>;
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Actuator<T>
-where
-    T: ActuatorModel,
-{
+#[derive(Debug)]
+pub struct Actuator {
     pub name: String,
-    pub model: T,
-    pub connection: Option<BodyConnection>,
+    pub model: ActuatorModels,
+    pub connection: BodyConnection,
+    /// Id of the result writer in sys.writers
     result_id: Option<u32>,
+    /// Id of state index in SimStateVector
     state_id: Option<usize>,
 }
 
-impl<T> Actuator<T>
-where
-    T: ActuatorModel,
-{
-    pub fn new(name: &str, model: T) -> Self {
-        Self {
-            name: name.to_string(),
-            model,
-            connection: None,
-            result_id: None,
-            state_id: None,
-        }
-    }
-    pub fn connect_to_body(
-        &mut self,
-        body: &BodyRef,
-        transform: Transform,
-    ) -> Result<(), ActuatorErrors> {
-        if let Some(connection) = &self.connection {
-            return Err(ActuatorErrors::AlreadyConnectedToAnotherBody(
-                self.name.clone(),
-                connection.body.borrow().name.clone(),
-            ));
-        }
-
-        self.connection = Some(BodyConnection::new(body.clone(), transform));
-        Ok(())
-    }
-
-    pub fn update(&mut self) {
-        if let Some(connection) = &mut self.connection {
-            self.model.update(connection);
-        }
+impl Actuator {
+    pub fn update(&mut self) -> Result<(), ActuatorErrors> {
+        self.model.update(&self.connection)
     }
 
     pub fn state_vector_init(&mut self, x0: &mut SimStates) {
@@ -93,12 +115,13 @@ where
             self.model.state_derivative(&mut x0.0[id as usize]);
         }
     }
+
+    pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
+        self.model.read_command(buffer)
+    }
 }
 
-impl<T> NadirResult for Actuator<T>
-where
-    T: ActuatorModel,
-{
+impl NadirResult for Actuator {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
         let actuator_folder_path = results.result_path.join("actuators");
@@ -125,20 +148,94 @@ where
     }
 }
 
-pub trait ActuatorSystem: Serialize {
-    fn update(&mut self);
-    fn initialize_results(&mut self, results: &mut ResultManager);
-    fn write_results(&self, results: &mut ResultManager);
-    fn state_vector_init(&mut self, x0: &mut SimStates);
-    fn state_vector_read(&mut self, x0: &SimStates);
-    fn state_derivative(&self, x0: &mut SimStates);
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ActuatorModelBuilders {
+    ReactionWheel(ReactionWheelBuilder),
+    Thruster(ThrusterBuilder),
 }
 
-impl ActuatorSystem for () {
-    fn update(&mut self) {}
-    fn initialize_results(&mut self, _results: &mut ResultManager) {}
-    fn write_results(&self, _results: &mut ResultManager) {}
-    fn state_vector_init(&mut self, _x0: &mut SimStates) {}
-    fn state_vector_read(&mut self, _x0: &SimStates) {}
-    fn state_derivative(&self, _x0: &mut SimStates) {}
+impl ActuatorModelBuilders {
+    pub fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut SmallRng,
+    ) -> Result<ActuatorModels, ActuatorErrors> {
+        match self {
+            ActuatorModelBuilders::ReactionWheel(builder) => {
+                Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
+            }
+            ActuatorModelBuilders::Thruster(builder) => {
+                Ok(ActuatorModels::Thruster(builder.sample(nominal, rng)?))
+            }
+        }
+    }
+}
+
+impl From<ReactionWheelBuilder> for ActuatorModelBuilders {
+    fn from(builder: ReactionWheelBuilder) -> Self {
+        ActuatorModelBuilders::ReactionWheel(builder)
+    }
+}
+
+impl From<ThrusterBuilder> for ActuatorModelBuilders {
+    fn from(builder: ThrusterBuilder) -> Self {
+        ActuatorModelBuilders::Thruster(builder)
+    }
+}
+
+#[derive(Debug)]
+pub enum ActuatorModels {
+    ReactionWheel(ReactionWheel),
+    Thruster(Thruster),
+}
+
+impl ActuatorModel for ActuatorModels {
+    fn result_content(&self, id: u32, results: &mut ResultManager) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.result_content(id, results),
+            ActuatorModels::Thruster(act) => act.result_content(id, results),
+        }
+    }
+
+    fn result_headers(&self) -> &[&str] {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.result_headers(),
+            ActuatorModels::Thruster(act) => act.result_headers(),
+        }
+    }
+
+    fn state_derivative(&self, derivative: &mut SimStateVector) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
+            ActuatorModels::Thruster(act) => act.state_derivative(derivative),
+        }
+    }
+
+    fn state_vector_init(&self) -> SimStateVector {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
+            ActuatorModels::Thruster(act) => act.state_vector_init(),
+        }
+    }
+
+    fn state_vector_read(&mut self, state: &SimStateVector) {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
+            ActuatorModels::Thruster(act) => act.state_vector_read(state),
+        }
+    }
+
+    fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.update(connection),
+            ActuatorModels::Thruster(act) => act.update(connection),
+        }
+    }
+
+    fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
+        match self {
+            ActuatorModels::ReactionWheel(act) => act.read_command(cmd),
+            ActuatorModels::Thruster(act) => act.read_command(cmd),
+        }
+    }
 }

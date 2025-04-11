@@ -1,12 +1,12 @@
-use bincode;
+use bincode::{self, config::standard, serde::decode_from_slice};
 use dirs::config_dir;
 use nalgebra::Vector3;
 use pck::{EarthParameters, MoonParameters};
 use reqwest::blocking::Client;
 use rotations::{
+    RotationTrait,
     euler_angles::{EulerAngles, EulerSequence},
     prelude::UnitQuaternion,
-    RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spk::SpiceSpk;
@@ -62,11 +62,12 @@ impl Spice {
                 file.read_to_end(&mut buffer)
                     .expect("could not read spice file");
                 // atempt to deserialize, if error redownload new files
-                let mut spice: Spice = match bincode::deserialize(&buffer) {
-                    Ok(spice) => spice,
+                let config = standard();
+                let mut spice: Spice = match decode_from_slice(&buffer, config) {
+                    Ok((spice, _)) => spice,
                     Err(e) => {
-                        println!("{e}");
-                        Spice::from_naif()?
+                        eprintln!("Deserialization error: {}", e);
+                        Spice::from_naif()? // assuming from_naif() returns Result<Spice, Error>
                     }
                 };
                 // check if the files are the most recent, if not get new ones and resave
@@ -195,7 +196,8 @@ impl Spice {
         //TODO: include century calculation for obliquity for completeness?
         let obliquity = 23.43928111111111 * std::f64::consts::PI / 180.0; // https://ssd.jpl.nasa.gov/astro_par.html
         let j2000_equatorial_from_ecliptic =
-            UnitQuaternion::new((-obliquity / 2.0).sin(), 0.0, 0.0, (-obliquity / 2.0).cos());
+            UnitQuaternion::new((-obliquity / 2.0).sin(), 0.0, 0.0, (-obliquity / 2.0).cos())
+                .unwrap();
 
         let result = segment.evaluate(t)?;
         let ra = result[0];
@@ -217,7 +219,8 @@ impl Spice {
                 fs::create_dir_all(&path).expect("could not create nadir directory in config dir");
             }
             path.push("spice.data");
-            let encoded: Vec<u8> = bincode::serialize(self).unwrap(); // Serialize the struct
+            let config = standard();
+            let encoded: Vec<u8> = bincode::serde::encode_to_vec(self, config).unwrap(); // Serialize the struct
             let mut file = File::create(path).expect("spice could not open file");
             file.write_all(&encoded)
                 .expect("spice could not write file"); // Write the serialized data to a file

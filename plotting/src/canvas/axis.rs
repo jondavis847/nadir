@@ -1,8 +1,8 @@
 use crate::theme::PlotTheme;
 use iced::{
+    Point, Size, Vector,
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text},
-    Point, Size, Vector,
 };
 
 #[derive(Debug)]
@@ -18,9 +18,9 @@ pub struct Axis {
 impl Default for Axis {
     fn default() -> Self {
         Self {
-            x_padding: 30.0,
+            x_padding: 50.0,
             y_padding: 30.0,
-            line_width: 5.0,
+            line_width: 3.0,
             n_ticks: 5,
             tick_length: 10.0,
             tick_text_spacing: 20.0,
@@ -45,7 +45,10 @@ impl Axis {
         let axis_top_right = Point::new(axis_size.width + x_padding, y_padding);
 
         // Draw border lines
-        let border_stroke = Stroke::default().with_width(1.0).with_color(theme.border);
+        let border_width = 1.0;
+        let border_stroke = Stroke::default()
+            .with_width(border_width)
+            .with_color(theme.border);
         let axis_lines = [
             (axis_bottom_left, axis_bottom_right), // x-axis border
             (axis_bottom_left, axis_top_left),     // y-axis border
@@ -76,7 +79,7 @@ impl Axis {
                     calculate_tick_spacing(value_span, canvas_span, n_ticks);
 
                 let grid_stroke = Stroke::default()
-                    .with_width(1.0)
+                    .with_width(2.0)
                     .with_color(theme.grid_color);
 
                 // Draw ticks in both positive and negative directions from 0.0
@@ -97,13 +100,13 @@ impl Axis {
                             // Draw an axis line for 0.0
                             let (zero_axis_start, zero_axis_end) = if is_x_axis {
                                 (
-                                    Point::new(cp, axis_start.y),
-                                    Point::new(cp, axis_start.y - axes_size.height),
+                                    Point::new(cp, axis_start.y + border_width),
+                                    Point::new(cp, axis_start.y - axes_size.height - border_width),
                                 )
                             } else {
                                 (
-                                    Point::new(axis_start.x, cp),
-                                    Point::new(axis_start.x + axes_size.width, cp),
+                                    Point::new(axis_start.x - border_width, cp),
+                                    Point::new(axis_start.x + axes_size.width + border_width, cp),
                                 )
                             };
 
@@ -113,7 +116,7 @@ impl Axis {
                                 &zero_axis,
                                 Stroke::default()
                                     .with_width(line_width)
-                                    .with_color(theme.axis_color),
+                                    .with_color(theme.border),
                             );
                             (v, cp)
                         } else {

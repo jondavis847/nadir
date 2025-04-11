@@ -2,11 +2,11 @@ use iced::mouse::ScrollDelta;
 use iced::widget::canvas;
 use iced::window::icon;
 
-use crate::canvas::PlotCanvas;
 use crate::SeriesMap;
-use iced::{window, Settings};
+use crate::canvas::PlotCanvas;
 use iced::{Element, Fill, Size, Subscription};
 use iced::{Point, Task};
+use iced::{Settings, window};
 use std::time::Instant;
 
 const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
@@ -36,7 +36,7 @@ pub fn main(series: Vec<SeriesMap>) -> iced::Result {
         ..Default::default()
     };
 
-    let window_size = Size::new(700.0, 350.0);
+    let window_size = Size::new(800.0, 400.0);
     let window_settings = window::Settings {
         size: window_size,
         icon: Some(icon),
@@ -58,6 +58,7 @@ pub struct PlotApp {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
+    // CursorMoved(Point),
     Tick(Instant),
     MouseLeftPressed(Point),
     MouseLeftReleased(Point),
@@ -77,6 +78,7 @@ impl PlotApp {
     }
     fn update(&mut self, message: Message) {
         match message {
+            // Message::CursorMoved(position) => self.canvas.cursor_moved(point),
             Message::Tick(instant) => self.state.update(instant),
             Message::MouseLeftPressed(point) => self.canvas.mouse_left_clicked(point),
             Message::MouseLeftReleased(point) => self.canvas.mouse_left_released(point),

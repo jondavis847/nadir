@@ -2,13 +2,22 @@ use super::{
     // legend::{Legend, LegendEntry},
     line::Line,
 };
-use crate::{theme::PlotTheme, Series};
+use crate::{Series, theme::PlotTheme};
 use iced::{
+    Color, Font, Point, Rectangle, Size,
     widget::canvas::{Frame, Path, Stroke, Text},
-    Color, Point, Rectangle, Size,
 };
 
 use super::axis::Axis;
+
+// For clipping, define which boundary is violated.
+#[derive(Copy, Clone)]
+enum Bound {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
 
 #[derive(Debug)]
 pub struct Axes {
@@ -18,13 +27,13 @@ pub struct Axes {
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
     lines: Vec<Line>,
-    //pub location: (usize, usize),
+    pub location: (usize, usize),
     pub click_start: Option<Point>,
     pub bounds: Rectangle,
 }
 
 impl Axes {
-    pub fn new(_location: (usize, usize), bounds: Rectangle) -> Self {
+    pub fn new(location: (usize, usize), bounds: Rectangle) -> Self {
         Self {
             //        padding: 0.0,
             axis: Axis::default(),
@@ -32,7 +41,7 @@ impl Axes {
             ylim: (0.0, 1.0),
             // legend: Legend::default(),
             lines: Vec::new(),
-            //      location,
+            location,
             click_start: None,
             bounds,
         }
@@ -51,214 +60,155 @@ impl Axes {
         let center = frame.center();
         let size = frame.size();
         let top_left = Point::new(center.x - size.width / 2.0, center.y - size.height / 2.0);
-        frame.fill_rectangle(top_left, size, theme.light_background)
+        frame.fill_rectangle(top_left, size, theme.dark_background)
     }
 
     fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let axis_bounds = Rectangle::new(
-            Point::new(self.axis.x_padding, self.axis.y_padding),
+        // Define axis bounds and scaling factors
+        let axis = &self.axis;
+        let bounds = Rectangle::new(
+            Point::new(axis.x_padding, axis.y_padding),
             Size::new(
-                frame.width() - 2.0 * self.axis.x_padding,
-                frame.height() - 2.0 * self.axis.y_padding,
+                frame.width() - 2.0 * axis.x_padding,
+                frame.height() - 2.0 * axis.y_padding,
             ),
         );
-        let top_left = axis_bounds.position();
-        let size = axis_bounds.size();
-        let axes_height = size.height;
-        let axes_width = size.width;
-        let left = top_left.x;
-        let right = left + axes_width;
-        let top = top_left.y;
-        let bottom = top + axes_height;
+        let (left, top) = (bounds.x, bounds.y);
+        let (width, height) = (bounds.width, bounds.height);
+        let right = left + width;
+        let bottom = top + height;
 
-        let ylim = self.ylim;
-        let xlim = self.xlim;
+        let (x_min, x_max) = self.xlim;
+        let (y_min, y_max) = self.ylim;
+        let x_scale = width / (x_max - x_min);
+        let y_scale = height / (y_max - y_min);
 
-        let canvas_values = |points: &Vec<Point>| -> Vec<Point> {
-            let mut canvas_points = points.clone();
-
-            let x_ratio = axes_width / (xlim.1 - xlim.0);
-            let y_ratio = axes_height / (ylim.1 - ylim.0);
-            for i in 0..points.len() {
-                let canvas_x =
-                    (points[i].x - xlim.0) * x_ratio + top_left.x + self.axis.line_width / 2.0;
-                let canvas_y = top_left.y + axes_height + self.axis.line_width / 2.0
-                    - (points[i].y - ylim.0) * y_ratio;
-
-                canvas_points[i] = Point::new(canvas_x, canvas_y);
-            }
-            canvas_points
+        // Helper to transform data points to canvas coordinates
+        let to_canvas = |p: &Point| -> Point {
+            Point::new(
+                (p.x - x_min) * x_scale + left + axis.line_width / 2.0,
+                bottom + axis.line_width / 2.0 - (p.y - y_min) * y_scale,
+            )
         };
-        let mut legend_counter = 0;
+
+        // Determine if a point is out of bounds and identify the boundary
+        let out_of_bounds = |p: &Point| -> Option<Bound> {
+            let mut candidates = Vec::new();
+            if p.x < left {
+                candidates.push((Bound::Left, left - p.x));
+            }
+            if p.x > right {
+                candidates.push((Bound::Right, p.x - right));
+            }
+            if p.y < top {
+                candidates.push((Bound::Top, top - p.y));
+            }
+            if p.y > bottom {
+                candidates.push((Bound::Bottom, p.y - bottom));
+            }
+            candidates
+                .into_iter()
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .map(|(bound, _)| bound)
+        };
+
+        // Compute intersection point with a boundary
+        let intersect = |p0: &Point, p1: &Point, bound: Bound| -> Point {
+            match bound {
+                Bound::Bottom => {
+                    let t = (bottom - p0.y) / (p1.y - p0.y);
+                    Point::new(p0.x + t * (p1.x - p0.x), bottom)
+                }
+                Bound::Top => {
+                    let t = (top - p0.y) / (p1.y - p0.y);
+                    Point::new(p0.x + t * (p1.x - p0.x), top)
+                }
+                Bound::Left => {
+                    let t = (left - p0.x) / (p1.x - p0.x);
+                    Point::new(left, p0.y + t * (p1.y - p0.y))
+                }
+                Bound::Right => {
+                    let t = (right - p0.x) / (p1.x - p0.x);
+                    Point::new(right, p0.y + t * (p1.y - p0.y))
+                }
+            }
+        };
+
+        // Initialize legend tracking
+        let legend_y = 8.0;
+        let char_width = 8.0; // Approximate width of a character
+        let padding = 10.0; // Padding between legend entries        
+        let mut current_x = self.bounds.width - axis.x_padding;
+
+        // Iterate over lines in reverse for legend ordering
         for (i, line) in self.lines.iter().enumerate().rev() {
-            // reverse for legend positioning
-            if line.data.len() > 1 {
-                let line_color = if let Some(color) = line.color {
-                    color
+            if line.data.len() <= 1 {
+                continue;
+            }
+
+            let color = line.color.unwrap_or(theme.line_colors[i]);
+            let canvas_points: Vec<Point> = line.data.iter().map(to_canvas).collect();
+
+            // Split lines into sublines based on clipping
+            let mut sublines = Vec::new();
+            let mut current = Vec::new();
+
+            for (idx, &pt) in canvas_points.iter().enumerate() {
+                if let Some(bound) = out_of_bounds(&pt) {
+                    if !current.is_empty() {
+                        let prev = current.last().unwrap();
+                        current.push(intersect(prev, &pt, bound));
+                        sublines.push(current);
+                        current = Vec::new();
+                    } else if idx + 1 < canvas_points.len()
+                        && out_of_bounds(&canvas_points[idx + 1]).is_none()
+                    {
+                        current.push(intersect(&pt, &canvas_points[idx + 1], bound));
+                    }
                 } else {
-                    theme.line_colors[i]
-                };
-                //convert line data to canvas data
-                let canvas_data = canvas_values(&line.data);
-
-                // break it up into smaller lines if needed for clipping since with_clip() doesnt seem to work
-                let mut sublines = Vec::new();
-                let mut current_subline = Vec::new();
-
-                enum Bound {
-                    Top,
-                    Bottom,
-                    Right,
-                    Left,
+                    current.push(pt);
                 }
-                let is_out_of_bounds = |point: &Point| -> Option<Bound> {
-                    let x = if point.x < left {
-                        Some((Bound::Left, left - point.x))
-                    } else if point.x > right {
-                        Some((Bound::Right, point.x - right))
-                    } else {
-                        None
-                    };
+            }
+            if !current.is_empty() {
+                sublines.push(current);
+            }
 
-                    let y = if point.y < top {
-                        Some((Bound::Top, top - point.y))
-                    } else if point.y > bottom {
-                        Some((Bound::Bottom, point.y - bottom))
-                    } else {
-                        None
-                    };
-
-                    // determine which one clips first if any
-                    match (x, y) {
-                        (Some(x), Some(y)) => {
-                            if x.1 > y.1 {
-                                Some(x.0)
-                            } else {
-                                Some(y.0)
-                            }
-                        }
-                        (Some(x), None) => Some(x.0),
-                        (None, Some(y)) => Some(y.0),
-                        (None, None) => None,
+            // Draw each subline
+            for subline in sublines {
+                if subline.len() < 2 {
+                    continue;
+                }
+                let path = Path::new(|builder| {
+                    builder.move_to(subline[0]);
+                    for &pt in &subline[1..] {
+                        builder.line_to(pt);
                     }
+                });
+                frame.stroke(&path, Stroke::default().with_color(color));
+            }
+
+            // Draw legend entry if applicable
+            if line.legend {
+                let label = &line.label;
+                let entry_width = label.len() as f32 * char_width + padding;
+
+                // // Check if the entry fits in the remaining space
+                // if current_x + entry_width > frame.width() - axis.x_padding {
+                //     break; // Stop rendering if there's no more space
+                // }
+                current_x -= entry_width;
+
+                let position = Point::new(current_x, legend_y);
+
+                let text = Text {
+                    content: label.clone(),
+                    position,
+                    color,
+                    size: iced::Pixels(14.0),
+                    font: Font::MONOSPACE,
+                    ..Default::default()
                 };
-
-                for (i, point) in canvas_data.iter().enumerate() {
-                    if let Some(bound) = is_out_of_bounds(&point) {
-                        if !current_subline.is_empty() {
-                            // previous point was in bound
-                            let prev_point = &canvas_data[i - 1];
-                            let end_point = match bound {
-                                Bound::Bottom => {
-                                    let x = prev_point.x
-                                        + (bottom - prev_point.y) / (point.y - prev_point.y)
-                                            * (point.x - prev_point.x);
-                                    Point::new(x, bottom)
-                                }
-                                Bound::Left => {
-                                    let y = prev_point.y
-                                        + (left - prev_point.x) / (point.x - prev_point.x)
-                                            * (point.y - prev_point.y);
-                                    Point::new(left, y)
-                                }
-                                Bound::Right => {
-                                    let y = prev_point.y
-                                        + (right - prev_point.x) / (point.x - prev_point.x)
-                                            * (point.y - prev_point.y);
-                                    Point::new(right, y)
-                                }
-                                Bound::Top => {
-                                    let x = prev_point.x
-                                        + (top - prev_point.y) / (point.y - prev_point.y)
-                                            * (point.x - prev_point.x);
-                                    Point::new(x, top)
-                                }
-                            };
-                            current_subline.push(end_point);
-                            sublines.push(current_subline);
-                            current_subline = Vec::new();
-                        } else if i < canvas_data.len() - 1 {
-                            if is_out_of_bounds(&canvas_data[i + 1]).is_none() {
-                                // next point is in bounds, get starting point
-                                let next_point = &canvas_data[i + 1];
-                                let starting_point = match bound {
-                                    Bound::Bottom => {
-                                        let x = point.x
-                                            + (bottom - point.y) / (next_point.y - point.y)
-                                                * (next_point.x - point.x);
-                                        Point::new(x, bottom)
-                                    }
-                                    Bound::Left => {
-                                        let y = point.y
-                                            + (left - point.x) / (next_point.x - point.x)
-                                                * (next_point.y - point.y);
-                                        Point::new(left, y)
-                                    }
-                                    Bound::Right => {
-                                        let y = point.y
-                                            + (right - point.x) / (next_point.x - point.x)
-                                                * (next_point.y - point.y);
-                                        Point::new(right, y)
-                                    }
-                                    Bound::Top => {
-                                        let x = point.x
-                                            + (top - point.y) / (next_point.y - point.y)
-                                                * (next_point.x - point.x);
-                                        Point::new(x, top)
-                                    }
-                                };
-                                current_subline.push(starting_point);
-                            }
-                        }
-                    } else {
-                        current_subline.push(*point);
-                    }
-                }
-
-                // Add the last collected subline if it's not empty
-                if !current_subline.is_empty() {
-                    sublines.push(current_subline);
-                }
-
-                for subline in sublines {
-                    let path = Path::new(|builder| {
-                        builder.move_to(subline[0]);
-
-                        for point in &subline[1..] {
-                            builder.line_to(*point);
-                        }
-                    });
-
-                    frame.stroke(&path, Stroke::default().with_color(line_color));
-                }
-
-                // add a legend entry if there is one
-                if line.legend {
-                    let legend_bounds = Rectangle::new(
-                        Point::ORIGIN,
-                        Size::new(frame.width(), self.axis.y_padding),
-                    );
-                    let character_estimate = 8.0;
-                    let max_characters = 20.0;
-                    let legend_entry_width = character_estimate * max_characters;
-                    let legend_entry_height = legend_bounds.height / 3.0;
-
-                    let x = frame.width()
-                        - legend_entry_width
-                        - legend_entry_width * legend_counter as f32; //starts at the right side and goes backwards
-                    let y = legend_bounds.height - legend_entry_height;
-                    let position = Point::new(x, y);
-                    let text = Text {
-                        content: line.label.clone(),
-                        position,
-                        color: line_color,
-                        size: iced::Pixels(14.0),
-                        ..Default::default()
-                    };
-                    frame.fill_text(text);
-
-                    legend_counter += 1;
-                };
+                frame.fill_text(text);
             }
         }
     }

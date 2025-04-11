@@ -1,9 +1,13 @@
+use crate::axis_angle::AxisAngleErrors;
+
 use super::*;
 use nalgebra::{Matrix3, Vector3, Vector4};
-use rand::prelude::*;
+use rand::{prelude::*, rng};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::{AddAssign, Mul, MulAssign, Neg};
+use thiserror::Error;
+use uncertainty::{Dispersion, Uncertainty};
 
 /// A struct representing a quaternion for 3D rotations.
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -15,9 +19,11 @@ pub struct Quaternion {
 }
 
 /// Errors that can occur when creating a `Quaternion`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Error, Copy)]
 pub enum QuaternionErrors {
-    /// Occurs when the quaternion has zero magnitude.
+    #[error("{0}")]
+    AxisAngleErrors(#[from] AxisAngleErrors),
+    #[error("got zero magnitude quaternion")]
     ZeroMagnitude,
 }
 
@@ -106,13 +112,17 @@ impl Quaternion {
         Quaternion::new(v[0], v[1], v[2], s)
     }
 
-    pub fn normalize(&self) -> Self {
+    pub fn normalize(&self) -> Result<Self, QuaternionErrors> {
         let mag = self.dot(self).sqrt();
         if mag < f64::EPSILON {
-            dbg!(self);
-            panic!("attempted to normalize Quaternion with zero mag")
+            return Err(QuaternionErrors::ZeroMagnitude);
         }
-        Quaternion::new(self.x / mag, self.y / mag, self.z / mag, self.w / mag)
+        Ok(Quaternion::new(
+            self.x / mag,
+            self.y / mag,
+            self.z / mag,
+            self.w / mag,
+        ))
     }
 
     /// Creates a random quaternion.
@@ -121,18 +131,18 @@ impl Quaternion {
     ///
     /// A random `Quaternion`.
     pub fn rand() -> Quaternion {
-        let mut rng = thread_rng();
-        let x = rng.gen_range(-1.0..1.0);
-        let y = rng.gen_range(-1.0..1.0);
-        let z = rng.gen_range(-1.0..1.0);
-        let s = rng.gen_range(-1.0..1.0);
+        let mut rng = rng();
+        let x = rng.random_range(-1.0..1.0);
+        let y = rng.random_range(-1.0..1.0);
+        let z = rng.random_range(-1.0..1.0);
+        let s = rng.random_range(-1.0..1.0);
 
         Quaternion::new(x, y, z, s)
     }
 
-    pub fn slerp(q1: &Quaternion, q2: &Quaternion, t: f64) -> Quaternion {
-        let q1 = q1.normalize();
-        let q2 = q2.normalize();
+    pub fn slerp(q1: &Quaternion, q2: &Quaternion, t: f64) -> Result<Self, QuaternionErrors> {
+        let q1 = q1.normalize()?;
+        let q2 = q2.normalize()?;
 
         // t is 0 - 1, where result is q1 when t is 0 and result is q2 when t is 1
         // Compute the cosine of the angle between the two quaternions
@@ -160,7 +170,7 @@ impl Quaternion {
                 z: q1.z + t * (q2.z - q1.z),
                 w: q1.w + t * (q2.w - q1.w),
             };
-            return result;
+            return Ok(result);
         }
 
         ((q2 * q1.inv()).powf(t) * q1).normalize()
@@ -173,23 +183,27 @@ impl Quaternion {
         q2: Quaternion, // q[i]
         q3: Quaternion, // q[i+1]
         t: f64,
-    ) -> Quaternion {
-        let q0 = q0.normalize();
-        let q1 = q1.normalize();
-        let q2 = q2.normalize();
-        let q3 = q3.normalize();
+    ) -> Result<Self, QuaternionErrors> {
+        let q0 = q0.normalize()?;
+        let q1 = q1.normalize()?;
+        let q2 = q2.normalize()?;
+        let q3 = q3.normalize()?;
 
-        fn calculate_control_point(q0: Quaternion, q1: Quaternion, q2: Quaternion) -> Quaternion {
+        fn calculate_control_point(
+            q0: Quaternion,
+            q1: Quaternion,
+            q2: Quaternion,
+        ) -> Result<Quaternion, QuaternionErrors> {
             let log_q = (q1 * q2.inv() * q0 * q1.inv()).log() * (-0.25);
             (log_q.exp() * q1).normalize()
         }
 
         // Calculate control points a and b
-        let a = calculate_control_point(q0, q1, q2);
-        let b = calculate_control_point(q1, q2, q3);
+        let a = calculate_control_point(q0, q1, q2)?;
+        let b = calculate_control_point(q1, q2, q3)?;
 
-        let tmp1 = Quaternion::slerp(&q1, &q2, t);
-        let tmp2 = Quaternion::slerp(&a, &b, t);
+        let tmp1 = Quaternion::slerp(&q1, &q2, t)?;
+        let tmp2 = Quaternion::slerp(&a, &b, t)?;
 
         Quaternion::slerp(&tmp1, &tmp2, 2.0 * t * (1.0 - t))
     }
@@ -200,18 +214,19 @@ pub struct UnitQuaternion(pub Quaternion);
 impl UnitQuaternion {
     pub const IDENTITY: Self = Self(Quaternion::IDENTITY);
 
-    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
-        Self(Quaternion::new(x, y, z, w).normalize())
+    pub fn new(x: f64, y: f64, z: f64, w: f64) -> Result<Self, QuaternionErrors> {
+        Ok(Self(Quaternion::new(x, y, z, w).normalize()?))
     }
 
-    pub fn rand() -> Self {
-        Self(Quaternion::rand().normalize())
+    pub fn rand() -> Result<Self, QuaternionErrors> {
+        Ok(Self(Quaternion::rand().normalize()?))
     }
 }
 
-impl From<&Quaternion> for UnitQuaternion {
-    fn from(value: &Quaternion) -> Self {
-        Self(value.normalize())
+impl TryFrom<&Quaternion> for UnitQuaternion {
+    type Error = QuaternionErrors;
+    fn try_from(value: &Quaternion) -> Result<Self, QuaternionErrors> {
+        Ok(Self(value.normalize()?))
     }
 }
 
@@ -403,7 +418,8 @@ impl Neg for UnitQuaternion {
     type Output = Self;
 
     fn neg(self) -> Self {
-        Self::new(-self.0.x, -self.0.y, -self.0.z, -self.0.w)
+        // safe unwrap since this was alreaady a unit quaternion
+        Self::new(-self.0.x, -self.0.y, -self.0.z, -self.0.w).unwrap()
     }
 }
 
@@ -453,80 +469,92 @@ impl From<&EulerAngles> for UnitQuaternion {
         let c = |v: f64| (v / 2.0).cos();
 
         let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
-
+        //unwraps should be safe due to trig math
         match euler_angles.sequence {
             EulerSequence::XYZ => UnitQuaternion::new(
                 s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
                 c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
                 c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
                 c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::XZY => UnitQuaternion::new(
                 s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
                 c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
                 c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
                 c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::YXZ => UnitQuaternion::new(
                 c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
                 s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
                 c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
                 c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::YZX => UnitQuaternion::new(
                 c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
                 s(phi) * c(theta) * c(psi) + c(phi) * s(theta) * s(psi),
                 c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
                 c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::ZXY => UnitQuaternion::new(
                 c(phi) * s(theta) * c(psi) - s(phi) * c(theta) * s(psi),
                 c(phi) * c(theta) * s(psi) + s(phi) * s(theta) * c(psi),
                 c(phi) * s(theta) * s(psi) + s(phi) * c(theta) * c(psi),
                 c(phi) * c(theta) * c(psi) - s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::ZYX => UnitQuaternion::new(
                 c(phi) * c(theta) * s(psi) - s(phi) * s(theta) * c(psi),
                 c(phi) * s(theta) * c(psi) + s(phi) * c(theta) * s(psi),
                 s(phi) * c(theta) * c(psi) - c(phi) * s(theta) * s(psi),
                 c(phi) * c(theta) * c(psi) + s(phi) * s(theta) * s(psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::XYX => UnitQuaternion::new(
                 c(theta) * s(phi + psi),
                 s(theta) * c(phi - psi),
                 s(theta) * s(phi - psi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::XZX => UnitQuaternion::new(
                 c(theta) * s(phi + psi),
                 s(theta) * s(psi - phi),
                 s(theta) * c(psi - phi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::YXY => UnitQuaternion::new(
                 s(theta) * c(psi - phi),
                 c(theta) * s(phi + psi),
                 s(theta) * s(psi - phi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::YZY => UnitQuaternion::new(
                 s(theta) * s(phi - psi),
                 c(theta) * s(phi + psi),
                 s(theta) * c(phi - psi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::ZXZ => UnitQuaternion::new(
                 s(theta) * c(phi - psi),
                 s(theta) * s(phi - psi),
                 c(theta) * s(phi + psi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
             EulerSequence::ZYZ => UnitQuaternion::new(
                 s(theta) * s(psi - phi),
                 s(theta) * c(psi - phi),
                 c(theta) * s(phi + psi),
                 c(theta) * c(phi + psi),
-            ),
+            )
+            .unwrap(),
         }
     }
 }
@@ -588,17 +616,18 @@ impl From<&RotationMatrix> for UnitQuaternion {
             (m[(1, 0)] - m[(0, 1)]) * 0.5,
         ];
 
+        //unwraps should be safe due to validated quaternion math
         let mut q = if trace > 0.0 {
-            UnitQuaternion::new(v[0], v[1], v[2], (trace + 1.0) / 2.0)
+            UnitQuaternion::new(v[0], v[1], v[2], (trace + 1.0) / 2.0).unwrap()
         } else {
             let mut m = m - (trace - 1.0) / 2.0 * Matrix3::identity();
             m = m + m.transpose();
             if m[(0, 0)] >= m[(1, 1)] && m[(0, 0)] >= m[(2, 2)] {
-                UnitQuaternion::new(m[(0, 0)], m[(1, 0)], m[(2, 0)], 2.0 * v[0])
+                UnitQuaternion::new(m[(0, 0)], m[(1, 0)], m[(2, 0)], 2.0 * v[0]).unwrap()
             } else if m[(1, 1)] >= m[(2, 2)] {
-                UnitQuaternion::new(m[(0, 1)], m[(1, 1)], m[(2, 1)], 2.0 * v[1])
+                UnitQuaternion::new(m[(0, 1)], m[(1, 1)], m[(2, 1)], 2.0 * v[1]).unwrap()
             } else {
-                UnitQuaternion::new(m[(0, 2)], m[(1, 2)], m[(2, 2)], 2.0 * v[2])
+                UnitQuaternion::new(m[(0, 2)], m[(1, 2)], m[(2, 2)], 2.0 * v[2]).unwrap()
             }
         };
         if q.0.w < 0.0 {
@@ -613,13 +642,14 @@ impl From<&AxisAngle> for UnitQuaternion {
         let half_angle = axis_angle.angle / 2.0;
         let s = half_angle.sin();
         let c = half_angle.cos();
-
+        // unwrap shuold be safe due to trig math
         UnitQuaternion::new(
             s * axis_angle.axis[0],
             s * axis_angle.axis[1],
             s * axis_angle.axis[2],
             c,
         )
+        .unwrap()
     }
 }
 
@@ -633,6 +663,35 @@ impl fmt::Debug for Quaternion {
     }
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct UnitQuaternionBuilder {
+    pub nominal: UnitQuaternion,
+    dispersion: Option<Dispersion>,
+}
+
+impl Uncertainty for UnitQuaternionBuilder {
+    type Output = UnitQuaternion;
+    type Error = QuaternionErrors;
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+        if nominal {
+            return Ok(self.nominal);
+        }
+        if let Some(dispersion) = &self.dispersion {
+            let angle = dispersion.sample(rng);
+            // uniformly sample the rotation axis
+            let axis = Vector3::new(
+                rng.random_range(-1.0..1.0),
+                rng.random_range(-1.0..1.0),
+                rng.random_range(-1.0..1.0),
+            )
+            .normalize();
+            Ok(UnitQuaternion::from(&AxisAngle::new(angle, axis)?))
+        } else {
+            Ok(self.nominal)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,8 +702,8 @@ mod tests {
     /// Test for quaternion normalization.
     #[test]
     fn test_quaternion_normalization() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0).normalize();
-        let qn = UnitQuaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0).normalize().unwrap();
+        let qn = UnitQuaternion::new(1.0, 2.0, 3.0, 4.0).unwrap();
 
         assert_abs_diff_eq!(q.x, 0.18257418583505536, epsilon = TOL);
         assert_abs_diff_eq!(q.y, 0.3651483716701107, epsilon = TOL);
@@ -668,7 +727,7 @@ mod tests {
         assert_abs_diff_eq!(inv.y, -q.y, epsilon = TOL);
         assert_abs_diff_eq!(inv.z, -q.z, epsilon = TOL);
 
-        let qn = UnitQuaternion::from(&q);
+        let qn = UnitQuaternion::try_from(&q).unwrap();
         let inv = qn.inv();
 
         assert_abs_diff_eq!(inv.0.w, qn.0.w, epsilon = TOL);
@@ -913,13 +972,15 @@ mod tests {
             0.0922959556412572,
             0.560985526796931,
             0.43045933457687946,
-        );
+        )
+        .unwrap();
         let q2 = UnitQuaternion::new(
             -0.41127872745152066,
             -0.4532968654326041,
             0.3615464744060406,
             0.7033177852005419,
-        );
+        )
+        .unwrap();
 
         let result = q2 * q1;
 

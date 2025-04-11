@@ -20,6 +20,9 @@ impl ResultManager {
     }
 
     pub fn new_writer(&mut self, name: &str, path: &PathBuf, headers: &[&str]) -> u32 {
+        // Ensure the directory exists
+        std::fs::create_dir_all(path).expect("Failed to create directory");
+
         let filename = name.to_string() + ".csv";
         let file = File::create(path.join(filename)).expect("Failed to create file");
         let buf_writer = BufWriter::new(file);

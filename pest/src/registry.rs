@@ -1,7 +1,7 @@
 use nalgebra::{DMatrix, DVector};
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use rand_distr::{Distribution, Normal};
-use rotations::prelude::{Quaternion, UnitQuaternion};
+use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::collections::HashMap;
 use thiserror::Error;
 use time::{Time, TimeErrors};
@@ -17,6 +17,8 @@ pub enum RegistryErrors {
     #[error("method '{1}' not found for struct '{0}'")]
     MethodNotFound(String, String),
     #[error("{0}")]
+    QuaternionErrors(#[from] QuaternionErrors),
+    #[error("{0}")]
     TimeErrors(#[from] TimeErrors),
     #[error("{0}")]
     ValueErrors(#[from] ValueErrors),
@@ -27,18 +29,25 @@ pub struct Registry {
     pub functions: HashMap<&'static str, Vec<Method>>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Struct {
-    pub methods: HashMap<&'static str, Vec<Method>>,
+    pub struct_methods: HashMap<&'static str, Vec<StructMethod>>,
+    pub instance_methods: HashMap<&'static str, Vec<InstanceMethod>>,
 }
 
 impl Struct {
-    fn new(methods: HashMap<&'static str, Vec<Method>>) -> Self {
-        Self { methods }
+    fn new(
+        struct_methods: HashMap<&'static str, Vec<StructMethod>>,
+        instance_methods: HashMap<&'static str, Vec<InstanceMethod>>,
+    ) -> Self {
+        Self {
+            struct_methods,
+            instance_methods,
+        }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Method {
     pub args: Vec<Argument>,
 }
@@ -47,7 +56,23 @@ impl Method {
         Self { args }
     }
 }
+#[derive(Debug)]
+pub struct StructMethod(pub Method);
+impl StructMethod {
+    fn new(args: Vec<Argument>) -> Self {
+        Self(Method::new(args))
+    }
+}
 
+#[derive(Debug)]
+pub struct InstanceMethod(pub Method);
+impl InstanceMethod {
+    fn new(args: Vec<Argument>) -> Self {
+        Self(Method::new(args))
+    }
+}
+
+#[derive(Debug)]
 pub struct Argument {
     pub name: &'static str,
     pub type_name: &'static str,
@@ -65,61 +90,99 @@ impl Default for Registry {
         let mut structs = HashMap::new();
 
         // Matrix
-        let mut matrix_methods = HashMap::new();
-        matrix_methods.insert(
+        let mut matrix_struct_methods = HashMap::new();
+        matrix_struct_methods.insert(
             "rand",
             vec![
-                Method::new(vec![Argument::new("n", "i64")]),
-                Method::new(vec![Argument::new("m", "i64"), Argument::new("n", "i64")]),
+                StructMethod::new(vec![Argument::new("n", "i64")]),
+                StructMethod::new(vec![Argument::new("m", "i64"), Argument::new("n", "i64")]),
             ],
         );
-        matrix_methods.insert("randn", vec![Method::new(vec![Argument::new("n", "i64")])]);
-        structs.insert("Matrix", Struct::new(matrix_methods));
+        matrix_struct_methods.insert(
+            "randn",
+            vec![StructMethod::new(vec![Argument::new("n", "i64")])],
+        );
+        let matrix_instance_methods = HashMap::new();
+        structs.insert(
+            "Matrix",
+            Struct::new(matrix_struct_methods, matrix_instance_methods),
+        );
 
         // Quaternion
-        let mut quaternion_methods = HashMap::new();
-        quaternion_methods.insert(
+        let mut quaternion_struct_methods = HashMap::new();
+        quaternion_struct_methods.insert(
             "new",
-            vec![Method::new(vec![
+            vec![StructMethod::new(vec![
                 Argument::new("x", "f64"),
                 Argument::new("y", "f64"),
                 Argument::new("z", "f64"),
                 Argument::new("w", "f64"),
             ])],
         );
-        quaternion_methods.insert("rand", vec![Method::default()]);
-        structs.insert("Quaternion", Struct::new(quaternion_methods));
+        quaternion_struct_methods.insert("rand", vec![StructMethod::new(vec![])]);
+        let mut quaternion_instance_methods = HashMap::new();
+        quaternion_instance_methods.insert("inv", vec![InstanceMethod::new(vec![])]);
+
+        structs.insert(
+            "Quaternion",
+            Struct::new(quaternion_struct_methods, quaternion_instance_methods),
+        );
 
         // Time
-        let mut time_methods = HashMap::new();
-        time_methods.insert("new", vec![Method::default()]);
-        time_methods.insert("now", vec![Method::default()]);
-        structs.insert("Time", Struct::new(time_methods));
+        let mut time_struct_methods = HashMap::new();
+        time_struct_methods.insert("new", vec![]);
+        time_struct_methods.insert("now", vec![]);
+
+        let time_instance_methods = HashMap::new();
+        structs.insert(
+            "Time",
+            Struct::new(time_struct_methods, time_instance_methods),
+        );
 
         // UnitQuaternion
         // Quaternion
-        let mut unit_quaternion_methods = HashMap::new();
-        unit_quaternion_methods.insert(
+        let mut unit_quaternion_struct_methods = HashMap::new();
+        unit_quaternion_struct_methods.insert(
             "new",
-            vec![Method::new(vec![
+            vec![StructMethod::new(vec![
                 Argument::new("x", "f64"),
                 Argument::new("y", "f64"),
                 Argument::new("z", "f64"),
                 Argument::new("w", "f64"),
             ])],
         );
-        unit_quaternion_methods.insert("rand", vec![Method::default()]);
-        structs.insert("UnitQuaternion", Struct::new(unit_quaternion_methods));
+        unit_quaternion_struct_methods.insert("rand", vec![StructMethod::new(vec![])]);
+
+        let mut unit_quaternion_instance_methods = HashMap::new();
+        unit_quaternion_instance_methods.insert("inv", vec![InstanceMethod::new(vec![])]);
+
+        structs.insert(
+            "UnitQuaternion",
+            Struct::new(
+                unit_quaternion_struct_methods,
+                unit_quaternion_instance_methods,
+            ),
+        );
 
         // Vector
-        let mut vector_methods = HashMap::new();
-        vector_methods.insert("rand", vec![Method::new(vec![Argument::new("n", "i64")])]);
-        vector_methods.insert("randn", vec![Method::new(vec![Argument::new("n", "i64")])]);
+        let mut vector_struct_methods = HashMap::new();
+        vector_struct_methods.insert(
+            "rand",
+            vec![StructMethod::new(vec![Argument::new("n", "i64")])],
+        );
+        vector_struct_methods.insert(
+            "randn",
+            vec![StructMethod::new(vec![Argument::new("n", "i64")])],
+        );
 
-        structs.insert("Vector", Struct::new(vector_methods));
+        let vector_instance_methods = HashMap::new();
+        structs.insert(
+            "Vector",
+            Struct::new(vector_struct_methods, vector_instance_methods),
+        );
 
         // Standalone Functions
-        let mut functions = HashMap::new();
+        let functions = HashMap::new();
 
         Self { structs, functions }
     }
@@ -139,12 +202,13 @@ impl Registry {
             .ok_or_else(|| RegistryErrors::StructNotFound(struct_name.to_string()))?;
 
         // Get the list of possible method signatures
-        let method_overloads = struc.methods.get(method_name).ok_or_else(|| {
+        let method_overloads = struc.struct_methods.get(method_name).ok_or_else(|| {
             RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
         })?;
 
         // Try each possible overload
         for method in method_overloads {
+            let method = &method.0;
             // 1) Check if argument lengths match
             if method.args.len() != args.len() {
                 continue; // mismatch, try next overload
@@ -176,8 +240,8 @@ impl Registry {
                         _ => unreachable!("arg size must have matched by now"),
                     };
 
-                    let mut rng = rand::thread_rng();
-                    let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.gen()).collect();
+                    let mut rng = rand::rng();
+                    let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.random()).collect();
                     let matrix = DMatrix::from_vec(rows, cols, data);
                     Ok(Value::Matrix(Box::new(matrix)))
                 }
@@ -185,7 +249,7 @@ impl Registry {
                     let rows = args[0].as_usize()?;
                     let cols = args[1].as_usize()?;
 
-                    let mut rng = thread_rng();
+                    let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0).unwrap();
 
                     let data: Vec<f64> = (0..(rows * cols))
@@ -210,7 +274,6 @@ impl Registry {
                     ))))
                 }
                 ("Quaternion", "rand") => Ok(Value::Quaternion(Box::new(Quaternion::rand()))),
-
                 // -- Time --
                 ("Time", "now") => Ok(Value::Time(Box::new(Time::now()?))),
 
@@ -225,23 +288,23 @@ impl Registry {
                         quat_args[1],
                         quat_args[2],
                         quat_args[3],
-                    ))))
+                    )?)))
                 }
                 ("UnitQuaternion", "rand") => {
-                    Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand())))
+                    Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::rand()?)))
                 }
 
                 // -- Vector methods --
                 ("Vector", "rand") => {
-                    let mut rng = rand::thread_rng();
+                    let mut rng = rand::rng();
                     let vector =
-                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.gen()).collect());
+                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
                     Ok(Value::Vector(Box::new(vector)))
                 }
                 ("Vector", "randn") => {
                     let size = args[0].as_usize()?;
 
-                    let mut rng = thread_rng();
+                    let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0).unwrap();
                     let vector =
                         DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
@@ -268,7 +331,8 @@ impl Registry {
 
     pub fn get_struct_methods(&self, struc: &str) -> Result<Vec<&'static str>, RegistryErrors> {
         if let Some(struc) = self.structs.get(struc) {
-            let methods: Vec<&'static str> = struc.methods.keys().into_iter().cloned().collect();
+            let methods: Vec<&'static str> =
+                struc.struct_methods.keys().into_iter().cloned().collect();
             Ok(methods)
         } else {
             Err(RegistryErrors::StructNotFound(struc.to_string()))

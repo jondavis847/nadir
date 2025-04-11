@@ -272,11 +272,9 @@ fn celestial_mesh(
 ) -> Mesh {
     Mesh {
         name: name.to_string(),
-        geometry: Geometry::Ellipsoid64(Ellipsoid64::new(
-            equatorial_radius,
-            equatorial_radius,
-            polar_radius,
-        )),
+        geometry: Geometry::Ellipsoid64(
+            Ellipsoid64::new(equatorial_radius, equatorial_radius, polar_radius).unwrap(), //TODO: drop this unwrap and fix animation errors to use thiserror
+        ),
         material,
         state: GeometryState {
             position: DVec3::ZERO,     //placeholder

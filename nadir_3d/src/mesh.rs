@@ -15,6 +15,15 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            geometry: Geometry::default(),
+            material: Material::default(),
+            state: GeometryState::default(),
+            texture: None,
+        }
+    }
     pub fn set_position_from_target(&mut self, target: DVec3) {
         self.state.position -= target;
     }

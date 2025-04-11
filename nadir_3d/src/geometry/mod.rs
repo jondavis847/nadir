@@ -1,0 +1,74 @@
+use std::fmt::Debug;
+
+use glam::{DQuat, DVec3, Mat3, Mat4};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+pub mod cuboid;
+//pub mod cylinder;
+pub mod ellipsoid;
+
+use cuboid::{Cuboid, CuboidErrors};
+use ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64, EllipsoidErrors};
+
+#[derive(Debug, Error)]
+pub enum GeometryErrors {
+    #[error("{0}")]
+    CuboidErrors(#[from] CuboidErrors),
+    #[error("{0}")]
+    EllipsoidErrors(#[from] EllipsoidErrors),
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum Geometry {
+    Ellipsoid16(Ellipsoid16),
+    Ellipsoid32(Ellipsoid32),
+    Ellipsoid64(Ellipsoid64),
+    Cuboid(Cuboid),
+}
+
+impl Default for Geometry {
+    fn default() -> Self {
+        Geometry::Cuboid(Cuboid {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct GeometryState {
+    pub position: DVec3,
+    pub rotation: DQuat,
+}
+
+#[derive(Debug)]
+pub struct GeometryTransform {
+    pub transformation_matrix: Mat4,
+    pub normal_matrix: Mat3,
+}
+
+impl GeometryTransform {
+    pub fn new(transformation_matrix: Mat4, normal_matrix: Mat3) -> Self {
+        Self {
+            transformation_matrix,
+            normal_matrix,
+        }
+    }
+}
+
+pub trait GeometryTrait: Debug + Sync + Send {
+    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform;
+}
+
+impl GeometryTrait for Geometry {
+    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+        match self {
+            Geometry::Cuboid(geometry) => geometry.get_mesh_transform(state),
+            Geometry::Ellipsoid16(geometry) => geometry.get_mesh_transform(state),
+            Geometry::Ellipsoid32(geometry) => geometry.get_mesh_transform(state),
+            Geometry::Ellipsoid64(geometry) => geometry.get_mesh_transform(state),
+        }
+    }
+}

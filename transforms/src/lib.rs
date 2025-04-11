@@ -1,7 +1,7 @@
 use coordinate_systems::{
     cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
 };
-use mass_properties::{CenterOfMass, Inertia, MassProperties};
+use mass_properties::MassProperties;
 use nalgebra::Vector3;
 use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
 use serde::{Deserialize, Serialize};
@@ -113,18 +113,15 @@ impl Mul<Transform> for Transform {
 impl Mul<MassProperties> for Transform {
     type Output = MassProperties;
     fn mul(self, rhs: MassProperties) -> MassProperties {
-        let mass = rhs.mass;
-
-        let new_center_of_mass = CenterOfMass::from(self * rhs.center_of_mass.vector());
-
-        let inertia = rhs.inertia.matrix();
+        let mass = rhs.mass();
+        let new_center_of_mass = self * rhs.cm();
+        let inertia = rhs.inertia();
 
         // transpose since rotation matrix is "active" unless calling the .transform() method, make it passive to transform
         let rotation_matrix = RotationMatrix::from(&self.rotation).get_value();
 
         // transform the inertia , note that this is usually R*I*R', but since R is active, it's now R'*I*R
-        let transformed_inertia =
-            Inertia::from(rotation_matrix.transpose() * inertia * rotation_matrix);
+        let transformed_inertia = rotation_matrix.transpose() * inertia * rotation_matrix;
 
         // rotate the translation
         let translation = Cartesian::from(self.translation).vec();
@@ -139,17 +136,18 @@ impl Mul<MassProperties> for Transform {
         let dy2 = dy * dy;
         let dz2 = dz * dz;
 
-        let new_inertia = Inertia::new(
-            transformed_inertia.get_ixx() + mass * (dy2 + dz2),
-            transformed_inertia.get_ixy() - mass * dx * dy,
-            transformed_inertia.get_ixz() - mass * dx * dz,
-            transformed_inertia.get_iyy() + mass * (dx2 + dz2),
-            transformed_inertia.get_iyz() - mass * dy * dz,
-            transformed_inertia.get_izz() + mass * (dx2 + dy2),
-        )
-        .unwrap();
-
-        MassProperties::new(mass, new_center_of_mass, new_inertia).unwrap()
+        MassProperties {
+            mass,
+            cmx: new_center_of_mass.x,
+            cmy: new_center_of_mass.y,
+            cmz: new_center_of_mass.z,
+            ixx: transformed_inertia[(0, 0)] + mass * (dy2 + dz2),
+            iyy: transformed_inertia[(1, 1)] + mass * (dx2 + dz2),
+            izz: transformed_inertia[(2, 2)] + mass * (dx2 + dy2),
+            ixy: transformed_inertia[(0, 1)] - mass * dx * dy,
+            ixz: transformed_inertia[(0, 2)] - mass * dx * dz,
+            iyz: transformed_inertia[(1, 2)] - mass * dy * dz,
+        }
     }
 }
 

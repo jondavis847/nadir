@@ -1,0 +1,13 @@
+[package]
+name = "uncertainty"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nalgebra.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+serde.workspace = true
+thiserror.workspace = true

@@ -1,10 +1,36 @@
 use rand::rngs::SmallRng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
+use uncertainty::{SimValue, Uncertainty};
 
-use super::NoiseTrait;
+use super::{NoiseErrors, NoiseTrait};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GaussianBuilder {
+    mean: SimValue,
+    sigma: SimValue,
+}
+
+impl GaussianBuilder {
+    pub fn new(mean: f64, sigma: f64) -> Self {
+        Self {
+            mean: SimValue::new(mean),
+            sigma: SimValue::new(sigma),
+        }
+    }
+}
+impl Uncertainty for GaussianBuilder {
+    type Output = GaussianNoise;
+    type Error = NoiseErrors;
+
+    fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
+        let mean = self.mean.sample(nominal, rng);
+        let sigma = self.sigma.sample(nominal, rng);
+        Ok(GaussianNoise::new(mean, sigma))
+    }
+}
+
+#[derive(Debug)]
 pub struct GaussianNoise {
     dist: Normal<f64>,
 }

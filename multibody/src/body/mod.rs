@@ -1,15 +1,29 @@
-use crate::joint::{Joint, JointRef};
+use crate::{
+    base::{Base, BaseRef},
+    joint::{Joint, JointBuilder, JointErrors, JointRef},
+    system::Id,
+};
 use celestial::CelestialSystem;
+use color::Color;
 use gravity::Gravity;
 
-use mass_properties::MassProperties;
-use nadir_3d::mesh::Mesh;
+use mass_properties::{MassProperties, MassPropertiesBuilder, MassPropertiesErrors};
+use nadir_3d::{
+    geometry::{
+        cuboid::{Cuboid, CuboidErrors},
+        ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64, EllipsoidErrors},
+        Geometry,
+    },
+    material::Material,
+    mesh::Mesh,
+};
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::{Vector3, Vector6};
+use rand::rngs::SmallRng;
 use ron::ser::{to_string_pretty, PrettyConfig};
 use rotations::{prelude::UnitQuaternion, RotationTrait};
 use serde::{Deserialize, Serialize};
-use spatial_algebra::{Force, SpatialTransform};
+use spatial_algebra::Force;
 use std::{
     cell::RefCell,
     fs::File,
@@ -18,68 +32,223 @@ use std::{
 };
 use thiserror::Error;
 use transforms::Transform;
+use uncertainty::Uncertainty;
 
-#[derive(Clone, Debug, Error)]
+#[derive(Debug, Error)]
 pub enum BodyErrors {
+    #[error("{0}")]
+    Cuboid(#[from] CuboidErrors),
+    #[error("{0}")]
+    Ellipsoid(#[from] EllipsoidErrors),
     #[error("name cannot be empty for body")]
     EmptyName,
     #[error("attempted to connect inner joint to body '{0}', but it already has an inner joint")]
     InnerJointExists(String),
+    #[error("{0}")]
+    Joint(#[from] JointErrors),
+    #[error("no inner joint found for body '{0}'")]
+    NoInnerJoint(String),
+    #[error("no mass properties found for body '{0}'")]
+    NoMassProperties(String),
     #[error("joint '{0}' already connected to {1} as an outer joint")]
     OuterJointExists(String, String),
+    #[error("{0}")]
+    MassPropertiesError(#[from] MassPropertiesErrors),
 }
-
-pub trait BodyTrait {
-    fn get_name(&self) -> String;
-    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors>;
-}
-
-pub type BodyRef = Rc<RefCell<Body>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodyBuilder {
+    pub actuators: Vec<Id>,
+    pub id: Id,
+    pub inner_joint: Option<Id>,
+    pub mass_properties: Option<MassPropertiesBuilder>,
+    pub mesh: Option<Mesh>,
+    pub name: String,
+    pub outer_joints: Vec<Id>, // id of joint in system.joints, joint contains the transform information
+    pub sensors: Vec<Id>,
+}
+
+impl BodyBuilder {
+    pub fn new(name: &str, id: Id) -> Result<Self, BodyErrors> {
+        if name.is_empty() {
+            return Err(BodyErrors::EmptyName);
+        }
+        Ok(Self {
+            actuators: Vec::new(),
+            id,
+            mesh: None,
+            inner_joint: None,
+            mass_properties: None,
+            name: name.to_string(),
+            outer_joints: Vec::new(),
+            sensors: Vec::new(),
+        })
+    }
+
+    pub fn connect_inner_joint(
+        &mut self,
+        inner_joint: &mut JointBuilder,
+        transform: Transform,
+    ) -> Result<(), BodyErrors> {
+        if self.inner_joint.is_some() {
+            return Err(BodyErrors::InnerJointExists(self.name.clone()));
+        }
+        if inner_joint.connections.outer_body.is_some() {
+            return Err(JointErrors::OuterBodyExists(inner_joint.name.clone()).into());
+        }
+        self.inner_joint = Some(inner_joint.id);
+        inner_joint.connections.outer_body = Some(BodyConnectionBuilder::new(self.id, transform));
+        Ok(())
+    }
+
+    pub fn connect_outer_joint(
+        &mut self,
+        outer_joint: &mut JointBuilder,
+        transform: Transform,
+    ) -> Result<(), BodyErrors> {
+        if self.outer_joints.contains(&outer_joint.id) {
+            return Err(BodyErrors::OuterJointExists(
+                self.name.clone(),
+                outer_joint.name.clone(),
+            ));
+        }
+        if outer_joint.connections.inner_body.is_some() {
+            return Err(JointErrors::InnerBodyExists(outer_joint.name.clone()).into());
+        }
+        self.outer_joints.push(outer_joint.id);
+        outer_joint.connections.inner_body = Some(BodyConnectionBuilder::new(self.id, transform));
+        Ok(())
+    }
+
+    pub fn sample(
+        &self,
+        inner_joint: JointRef,
+        nominal: bool,
+        rng: &mut SmallRng,
+    ) -> Result<Body, BodyErrors> {
+        let mass_properties = if let Some(mp_builder) = &self.mass_properties {
+            mp_builder.sample(nominal, rng)?
+        } else {
+            return Err(BodyErrors::NoMassProperties(self.name.clone()));
+        };
+
+        let body = Body {
+            inner_joint: Rc::downgrade(&inner_joint),
+            mass_properties,
+            mesh: self.mesh.clone(),
+            name: self.name.clone(),
+            outer_joints: Vec::new(),
+            state: BodyState::default(),
+            result_id: None,
+        };
+        Ok(body)
+    }
+
+    /// Setter method for adding an optional 3d mesh
+    pub fn set_mesh(&mut self, mesh: Mesh) {
+        self.mesh = Some(mesh);
+    }
+
+    pub fn set_geometry_cuboid(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Cuboid(Cuboid::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_geometry_ellipsoid16(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid16(Ellipsoid16::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_geometry_ellipsoid32(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid32(Ellipsoid32::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_geometry_ellipsoid64(&mut self, x: f64, y: f64, z: f64) -> Result<(), BodyErrors> {
+        let geometry = Geometry::Ellipsoid64(Ellipsoid64::new(x, y, z)?);
+        if let Some(mesh) = &mut self.mesh {
+            mesh.geometry = geometry;
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.geometry = geometry;
+            self.mesh = Some(mesh);
+        }
+        Ok(())
+    }
+
+    pub fn set_material_basic(&mut self, color: Color) {
+        if let Some(mesh) = &mut self.mesh {
+            mesh.material = Material::Basic { color };
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.material = Material::Basic { color };
+            self.mesh = Some(mesh);
+        }
+    }
+
+    pub fn set_material_phong(&mut self, color: Color, specular_power: f32) {
+        if let Some(mesh) = &mut self.mesh {
+            mesh.material = Material::Phong {
+                color,
+                specular_power,
+            };
+        } else {
+            let mut mesh = Mesh::new(&self.name);
+            mesh.material = Material::Phong {
+                color,
+                specular_power,
+            };
+            self.mesh = Some(mesh);
+        }
+    }
+
+    /// Setter method for mass properties
+    pub fn set_mass_properties(&mut self, mass_properties: MassPropertiesBuilder) {
+        self.mass_properties = Some(mass_properties);
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Body {
-    #[serde(skip)]
-    pub inner_joint: Option<Weak<RefCell<Joint>>>,
+    pub inner_joint: Weak<RefCell<Joint>>,
     pub mass_properties: MassProperties,
     pub mesh: Option<Mesh>,
     pub name: String,
-    #[serde(skip)]
-    pub outer_joints: Vec<Weak<RefCell<Joint>>>, // id of joint in system.joints, joint contains the transform information
-    #[serde(skip)]
+    pub outer_joints: Vec<Weak<RefCell<Joint>>>,
     pub state: BodyState,
     result_id: Option<u32>,
 }
 
 impl Body {
-    pub fn connect_inner_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
-        match self.inner_joint {
-            Some(_) => return Err(BodyErrors::InnerJointExists(self.name.to_string())),
-            None => self.inner_joint = Some(Rc::downgrade(&joint.clone())),
-        }
-        Ok(())
-    }
-
-    pub fn new(name: &str, mass_properties: MassProperties) -> Result<Self, BodyErrors> {
-        if name.is_empty() {
-            return Err(BodyErrors::EmptyName);
-        }
-        Ok(Self {
-            mesh: None,
-            inner_joint: None,
-            mass_properties: mass_properties,
-            name: name.to_string(),
-            outer_joints: Vec::new(),
-            state: BodyState::default(),
-            result_id: None,
-        })
-    }
-
-    pub fn with_mesh(mut self, mesh: Mesh) -> Self {
-        self.mesh = Some(mesh);
-        self
-    }
-
-    pub fn calculate_gravity(&mut self, body_from_base: &SpatialTransform, gravity: &mut Gravity) {
+    pub fn calculate_gravity(&mut self, gravity: &mut Gravity) {
+        // get inner joint transforms
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
+        let body_from_base = &inner_joint.cache.transforms.ob_from_base;
         let g_vec = gravity.calculate(&self.state.position_base).unwrap();
 
         // convert g_vec to a force by multiplying by mass
@@ -111,10 +280,9 @@ impl Body {
 
     pub fn calculate_magnetic_field(&mut self, celestial: &mut CelestialSystem) {
         let b_vec = celestial.calculate_magnetic_field(&self.state.position_base);
-
         self.state.magnetic_field_base = b_vec;
         // transform to the body frame
-        let q = self.state.attitude_base;
+        let q = &self.state.attitude_base;
         self.state.magnetic_field_body = q.transform(&b_vec);
     }
 
@@ -134,16 +302,17 @@ impl Body {
             + self.state.actuator_force_body
             + self.state.environments_force_body;
 
-        // populate values for reporting
+        // write values for reporting
         self.state.external_force_body = *self.state.external_spatial_force_body.translation();
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
 
     pub fn update_acceleration(&mut self) {
-        let inner_joint_weak = self.inner_joint.as_ref().unwrap();
-        let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
-        let inner_joint = inner_joint_rc.borrow();
-
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = &(transforms.base_from_jof * transforms.jof_from_ob)
@@ -169,10 +338,11 @@ impl Body {
     /// Updates the body's state after integration of the joint states
     /// Forces, torques, and accelerations are updated elsewhere
     pub fn update_state(&mut self) {
-        let inner_joint_weak = self.inner_joint.as_ref().unwrap();
-        let inner_joint_rc = inner_joint_weak.upgrade().unwrap();
-        let inner_joint = inner_joint_rc.borrow();
-
+        let inner_joint = self
+            .inner_joint
+            .upgrade()
+            .expect("validation should catch this");
+        let inner_joint = inner_joint.borrow();
         let transforms = &inner_joint.cache.transforms;
         let body_from_joint = transforms.ob_from_jof;
         let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
@@ -200,7 +370,7 @@ impl Body {
             * self.state.velocity_base.dot(&self.state.velocity_base)
             + 0.5
                 * (self.state.angular_rate_body.transpose()
-                    * self.mass_properties.inertia.matrix()
+                    * self.mass_properties.inertia()
                     * self.state.angular_rate_body)[0];
 
         //TODO: calculate potential energy
@@ -335,27 +505,6 @@ impl NadirResult for Body {
     }
 }
 
-impl BodyTrait for Body {
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-    fn connect_outer_joint(&mut self, joint: &JointRef) -> Result<(), BodyErrors> {
-        // Check if the joint already exists in outer_joints
-        let name = joint.borrow().name.clone();
-        for jointref in &self.outer_joints {
-            if let Some(joint) = jointref.upgrade() {
-                if joint.borrow().name == name {
-                    return Err(BodyErrors::OuterJointExists(name, self.name.clone()));
-                }
-            }
-        }
-
-        // Push the new joint connection
-        self.outer_joints.push(Rc::downgrade(&joint.clone()));
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct BodyState {
     pub acceleration_base: Vector3<f64>,
@@ -388,12 +537,86 @@ pub struct BodyState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodyConnectionBuilder {
+    pub body_id: Id,
+    pub transform: Transform,
+}
+impl BodyConnectionBuilder {
+    pub fn new(body_id: Id, transform: Transform) -> Self {
+        Self { body_id, transform }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct BodyConnection {
     pub body: BodyRef,
     pub transform: Transform,
 }
-impl BodyConnection {
-    pub fn new(body: BodyRef, transform: Transform) -> Self {
-        Self { body, transform }
+
+#[derive(Debug, Clone)]
+pub struct BodyRef(BaseOrBody);
+
+impl BodyRef {
+    pub fn is_base(&self) -> bool {
+        match &self.0 {
+            BaseOrBody::Base(_) => true,
+            BaseOrBody::Body(_) => false,
+        }
+    }
+    pub fn is_body(&self) -> bool {
+        match &self.0 {
+            BaseOrBody::Base(_) => false,
+            BaseOrBody::Body(_) => true,
+        }
+    }
+
+    pub fn new(body: Body) -> Self {
+        Self(BaseOrBody::Body(Rc::new(RefCell::new(body))))
+    }
+
+    pub fn borrow(&self) -> std::cell::Ref<Body> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow(),
+            BaseOrBody::Base(_) => panic!("tried to borrow a base as a body"),
+        }
+    }
+
+    pub fn borrow_mut(&self) -> std::cell::RefMut<Body> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow_mut(),
+            BaseOrBody::Base(_) => panic!("tried to borrow a base as a body"),
+        }
+    }
+
+    // cloning a Vec<Rc<RefCell<Joint>> should be very cheap to do
+    pub fn get_outer_joints(&self) -> Vec<Weak<RefCell<Joint>>> {
+        match &self.0 {
+            BaseOrBody::Body(body) => body.borrow().outer_joints.clone(),
+            BaseOrBody::Base(base) => base.borrow().outer_joints.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseOrBody {
+    Base(Rc<RefCell<Base>>),
+    Body(Rc<RefCell<Body>>),
+}
+
+impl From<BaseRef> for BodyRef {
+    fn from(base: BaseRef) -> Self {
+        Self(BaseOrBody::Base(base))
+    }
+}
+
+impl From<Rc<RefCell<Body>>> for BodyRef {
+    fn from(body: Rc<RefCell<Body>>) -> Self {
+        Self(BaseOrBody::Body(body))
+    }
+}
+
+impl From<Body> for BodyRef {
+    fn from(body: Body) -> Self {
+        Self(BaseOrBody::Body(Rc::new(RefCell::new(body))))
     }
 }

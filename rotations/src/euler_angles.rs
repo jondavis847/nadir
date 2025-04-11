@@ -204,7 +204,7 @@ impl From<&Quaternion> for EulerAngles {
     fn from(q: &Quaternion) -> Self {
         let q = if q.w < 0.0 { -(*q) } else { *q };
 
-        let q = q.normalize();
+        let q = q.normalize().unwrap();
 
         // we assume ZYX rotation
         let w = q.w;
