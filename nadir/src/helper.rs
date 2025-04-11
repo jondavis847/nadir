@@ -130,7 +130,6 @@ impl FunctionCompleter {
                 overloads.iter().map(move |method| {
                     // Build the argument string, e.g. "rows:i64, cols:i64".
                     let args = method
-                        .0
                         .args
                         .iter()
                         .map(|arg| format!("{}:{}", arg.name, crate::value::label(arg.type_name)))
@@ -180,7 +179,6 @@ impl FunctionCompleter {
                 overloads.iter().map(move |method| {
                     // Build the argument string (e.g., "rows:i64, cols:i64").
                     let args = method
-                        .0
                         .args
                         .iter()
                         .map(|arg| format!("{}:{}", arg.name, crate::value::label(arg.type_name)))

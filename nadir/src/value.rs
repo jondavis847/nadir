@@ -26,6 +26,10 @@ pub enum ValueErrors {
     CannotConvertToF64(String),
     #[error("cannot convert type {0} to i64")]
     CannotConvertToI64(String),
+    #[error("cannot convert type {0} to Quaternion")]
+    CannotConvertToQuaternion(String),
+    #[error("cannot convert type {0} to UnitQuaternion")]
+    CannotConvertToUnitQuaternion(String),
     #[error("cannot convert type {0} to usize")]
     CannotConvertToUsize(String),
     #[error("cannot divide type {1} by {0}")]
@@ -315,6 +319,20 @@ impl Value {
             Value::f64(v) => Ok(*v as usize),
             Value::i64(v) => Ok(*v as usize),
             _ => Err(ValueErrors::CannotConvertToUsize(self.to_string())),
+        }
+    }
+
+    pub fn as_quaternion(&self) -> Result<Quaternion, ValueErrors> {
+        match self {
+            Value::Quaternion(v) => Ok(**v),
+            _ => Err(ValueErrors::CannotConvertToQuaternion(self.to_string())),
+        }
+    }
+
+    pub fn as_unit_quaternion(&self) -> Result<UnitQuaternion, ValueErrors> {
+        match self {
+            Value::UnitQuaternion(v) => Ok(**v),
+            _ => Err(ValueErrors::CannotConvertToUnitQuaternion(self.to_string())),
         }
     }
 
