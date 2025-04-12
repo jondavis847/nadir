@@ -1,6 +1,6 @@
 use crate::{
     SeriesMap,
-    figure::Message,
+    figure::{Figure, Message},
     theme::{PlotTheme, PlotThemes},
 };
 
@@ -33,6 +33,7 @@ impl Default for CanvasState {
 pub struct PlotCanvas {
     pub cache: Cache,
     canvas_bounds: Rectangle,
+    figure: Figure,
 }
 
 impl PlotCanvas {

@@ -10,46 +10,52 @@ use iced::{
 
 use super::axis::Axis;
 
-// For clipping, define which boundary is violated.
-#[derive(Copy, Clone)]
-enum Bound {
-    Top,
-    Bottom,
-    Left,
-    Right,
-}
-
 #[derive(Debug)]
 pub struct Axes {
     // legend: Legend,
     //padding: f32,
     pub axis: Axis,
-    pub xlim: (f32, f32),
-    pub ylim: (f32, f32),
+    pub xlim: (f64, f64),
+    pub ylim: (f64, f64),
     lines: Vec<Line>,
     pub location: (usize, usize),
     pub click_start: Option<Point>,
-    pub bounds: Rectangle,
+    container_bounds: Rectangle,
+    left_padding: f32,
+    right_padding: f32,
+    top_padding: f32,
+    bottom_padding: f32,
 }
 
 impl Axes {
-    pub fn new(location: (usize, usize), bounds: Rectangle) -> Self {
+    pub fn new(location: (usize, usize), container_bounds: Rectangle) -> Self {
         Self {
-            //        padding: 0.0,
             axis: Axis::default(),
             xlim: (0.0, 1.0),
-            ylim: (0.0, 1.0),
-            // legend: Legend::default(),
+            ylim: (-1.0, 1.0),
             lines: Vec::new(),
             location,
             click_start: None,
-            bounds,
+            container_bounds,
+            left_padding: 50.0,
+            right_padding: 50.0,
+            top_padding: 50.0,
+            bottom_padding: 50.0,
         }
     }
-    pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
+    pub fn draw(&mut self, frame: &mut Frame, theme: &PlotTheme) {
         self.draw_background(frame, theme);
-        self.draw_axis(frame, theme);
-        self.draw_lines(frame, theme);
+        let axis_bounds = Rectangle::new(
+            Point::new(self.left_padding, self.top_padding),
+            Size::new(
+                frame.width() - self.left_padding - self.right_padding,
+                frame.height() - self.top_padding - self.bottom_padding,
+            ),
+        );
+        frame.with_clip(axis_bounds, |frame| {
+            self.draw_axis(frame, theme);
+            self.draw_lines(frame, theme);
+        })
     }
 
     fn draw_axis(&self, frame: &mut Frame, theme: &PlotTheme) {
@@ -63,105 +69,36 @@ impl Axes {
         frame.fill_rectangle(top_left, size, theme.dark_background)
     }
 
-    fn draw_lines(&self, frame: &mut Frame, theme: &PlotTheme) {
+    fn draw_lines(&mut self, frame: &mut Frame, theme: &PlotTheme) {
         // Define axis bounds and scaling factors
         let axis = &self.axis;
-        let bounds = Rectangle::new(
-            Point::new(axis.x_padding, axis.y_padding),
-            Size::new(
-                frame.width() - 2.0 * axis.x_padding,
-                frame.height() - 2.0 * axis.y_padding,
-            ),
-        );
-        let (left, top) = (bounds.x, bounds.y);
-        let (width, height) = (bounds.width, bounds.height);
-        let right = left + width;
-        let bottom = top + height;
+        let frame_size = frame.size();
+        let left = 0.0;
+        let top = 0.0;
+        let right = frame_size.width;
+        let bottom = frame_size.height;
 
         let (x_min, x_max) = self.xlim;
         let (y_min, y_max) = self.ylim;
-        let x_scale = width / (x_max - x_min);
-        let y_scale = height / (y_max - y_min);
+        let x_scale = frame_size.width / (x_max - x_min) as f32;
+        let y_scale = frame_size.height / (y_max - y_min) as f32;
 
         // Helper to transform data points to canvas coordinates
         let update_canvas_point = |p: &mut PlotPoint| {
             p.canvas_position.x =
-                (p.data.x as f32 - x_min) * x_scale + left + axis.line_width / 2.0;
+                (p.data.x - x_min) as f32 * x_scale + left + axis.line_width / 2.0;
             p.canvas_position.y =
-                bottom + axis.line_width / 2.0 - (p.data.y as f32 - y_min) * y_scale;
-        };
-
-        // Determine if a point is out of bounds and identify the boundary
-        let out_of_bounds = |p: &PlotPoint| -> Option<Bound> {
-            let mut candidates = Vec::new();
-            if p.canvas_position.x < left {
-                candidates.push((Bound::Left, left - p.canvas_position.x));
-            }
-            if p.canvas_position.x > right {
-                candidates.push((Bound::Right, p.canvas_position.x - right));
-            }
-            if p.canvas_position.y < top {
-                candidates.push((Bound::Top, top - p.canvas_position.y));
-            }
-            if p.canvas_position.y > bottom {
-                candidates.push((Bound::Bottom, p.canvas_position.y - bottom));
-            }
-            candidates
-                .into_iter()
-                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-                .map(|(bound, _)| bound)
-        };
-
-        // Compute intersection point with a boundary
-        let intersect = |p0: &PlotPoint, p1: &PlotPoint, bound: Bound| -> PlotPoint {
-            match bound {
-                Bound::Bottom => {
-                    let t = (bottom - p0.canvas_position.y)
-                        / (p1.canvas_position.y - p0.canvas_position.y);
-                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
-                    p.canvas_position.x =
-                        p0.canvas_position.x + t * (p1.canvas_position.x - p0.canvas_position.x);
-                    p.canvas_position.y = bottom;
-                    p
-                }
-                Bound::Top => {
-                    let t = (top - p0.canvas_position.y)
-                        / (p1.canvas_position.y - p0.canvas_position.y);
-                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
-                    p.canvas_position.x =
-                        p0.canvas_position.x + t * (p1.canvas_position.x - p0.canvas_position.x);
-                    p.canvas_position.y = top;
-                    p
-                }
-                Bound::Left => {
-                    let t = (left - p0.canvas_position.x)
-                        / (p1.canvas_position.x - p0.canvas_position.x);
-                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
-                    p.canvas_position.x = left;
-                    p.canvas_position.y =
-                        p0.canvas_position.y + t * (p1.canvas_position.y - p0.canvas_position.y);
-                    p
-                }
-                Bound::Right => {
-                    let t = (right - p0.canvas_position.x)
-                        / (p1.canvas_position.x - p0.canvas_position.x);
-                    let mut p = PlotPoint::new(0.0, 0.0, false); // data point doesnt matter since we dont plot data tips for interp data
-                    p.canvas_position.x = right;
-                    p.canvas_position.y =
-                        p0.canvas_position.y + t * (p1.canvas_position.y - p0.canvas_position.y);
-                    p
-                }
-            }
+                bottom + axis.line_width / 2.0 - (p.data.y - y_min) as f32 * y_scale;
         };
 
         // Initialize legend tracking
         let legend_y = 8.0;
         let char_width = 8.0; // Approximate width of a character
         let padding = 10.0; // Padding between legend entries        
-        let mut current_x = self.bounds.width - axis.x_padding;
+        let mut current_x = right - axis.x_padding;
 
         // Iterate over lines in reverse for legend ordering
-        for (i, line) in self.lines.iter().enumerate().rev() {
+        for (i, line) in self.lines.iter_mut().enumerate().rev() {
             if line.data.len() <= 1 {
                 continue;
             }
@@ -172,43 +109,14 @@ impl Axes {
                 .iter_mut()
                 .for_each(|point| update_canvas_point(point));
 
-            // Split lines into sublines based on clipping
-            let mut sublines = Vec::new();
-            let mut current = Vec::new();
-
-            for (idx, &pt) in line.data.points.iter().enumerate() {
-                if let Some(bound) = out_of_bounds(&pt) {
-                    if !current.is_empty() {
-                        let prev = current.last().unwrap();
-                        current.push(intersect(prev, &pt, bound));
-                        sublines.push(current);
-                        current = Vec::new();
-                    } else if idx + 1 < canvas_points.len()
-                        && out_of_bounds(&canvas_points[idx + 1]).is_none()
-                    {
-                        current.push(intersect(&pt, &canvas_points[idx + 1], bound));
-                    }
-                } else {
-                    current.push(pt);
+            // Draw the line
+            let path = Path::new(|builder| {
+                builder.move_to(line.data.points[0].canvas_position);
+                for pt in &line.data.points[1..] {
+                    builder.line_to(pt.canvas_position);
                 }
-            }
-            if !current.is_empty() {
-                sublines.push(current);
-            }
-
-            // Draw each subline
-            for subline in sublines {
-                if subline.len() < 2 {
-                    continue;
-                }
-                let path = Path::new(|builder| {
-                    builder.move_to(subline[0]);
-                    for &pt in &subline[1..] {
-                        builder.line_to(pt);
-                    }
-                });
-                frame.stroke(&path, Stroke::default().with_color(color));
-            }
+            });
+            frame.stroke(&path, Stroke::default().with_color(color));
 
             // Draw legend entry if applicable
             if line.legend {
@@ -236,93 +144,75 @@ impl Axes {
         }
     }
 
-    pub fn add_line(&mut self, series: &Series, color: Option<Color>) {
-        let line = Line::new(series.y_name.clone(), series.points.clone(), color, true);
+    pub fn add_line(&mut self, series: Series, color: Option<Color>) {
+        let line = Line::new(series.y_name.clone(), series, color, true);
         self.lines.push(line);
 
         //update xlim and ylim based on line data
-        if let Some((x_lim, y_lim)) = get_global_lims(&self.lines) {
-            self.xlim = x_lim;
-            self.ylim = y_lim;
-        };
+        let (xlim, ylim) = get_global_lims(&self.lines);
+        self.xlim = xlim;
+        self.ylim = ylim;
     }
 }
 
-fn get_lims(points: &Vec<Point>) -> Option<((f32, f32), (f32, f32))> {
-    if points.is_empty() {
-        return None;
-    }
+fn get_global_lims(lines: &Vec<Line>) -> ((f64, f64), (f64, f64)) {
+    let mut xmin = if let Some(xmin) = lines
+        .iter()
+        .map(|line| line.data.xmin)
+        .min_by(|a, b| a.total_cmp(b))
+    {
+        xmin
+    } else {
+        0.0
+    };
 
-    let mut x_min = points[0].x;
-    let mut x_max = points[0].x;
-    let mut y_min = points[0].y;
-    let mut y_max = points[0].y;
+    let mut xmax = if let Some(xmax) = lines
+        .iter()
+        .map(|line| line.data.xmin)
+        .max_by(|a, b| a.total_cmp(b))
+    {
+        xmax
+    } else {
+        0.0
+    };
 
-    for point in points.iter() {
-        if point.x < x_min {
-            x_min = point.x;
-        }
-        if point.x > x_max {
-            x_max = point.x;
-        }
-        if point.y < y_min {
-            y_min = point.y;
-        }
-        if point.y > y_max {
-            y_max = point.y;
-        }
-    }
+    let mut ymin = if let Some(ymin) = lines
+        .iter()
+        .map(|line| line.data.ymin)
+        .min_by(|a, b| a.total_cmp(b))
+    {
+        ymin
+    } else {
+        0.0
+    };
 
-    Some(((x_min, x_max), (y_min, y_max)))
-}
-
-fn get_global_lims(lines: &Vec<Line>) -> Option<((f32, f32), (f32, f32))> {
-    let mut x_min = f32::INFINITY;
-    let mut x_max = f32::NEG_INFINITY;
-    let mut y_min = f32::INFINITY;
-    let mut y_max = f32::NEG_INFINITY;
-
-    let mut found_any_points = false;
-
-    for line in lines {
-        if let Some(((line_x_min, line_x_max), (line_y_min, line_y_max))) = get_lims(&line.data) {
-            found_any_points = true;
-            if line_x_min < x_min {
-                x_min = line_x_min;
-            }
-            if line_x_max > x_max {
-                x_max = line_x_max;
-            }
-            if line_y_min < y_min {
-                y_min = line_y_min;
-            }
-            if line_y_max > y_max {
-                y_max = line_y_max;
-            }
-        }
-    }
+    let mut ymax = if let Some(ymax) = lines
+        .iter()
+        .map(|line| line.data.ymax)
+        .max_by(|a, b| a.total_cmp(b))
+    {
+        ymax
+    } else {
+        0.0
+    };
 
     // logic if the values are 0
-    let delta_x = x_max - x_min;
-    if delta_x.abs() < f32::EPSILON {
-        x_max = x_max + 0.5;
-        x_min = x_min - 0.5;
+    let delta_x = xmax - xmin;
+    if delta_x.abs() < f64::EPSILON {
+        xmax = xmax + 0.5;
+        xmin = xmin - 0.5;
     }
 
-    let delta_y = y_max - y_min;
-    if (delta_y).abs() < f32::EPSILON {
-        y_max = y_max + 0.5;
-        y_min = y_min - 0.5;
+    let delta_y = ymax - ymin;
+    if (delta_y).abs() < f64::EPSILON {
+        ymax = ymax + 0.5;
+        ymin = ymin - 0.5;
     } else {
         // add padding so curve isnt exactly at top and bottom of axis
         let padding = delta_y * 0.1;
-        y_max += padding;
-        y_min -= padding;
+        ymax += padding;
+        ymin -= padding;
     }
 
-    if found_any_points {
-        Some(((x_min, x_max), (y_min, y_max)))
-    } else {
-        None // Return None if no points were found
-    }
+    ((xmin, xmax), (ymin, ymax))
 }
