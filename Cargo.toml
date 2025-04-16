@@ -19,7 +19,7 @@ members = [
     "mass_properties",
     "multibody", 
     "nadir",    
-    "nadir_3d",
+    "nadir_3d", "nadir_plots", "nadir_repl",
     "nadir_result",     
     "plotting", 
     "plotting_egui", 
@@ -40,7 +40,7 @@ ambassador = "0.4.1"
 animation = {path = "animation"}   
 ansi_term = "0.12.1"
 approx = "0.5.1"
-bincode = {version = "2.0.1", features = ["serde"]}
+bincode = {version = "2.0.1", features = ["derive","serde"]}
 bytemuck = { version = "1.17.1", features = ["derive"] }
 byteorder = "1.5.0"
 celestial = {path = "celestial"}
@@ -68,6 +68,7 @@ mass_properties = {path = "mass_properties"}
 multibody = {path = "multibody"}  
 nadir = {path = "nadir"}  
 nadir_3d = {path = "nadir_3d"} 
+nadir_plots = {path = "nadir_plots"}
 nadir_result = {path = "nadir_result"}
 nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
 num-traits = "*"

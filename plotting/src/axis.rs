@@ -4,8 +4,9 @@ use iced::{
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text},
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Axis {
     pub x_padding: f32,
     pub y_padding: f32,

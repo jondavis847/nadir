@@ -7,10 +7,11 @@ use iced::{
     Color, Font, Point, Rectangle, Size,
     widget::canvas::{Frame, Path, Stroke, Text},
 };
+use serde::{Deserialize, Serialize};
 
 use super::axis::Axis;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Axes {
     // legend: Legend,
     //padding: f32,

@@ -26,7 +26,7 @@ pub enum RegistryErrors {
 
 pub struct Registry {
     pub structs: HashMap<&'static str, Struct>,
-    pub functions: HashMap<&'static str, Vec<FunctionFn>>,
+    pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
 }
 
 // Types for method implementations

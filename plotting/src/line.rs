@@ -1,7 +1,8 @@
 use iced::Color;
+use serde::{Deserialize, Serialize};
 
 use crate::series::Series;
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Line {
     pub label: String,
     pub data: Series,

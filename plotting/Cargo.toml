@@ -7,11 +7,13 @@ rust-version.workspace = true
 
 [dependencies]
 bincode.workspace = true
+color.workspace = true
 csv.workspace = true
 iced.workspace = true
 image.workspace = true
 inquire.workspace = true
 multibody.workspace = true
 ron.workspace = true
-rand = "0.8.3"
+rand.workspace = true
+serde.workspace = true
 tracing-subscriber = "0.3"

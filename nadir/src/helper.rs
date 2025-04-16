@@ -5,8 +5,7 @@ use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
 use rustyline::validate::MatchingBracketValidator;
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::registry::Registry;
 use crate::storage::Storage;
@@ -22,7 +21,7 @@ pub struct NadirHelper {
 }
 
 impl NadirHelper {
-    pub fn new(registry: Rc<RefCell<Registry>>, storage: Rc<RefCell<Storage>>) -> Self {
+    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
         NadirHelper {
             completer: FunctionCompleter::new(registry, storage),
             highlighter: MatchingBracketHighlighter::new(),
@@ -58,12 +57,12 @@ impl Highlighter for NadirHelper {
 }
 
 pub struct FunctionCompleter {
-    registry: Rc<RefCell<Registry>>,
-    storage: Rc<RefCell<Storage>>,
+    registry: Arc<Mutex<Registry>>,
+    storage: Arc<Mutex<Storage>>,
 }
 
 impl FunctionCompleter {
-    pub fn new(registry: Rc<RefCell<Registry>>, storage: Rc<RefCell<Storage>>) -> Self {
+    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
         Self { registry, storage }
     }
 
@@ -88,7 +87,8 @@ impl FunctionCompleter {
     /// Helper to complete struct names
     fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
         self.registry
-            .borrow()
+            .lock()
+            .unwrap()
             .get_structs()
             .iter()
             .filter(|s| s.starts_with(prefix))
@@ -98,7 +98,7 @@ impl FunctionCompleter {
 
     /// Helper to complete variable names based on prefix
     fn complete_vars(&self, prefix: &str) -> Vec<String> {
-        let storage = self.storage.borrow();
+        let storage = self.storage.lock().unwrap();
         let vars = storage.get_names();
         vars.iter()
             .filter(|&s| s.starts_with(prefix))
@@ -115,7 +115,7 @@ impl FunctionCompleter {
         };
 
         // Look up the struct information in the registry.
-        let registry = self.registry.borrow();
+        let registry = self.registry.lock().unwrap();
         let struc = match registry.structs.get(type_name) {
             Some(info) => info,
             None => return Vec::new(),
@@ -146,7 +146,7 @@ impl FunctionCompleter {
     fn complete_instance_methods(
         &self,
         prefix: &str,
-        storage: &Rc<RefCell<Storage>>,
+        storage: &Arc<Mutex<Storage>>,
     ) -> Vec<String> {
         // Split the prefix on the first '.' delimiter.
         let (var_name, method_prefix) = match prefix.split_once('.') {
@@ -155,7 +155,7 @@ impl FunctionCompleter {
         };
 
         // Look up the variable in storage, returning early if not found.
-        let value = match storage.borrow().get(var_name) {
+        let value = match storage.lock().unwrap().get(var_name) {
             Ok(val) => val,
             Err(_) => return Vec::new(),
         };
@@ -163,7 +163,7 @@ impl FunctionCompleter {
         let type_name = value.to_string();
 
         // Look up the struct information using the type name.
-        let registry = self.registry.borrow();
+        let registry = self.registry.lock().unwrap();
         let struct_info = match registry.structs.get(type_name.as_str()) {
             Some(info) => info,
             None => return Vec::new(),
