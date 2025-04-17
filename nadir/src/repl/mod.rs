@@ -7,7 +7,8 @@ use crate::{
     storage::Storage,
     value::{Enum, IndexStyle, Range, Value},
 };
-use nadir_plots::PlotManager;
+use iced::futures::channel::mpsc::UnboundedSender;
+use nadir_plots::{PlotCommand, PlotManager};
 use nalgebra::{DMatrix, DVector};
 use pest::{Parser, iterators::Pair};
 use rotations::prelude::Quaternion;
@@ -19,14 +20,20 @@ pub struct NadirRepl {
     ans: Value,
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
+    plot_command_tx: UnboundedSender<PlotCommand>,
 }
 
 impl NadirRepl {
-    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
+    pub fn new(
+        registry: Arc<Mutex<Registry>>,
+        storage: Arc<Mutex<Storage>>,
+        plot_command_tx: UnboundedSender<PlotCommand>,
+    ) -> Self {
         Self {
             ans: Value::None,
             registry,
             storage,
+            plot_command_tx,
         }
     }
     pub fn run(&mut self) {

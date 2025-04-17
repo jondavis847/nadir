@@ -1,5 +1,7 @@
+use iced::advanced::subscription;
+use iced::futures::channel::mpsc::UnboundedReceiver;
 use iced::widget::{button, center, column, horizontal_space, text_input};
-use iced::window::{self, Id};
+use iced::window::{self, Event, Id};
 use iced::{Element, Size, Subscription, Task, Vector};
 
 use std::collections::HashMap;
@@ -10,13 +12,14 @@ pub enum PlotCommand {
     NewFigure,
 }
 
-#[derive(Default)]
 pub struct PlotManager {
     windows: HashMap<window::Id, PlotWindow>,
+    command_rx: UnboundedReceiver<PlotCommand>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    None,
     ExternalCommand(PlotCommand),
     OpenWindow,
     WindowOpened(window::Id),
@@ -24,19 +27,16 @@ pub enum Message {
 }
 
 impl PlotManager {
-    pub fn new() -> (Self, Task<Message>) {
-        let (_id, open) = window::open(window::Settings::default());
-
-        (
-            Self {
-                windows: HashMap::new(),
-            },
-            open.map(Message::WindowOpened),
-        )
+    pub fn new(command_rx: UnboundedReceiver<PlotCommand>) -> Self {
+        Self {
+            windows: HashMap::new(),
+            command_rx,
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::None => return Task::none(),
             Message::ExternalCommand(command) => {
                 match command {
                     PlotCommand::NewFigure => {
@@ -92,49 +92,36 @@ impl PlotManager {
         } else {
             horizontal_space().into()
         }
+        Subscription::none()
     }
 
-    pub fn subscription(
-        state: &Self,
-        command_rx: Arc<Mutex<Receiver<PlotCommand>>>,
-    ) -> iced::Subscription<Message> {
-        // Combine subscriptions: window events and command channel
-        subscription::Subscription::batch(
-            // 1. Listen for window events from all plots
-            state
-                .plots
-                .values()
-                .map(|plot| {
-                    window::events(plot.id).map(move |event| Message::WindowEvent(plot.id, event))
-                })
-                .chain(
-                    // 2. Listen for commands from the REPL
-                    std::iter::once(subscription::unfold(
-                        "command_channel",
-                        command_rx,
-                        |rx| async move {
-                            // Try to get the mutex lock
-                            if let Ok(rx_guard) = rx.lock() {
-                                // Try to receive a command
-                                match rx_guard.recv() {
-                                    Ok(cmd) => {
-                                        // We got a command from the REPL
-                                        (Some(Message::ExternalCommand(cmd)), rx)
-                                    }
-                                    Err(_) => {
-                                        // Channel closed, but keep subscription alive
-                                        (None, rx)
-                                    }
-                                }
-                            } else {
-                                // Couldn't get lock, try again later
-                                (None, rx)
-                            }
-                        },
-                    )),
-                )
-                .collect(),
-        )
+    pub fn subscription(&mut self) -> Subscription<Message> {
+        // Subscription for window events
+        let window_events = window::events().map(|event| {
+            match event.1 {
+                Event::Opened { position, size } => Message::WindowOpened(event.0),
+                _ => {
+                    // Handle other event types if necessary
+                    // For now, we can ignore them
+                    Message::None
+                }
+            }
+        });
+
+        // Subscription for command channel if available
+        let command_subscription = if let Some(command_rx) = self.command_rx.take() {
+            subscription::unfold(command_rx, |mut rx| async move {
+                match rx.next().await {
+                    Some(cmd) => (Some(Message::ExternalCommand(cmd)), rx),
+                    None => (None, rx),
+                }
+            })
+        } else {
+            Subscription::none()
+        };
+
+        // Combine both subscriptions
+        Subscription::batch(vec![window_events, command_subscription])
     }
 
     pub fn title(&self, window: Id) -> String {
