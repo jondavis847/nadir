@@ -75,15 +75,6 @@ impl FunctionCompleter {
     //         .collect()
     // }
 
-    // /// Helper to complete function names
-    // fn complete_functions(prefix: &str) -> Vec<&'static str> {
-    //     Self::FUNCTIONS
-    //         .iter()
-    //         .filter(|func| func.starts_with(prefix))
-    //         .cloned()
-    //         .collect()
-    // }
-
     /// Helper to complete struct names
     fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
         self.registry
