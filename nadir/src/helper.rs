@@ -223,7 +223,7 @@ impl FunctionCompleter {
 }
 
 impl Completer for FunctionCompleter {
-    type Candidate = String; // Use `String` to allow returning dynamic completions
+    type Candidate = String;
 
     fn complete(
         &self,
@@ -235,46 +235,39 @@ impl Completer for FunctionCompleter {
         let start = line[..pos].rfind(' ').map_or(0, |n| n + 1);
         let prefix = &line[start..pos];
 
-        let mut matches = Vec::new();
+        // Determine completion strategy based on prefix pattern
+        let matches = if prefix.contains('.') {
+            // Instance method completion (var.method)
+            self.complete_instance_methods(prefix, &self.storage)
+        } else if prefix.contains("::") {
+            // Struct method completion (Struct::method)
+            self.complete_struct_methods(prefix)
+                .into_iter()
+                .map(|method| {
+                    let suffix = method.strip_prefix(prefix).unwrap_or("");
+                    format!("{prefix}{suffix}")
+                })
+                .collect()
+        } else {
+            // Try multiple completion types and combine results
+            let mut completions = Vec::new();
 
-        // Check if it's an instance method (e.g., "var.method")
-        if prefix.contains(".") {
-            matches.extend(self.complete_instance_methods(prefix, &self.storage));
-        }
+            // Functions
+            completions.extend(self.complete_functions(prefix));
 
-        // Check if it's a struct method (e.g., "Struct::method")
-        if prefix.contains("::") {
-            matches.extend(
-                self.complete_struct_methods(prefix)
+            // Variables
+            completions.extend(self.complete_vars(prefix));
+
+            // Struct types (adding :: suffix)
+            completions.extend(
+                self.complete_structs(prefix)
                     .into_iter()
-                    .map(|method| {
-                        format!("{}{}", prefix, method.strip_prefix(prefix).unwrap_or(""))
-                    }),
+                    .map(|s| format!("{}::", s)),
             );
-        }
 
-        // Check if it's a function
-        matches.extend(
-            self.complete_functions(prefix)
-                .into_iter()
-                .map(|s| format!("{}", s)),
-        );
+            completions
+        };
 
-        // Check if it's a stored variable
-        matches.extend(
-            self.complete_vars(prefix)
-                .into_iter()
-                .map(|var| format!("{var}")),
-        );
-
-        // Check if it's a struct type before :: is written
-        matches.extend(
-            self.complete_structs(prefix)
-                .into_iter()
-                .map(|s| format!("{}::", s)),
-        );
-
-        // Return the starting index and the matches
         Ok((start, matches))
     }
 }
