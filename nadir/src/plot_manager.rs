@@ -4,20 +4,20 @@ use iced::{
     Element, Size, Subscription, Task, Vector,
     futures::{
         SinkExt, Stream, StreamExt,
-        channel::mpsc::{self, Receiver, Sender},
+        channel::mpsc::{self, Sender},
         executor::block_on,
     },
     stream,
     widget::{button, center, column, horizontal_space, text_input},
-    window::{self, Event, Id},
+    window::{self, Event},
 };
 
-use crate::{DaemonToRepl, DaemonToSubscription, ReplToDaemon, ReplToSubscription};
+use crate::{DaemonToRepl, ReplToSubscription};
 
 struct PlotManagerChannels {
     daemon_to_repl: Sender<DaemonToRepl>,
-    repl_to_daemon: Receiver<ReplToDaemon>,
-    daemon_to_subscription: Option<Sender<DaemonToSubscription>>,
+    //repl_to_daemon: Receiver<ReplToDaemon>,
+    //daemon_to_subscription: Option<Sender<DaemonToSubscription>>,
 }
 
 pub struct PlotManager {
@@ -38,18 +38,11 @@ pub enum Message {
 }
 
 impl PlotManager {
-    pub fn new(
-        daemon_to_repl: Sender<DaemonToRepl>,
-        repl_to_daemon: Receiver<ReplToDaemon>,
-    ) -> (Self, Task<Message>) {
+    pub fn new(daemon_to_repl: Sender<DaemonToRepl>) -> (Self, Task<Message>) {
         (
             Self {
                 windows: HashMap::new(),
-                channels: PlotManagerChannels {
-                    daemon_to_repl,
-                    repl_to_daemon,
-                    daemon_to_subscription: None,
-                },
+                channels: PlotManagerChannels { daemon_to_repl },
             },
             Task::none(),
         )
@@ -147,7 +140,7 @@ impl PlotManager {
         // Subscription for window events
         let window_events = window::events().map(|event| {
             match event.1 {
-                Event::Opened { position, size } => Message::WindowOpened(event.0),
+                Event::Opened { .. } => Message::WindowOpened(event.0),
                 Event::Closed => Message::WindowClosed(event.0),
                 _ => {
                     // Handle other event types if necessary
@@ -219,7 +212,7 @@ impl PlotWindow {
         Self {}
     }
 
-    fn view(&self, id: window::Id) -> Element<Message> {
+    fn view(&self, _id: window::Id) -> Element<Message> {
         column![button("new window").on_press(Message::OpenWindow)].into()
     }
 }

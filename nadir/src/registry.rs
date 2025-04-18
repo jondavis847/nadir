@@ -10,8 +10,6 @@ use crate::value::{Event, Value, ValueErrors};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
-    #[error("incorrect number of arguments for {0}. got {2}, expected {1}")]
-    NumberOfArgs(String, String, String),
     #[error("function '{0}' not found")]
     FunctionNotFound(String),
     #[error("struct '{0}' not found")]

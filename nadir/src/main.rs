@@ -34,12 +34,9 @@ enum ReplToSubscription {
     ReplClosed,
 }
 
-#[derive(Debug)]
-enum DaemonToSubscription {}
-
 fn main() {
     // create 2 channels that allow the iced daemon and repl thread to communicate
-    let (repl_to_daemon_tx, repl_to_daemon_rx) = mpsc::channel::<ReplToDaemon>(10);
+    let (repl_to_daemon_tx, _repl_to_daemon_rx) = mpsc::channel::<ReplToDaemon>(10);
     let (daemon_to_repl_tx, daemon_to_repl_rx) = mpsc::channel::<DaemonToRepl>(10);
 
     let registry = Arc::new(Mutex::new(Registry::new()));
@@ -57,7 +54,7 @@ fn main() {
 
     if let Err(e) = daemon(PlotManager::title, PlotManager::update, PlotManager::view)
         .subscription(PlotManager::subscription)
-        .run_with(|| PlotManager::new(daemon_to_repl_tx, repl_to_daemon_rx))
+        .run_with(|| PlotManager::new(daemon_to_repl_tx))
     {
         eprintln!("{:?}", e)
     };
