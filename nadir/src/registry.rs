@@ -4,14 +4,16 @@ use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::collections::HashMap;
 use thiserror::Error;
-use time::{Time, TimeErrors};
+use time::TimeErrors;
 
-use crate::value::{Value, ValueErrors};
+use crate::value::{Event, Value, ValueErrors};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
     #[error("incorrect number of arguments for {0}. got {2}, expected {1}")]
     NumberOfArgs(String, String, String),
+    #[error("function '{0}' not found")]
+    FunctionNotFound(String),
     #[error("struct '{0}' not found")]
     StructNotFound(String),
     #[error("method '{1}' not found for struct '{0}'")]
@@ -24,13 +26,8 @@ pub enum RegistryErrors {
     ValueErrors(#[from] ValueErrors),
 }
 
-pub struct Registry {
-    pub structs: HashMap<&'static str, Struct>,
-    pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
-}
-
 // Types for method implementations
-type FunctionFn = fn(Vec<Value>) -> Result<Option<Value>, RegistryErrors>;
+type FunctionFn = fn(Vec<Value>) -> Result<Value, RegistryErrors>;
 type StructMethodFn = fn(Vec<Value>) -> Result<Value, RegistryErrors>;
 type InstanceMethodFn = fn(Value, Vec<Value>) -> Result<Value, RegistryErrors>;
 
@@ -107,8 +104,13 @@ impl Argument {
     }
 }
 
-impl Default for Registry {
-    fn default() -> Self {
+pub struct Registry {
+    pub structs: HashMap<&'static str, Struct>,
+    pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
+}
+
+impl Registry {
+    pub fn new() -> Self {
         // Structs with their methods
         let mut structs = HashMap::new();
 
@@ -298,7 +300,18 @@ impl Default for Registry {
 
         // Standalone Functions
         let mut functions = HashMap::new();
-        functions.insert("fig", vec![FunctionMethod::new(vec![], |args| {})]);
+        functions.insert(
+            "figure",
+            vec![FunctionMethod::new(vec![], |_args| {
+                Ok(Value::Event(Event::NewFigure))
+            })],
+        );
+        functions.insert(
+            "close_all_figures",
+            vec![FunctionMethod::new(vec![], |_args| {
+                Ok(Value::Event(Event::CloseAllFigures))
+            })],
+        );
 
         Self { structs, functions }
     }
@@ -404,5 +417,43 @@ impl Registry {
             struct_name.to_string(),
             method_name.to_string(),
         ))
+    }
+
+    pub fn eval_function(
+        &self,
+        function_name: &str,
+        args: Vec<Value>,
+    ) -> Result<Value, RegistryErrors> {
+        // Get the struct from the registry, or return an error if not found
+        let method_overloads = self
+            .functions
+            .get(function_name)
+            .ok_or_else(|| RegistryErrors::FunctionNotFound(function_name.to_string()))?;
+
+        // Try each possible overload
+        for method in method_overloads {
+            // Check if argument lengths match
+            if method.args.len() != args.len() {
+                continue; // mismatch, try next overload
+            }
+
+            // Check if each argument type matches
+            let mut signature_matches = true;
+            for (required, actual) in method.args.iter().zip(args.iter()) {
+                if required.type_name != actual.to_string() {
+                    signature_matches = false;
+                    break;
+                }
+            }
+
+            if !signature_matches {
+                continue; // mismatch, try next overload
+            }
+
+            // If we get here, we've found a matching signature. Call the implementation.
+            return (method.implementation)(args);
+        }
+        // If we exhaust all overloads without finding a match:
+        Err(RegistryErrors::FunctionNotFound(function_name.to_string()))
     }
 }

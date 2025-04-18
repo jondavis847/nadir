@@ -67,6 +67,7 @@ pub enum Value {
     i64(i64),
     bool(bool),
     Enum(Enum),
+    Event(Event),
     Vector(Box<DVector<f64>>),
     VectorBool(Box<DVector<bool>>),
     VectorUsize(Box<DVector<usize>>),
@@ -94,6 +95,7 @@ impl std::fmt::Debug for Value {
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
+            Value::Event(e) => writeln!(f, "{:?}", e),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
@@ -223,6 +225,7 @@ impl Value {
             Value::i64(_) => String::from("i64"),
             Value::bool(_) => String::from("bool"),
             Value::Enum(_) => String::from("Enum"),
+            Value::Event(_) => String::from("Event"),
             Value::Vector(v) => {
                 let length = v.len();
                 String::from(format!("Vector<f64,{}>", length))
@@ -844,4 +847,10 @@ pub struct Range {
 pub struct Enum {
     pub name: String,
     pub variant: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum Event {
+    CloseAllFigures,
+    NewFigure,
 }

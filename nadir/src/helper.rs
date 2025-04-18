@@ -190,6 +190,36 @@ impl FunctionCompleter {
             })
             .collect()
     }
+
+    /// Helper to complete functions based on a prefix
+    fn complete_functions(&self, prefix: &str) -> Vec<String> {
+        // Acquire the registry lock
+        let registry = self.registry.lock().unwrap();
+
+        // Iterate over all functions in the registry
+        registry
+            .functions
+            .iter()
+            // Filter functions that match the prefix
+            .filter(|(name, _)| name.starts_with(prefix))
+            // For each matching function, expand its overloads
+            .flat_map(|(name, overloads)| {
+                // Create completions for each overload
+                overloads.iter().map(move |function| {
+                    // Format the function arguments
+                    let args = function
+                        .args
+                        .iter()
+                        .map(|arg| format!("{}:{}", arg.name, arg.type_name))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    // Build the complete function signature
+                    format!("{}({})", name, args)
+                })
+            })
+            .collect()
+    }
 }
 
 impl Completer for FunctionCompleter {
@@ -222,6 +252,13 @@ impl Completer for FunctionCompleter {
                     }),
             );
         }
+
+        // Check if it's a function
+        matches.extend(
+            self.complete_functions(prefix)
+                .into_iter()
+                .map(|s| format!("{}", s)),
+        );
 
         // Check if it's a stored variable
         matches.extend(

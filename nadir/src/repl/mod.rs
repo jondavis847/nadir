@@ -1,42 +1,58 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    NadirParser, Rule,
+    DaemonToRepl, NadirParser, ReplToDaemon, ReplToSubscription, Rule,
     helper::NadirHelper,
     registry::Registry,
     storage::Storage,
-    value::{Enum, IndexStyle, Range, Value},
+    value::{Enum, Event, IndexStyle, Range, Value},
 };
-use iced::futures::channel::mpsc::UnboundedSender;
-use nadir_plots::{PlotCommand, PlotManager};
+use iced::futures::{
+    SinkExt, StreamExt,
+    channel::mpsc::{Receiver, Sender},
+    executor::block_on,
+};
 use nalgebra::{DMatrix, DVector};
 use pest::{Parser, iterators::Pair};
-use rotations::prelude::Quaternion;
 use rustyline::{CompletionType, Config, EditMode, Editor, error::ReadlineError};
 
 pub mod errors;
 use errors::ReplErrors;
+
+#[derive(Default)]
+struct ReplChannels {
+    repl_to_daemon: Option<Sender<ReplToDaemon>>,
+    daemon_to_repl: Option<Receiver<DaemonToRepl>>,
+    repl_to_plot_subscription: Option<Sender<ReplToSubscription>>,
+}
+
 pub struct NadirRepl {
     ans: Value,
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
-    plot_command_tx: UnboundedSender<PlotCommand>,
+    channels: ReplChannels,
 }
 
 impl NadirRepl {
-    pub fn new(
-        registry: Arc<Mutex<Registry>>,
-        storage: Arc<Mutex<Storage>>,
-        plot_command_tx: UnboundedSender<PlotCommand>,
-    ) -> Self {
+    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
         Self {
             ans: Value::None,
             registry,
             storage,
-            plot_command_tx,
+            channels: ReplChannels::default(),
         }
     }
-    pub fn run(&mut self) {
+
+    pub fn connect_plot_daemon(
+        &mut self,
+        repl_to_daemon: Sender<ReplToDaemon>,
+        daemon_to_repl: Receiver<DaemonToRepl>,
+    ) {
+        self.channels.repl_to_daemon = Some(repl_to_daemon);
+        self.channels.daemon_to_repl = Some(daemon_to_repl);
+    }
+
+    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)
@@ -45,20 +61,19 @@ impl NadirRepl {
         let h = NadirHelper::new(self.registry.clone(), self.storage.clone());
 
         // `()` can be used when no completer is required
-        let mut rl = Editor::with_config(config).expect("Failed to create rustyline editor");
+        let mut rl = Editor::with_config(config)?;
         rl.set_helper(Some(h));
         // Determine the configuration directory
         let history_path = if let Some(mut history_path) = dirs::config_dir() {
             history_path.push("nadir");
             if !history_path.exists() {
-                std::fs::create_dir_all(&history_path).expect("Could not create nadir directory");
+                std::fs::create_dir_all(&history_path)?;
             }
             history_path.push("cli_history.txt");
 
             if history_path.exists() {
                 #[cfg(feature = "with-file-history")]
-                rl.load_history(&history_path)
-                    .expect("Could not load history file.");
+                rl.load_history(&history_path)?
             }
             Some(history_path)
         } else {
@@ -67,6 +82,21 @@ impl NadirRepl {
 
         let prompt = "nadir> ";
 
+        // wait for the subscription sender from the daemon
+        loop {
+            if let Some(rx) = &mut self.channels.daemon_to_repl {
+                // Just process one message at a time to keep things simple
+                if let Some(cmd) = block_on(rx.next()) {
+                    match cmd {
+                        DaemonToRepl::ReplToSubscriptionTx(tx) => {
+                            self.channels.repl_to_plot_subscription = Some(tx);
+                            break;
+                        } // Handle other message types...
+                    }
+                }
+            }
+        }
+
         loop {
             // Display the prompt and read user input
             rl.helper_mut().expect("No helper").colored_prompt =
@@ -74,8 +104,7 @@ impl NadirRepl {
             match rl.readline(&prompt) {
                 Ok(line) => {
                     // Add the input to history
-                    rl.add_history_entry(line.as_str())
-                        .expect("Failed to add history entry");
+                    rl.add_history_entry(line.as_str())?;
 
                     // Handle specific commands or process input
                     match line.trim() {
@@ -92,22 +121,45 @@ impl NadirRepl {
                         }
                         _ => {
                             // Parse the input using the "line" rule.
-                            let parse_result = NadirParser::parse(Rule::line, &line);
-                            match parse_result {
-                                Ok(mut pairs) => {
-                                    if let Some(line_pair) = pairs.next() {
-                                        // dbg!(&line_pair);
-                                        // get to next level, with is a silent_line or print_line
-                                        let print_or_silent =
-                                            line_pair.into_inner().next().unwrap();
-                                        match self.parse_expr(print_or_silent) {
-                                            Ok(_) => {}
-                                            Err(e) => eprintln!("{e}"),
-                                        };
+                            let mut pairs = NadirParser::parse(Rule::line, &line)?;
+
+                            if let Some(line_pair) = pairs.next() {
+                                // dbg!(&line_pair);
+                                // get to next level, with is a silent_line or print_line
+                                let print_or_silent = line_pair.into_inner().next().unwrap();
+
+                                let value = match self.parse_expr(print_or_silent) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        eprintln!("{e}");
+                                        Value::None
                                     }
-                                }
-                                Err(e) => {
-                                    eprintln!("Parsing error: {}", e);
+                                };
+                                // If there is some event, perform it
+                                match value {
+                                    Value::Event(event) => match event {
+                                        Event::NewFigure => {
+                                            if let Some(repl_to_subscription) =
+                                                &mut self.channels.repl_to_plot_subscription
+                                            {
+                                                block_on(
+                                                    repl_to_subscription
+                                                        .send(ReplToSubscription::NewFigure),
+                                                )?
+                                            }
+                                        }
+                                        Event::CloseAllFigures => {
+                                            if let Some(repl_to_subscription) =
+                                                &mut self.channels.repl_to_plot_subscription
+                                            {
+                                                block_on(
+                                                    repl_to_subscription
+                                                        .send(ReplToSubscription::CloseAllFigures),
+                                                )?
+                                            }
+                                        }
+                                    },
+                                    _ => {}
                                 }
                             }
                         }
@@ -128,11 +180,17 @@ impl NadirRepl {
                 }
             }
         }
+
+        // loop broke, send a message to ice to close the daemon
+        if let Some(channel) = &mut self.channels.repl_to_plot_subscription {
+            block_on(channel.send(ReplToSubscription::ReplClosed))?;
+        }
         if let Some(history_path) = &history_path {
             #[cfg(feature = "with-file-history")]
             rl.save_history(history_path)
                 .expect("Failed to save history");
         }
+        Ok(())
     }
 
     fn parse_expr(&mut self, pair: Pair<Rule>) -> Result<Value, ReplErrors> {
@@ -353,8 +411,8 @@ impl NadirRepl {
             }
             Rule::silent_line => {
                 let next_pair = pair.into_inner().next().unwrap();
-                self.parse_expr(next_pair)?;
-                Ok(Value::None)
+                let value = self.parse_expr(next_pair)?;
+                Ok(value)
             }
             Rule::string => {
                 let parsed_str = pair.as_str();
@@ -461,28 +519,7 @@ impl NadirRepl {
                 .unwrap()
                 .eval_struct_method(struct_name, fn_name, args)?)
         } else {
-            match fn_name {
-                "quat" => {
-                    if args.len() != 4 {
-                        return Err(ReplErrors::NumberOfArgs(
-                            fn_name.to_string(),
-                            "4".to_string(),
-                            args.len().to_string(),
-                        ));
-                    }
-                    let mut quat_args = [0.0; 4];
-                    for (i, arg) in args.iter().enumerate() {
-                        quat_args[i] = arg.as_f64()?;
-                    }
-                    Ok(Value::Quaternion(Box::new(Quaternion::new(
-                        quat_args[0],
-                        quat_args[1],
-                        quat_args[2],
-                        quat_args[3],
-                    ))))
-                }
-                _ => Err(ReplErrors::FunctionNotFound(fn_name.to_string())),
-            }
+            Ok(self.registry.lock().unwrap().eval_function(fn_name, args)?)
         }
     }
 
