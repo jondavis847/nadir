@@ -1,0 +1,1250 @@
+(
+    actuators: [
+        (
+            name: "rw1",
+            model: ReactionWheel((
+                parameters: (
+                    delay: None,
+                    friction: (
+                        stiction: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        stiction_threshold: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        coulomb: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        viscous: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        windage: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    inertia: (
+                        nominal: 0.25,
+                        dispersion: None,
+                    ),
+                    misalignment: None,
+                    torque_constant: (
+                        nominal: 0.5,
+                        dispersion: None,
+                    ),
+                    torque_max: None,
+                    torque_speed_curve: None,
+                ),
+                initial_speed: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: -0.7071067811865475,
+                        z: 0.0,
+                        w: 0.7071067811865475,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "rw2",
+            model: ReactionWheel((
+                parameters: (
+                    delay: None,
+                    friction: (
+                        stiction: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        stiction_threshold: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        coulomb: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        viscous: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        windage: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    inertia: (
+                        nominal: 0.25,
+                        dispersion: None,
+                    ),
+                    misalignment: None,
+                    torque_constant: (
+                        nominal: 0.5,
+                        dispersion: None,
+                    ),
+                    torque_max: None,
+                    torque_speed_curve: None,
+                ),
+                initial_speed: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.7071067811865475,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 0.7071067811865475,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "rw3",
+            model: ReactionWheel((
+                parameters: (
+                    delay: None,
+                    friction: (
+                        stiction: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        stiction_threshold: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        coulomb: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        viscous: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        windage: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    inertia: (
+                        nominal: 0.25,
+                        dispersion: None,
+                    ),
+                    misalignment: None,
+                    torque_constant: (
+                        nominal: 0.5,
+                        dispersion: None,
+                    ),
+                    torque_max: None,
+                    torque_speed_curve: None,
+                ),
+                initial_speed: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "rw4",
+            model: ReactionWheel((
+                parameters: (
+                    delay: None,
+                    friction: (
+                        stiction: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        stiction_threshold: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        coulomb: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        viscous: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        windage: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    inertia: (
+                        nominal: 0.25,
+                        dispersion: None,
+                    ),
+                    misalignment: None,
+                    torque_constant: (
+                        nominal: 0.5,
+                        dispersion: None,
+                    ),
+                    torque_max: None,
+                    torque_speed_curve: None,
+                ),
+                initial_speed: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+    ],
+    algorithm: ArticulatedBody,
+    base: (
+        id: (0),
+        name: "base",
+        outer_joints: [
+            (1),
+        ],
+        system: Celestial((
+            epoch: (
+                time: (
+                    system: UTC,
+                    value: (798296328.7552991),
+                ),
+            ),
+            bodies: [
+                (
+                    body: Earth,
+                    gravity: Some(Egm((
+                        model: Egm2008,
+                        degree: 7,
+                        order: 7,
+                        add_centrifugal: false,
+                        add_newtonian: true,
+                    ))),
+                    magnetic_field: Some(Igrf((
+                        initial_year: 2025,
+                        degree: 13,
+                        order: 13,
+                    ))),
+                ),
+                (
+                    body: Moon,
+                    gravity: None,
+                    magnetic_field: None,
+                ),
+            ],
+            spice: Some(()),
+        )),
+    ),
+    bodies: {
+        (2): (
+            actuators: [],
+            id: (2),
+            inner_joint: Some((1)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 1000.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 1000.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 1000.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 1000.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "bus",
+                geometry: Cuboid((
+                    x: 3.0,
+                    y: 2.0,
+                    z: 2.0,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.5,
+                        g: 0.5,
+                        b: 0.5,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "bus",
+            outer_joints: [
+                (6),
+            ],
+            sensors: [],
+        ),
+        (3): (
+            actuators: [],
+            id: (3),
+            inner_joint: Some((6)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "sa1",
+                geometry: Cuboid((
+                    x: 2.0,
+                    y: 2.0,
+                    z: 0.1,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.05,
+                        g: 0.05,
+                        b: 0.05,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "sa1",
+            outer_joints: [
+                (7),
+            ],
+            sensors: [],
+        ),
+        (4): (
+            actuators: [],
+            id: (4),
+            inner_joint: Some((7)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "sa2",
+                geometry: Cuboid((
+                    x: 2.0,
+                    y: 2.0,
+                    z: 0.1,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.05,
+                        g: 0.05,
+                        b: 0.05,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "sa2",
+            outer_joints: [
+                (8),
+            ],
+            sensors: [],
+        ),
+        (5): (
+            actuators: [],
+            id: (5),
+            inner_joint: Some((8)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "sa3",
+                geometry: Cuboid((
+                    x: 2.0,
+                    y: 2.0,
+                    z: 0.1,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.05,
+                        g: 0.05,
+                        b: 0.05,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "sa3",
+            outer_joints: [],
+            sensors: [],
+        ),
+    },
+    identifier: (
+        current_id: 9,
+    ),
+    joints: {
+        (1): (
+            id: (1),
+            name: "f",
+            model: Floating((
+                parameters: (
+                    x_rotation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    y_rotation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    z_rotation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    x_translation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    y_translation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    z_translation: (
+                        constant_force: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        damping: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        equilibrium: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        spring_constant: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                ),
+                state: (
+                    q: (
+                        nominal: ((
+                            x: -0.4193139346887673,
+                            y: -0.5241424183609591,
+                            z: 0.5241424183609591,
+                            w: 0.5241424183609591,
+                        )),
+                        dispersion: None,
+                    ),
+                    w: (
+                        x: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        y: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        z: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    r: (
+                        x: (
+                            nominal: 8000000.000000002,
+                            dispersion: None,
+                        ),
+                        y: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        z: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                    ),
+                    v: (
+                        x: (
+                            nominal: 0.0,
+                            dispersion: None,
+                        ),
+                        y: (
+                            nominal: 6194.580187361917,
+                            dispersion: None,
+                        ),
+                        z: (
+                            nominal: 3384.114579892829,
+                            dispersion: None,
+                        ),
+                    ),
+                ),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (0),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (2),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                        )),
+                    ),
+                )),
+            ),
+        ),
+        (6): (
+            id: (6),
+            name: "hinge1",
+            model: Revolute((
+                state: (
+                    angle: (
+                        nominal: 1.5707963267948966,
+                        dispersion: None,
+                    ),
+                    angular_rate: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                ),
+                parameters: ((
+                    constant_force: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    damping: (
+                        nominal: 100.0,
+                        dispersion: None,
+                    ),
+                    equilibrium: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    spring_constant: (
+                        nominal: 10.0,
+                        dispersion: None,
+                    ),
+                )),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (2),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 1.0,
+                            z: -1.0,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (3),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: -1.0,
+                            z: 0.05,
+                        )),
+                    ),
+                )),
+            ),
+        ),
+        (8): (
+            id: (8),
+            name: "hinge3",
+            model: Revolute((
+                state: (
+                    angle: (
+                        nominal: 3.141592653589793,
+                        dispersion: None,
+                    ),
+                    angular_rate: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                ),
+                parameters: ((
+                    constant_force: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    damping: (
+                        nominal: 100.0,
+                        dispersion: None,
+                    ),
+                    equilibrium: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    spring_constant: (
+                        nominal: 10.0,
+                        dispersion: None,
+                    ),
+                )),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (4),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 1.0,
+                            z: 0.05,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (5),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: -1.0,
+                            z: 0.05,
+                        )),
+                    ),
+                )),
+            ),
+        ),
+        (7): (
+            id: (7),
+            name: "hinge2",
+            model: Revolute((
+                state: (
+                    angle: (
+                        nominal: -3.141592653589793,
+                        dispersion: None,
+                    ),
+                    angular_rate: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                ),
+                parameters: ((
+                    constant_force: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    damping: (
+                        nominal: 100.0,
+                        dispersion: None,
+                    ),
+                    equilibrium: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    spring_constant: (
+                        nominal: 10.0,
+                        dispersion: None,
+                    ),
+                )),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (3),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 1.0,
+                            z: -0.05,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (4),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: -1.0,
+                            z: -0.05,
+                        )),
+                    ),
+                )),
+            ),
+        ),
+    },
+    seed: 6287907565625673726,
+    sensors: [
+        (
+            name: "gps",
+            model: Gps((
+                parameters: (
+                    delay: None,
+                    position_noise: Some(((
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 16.666666666666668,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 16.666666666666668,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 16.666666666666668,
+                                dispersion: None,
+                            ),
+                        )),
+                    ))),
+                    velocity_noise: Some(((
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.3333333333333333,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.3333333333333333,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.3333333333333333,
+                                dispersion: None,
+                            ),
+                        )),
+                    ))),
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "st",
+            model: StarTracker((
+                parameters: (
+                    delay: None,
+                    misalignment: None,
+                    noise: None,
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "imu",
+            model: RateGyro((
+                parameters: (
+                    delay: None,
+                    noise: Some(((
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.000017453292519943296,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.000017453292519943296,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 0.000017453292519943296,
+                                dispersion: None,
+                            ),
+                        )),
+                    ))),
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+        (
+            name: "mag",
+            model: Magnetometer((
+                parameters: (
+                    delay: None,
+                    noise: Some(((
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 100.0,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 100.0,
+                                dispersion: None,
+                            ),
+                        )),
+                    ), (
+                        model: Gaussian((
+                            mean: (
+                                nominal: 0.0,
+                                dispersion: None,
+                            ),
+                            sigma: (
+                                nominal: 100.0,
+                                dispersion: None,
+                            ),
+                        )),
+                    ))),
+                ),
+            )),
+            connection: Some((
+                body_id: (2),
+                transform: (
+                    rotation: Quaternion(((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                        w: 1.0,
+                    ))),
+                    translation: Cartesian((
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    )),
+                ),
+            )),
+        ),
+    ],
+    software: [
+        (
+            name: "fsw",
+            lib_path: "../../target/release/libsoftware.so",
+            sensor_indices: [
+                0,
+                1,
+                2,
+                3,
+            ],
+            actuator_indices: [
+                0,
+                1,
+                2,
+                3,
+            ],
+        ),
+    ],
+)

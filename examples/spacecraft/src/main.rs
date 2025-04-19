@@ -1,9 +1,5 @@
-//mod software;
-
-use std::{error::Error, f64::consts::PI};
-
 use aerospace::orbit::KeplerianElements;
-use celestial::{CelestialBodies, CelestialBody, CelestialSystem};
+use celestial::{CelestialBodies, CelestialBodyBuilder, CelestialSystemBuilder};
 use color::Color;
 use gravity::{
     Gravity,
@@ -25,6 +21,7 @@ use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
+use std::{error::Error, f64::consts::PI};
 use time::Time;
 use transforms::{
     Transform,
@@ -37,14 +34,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Create the CelestialSystem which contains the planetary models
     // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
     let epoch = Time::now()?;
-    let earth = CelestialBody::new(CelestialBodies::Earth)
-        .with_gravity(Gravity::Egm(
-            EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
-        ))
-        .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?));
-    let celestial = CelestialSystem::new(epoch)?
-        .with_body(earth)?
-        .with_body(CelestialBody::new(CelestialBodies::Moon))?;
+
+    let celestial = CelestialSystemBuilder::new(epoch)?
+        .with_body(
+            CelestialBodyBuilder::new(CelestialBodies::Earth)
+                .with_gravity(Gravity::Egm(
+                    EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
+                ))
+                .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?)),
+        )?
+        .with_body(CelestialBodyBuilder::new(CelestialBodies::Moon))?;
     sys.base.set_celestial(celestial);
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
@@ -238,15 +237,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    let path = "../../target/release/software.dll"; //windows
-    //let path = "../../target/release/libsoftware.so"; //linux
+    //let path = "../../target/release/software.dll"; //windows
+    let path = "../../target/release/libsoftware.so"; //linux
     let software = Software::new("fsw", path)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
+    let pwd = std::env::current_dir()?;
+    sys.save(&pwd);
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 0.1, None)?;
+    //sys.simulate("", 0.0, 1000.0, 0.1,None);
 
     Ok(())
 }

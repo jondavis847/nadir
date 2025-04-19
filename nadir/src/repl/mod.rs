@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     DaemonToRepl, NadirParser, ReplToDaemon, ReplToSubscription, Rule,
@@ -30,6 +33,7 @@ pub struct NadirRepl {
     ans: Value,
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
+    pwd: PathBuf,
     channels: ReplChannels,
 }
 
@@ -40,6 +44,7 @@ impl NadirRepl {
             registry,
             storage,
             channels: ReplChannels::default(),
+            pwd: std::env::current_dir().expect("couldn't get the current directory"),
         }
     }
 

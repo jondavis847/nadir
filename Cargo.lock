@@ -3707,6 +3707,7 @@ dependencies = [
  "eframe",
  "egui",
  "iced",
+ "multibody",
  "nadir_plots",
  "nalgebra",
  "pest",

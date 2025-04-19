@@ -2,7 +2,7 @@ use crate::{
     MultibodyErrors,
     actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
-    base::{Base, BaseBuilder, BaseRef, BaseSystems},
+    base::{Base, BaseBuilder, BaseRef, BaseSystems, BaseSystemsBuilder},
     body::{BodyBuilder, BodyConnection, BodyRef},
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
@@ -17,7 +17,10 @@ use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
-use ron::ser::{PrettyConfig, to_string_pretty};
+use ron::{
+    from_str,
+    ser::{PrettyConfig, to_string_pretty},
+};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::SpatialTransform;
 use std::{
@@ -25,7 +28,7 @@ use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
     fs::File,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -108,6 +111,29 @@ impl MultibodySystemBuilder {
     //     Ok(())
     // }
 
+    pub fn load(path: &Path) -> Self {
+        let path = path.join("system.ron");
+
+        // Open the file
+        let mut file = match File::open(&path) {
+            Ok(file) => file,
+            Err(e) => panic!("Failed to open file {path:?}: {e}"),
+        };
+
+        // Read the file into a string
+        let mut contents = String::new();
+        match file.read_to_string(&mut contents) {
+            Ok(_) => {}
+            Err(e) => panic!("Failed to read file {path:?}: {e}"),
+        };
+
+        // Deserialize from RON
+        match from_str(&contents) {
+            Ok(system) => system,
+            Err(e) => panic!("Failed to parse RON file {path:?}: {e}"),
+        }
+    }
+
     pub fn new() -> Self {
         let mut thread_rng = rand::rng(); // Use a fast non-deterministic RNG
         let seed = thread_rng.random::<u64>(); // Generate a random seed
@@ -168,12 +194,13 @@ impl MultibodySystemBuilder {
         gz: f64,
     ) -> Result<(), MultibodyErrors> {
         self.base.system =
-            BaseSystems::Basic(Some(Gravity::Constant(ConstantGravity::new(gx, gy, gz))));
+            BaseSystemsBuilder::Basic(Some(Gravity::Constant(ConstantGravity::new(gx, gy, gz))));
         Ok(())
     }
 
     pub fn set_gravity_newtonian(&mut self, mu: f64) -> Result<(), MultibodyErrors> {
-        self.base.system = BaseSystems::Basic(Some(Gravity::Newtonian(NewtonianGravity::new(mu))));
+        self.base.system =
+            BaseSystemsBuilder::Basic(Some(Gravity::Newtonian(NewtonianGravity::new(mu))));
         Ok(())
     }
 

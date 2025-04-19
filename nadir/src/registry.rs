@@ -204,6 +204,19 @@ impl Registry {
                 Ok(Value::Quaternion(Box::new(val.as_quaternion()?.inv())))
             })],
         );
+        // MultibodySystem
+        let mut multibody_system_methods = HashMap::new();
+        multibody_system_methods.insert(
+            "load",
+            vec![StructMethod::new(
+                vec![Argument::new("file", "String")],
+                |args| {
+                    let file = std::env::current_dir().unwrap().join(args[0].as_string()?);
+
+                    Ok(Value::None)
+                },
+            )],
+        );
 
         structs.insert(
             "Quaternion",

@@ -1,3 +1,4 @@
+use multibody::system::MultibodySystemBuilder;
 use nalgebra::{DMatrix, DVector};
 use rotations::{
     //euler_angles::{EulerAngles, EulerSequence},
@@ -28,6 +29,8 @@ pub enum ValueErrors {
     CannotConvertToI64(String),
     #[error("cannot convert type {0} to Quaternion")]
     CannotConvertToQuaternion(String),
+    #[error("cannot convert type {0} to String")]
+    CannotConvertToString(String),
     #[error("cannot convert type {0} to UnitQuaternion")]
     CannotConvertToUnitQuaternion(String),
     #[error("cannot convert type {0} to usize")]
@@ -72,6 +75,7 @@ pub enum Value {
     VectorBool(Box<DVector<bool>>),
     VectorUsize(Box<DVector<usize>>),
     Matrix(Box<DMatrix<f64>>),
+    MultibodySystemBuilder(Box<MultibodySystemBuilder>),
     None,
     Range(Range),
     Quaternion(Box<Quaternion>),
@@ -96,6 +100,7 @@ impl std::fmt::Debug for Value {
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
+            Value::MultibodySystemBuilder(m) => writeln!(f, "{:?}", m),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
@@ -226,6 +231,7 @@ impl Value {
             Value::bool(_) => String::from("bool"),
             Value::Enum(_) => String::from("Enum"),
             Value::Event(_) => String::from("Event"),
+            Value::MultibodySystemBuilder(_) => String::from("MultibodySystemBuilder"),
             Value::Vector(v) => {
                 let length = v.len();
                 String::from(format!("Vector<f64,{}>", length))
@@ -314,6 +320,15 @@ impl Value {
             Value::VectorBool(v) => Ok(IndexStyle::VecBool(Box::new(*v.clone()))),
             Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(Box::new(*v.clone()))),
             _ => Err(ValueErrors::NonIndexType(self.to_string())),
+        }
+    }
+
+    pub fn as_string(&self) -> Result<String, ValueErrors> {
+        match self {
+            Value::f64(v) => Ok(v.to_string()),
+            Value::i64(v) => Ok(v.to_string()),
+            Value::String(v) => Ok(*v.clone()),
+            _ => Err(ValueErrors::CannotConvertToString(self.to_string())),
         }
     }
 
