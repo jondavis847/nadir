@@ -12,7 +12,7 @@ use celestial::CelestialBodies;
 use csv::ReaderBuilder;
 use glam::{DQuat, DVec3, dquat, dvec3};
 use iced::{
-    Color, Element, Length, Theme, Vector,
+    Color, Element, Length, Point, Rectangle, Size, Theme, Vector,
     mouse::ScrollDelta,
     widget::{Column, Row, Stack, container, horizontal_space, shader, slider, text},
     window::Id,
@@ -72,6 +72,8 @@ pub struct AnimationProgram {
     animator: Animator,
     scene: Scene,
     show_menu: bool,
+    show_progress_bar: bool,
+    progress_bounds: Rectangle,
 }
 
 impl AnimationProgram {
@@ -124,9 +126,36 @@ impl AnimationProgram {
             stack = stack.push(menu_row);
         }
 
+        if self.show_progress_bar {
+            let progress_slider = slider(
+                self.animator.start_time..=self.animator.end_time,
+                self.animator.current_time,
+                |current_time| Message::CurrentTimeChanged(self.window_id.unwrap(), current_time),
+            );
+
+            let progress_column = Column::new().push(progress_slider);
+
+            let progress = container(progress_column)
+                .center_x(Length::FillPortion(1))
+                .align_bottom(10.0);
+
+            stack = stack.push(progress);
+        }
+
         stack.into()
     }
 
+    pub fn current_time_changed(&mut self, time: f64) {
+        self.animator.current_time = time;
+    }
+
+    pub fn cursor_moved(&mut self, point: Point) {
+        if self.progress_bounds.contains(point) {
+            self.show_progress_bar = true;
+        } else {
+            self.show_progress_bar = false;
+        }
+    }
     pub fn escape_pressed(&mut self) {
         self.show_menu = !self.show_menu;
     }
@@ -187,12 +216,16 @@ impl AnimationProgram {
 
         let animator = Animator::new(start_time, end_time);
 
+        let progress_bounds = Rectangle::new(Point::new(0.0, 600.0), Size::new(1280.0, 120.0));
+
         Ok(Self {
             window_id: None,
             animator,
             scene,
             show_menu: false,
             result: animation_result,
+            show_progress_bar: false,
+            progress_bounds,
         })
     }
 

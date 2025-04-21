@@ -1168,7 +1168,7 @@ impl Program<Message> for Scene {
                             canvas_cursor_position,
                         )),
                     ),
-                    mouse::Event::CursorMoved { position: _ } => {
+                    mouse::Event::CursorMoved { position } => {
                         //use canvas position instead of this position
                         let last_position = state.last_mouse_position;
                         state.last_mouse_position = canvas_cursor_position;
@@ -1179,7 +1179,10 @@ impl Program<Message> for Scene {
                                 Some(Message::CameraRotation(self.window_id.unwrap(), delta)),
                             )
                         } else {
-                            (Status::Captured, None)
+                            (
+                                Status::Captured,
+                                Some(Message::CursorMoved(self.window_id.unwrap(), position)),
+                            )
                         }
                     }
                     mouse::Event::WheelScrolled { delta } => (

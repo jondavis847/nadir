@@ -1,11 +1,12 @@
 #[derive(Debug, Clone)]
 pub struct Animator {
     pub current_time: f64,
-    start_time: f64,
-    end_time: f64,
+    pub start_time: f64,
+    pub end_time: f64,
     pub speed: f64,
     instant: iced::time::Instant,
     pub dt: f64,
+    status: AnimatorStatus,
 }
 
 impl Animator {
@@ -17,33 +18,37 @@ impl Animator {
             speed: 1.0,
             instant: iced::time::Instant::now(),
             dt: 0.0,
+            status: AnimatorStatus::Playing,
         }
     }
 
     pub fn start(&mut self) {
-        self.instant = iced::time::Instant::now();
+        self.status = AnimatorStatus::Playing;
+    }
+
+    pub fn stop(&mut self) {
+        self.status = AnimatorStatus::Paused;
     }
 
     pub fn update(&mut self, instant: &iced::time::Instant) {
-        self.dt = instant.duration_since(self.instant).as_secs_f64();
-        self.current_time += self.speed * self.dt;
-        //rollover by default for now;
-        if self.current_time > self.end_time {
-            self.current_time = self.start_time;
+        match self.status {
+            AnimatorStatus::Paused => {}
+            AnimatorStatus::Playing => {
+                self.dt = instant.duration_since(self.instant).as_secs_f64();
+                self.current_time += self.speed * self.dt;
+                //rollover by default for now;
+                if self.current_time > self.end_time {
+                    self.current_time = self.start_time;
+                }
+            }
         }
+
         self.instant = instant.clone();
     }
 }
 
-impl Default for Animator {
-    fn default() -> Self {
-        Self {
-            start_time: 0.0,
-            end_time: 10.0,
-            current_time: 0.0,
-            speed: 1.0,
-            instant: iced::time::Instant::now(),
-            dt: 0.0,
-        }
-    }
+#[derive(Debug, Clone)]
+enum AnimatorStatus {
+    Playing,
+    Paused,
 }

@@ -44,6 +44,8 @@ pub enum Message {
     ChannelDataReceived,
     CheckRequestReady(Uuid),
     CloseAllFigures,
+    CurrentTimeChanged(Id, f64),
+    CursorMoved(Id, Point),
     EscapePressed(Id),
     LoadAnimation(Uuid, PathBuf),
     NewAnimation(PathBuf),
@@ -60,6 +62,7 @@ pub enum Message {
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
     WindowFocused(Id),
+    WindowUnFocused(Id),
 }
 
 impl WindowManager {
@@ -168,6 +171,18 @@ impl WindowManager {
                 // which will update your state
                 Task::batch(close_commands)
             }
+            Message::CurrentTimeChanged(id, time) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.current_time_changed(time);
+                }
+                Task::none()
+            }
+            Message::CursorMoved(id, point) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.cursor_moved(point);
+                }
+                Task::none()
+            }
             Message::EscapePressed(id) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     window.escape_pressed();
@@ -267,6 +282,7 @@ impl WindowManager {
             Message::WindowOpened(request_id, id) => {
                 if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id) {
                     request.id = Some(id);
+                    self.active_window = Some(id);
                     Task::done(Message::CheckRequestReady(request_id))
                 } else {
                     Task::done(Message::CancelRequest(request_id))
@@ -280,6 +296,7 @@ impl WindowManager {
                 self.active_window = Some(id);
                 Task::none()
             }
+            Message::WindowUnFocused(id) => Task::none(),
         }
     }
 
@@ -297,6 +314,7 @@ impl WindowManager {
             iced::Event::Window(window_event) => match window_event {
                 window::Event::Closed => Some(Message::WindowClosed(id)),
                 window::Event::Focused => Some(Message::WindowFocused(id)),
+                window::Event::Unfocused => Some(Message::WindowUnFocused(id)),
                 _ => None,
             },
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
@@ -408,6 +426,20 @@ impl NadirWindow {
     fn camera_rotated(&mut self, mouse_delta: Vector) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.camera_rotated(mouse_delta),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn current_time_changed(&mut self, time: f64) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.current_time_changed(time),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn cursor_moved(&mut self, point: Point) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.cursor_moved(point),
             NadirProgram::Plot => {}
         }
     }
