@@ -23,7 +23,7 @@ use scene::Scene;
 
 use thiserror::Error;
 
-use crate::plot_manager::Message;
+use crate::window_manager::Message;
 
 #[derive(Debug, Error)]
 pub enum AnimationErrors {

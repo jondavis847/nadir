@@ -25,12 +25,12 @@
 // }
 
 // #[derive(Debug, Default)]
-// pub struct PlotManager {
+// pub struct WindowManager {
 //     identifier: Identifier,
 //     figures: HashMap<u32, Figure>,
 // }
 
-// impl PlotManager {
+// impl WindowManager {
 //     pub fn new_figure(&mut self) {
 //         let id = self.identifier.next();
 //         let fig = Figure::new(id);

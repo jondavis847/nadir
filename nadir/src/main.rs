@@ -1,20 +1,20 @@
 use iced::daemon;
 use iced::futures::channel::mpsc::{self, Sender};
 use pest_derive::Parser;
-use plot_manager::PlotManager;
 use registry::Registry;
 use repl::NadirRepl;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use window_manager::WindowManager;
 mod animation;
 mod helper;
-mod plot_manager;
 mod registry;
 mod repl;
 mod storage;
 mod value;
+mod window_manager;
 use storage::Storage;
 
 #[derive(Parser)]
@@ -55,9 +55,13 @@ fn main() {
         };
     });
 
-    if let Err(e) = daemon(PlotManager::title, PlotManager::update, PlotManager::view)
-        .subscription(PlotManager::subscription)
-        .run_with(|| PlotManager::new(daemon_to_repl_tx))
+    if let Err(e) = daemon(
+        WindowManager::title,
+        WindowManager::update,
+        WindowManager::view,
+    )
+    .subscription(WindowManager::subscription)
+    .run_with(|| WindowManager::new(daemon_to_repl_tx))
     {
         eprintln!("{:?}", e)
     };

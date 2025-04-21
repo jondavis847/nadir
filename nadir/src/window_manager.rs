@@ -21,16 +21,16 @@ use uuid::Uuid;
 
 use crate::{DaemonToRepl, ReplToSubscription, animation::AnimationProgram};
 
-struct PlotManagerChannels {
+struct WindowManagerChannels {
     daemon_to_repl: Sender<DaemonToRepl>,
     //repl_to_daemon: Receiver<ReplToDaemon>,
     //daemon_to_subscription: Option<Sender<DaemonToSubscription>>,
 }
 
-pub struct PlotManager {
+pub struct WindowManager {
     windows: HashMap<Id, NadirWindow>,
     window_requests: Arc<Mutex<HashMap<Uuid, NadirWindowRequest>>>,
-    channels: PlotManagerChannels,
+    channels: WindowManagerChannels,
 }
 
 #[derive(Debug, Clone)]
@@ -60,13 +60,13 @@ pub enum Message {
     WindowClosed(Id),
 }
 
-impl PlotManager {
+impl WindowManager {
     pub fn new(daemon_to_repl: Sender<DaemonToRepl>) -> (Self, Task<Message>) {
         (
             Self {
                 windows: HashMap::new(),
                 window_requests: Arc::new(Mutex::new(HashMap::new())),
-                channels: PlotManagerChannels { daemon_to_repl },
+                channels: WindowManagerChannels { daemon_to_repl },
             },
             Task::none(),
         )

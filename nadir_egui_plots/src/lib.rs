@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 #[derive(Default)]
-pub struct PlotManager {
+pub struct WindowManager {
     plots: HashMap<u32, Plot>,
 }
 
-impl PlotManager {
+impl WindowManager {
     pub fn get_id(&self) -> u32 {
         (0..).find(|key| !self.plots.contains_key(key)).unwrap_or(0)
     }
