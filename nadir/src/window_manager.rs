@@ -31,6 +31,7 @@ pub struct WindowManager {
     windows: HashMap<Id, NadirWindow>,
     window_requests: Arc<Mutex<HashMap<Uuid, NadirWindowRequest>>>,
     channels: WindowManagerChannels,
+    active_window: Option<Id>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +59,7 @@ pub enum Message {
     WheelScrolled(Id, ScrollDelta),
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
+    WindowFocused(Id),
 }
 
 impl WindowManager {
@@ -67,6 +69,7 @@ impl WindowManager {
                 windows: HashMap::new(),
                 window_requests: Arc::new(Mutex::new(HashMap::new())),
                 channels: WindowManagerChannels { daemon_to_repl },
+                active_window: None,
             },
             Task::none(),
         )
@@ -88,8 +91,10 @@ impl WindowManager {
                 }
             }
             Message::AnimationTick(instant) => {
-                for (_, window) in &mut self.windows {
-                    window.animation_tick(&instant);
+                if let Some(id) = &self.active_window {
+                    if let Some(window) = &mut self.windows.get_mut(id) {
+                        window.animation_tick(&instant);
+                    }
                 }
                 Task::none()
             }
@@ -271,6 +276,10 @@ impl WindowManager {
                 self.windows.remove(&id);
                 Task::none()
             }
+            Message::WindowFocused(id) => {
+                self.active_window = Some(id);
+                Task::none()
+            }
         }
     }
 
@@ -287,6 +296,7 @@ impl WindowManager {
         let iced_events = iced::event::listen_with(|event, _, id| match event {
             iced::Event::Window(window_event) => match window_event {
                 window::Event::Closed => Some(Message::WindowClosed(id)),
+                window::Event::Focused => Some(Message::WindowFocused(id)),
                 _ => None,
             },
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
