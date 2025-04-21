@@ -24,14 +24,14 @@ impl Animator {
         self.instant = iced::time::Instant::now();
     }
 
-    pub fn update(&mut self, instant: iced::time::Instant) {
+    pub fn update(&mut self, instant: &iced::time::Instant) {
         self.dt = instant.duration_since(self.instant).as_secs_f64();
         self.current_time += self.speed * self.dt;
         //rollover by default for now;
         if self.current_time > self.end_time {
             self.current_time = self.start_time;
         }
-        self.instant = instant;
+        self.instant = instant.clone();
     }
 }
 

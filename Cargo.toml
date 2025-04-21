@@ -6,8 +6,7 @@ rust-version = "1.85.0"
 
 [workspace]
 members = [ 
-    "aerospace", 
-    "animation",         
+    "aerospace",     
     "celestial", 
     "color", 
     "coordinate_systems",     
@@ -19,7 +18,7 @@ members = [
     "mass_properties",
     "multibody", 
     "nadir",    
-    "nadir_3d", "nadir_plots", "nadir_repl",
+    "nadir_3d", "nadir_plots",
     "nadir_result",     
     "plotting", 
     "plotting_egui", 
@@ -37,7 +36,6 @@ resolver = "2"
 [workspace.dependencies]
 aerospace = {path = "aerospace"} 
 ambassador = "0.4.1"
-animation = {path = "animation"}   
 ansi_term = "0.12.1"
 approx = "0.5.1"
 bincode = {version = "2.0.1", features = ["derive","serde"]}
@@ -99,6 +97,7 @@ typetag = "0.2.18"
 uncertainty = {path = "uncertainty"}
 unicode-width = "0.2.0"
 utilities = {path = "utilities"} 
+uuid = {version = "*", features = ["v4"]}
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

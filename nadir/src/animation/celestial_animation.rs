@@ -5,7 +5,7 @@ use color::Color;
 use glam::{DQuat, DVec3};
 use nadir_3d::mesh::{Mesh, MeshPrimitive};
 use nadir_3d::{
-    geometry::{ellipsoid::Ellipsoid64, Geometry, GeometryState},
+    geometry::{Geometry, GeometryState, ellipsoid::Ellipsoid64},
     material::Material,
 };
 

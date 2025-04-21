@@ -2,27 +2,28 @@ use bytemuck::{Pod, Zeroable};
 use fxaa_pipeline::FxaaPipeline;
 use glam::{DVec3, Vec3};
 use iced::{
+    Color, Point, Rectangle, Size,
     advanced::Shell,
     mouse::{self, Cursor, Interaction},
     widget::{
         canvas::event::Status,
         shader::{
-            wgpu::{self, util::DeviceExt},
             Event, Primitive, Program, Storage, Viewport,
+            wgpu::{self, util::DeviceExt},
         },
     },
-    Color, Point, Rectangle, Size,
+    window::Id,
 };
 use nadir_3d::{
     geometry::{
+        Geometry,
         cuboid::Cuboid,
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
-        Geometry,
     },
     mesh::{Mesh, MeshGpu, MeshPrimitive},
 };
 
-use image::{load_from_memory, GenericImageView};
+use image::{GenericImageView, load_from_memory};
 
 pub mod camera;
 pub mod earth_pipeline;
@@ -35,18 +36,19 @@ use camera::Camera;
 use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
 use moon_pipeline::{MoonBindGroup, MoonPipeline};
 use pipeline::{
-    uniforms::Uniforms, CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline,
-    Ellipsoid64Pipeline, Pipeline,
+    CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline, Ellipsoid64Pipeline, Pipeline,
+    uniforms::Uniforms,
 };
 use sun_pipeline::{CoronaPipeline, SunPipeline};
 
-use crate::{
-    celestial_animation::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
+use super::{
     Message,
+    celestial_animation::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
 };
 
 #[derive(Debug)]
 pub struct Scene {
+    window_id: Option<Id>,
     pub camera: Camera,
     light_color: Color,
     light_pos: [f64; 3],
@@ -56,9 +58,10 @@ pub struct Scene {
     pub sample_count: u32,
 }
 
-impl Default for Scene {
-    fn default() -> Self {
+impl Scene {
+    pub fn new() -> Self {
         Self {
+            window_id: None,
             camera: Camera::default(),
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
@@ -68,8 +71,6 @@ impl Default for Scene {
             sample_count: 4,
         }
     }
-}
-impl Scene {
     pub fn set_celestial(&mut self) {
         self.world_target = if !self.body_meshes.is_empty() {
             Some(0)
@@ -108,6 +109,10 @@ impl Scene {
         self.camera.set_target(Vec3::ZERO);
         self.camera.set_far(1.1e13); //should cover to the heliopause,
         self.camera.set_fov(45.0);
+    }
+
+    pub fn set_window_id(&mut self, id: Id) {
+        self.window_id = Some(id);
     }
 }
 
@@ -1149,17 +1154,19 @@ impl Program<Message> for Scene {
                         state.is_pressed = false;
                         (Status::Captured, None)
                     }
-                    mouse::Event::ButtonPressed(mouse::Button::Middle) => (
-                        Status::Captured,
-                        Some(Message::MiddleButtonPressed(canvas_cursor_position)),
-                    ),
                     mouse::Event::ButtonPressed(mouse::Button::Right) => (
                         Status::Captured,
-                        Some(Message::RightButtonPressed(canvas_cursor_position)),
+                        Some(Message::RightButtonPressed(
+                            self.window_id.unwrap(),
+                            canvas_cursor_position,
+                        )),
                     ),
                     mouse::Event::ButtonReleased(mouse::Button::Right) => (
                         Status::Captured,
-                        Some(Message::RightButtonReleased(canvas_cursor_position)),
+                        Some(Message::RightButtonReleased(
+                            self.window_id.unwrap(),
+                            canvas_cursor_position,
+                        )),
                     ),
                     mouse::Event::CursorMoved { position: _ } => {
                         //use canvas position instead of this position
@@ -1167,14 +1174,18 @@ impl Program<Message> for Scene {
                         state.last_mouse_position = canvas_cursor_position;
                         if state.is_pressed {
                             let delta = canvas_cursor_position - last_position;
-                            (Status::Captured, Some(Message::CameraRotation(delta)))
+                            (
+                                Status::Captured,
+                                Some(Message::CameraRotation(self.window_id.unwrap(), delta)),
+                            )
                         } else {
                             (Status::Captured, None)
                         }
                     }
-                    mouse::Event::WheelScrolled { delta } => {
-                        (Status::Captured, Some(Message::WheelScrolled(delta)))
-                    }
+                    mouse::Event::WheelScrolled { delta } => (
+                        Status::Captured,
+                        Some(Message::WheelScrolled(self.window_id.unwrap(), delta)),
+                    ),
                     _ => (Status::Captured, None),
                 },
                 _ => (Status::Ignored, None),

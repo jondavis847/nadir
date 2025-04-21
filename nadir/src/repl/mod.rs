@@ -147,9 +147,10 @@ impl NadirRepl {
                                             if let Some(repl_to_subscription) =
                                                 &mut self.channels.repl_to_plot_subscription
                                             {
+                                                let pwd = std::env::current_dir()?;
                                                 block_on(
                                                     repl_to_subscription
-                                                        .send(ReplToSubscription::Animate),
+                                                        .send(ReplToSubscription::Animate(pwd)),
                                                 )?
                                             }
                                         }

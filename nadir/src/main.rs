@@ -5,8 +5,10 @@ use plot_manager::PlotManager;
 use registry::Registry;
 use repl::NadirRepl;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
+mod animation;
 mod helper;
 mod plot_manager;
 mod registry;
@@ -29,7 +31,7 @@ enum DaemonToRepl {
 
 #[derive(Debug)]
 enum ReplToSubscription {
-    Animate,
+    Animate(PathBuf),
     CloseAllFigures,
     NewFigure,
     ReplClosed,

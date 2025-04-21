@@ -1,19 +1,25 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use animation::animation::AnimationGui;
 use iced::{
-    Element, Size, Subscription, Task, Vector,
+    Element, Point, Size, Subscription, Task, Vector,
     futures::{
         SinkExt, Stream, StreamExt,
         channel::mpsc::{self, Sender},
         executor::block_on,
     },
+    keyboard,
+    mouse::ScrollDelta,
     stream,
+    time::Instant,
     widget::{button, center, column},
-    window::{self, Event, icon},
+    window::{self, Id, icon},
 };
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+use uuid::Uuid;
 
-use crate::{DaemonToRepl, ReplToSubscription};
+use crate::{DaemonToRepl, ReplToSubscription, animation::AnimationProgram};
 
 struct PlotManagerChannels {
     daemon_to_repl: Sender<DaemonToRepl>,
@@ -22,31 +28,44 @@ struct PlotManagerChannels {
 }
 
 pub struct PlotManager {
-    window_requests: Vec<WindowRequest>,
-    windows: HashMap<window::Id, NadirWindow>,
+    windows: HashMap<Id, NadirWindow>,
+    window_requests: Arc<Mutex<HashMap<Uuid, NadirWindowRequest>>>,
     channels: PlotManagerChannels,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Animate(PathBuf),
-    None,
+    AnimationLoaded(Uuid, Arc<AnimationProgram>),
+    AnimationTick(Instant),
+    CameraFovChanged(Id, f32),
+    CameraRotation(Id, Vector),
+    CancelRequest(Uuid),
+    ChannelDataReceived,
+    CheckRequestReady(Uuid),
     CloseAllFigures,
+    EscapePressed(Id),
+    LoadAnimation(Uuid, PathBuf),
+    NewAnimation(PathBuf),
+    NewFigure,
+    None,
+    OpenWindow(Uuid, Size),
+    PlaybackSpeedChanged(Id, f64),
     Plot,
     ReplToSubscription(Sender<ReplToSubscription>),
     ReplClosed,
-    NewFigure,
-    OpenWindow,
-    WindowOpened(window::Id),
-    WindowClosed(window::Id),
+    RightButtonPressed(Id, Point),
+    RightButtonReleased(Id, Point),
+    WheelScrolled(Id, ScrollDelta),
+    WindowOpened(Uuid, Id),
+    WindowClosed(Id),
 }
 
 impl PlotManager {
     pub fn new(daemon_to_repl: Sender<DaemonToRepl>) -> (Self, Task<Message>) {
         (
             Self {
-                window_requests: Vec::with_capacity(5),
                 windows: HashMap::new(),
+                window_requests: Arc::new(Mutex::new(HashMap::new())),
                 channels: PlotManagerChannels { daemon_to_repl },
             },
             Task::none(),
@@ -55,11 +74,73 @@ impl PlotManager {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Animate(result_path) => {
-                let (animation_gui, _) = AnimationGui::new(result_path);
-                self.windows.insert()
-                Task::perform(Message::OpenWindow)
+            Message::AnimationLoaded(request_id, arc_animation) => {
+                if let Some(animation) = Arc::into_inner(arc_animation) {
+                    if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id)
+                    {
+                        request.program = Some(NadirProgram::Animation(animation));
+                        Task::done(Message::CheckRequestReady(request_id))
+                    } else {
+                        Task::done(Message::CancelRequest(request_id))
+                    }
+                } else {
+                    Task::done(Message::CancelRequest(request_id))
+                }
             }
+            Message::AnimationTick(instant) => {
+                for (_, window) in &mut self.windows {
+                    window.animation_tick(&instant);
+                }
+                Task::none()
+            }
+            Message::CameraFovChanged(id, fov) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.camera_fov_changed(fov);
+                }
+                Task::none()
+            }
+            Message::CameraRotation(id, v) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.camera_rotated(v);
+                }
+                Task::none()
+            }
+            Message::CancelRequest(request_id) => {
+                self.window_requests.lock().unwrap().remove(&request_id);
+                Task::none()
+            }
+            Message::ChannelDataReceived => Task::none(),
+            Message::CheckRequestReady(request_id) => {
+                // First just check status without removing
+                let ready = {
+                    let window_requests = self.window_requests.lock().unwrap();
+                    if let Some(request) = window_requests.get(&request_id) {
+                        request.id.is_some() && request.program.is_some()
+                    } else {
+                        false
+                    }
+                };
+
+                if ready {
+                    // Now we know it's ready, remove it and process
+                    let mut window_requests = self.window_requests.lock().unwrap();
+                    if let Some(mut window_request) = window_requests.remove(&request_id) {
+                        // These unwraps are safe because we already checked above
+                        let id = window_request.id.unwrap();
+                        let program = window_request.program.take().unwrap();
+
+                        let mut window = NadirWindow::new(id, program);
+                        match &mut window.program {
+                            NadirProgram::Animation(animation) => animation.set_window_id(id),
+                            NadirProgram::Plot => {}
+                        }
+                        self.windows.insert(id, window);
+                    }
+                }
+
+                Task::none()
+            }
+
             Message::CloseAllFigures => {
                 // If no windows are open, just return a no-op task
                 if self.windows.is_empty() {
@@ -82,10 +163,42 @@ impl PlotManager {
                 // which will update your state
                 Task::batch(close_commands)
             }
+            Message::EscapePressed(id) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.escape_pressed();
+                }
+                Task::none()
+            }
+            Message::LoadAnimation(request_id, result_path) => {
+                match AnimationProgram::new(result_path) {
+                    Ok(animation) => {
+                        Task::done(Message::AnimationLoaded(request_id, Arc::new(animation)))
+                    }
+                    Err(e) => {
+                        eprintln!("{e}");
+                        Task::done(Message::CancelRequest(request_id))
+                    }
+                }
+            }
+            Message::NewAnimation(result_path) => {
+                let request_id = Uuid::new_v4();
+                self.window_requests
+                    .lock()
+                    .unwrap()
+                    .insert(request_id, NadirWindowRequest::default());
+
+                Task::batch([
+                    Task::done(Message::LoadAnimation(request_id, result_path)),
+                    Task::done(Message::OpenWindow(request_id, Size::new(1280.0, 720.0))),
+                ])
+            }
+            Message::NewFigure => Task::none(),
             Message::None => return Task::none(),
-            Message::NewFigure => {
-                // Return a task that will emit the OpenWindow message
-                Task::perform(async {}, |_| Message::OpenWindow(NadirWindows::Plot))
+            Message::PlaybackSpeedChanged(id, speed) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.playback_speed_changed(speed);
+                }
+                Task::none()
             }
             Message::ReplToSubscription(repl_to_subscription) => {
                 block_on(
@@ -98,8 +211,9 @@ impl PlotManager {
                 Task::none()
             }
             Message::ReplClosed => iced::exit(),
-
-            Message::OpenWindow => {
+            Message::RightButtonPressed(id, point) => Task::none(),
+            Message::RightButtonReleased(id, point) => Task::none(),
+            Message::OpenWindow(request_id, size) => {
                 // Create a task that will open a window
                 let position = if let Some(last_window) = self.windows.keys().last() {
                     // If we have a previous window, position relative to it
@@ -112,10 +226,9 @@ impl PlotManager {
                     // No previous window, use default position
                     Task::perform(async {}, |_| window::Position::Default)
                 };
-
                 // Chain the window opening after we determine the position
                 position
-                    .then(|position| {
+                    .then(move |position| {
                         const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
 
                         let (icon_rgba, icon_width, icon_height) = {
@@ -129,20 +242,30 @@ impl PlotManager {
 
                         let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
 
-                        let (id, open) = window::open(window::Settings {
+                        let (_id, open) = window::open(window::Settings {
                             position,
-                            size: Size::new(800.0, 400.0),
+                            size,
                             icon: Some(icon),
                             ..window::Settings::default()
                         });
                         open
                     })
-                    .map(Message::WindowOpened)
+                    .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
             }
             Message::Plot => Task::none(),
-            Message::WindowOpened(id) => {
-                self.windows.insert(id, NadirWindow::new());
+            Message::WheelScrolled(id, scroll_delta) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    window.wheel_scolled(scroll_delta);
+                }
                 Task::none()
+            }
+            Message::WindowOpened(request_id, id) => {
+                if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id) {
+                    request.id = Some(id);
+                    Task::done(Message::CheckRequestReady(request_id))
+                } else {
+                    Task::done(Message::CancelRequest(request_id))
+                }
             }
             Message::WindowClosed(id) => {
                 self.windows.remove(&id);
@@ -153,7 +276,7 @@ impl PlotManager {
 
     pub fn view(&self, window_id: window::Id) -> Element<Message> {
         if let Some(window) = self.windows.get(&window_id) {
-            center(window.view(window_id)).into()
+            center(window.view()).into()
         } else {
             // not sure why we get into this, view outpacing the storage into self.windows?
             column![].into()
@@ -161,23 +284,27 @@ impl PlotManager {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        // Subscription for window events
-        let window_events = window::events().map(|event| {
-            match event.1 {
-                Event::Opened { .. } => Message::WindowOpened(event.0),
-                Event::Closed => Message::WindowClosed(event.0),
-                _ => {
-                    // Handle other event types if necessary
-                    // For now, we can ignore them
-                    Message::None
+        let iced_events = iced::event::listen_with(|event, _, id| match event {
+            iced::Event::Window(window_event) => match window_event {
+                window::Event::Closed => Some(Message::WindowClosed(id)),
+                _ => None,
+            },
+            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
+                keyboard::Key::Named(keyboard::key::Named::Escape) => {
+                    Some(Message::EscapePressed(id))
                 }
-            }
+                keyboard::Key::Named(keyboard::key::Named::Delete) => None,
+                //keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
+                _ => None,
+            },
+            _ => None,
         });
 
+        let animation_tick = window::frames().map(Message::AnimationTick);
         let plot_commands = Subscription::run(plot_subscription);
 
         // Combine both subscriptions
-        Subscription::batch(vec![window_events, plot_commands])
+        Subscription::batch(vec![iced_events, plot_commands, animation_tick])
     }
 
     pub fn title(&self, id: window::Id) -> String {
@@ -204,9 +331,9 @@ fn plot_subscription() -> impl Stream<Item = Message> {
             // read from repl
             if let Some(input) = repl_to_subscription_rx.next().await {
                 match input {
-                    ReplToSubscription::Animate => {
+                    ReplToSubscription::Animate(result_path) => {
                         output
-                            .send(Message::Animate)
+                            .send(Message::NewAnimation(result_path))
                             .await
                             .expect("error sending Animate from subscription to daemon");
                     }
@@ -236,26 +363,80 @@ fn plot_subscription() -> impl Stream<Item = Message> {
 }
 
 #[derive(Debug)]
-struct NadirWindow {
-    id: window::Id,
-    window_type: NadirWindows,
+enum NadirProgram {
+    Animation(AnimationProgram),
+    Plot,
 }
-impl NadirWindow {
-    fn new(id: window::Id, window_type: NadirWindows) -> Self {
-        Self {id,window_type}
-    }
 
-    fn view(&self, _id: window::Id) -> Element<Message> {
-        column![button("new window").on_press(Message::OpenWindow)].into()
+impl From<AnimationProgram> for NadirProgram {
+    fn from(value: AnimationProgram) -> Self {
+        NadirProgram::Animation(value)
     }
 }
 
 #[derive(Debug)]
-enum NadirWindows {
-    Animation(AnimationGui),
-    Plot,
+pub struct NadirWindow {
+    id: Id,
+    program: NadirProgram,
 }
 
-pub struct WindowRequest {
-    window_type: NadirWindows,
+impl NadirWindow {
+    fn animation_tick(&mut self, instant: &Instant) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.tick(instant),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn camera_fov_changed(&mut self, fov: f32) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.camera_fov_changed(fov),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn camera_rotated(&mut self, mouse_delta: Vector) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.camera_rotated(mouse_delta),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn escape_pressed(&mut self) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.escape_pressed(),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn new(id: Id, program: NadirProgram) -> Self {
+        Self { id, program }
+    }
+
+    fn playback_speed_changed(&mut self, speed: f64) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.playback_speed_changed(speed),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn view(&self) -> Element<Message> {
+        match &self.program {
+            NadirProgram::Animation(animation) => animation.content(),
+            NadirProgram::Plot => column![button("new window")].into(),
+        }
+    }
+
+    fn wheel_scolled(&mut self, scroll_delta: ScrollDelta) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.wheel_scrolled(scroll_delta),
+            NadirProgram::Plot => {}
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct NadirWindowRequest {
+    id: Option<Id>,
+    program: Option<NadirProgram>,
 }

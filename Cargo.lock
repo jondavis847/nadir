@@ -234,24 +234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "animation"
-version = "0.0.1"
-dependencies = [
- "aerospace",
- "bincode 1.3.3",
- "bytemuck",
- "celestial",
- "color",
- "csv",
- "glam 0.30.2",
- "iced",
- "image 0.25.6",
- "multibody",
- "nadir_3d",
- "ron",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -647,15 +629,6 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
-
-[[package]]
-name = "bincode"
-version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "bincode"
@@ -3661,7 +3634,7 @@ version = "0.0.1"
 dependencies = [
  "aerospace",
  "ambassador",
- "bincode 2.0.1",
+ "bincode",
  "bytemuck",
  "celestial",
  "chrono",
@@ -3702,26 +3675,33 @@ checksum = "16cf681a23b4d0a43fc35024c176437f9dcd818db34e0f42ab456a0ee5ad497b"
 name = "nadir"
 version = "0.0.1"
 dependencies = [
- "animation",
  "ansi_term",
+ "bytemuck",
+ "celestial",
+ "color",
+ "csv",
  "dirs 6.0.0",
  "eframe",
  "egui",
+ "glam 0.30.2",
  "iced",
  "image 0.25.6",
  "multibody",
+ "nadir_3d",
  "nadir_plots",
  "nalgebra",
  "pest",
  "pest_derive",
  "rand 0.9.0",
  "rand_distr",
+ "ron",
  "rotations",
  "rustyline",
  "rustyline-derive",
  "thiserror 2.0.12",
  "time 0.0.1",
  "unicode-width 0.2.0",
+ "uuid",
 ]
 
 [[package]]
@@ -3742,10 +3722,6 @@ version = "0.0.1"
 dependencies = [
  "iced",
 ]
-
-[[package]]
-name = "nadir_repl"
-version = "0.0.1"
 
 [[package]]
 name = "nadir_result"
@@ -4689,7 +4665,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 name = "plotting"
 version = "0.0.1"
 dependencies = [
- "bincode 2.0.1",
+ "bincode",
  "color",
  "csv",
  "iced",
@@ -5831,7 +5807,7 @@ name = "spice"
 version = "0.0.1"
 dependencies = [
  "approx",
- "bincode 2.0.1",
+ "bincode",
  "byteorder",
  "clap",
  "dirs 6.0.0",
@@ -6589,6 +6565,15 @@ name = "utilities"
 version = "0.0.1"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "uuid"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "458f7a779bf54acc9f347480ac654f68407d3aab21269a6e3c9f922acd9e2da9"
+dependencies = [
+ "getrandom 0.3.2",
 ]
 
 [[package]]

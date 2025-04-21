@@ -1,22 +1,37 @@
 mod animator;
+mod celestial_animation;
 mod scene;
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use crate::Message;
 use animator::Animator;
 use celestial::CelestialBodies;
 use csv::ReaderBuilder;
 use glam::{DQuat, DVec3, dquat, dvec3};
 use iced::{
-    Color, Element, Length, Point, Subscription, Task, Theme, Vector, alignment, keyboard,
+    Color, Element, Length, Theme, Vector,
     mouse::ScrollDelta,
     widget::{Column, Row, Stack, container, horizontal_space, shader, slider, text},
-    window,
+    window::Id,
 };
 use nadir_3d::mesh::Mesh;
 use ron::from_str;
 use scene::Scene;
+
+use thiserror::Error;
+
+use crate::plot_manager::Message;
+
+#[derive(Debug, Error)]
+pub enum AnimationErrors {
+    #[error("{0}")]
+    CsvErrors(#[from] csv::Error),
+    #[error("no meshes to render in this result")]
+    NothingToRender,
+}
 
 #[derive(Debug, Default)]
 pub struct AnimationResult {
@@ -51,177 +66,15 @@ impl CelestialResult {
 }
 
 #[derive(Debug)]
-pub struct AnimationGui {
-    state: AnimationState,
+pub struct AnimationProgram {
+    window_id: Option<Id>,
     result: AnimationResult,
-}
-
-impl AnimationGui {
-    pub fn new(result_path: PathBuf) -> (Self, Task<Message>) {
-        let mut reader = ReaderBuilder::new()
-            .has_headers(true) // Assuming the file has headers
-            .from_path(&result_path.join("sim_time.csv"))
-            .unwrap();
-        let mut sim_time = Vec::new();
-        for result in reader.records() {
-            let record = result.unwrap();
-            let t = record.get(0).unwrap().parse::<f64>().unwrap();
-            sim_time.push(t);
-        }
-
-        let bodies_path = result_path.join("bodies");
-        let mesh_results = get_mesh_result(&bodies_path);
-
-        let celestial_path = result_path.join("celestial");
-        let celestial_results = if celestial_path.is_dir() {
-            get_celestial_result(&celestial_path)
-        } else {
-            Vec::new()
-        };
-
-        if mesh_results.is_empty() && celestial_results.is_empty() {
-            panic!("no meshes found to animate")
-        }
-
-        let animation_result = AnimationResult {
-            sim_time,
-            meshes: mesh_results,
-            celestial_meshes: celestial_results,
-        };
-        let mut state = AnimationState::default();
-        state.initialize(&animation_result);
-        (
-            Self {
-                state,
-                result: animation_result,
-            },
-            Task::done(Message::Loaded),
-        )
-    }
-
-    pub fn update(&mut self, message: Message) {
-        let state = &mut self.state;
-
-        match message {
-            Message::AnimationTick(instant) => {
-                state.animate(&self.result, instant);
-            }
-            Message::CameraFovChanged(value) => state.camera_fov_changed(value),
-            Message::CameraRotation(delta) => state.camera_rotated(delta),
-            Message::ChannelDataReceived => {}
-            Message::EscapePressed => state.escape_pressed(),
-            //Message::LeftButtonPressed(cursor) => state.left_button_pressed(cursor),
-            //Message::LeftButtonReleased(cursor) => state.left_button_released(cursor),
-            Message::Loaded => {
-                state.loaded = true;
-            }
-            Message::PlaybackSpeedChanged(value) => state.playback_speed_changed(value),
-            Message::MiddleButtonPressed(cursor) => state.middle_button_pressed(cursor),
-            Message::RightButtonPressed(cursor) => state.right_button_pressed(cursor),
-            Message::RightButtonReleased(cursor) => state.right_button_released(cursor),
-            Message::WheelScrolled(delta) => state.wheel_scrolled(delta),
-            Message::WindowResized(_size) => {}
-        }
-    }
-
-    pub fn view(&self) -> Element<Message, Theme> {
-        let surface = Column::new().width(Length::Fill).height(Length::Fill);
-
-        let surface = match self.state.loaded {
-            false => surface.push(
-                container(
-                    text("Loading...")
-                        .align_x(alignment::Horizontal::Center)
-                        .size(30),
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center(Length::Fill),
-            ),
-            true => surface.push(self.state.content()),
-        };
-
-        surface.into()
-    }
-
-    pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch(vec![
-            window::frames().map(Message::AnimationTick),
-            iced::event::listen_with(|event, _, _| match event {
-                iced::Event::Window(window_event) => match window_event {
-                    window::Event::Resized(size) => Some(Message::WindowResized(size)),
-                    _ => None,
-                },
-                iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
-                    keyboard::Key::Named(keyboard::key::Named::Escape) => {
-                        Some(Message::EscapePressed)
-                    }
-                    keyboard::Key::Named(keyboard::key::Named::Delete) => None,
-                    //keyboard::Key::Named(keyboard::key::Named::Tab) => Some(Message::TabPressed),
-                    _ => None,
-                },
-                _ => None,
-            }),
-        ])
-    }
-
-    pub fn theme(&self) -> Theme {
-        Theme::Dark
-    }
-}
-
-#[derive(Debug)]
-pub struct AnimationState {
     animator: Animator,
-    pub loaded: bool,
-    //mouse: MouseProcessor,
     scene: Scene,
-    pub show_menu: bool,
+    show_menu: bool,
 }
 
-impl Default for AnimationState {
-    fn default() -> Self {
-        Self {
-            animator: Animator::default(),
-            loaded: false,
-            scene: Scene::default(),
-            show_menu: false,
-        }
-    }
-}
-
-impl AnimationState {
-    pub fn animate(&mut self, result: &AnimationResult, instant: iced::time::Instant) {
-        self.animator.update(instant);
-        let t = self.animator.current_time;
-        let time = &result.sim_time;
-        result
-            .meshes
-            .iter()
-            .zip(&mut self.scene.body_meshes)
-            .for_each(|(result, mesh)| {
-                let (q, r) = result.get_state_at_time_interp(t, time);
-                mesh.update(r, q);
-            });
-
-        result.celestial_meshes.iter().for_each(|result| {
-            let (q, r) = result.get_state_at_time_interp(t, time);
-            // celestial position is in km, convert to m;
-            self.scene.celestial.update_body(result.body, 1e3 * r, q);
-        });
-
-        // adjust mesh positions so target is at origin and all other meshes are relative to it
-        if let Some(index) = self.scene.world_target {
-            let camera_target = self.scene.body_meshes[index].state.position;
-            for mesh in &mut self.scene.body_meshes {
-                mesh.set_position_from_target(camera_target);
-            }
-            for (_, mesh) in &mut self.scene.celestial.meshes {
-                mesh.set_position_from_target(camera_target);
-            }
-        }
-    }
-
+impl AnimationProgram {
     pub fn camera_fov_changed(&mut self, value: f32) {
         self.scene.camera.set_fov(value);
     }
@@ -243,20 +96,16 @@ impl AnimationState {
             let playback_speed_text =
                 text(format!("Playback Speed: {}", self.animator.speed)).color(Color::WHITE);
 
-            let playback_speed_slider = slider(
-                0.0..=100.0,
-                self.animator.speed,
-                Message::PlaybackSpeedChanged,
-            );
+            let playback_speed_slider = slider(0.0..=100.0, self.animator.speed, |speed| {
+                Message::PlaybackSpeedChanged(self.window_id.unwrap(), speed)
+            });
 
             let camera_fov_text =
                 text(format!("Camera FOV: {}", self.scene.camera.fov_y)).color(Color::WHITE);
 
-            let camera_fov_slider = slider(
-                1.0..=179.0,
-                self.scene.camera.fov_y,
-                Message::CameraFovChanged,
-            );
+            let camera_fov_slider = slider(1.0..=179.0, self.scene.camera.fov_y, |fov| {
+                Message::CameraFovChanged(self.window_id.unwrap(), fov)
+            });
 
             let menu_column = Column::new()
                 .push(playback_speed_text)
@@ -282,45 +131,109 @@ impl AnimationState {
         self.show_menu = !self.show_menu;
     }
 
-    pub fn middle_button_pressed(&self, _cursor: Point) {}
+    pub fn new(result_path: PathBuf) -> Result<Self, AnimationErrors> {
+        let mut reader = ReaderBuilder::new()
+            .has_headers(true) // Assuming the file has headers
+            .from_path(&result_path.join("sim_time.csv"))?;
+        let mut sim_time = Vec::new();
+        for result in reader.records() {
+            let record = result.unwrap();
+            let t = record.get(0).unwrap().parse::<f64>().unwrap();
+            sim_time.push(t);
+        }
 
-    pub fn playback_speed_changed(&mut self, value: f64) {
-        self.animator.speed = value;
-    }
+        let bodies_path = result_path.join("bodies");
+        let mesh_results = get_mesh_result(&bodies_path);
 
-    pub fn right_button_pressed(&self, _cursor: Point) {}
+        let celestial_path = result_path.join("celestial");
+        let celestial_results = if celestial_path.is_dir() {
+            get_celestial_result(&celestial_path)
+        } else {
+            Vec::new()
+        };
 
-    pub fn right_button_released(&self, _cursor: Point) {}
+        if mesh_results.is_empty() && celestial_results.is_empty() {
+            return Err(AnimationErrors::NothingToRender);
+        }
 
-    pub fn initialize(&mut self, result: &AnimationResult) {
+        let animation_result = AnimationResult {
+            sim_time,
+            meshes: mesh_results,
+            celestial_meshes: celestial_results,
+        };
+        let mut scene = Scene::new();
+
         // initialize the multibody bodies
-        for result in &result.meshes {
+        for result in &animation_result.meshes {
             let mut mesh = result.mesh.clone();
             mesh.update(result.position[0], result.attitude[0]);
-            self.scene.body_meshes.push(mesh);
+            scene.body_meshes.push(mesh);
         }
 
-        if !result.celestial_meshes.is_empty() {
-            for result in &result.celestial_meshes {
-                self.scene.celestial.add_body(result.body);
-                self.scene.celestial.update_body(
-                    result.body,
-                    result.position[0],
-                    result.attitude[0],
-                );
+        if !animation_result.celestial_meshes.is_empty() {
+            for result in &animation_result.celestial_meshes {
+                scene.celestial.add_body(result.body);
+                scene
+                    .celestial
+                    .update_body(result.body, result.position[0], result.attitude[0]);
             }
-            self.scene.set_celestial();
+            scene.set_celestial();
         }
 
-        let t = &result.sim_time;
+        let t = &animation_result.sim_time;
 
         let start_time = t[0];
         let end_time = t[t.len() - 1];
 
         let animator = Animator::new(start_time, end_time);
 
-        self.animator = animator;
-        self.animator.start();
+        Ok(Self {
+            window_id: None,
+            animator,
+            scene,
+            show_menu: false,
+            result: animation_result,
+        })
+    }
+
+    pub fn playback_speed_changed(&mut self, value: f64) {
+        self.animator.speed = value;
+    }
+
+    pub fn set_window_id(&mut self, id: Id) {
+        self.window_id = Some(id);
+        self.scene.set_window_id(id);
+    }
+
+    pub fn tick(&mut self, instant: &Instant) {
+        self.animator.update(instant);
+        let t = self.animator.current_time;
+        let time = &self.result.sim_time;
+        self.result
+            .meshes
+            .iter()
+            .zip(&mut self.scene.body_meshes)
+            .for_each(|(result, mesh)| {
+                let (q, r) = result.get_state_at_time_interp(t, time);
+                mesh.update(r, q);
+            });
+
+        self.result.celestial_meshes.iter().for_each(|result| {
+            let (q, r) = result.get_state_at_time_interp(t, time);
+            // celestial position is in km, convert to m;
+            self.scene.celestial.update_body(result.body, 1e3 * r, q);
+        });
+
+        // adjust mesh positions so target is at origin and all other meshes are relative to it
+        if let Some(index) = self.scene.world_target {
+            let camera_target = self.scene.body_meshes[index].state.position;
+            for mesh in &mut self.scene.body_meshes {
+                mesh.set_position_from_target(camera_target);
+            }
+            for (_, mesh) in &mut self.scene.celestial.meshes {
+                mesh.set_position_from_target(camera_target);
+            }
+        }
     }
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
