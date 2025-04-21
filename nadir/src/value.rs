@@ -866,6 +866,7 @@ pub struct Enum {
 
 #[derive(Debug, Clone)]
 pub enum Event {
+    Animate,
     CloseAllFigures,
     NewFigure,
 }

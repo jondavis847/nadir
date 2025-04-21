@@ -244,10 +244,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
-    let pwd = std::env::current_dir()?;
-    sys.save(&pwd);
+    //let pwd = std::env::current_dir()?;
+    //sys.save(&pwd);
     // Run the simulation
-    //sys.simulate("", 0.0, 1000.0, 0.1,None);
+    sys.simulate("", 0.0, 1000.0, 0.1, Some(10));
 
     Ok(())
 }

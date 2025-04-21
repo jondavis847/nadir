@@ -143,6 +143,16 @@ impl NadirRepl {
                                 // If there is some event, perform it
                                 match value {
                                     Value::Event(event) => match event {
+                                        Event::Animate => {
+                                            if let Some(repl_to_subscription) =
+                                                &mut self.channels.repl_to_plot_subscription
+                                            {
+                                                block_on(
+                                                    repl_to_subscription
+                                                        .send(ReplToSubscription::Animate),
+                                                )?
+                                            }
+                                        }
                                         Event::NewFigure => {
                                             if let Some(repl_to_subscription) =
                                                 &mut self.channels.repl_to_plot_subscription

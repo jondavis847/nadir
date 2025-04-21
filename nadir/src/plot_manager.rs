@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
+use animation::animation::AnimationGui;
 use iced::{
     Element, Size, Subscription, Task, Vector,
     futures::{
@@ -8,8 +9,8 @@ use iced::{
         executor::block_on,
     },
     stream,
-    widget::{button, center, column, horizontal_space, text_input},
-    window::{self, Event},
+    widget::{button, center, column},
+    window::{self, Event, icon},
 };
 
 use crate::{DaemonToRepl, ReplToSubscription};
@@ -21,14 +22,17 @@ struct PlotManagerChannels {
 }
 
 pub struct PlotManager {
-    windows: HashMap<window::Id, PlotWindow>,
+    window_requests: Vec<WindowRequest>,
+    windows: HashMap<window::Id, NadirWindow>,
     channels: PlotManagerChannels,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Animate(PathBuf),
     None,
     CloseAllFigures,
+    Plot,
     ReplToSubscription(Sender<ReplToSubscription>),
     ReplClosed,
     NewFigure,
@@ -41,6 +45,7 @@ impl PlotManager {
     pub fn new(daemon_to_repl: Sender<DaemonToRepl>) -> (Self, Task<Message>) {
         (
             Self {
+                window_requests: Vec::with_capacity(5),
                 windows: HashMap::new(),
                 channels: PlotManagerChannels { daemon_to_repl },
             },
@@ -50,6 +55,11 @@ impl PlotManager {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Animate(result_path) => {
+                let (animation_gui, _) = AnimationGui::new(result_path);
+                self.windows.insert()
+                Task::perform(Message::OpenWindow)
+            }
             Message::CloseAllFigures => {
                 // If no windows are open, just return a no-op task
                 if self.windows.is_empty() {
@@ -75,7 +85,7 @@ impl PlotManager {
             Message::None => return Task::none(),
             Message::NewFigure => {
                 // Return a task that will emit the OpenWindow message
-                Task::perform(async {}, |_| Message::OpenWindow)
+                Task::perform(async {}, |_| Message::OpenWindow(NadirWindows::Plot))
             }
             Message::ReplToSubscription(repl_to_subscription) => {
                 block_on(
@@ -106,20 +116,33 @@ impl PlotManager {
                 // Chain the window opening after we determine the position
                 position
                     .then(|position| {
-                        let (_id, open) = window::open(window::Settings {
+                        const ICON_BYTES: &[u8] = include_bytes!("../resources/nadir.png");
+
+                        let (icon_rgba, icon_width, icon_height) = {
+                            let image = image::load_from_memory(ICON_BYTES)
+                                .expect("Failed to load icon from memory")
+                                .into_rgba8();
+
+                            let (width, height) = image.dimensions();
+                            (image.into_raw(), width, height)
+                        };
+
+                        let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+
+                        let (id, open) = window::open(window::Settings {
                             position,
                             size: Size::new(800.0, 400.0),
+                            icon: Some(icon),
                             ..window::Settings::default()
                         });
-
                         open
                     })
                     .map(Message::WindowOpened)
             }
+            Message::Plot => Task::none(),
             Message::WindowOpened(id) => {
-                let focus_input = text_input::focus(format!("input-{id}"));
-                self.windows.insert(id, PlotWindow::new());
-                focus_input
+                self.windows.insert(id, NadirWindow::new());
+                Task::none()
             }
             Message::WindowClosed(id) => {
                 self.windows.remove(&id);
@@ -132,7 +155,8 @@ impl PlotManager {
         if let Some(window) = self.windows.get(&window_id) {
             center(window.view(window_id)).into()
         } else {
-            horizontal_space().into()
+            // not sure why we get into this, view outpacing the storage into self.windows?
+            column![].into()
         }
     }
 
@@ -180,6 +204,12 @@ fn plot_subscription() -> impl Stream<Item = Message> {
             // read from repl
             if let Some(input) = repl_to_subscription_rx.next().await {
                 match input {
+                    ReplToSubscription::Animate => {
+                        output
+                            .send(Message::Animate)
+                            .await
+                            .expect("error sending Animate from subscription to daemon");
+                    }
                     ReplToSubscription::CloseAllFigures => {
                         output
                             .send(Message::CloseAllFigures)
@@ -206,13 +236,26 @@ fn plot_subscription() -> impl Stream<Item = Message> {
 }
 
 #[derive(Debug)]
-struct PlotWindow {}
-impl PlotWindow {
-    fn new() -> Self {
-        Self {}
+struct NadirWindow {
+    id: window::Id,
+    window_type: NadirWindows,
+}
+impl NadirWindow {
+    fn new(id: window::Id, window_type: NadirWindows) -> Self {
+        Self {id,window_type}
     }
 
     fn view(&self, _id: window::Id) -> Element<Message> {
         column![button("new window").on_press(Message::OpenWindow)].into()
     }
+}
+
+#[derive(Debug)]
+enum NadirWindows {
+    Animation(AnimationGui),
+    Plot,
+}
+
+pub struct WindowRequest {
+    window_type: NadirWindows,
 }

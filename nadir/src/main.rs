@@ -29,6 +29,7 @@ enum DaemonToRepl {
 
 #[derive(Debug)]
 enum ReplToSubscription {
+    Animate,
     CloseAllFigures,
     NewFigure,
     ReplClosed,

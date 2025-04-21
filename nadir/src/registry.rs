@@ -312,15 +312,21 @@ impl Registry {
         // Standalone Functions
         let mut functions = HashMap::new();
         functions.insert(
-            "figure",
+            "animate",
             vec![FunctionMethod::new(vec![], |_args| {
-                Ok(Value::Event(Event::NewFigure))
+                Ok(Value::Event(Event::Animate))
             })],
         );
         functions.insert(
             "close_all_figures",
             vec![FunctionMethod::new(vec![], |_args| {
                 Ok(Value::Event(Event::CloseAllFigures))
+            })],
+        );
+        functions.insert(
+            "figure",
+            vec![FunctionMethod::new(vec![], |_args| {
+                Ok(Value::Event(Event::NewFigure))
             })],
         );
 

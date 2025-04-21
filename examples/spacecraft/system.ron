@@ -256,7 +256,7 @@
             epoch: (
                 time: (
                     system: UTC,
-                    value: (798296328.7552991),
+                    value: (798345263.9471939),
                 ),
             ),
             bodies: [
@@ -285,6 +285,152 @@
         )),
     ),
     bodies: {
+        (4): (
+            actuators: [],
+            id: (4),
+            inner_joint: Some((7)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "sa2",
+                geometry: Cuboid((
+                    x: 2.0,
+                    y: 2.0,
+                    z: 0.1,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.05,
+                        g: 0.05,
+                        b: 0.05,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "sa2",
+            outer_joints: [
+                (8),
+            ],
+            sensors: [],
+        ),
+        (5): (
+            actuators: [],
+            id: (5),
+            inner_joint: Some((8)),
+            mass_properties: Some((
+                mass: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                cmx: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                cmz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixx: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                iyy: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                izz: (
+                    nominal: 100.0,
+                    dispersion: None,
+                ),
+                ixy: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                ixz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+                iyz: (
+                    nominal: 0.0,
+                    dispersion: None,
+                ),
+            )),
+            mesh: Some((
+                name: "sa3",
+                geometry: Cuboid((
+                    x: 2.0,
+                    y: 2.0,
+                    z: 0.1,
+                )),
+                material: Phong(
+                    color: (
+                        r: 0.05,
+                        g: 0.05,
+                        b: 0.05,
+                        a: 1.0,
+                    ),
+                    specular_power: 32.0,
+                ),
+                state: (
+                    position: (0.0, 0.0, 0.0),
+                    rotation: (0.0, 0.0, 0.0, 1.0),
+                ),
+                texture: None,
+            )),
+            name: "sa3",
+            outer_joints: [],
+            sensors: [],
+        ),
         (2): (
             actuators: [],
             id: (2),
@@ -433,157 +579,147 @@
             ],
             sensors: [],
         ),
-        (4): (
-            actuators: [],
-            id: (4),
-            inner_joint: Some((7)),
-            mass_properties: Some((
-                mass: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                cmx: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                cmy: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                cmz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                ixx: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                iyy: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                izz: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                ixy: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                ixz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                iyz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-            )),
-            mesh: Some((
-                name: "sa2",
-                geometry: Cuboid((
-                    x: 2.0,
-                    y: 2.0,
-                    z: 0.1,
-                )),
-                material: Phong(
-                    color: (
-                        r: 0.05,
-                        g: 0.05,
-                        b: 0.05,
-                        a: 1.0,
-                    ),
-                    specular_power: 32.0,
-                ),
-                state: (
-                    position: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                ),
-                texture: None,
-            )),
-            name: "sa2",
-            outer_joints: [
-                (8),
-            ],
-            sensors: [],
-        ),
-        (5): (
-            actuators: [],
-            id: (5),
-            inner_joint: Some((8)),
-            mass_properties: Some((
-                mass: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                cmx: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                cmy: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                cmz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                ixx: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                iyy: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                izz: (
-                    nominal: 100.0,
-                    dispersion: None,
-                ),
-                ixy: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                ixz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-                iyz: (
-                    nominal: 0.0,
-                    dispersion: None,
-                ),
-            )),
-            mesh: Some((
-                name: "sa3",
-                geometry: Cuboid((
-                    x: 2.0,
-                    y: 2.0,
-                    z: 0.1,
-                )),
-                material: Phong(
-                    color: (
-                        r: 0.05,
-                        g: 0.05,
-                        b: 0.05,
-                        a: 1.0,
-                    ),
-                    specular_power: 32.0,
-                ),
-                state: (
-                    position: (0.0, 0.0, 0.0),
-                    rotation: (0.0, 0.0, 0.0, 1.0),
-                ),
-                texture: None,
-            )),
-            name: "sa3",
-            outer_joints: [],
-            sensors: [],
-        ),
     },
     identifier: (
         current_id: 9,
     ),
     joints: {
+        (7): (
+            id: (7),
+            name: "hinge2",
+            model: Revolute((
+                state: (
+                    angle: (
+                        nominal: -3.141592653589793,
+                        dispersion: None,
+                    ),
+                    angular_rate: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                ),
+                parameters: ((
+                    constant_force: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    damping: (
+                        nominal: 100.0,
+                        dispersion: None,
+                    ),
+                    equilibrium: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    spring_constant: (
+                        nominal: 10.0,
+                        dispersion: None,
+                    ),
+                )),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (3),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 1.0,
+                            z: -0.05,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (4),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: -1.0,
+                            z: -0.05,
+                        )),
+                    ),
+                )),
+            ),
+        ),
+        (6): (
+            id: (6),
+            name: "hinge1",
+            model: Revolute((
+                state: (
+                    angle: (
+                        nominal: 1.5707963267948966,
+                        dispersion: None,
+                    ),
+                    angular_rate: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                ),
+                parameters: ((
+                    constant_force: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    damping: (
+                        nominal: 100.0,
+                        dispersion: None,
+                    ),
+                    equilibrium: (
+                        nominal: 0.0,
+                        dispersion: None,
+                    ),
+                    spring_constant: (
+                        nominal: 10.0,
+                        dispersion: None,
+                    ),
+                )),
+            )),
+            connections: (
+                inner_body: Some((
+                    body_id: (2),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: 1.0,
+                            z: -1.0,
+                        )),
+                    ),
+                )),
+                outer_body: Some((
+                    body_id: (3),
+                    transform: (
+                        rotation: Quaternion(((
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                            w: 1.0,
+                        ))),
+                        translation: Cartesian((
+                            x: 0.0,
+                            y: -1.0,
+                            z: 0.05,
+                        )),
+                    ),
+                )),
+            ),
+        ),
         (1): (
             id: (1),
             name: "f",
@@ -787,74 +923,6 @@
                 )),
             ),
         ),
-        (6): (
-            id: (6),
-            name: "hinge1",
-            model: Revolute((
-                state: (
-                    angle: (
-                        nominal: 1.5707963267948966,
-                        dispersion: None,
-                    ),
-                    angular_rate: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                ),
-                parameters: ((
-                    constant_force: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                    damping: (
-                        nominal: 100.0,
-                        dispersion: None,
-                    ),
-                    equilibrium: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                    spring_constant: (
-                        nominal: 10.0,
-                        dispersion: None,
-                    ),
-                )),
-            )),
-            connections: (
-                inner_body: Some((
-                    body_id: (2),
-                    transform: (
-                        rotation: Quaternion(((
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 1.0,
-                        ))),
-                        translation: Cartesian((
-                            x: 0.0,
-                            y: 1.0,
-                            z: -1.0,
-                        )),
-                    ),
-                )),
-                outer_body: Some((
-                    body_id: (3),
-                    transform: (
-                        rotation: Quaternion(((
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 1.0,
-                        ))),
-                        translation: Cartesian((
-                            x: 0.0,
-                            y: -1.0,
-                            z: 0.05,
-                        )),
-                    ),
-                )),
-            ),
-        ),
         (8): (
             id: (8),
             name: "hinge3",
@@ -923,76 +991,8 @@
                 )),
             ),
         ),
-        (7): (
-            id: (7),
-            name: "hinge2",
-            model: Revolute((
-                state: (
-                    angle: (
-                        nominal: -3.141592653589793,
-                        dispersion: None,
-                    ),
-                    angular_rate: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                ),
-                parameters: ((
-                    constant_force: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                    damping: (
-                        nominal: 100.0,
-                        dispersion: None,
-                    ),
-                    equilibrium: (
-                        nominal: 0.0,
-                        dispersion: None,
-                    ),
-                    spring_constant: (
-                        nominal: 10.0,
-                        dispersion: None,
-                    ),
-                )),
-            )),
-            connections: (
-                inner_body: Some((
-                    body_id: (3),
-                    transform: (
-                        rotation: Quaternion(((
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 1.0,
-                        ))),
-                        translation: Cartesian((
-                            x: 0.0,
-                            y: 1.0,
-                            z: -0.05,
-                        )),
-                    ),
-                )),
-                outer_body: Some((
-                    body_id: (4),
-                    transform: (
-                        rotation: Quaternion(((
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                            w: 1.0,
-                        ))),
-                        translation: Cartesian((
-                            x: 0.0,
-                            y: -1.0,
-                            z: -0.05,
-                        )),
-                    ),
-                )),
-            ),
-        ),
     },
-    seed: 6287907565625673726,
+    seed: 8951983517868346208,
     sensors: [
         (
             name: "gps",

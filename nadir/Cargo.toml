@@ -6,11 +6,13 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+animation.workspace = true
 ansi_term.workspace = true
 dirs.workspace = true
 eframe.workspace = true
 egui.workspace = true
 iced.workspace = true
+image.workspace = true
 multibody.workspace = true
 nalgebra.workspace = true
 pest.workspace = true
