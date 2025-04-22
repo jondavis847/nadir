@@ -19,7 +19,10 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::{DaemonToRepl, ReplToSubscription, animation::AnimationProgram};
+use crate::{
+    DaemonToRepl, ReplToSubscription,
+    animation::{AnimationMessage, AnimationProgram},
+};
 
 struct WindowManagerChannels {
     daemon_to_repl: Sender<DaemonToRepl>,
@@ -37,14 +40,12 @@ pub struct WindowManager {
 #[derive(Debug, Clone)]
 pub enum Message {
     AnimationLoaded(Uuid, Arc<AnimationProgram>),
+    AnimationMessage(AnimationMessage),
     AnimationTick(Instant),
-    CameraFovChanged(Id, f32),
-    CameraRotation(Id, Vector),
     CancelRequest(Uuid),
     ChannelDataReceived,
     CheckRequestReady(Uuid),
     CloseAllFigures,
-    CurrentTimeChanged(Id, f64),
     CursorMoved(Id, Point),
     EscapePressed(Id),
     LoadAnimation(Uuid, PathBuf),
@@ -52,13 +53,11 @@ pub enum Message {
     NewFigure,
     None,
     OpenWindow(Uuid, Size),
-    PlaybackSpeedChanged(Id, f64),
     Plot,
     ReplToSubscription(Sender<ReplToSubscription>),
     ReplClosed,
     RightButtonPressed(Id, Point),
     RightButtonReleased(Id, Point),
-    TogglePlayPause,
     WheelScrolled(Id, ScrollDelta),
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
@@ -94,23 +93,19 @@ impl WindowManager {
                     Task::done(Message::CancelRequest(request_id))
                 }
             }
-            Message::AnimationTick(instant) => {
+            Message::AnimationMessage(message) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = &mut self.windows.get_mut(id) {
-                        window.animation_tick(&instant);
+                    if let Some(window) = self.windows.get_mut(id) {
+                        window.process_animation_message(message);
                     }
                 }
                 Task::none()
             }
-            Message::CameraFovChanged(id, fov) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.camera_fov_changed(fov);
-                }
-                Task::none()
-            }
-            Message::CameraRotation(id, v) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.camera_rotated(v);
+            Message::AnimationTick(instant) => {
+                if let Some(id) = &self.active_window {
+                    if let Some(window) = self.windows.get_mut(id) {
+                        window.animation_tick(&instant);
+                    }
                 }
                 Task::none()
             }
@@ -172,12 +167,6 @@ impl WindowManager {
                 // which will update your state
                 Task::batch(close_commands)
             }
-            Message::CurrentTimeChanged(id, time) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.current_time_changed(time);
-                }
-                Task::none()
-            }
             Message::CursorMoved(id, point) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     window.cursor_moved(point);
@@ -215,12 +204,6 @@ impl WindowManager {
             }
             Message::NewFigure => Task::none(),
             Message::None => return Task::none(),
-            Message::PlaybackSpeedChanged(id, speed) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.playback_speed_changed(speed);
-                }
-                Task::none()
-            }
             Message::ReplToSubscription(repl_to_subscription) => {
                 block_on(
                     self.channels
@@ -274,14 +257,6 @@ impl WindowManager {
                     .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
             }
             Message::Plot => Task::none(),
-            Message::TogglePlayPause => {
-                if let Some(active_id) = self.active_window {
-                    if let Some(window) = self.windows.get_mut(&active_id) {
-                        window.toggle_play_pause();
-                    }
-                }
-                Task::none()
-            }
             Message::WheelScrolled(id, scroll_delta) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     window.wheel_scolled(scroll_delta);
@@ -432,27 +407,6 @@ impl NadirWindow {
         }
     }
 
-    fn camera_fov_changed(&mut self, fov: f32) {
-        match &mut self.program {
-            NadirProgram::Animation(animation) => animation.camera_fov_changed(fov),
-            NadirProgram::Plot => {}
-        }
-    }
-
-    fn camera_rotated(&mut self, mouse_delta: Vector) {
-        match &mut self.program {
-            NadirProgram::Animation(animation) => animation.camera_rotated(mouse_delta),
-            NadirProgram::Plot => {}
-        }
-    }
-
-    fn current_time_changed(&mut self, time: f64) {
-        match &mut self.program {
-            NadirProgram::Animation(animation) => animation.current_time_changed(time),
-            NadirProgram::Plot => {}
-        }
-    }
-
     fn cursor_moved(&mut self, point: Point) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.cursor_moved(point),
@@ -478,10 +432,12 @@ impl NadirWindow {
         }
     }
 
-    fn toggle_play_pause(&mut self) {
+    fn process_animation_message(&mut self, message: AnimationMessage) {
         match &mut self.program {
-            NadirProgram::Animation(animation) => animation.toggle_play_pause(),
-            NadirProgram::Plot => {}
+            NadirProgram::Animation(animation) => animation.update(message),
+            NadirProgram::Plot => unreachable!(
+                "plots should not send animation messages, or the active window got messed up"
+            ),
         }
     }
 

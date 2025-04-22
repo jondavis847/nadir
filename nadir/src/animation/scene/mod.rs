@@ -42,7 +42,7 @@ use pipeline::{
 use sun_pipeline::{CoronaPipeline, SunPipeline};
 
 use super::{
-    Message,
+    AnimationMessage, Message,
     celestial_animation::{CelestialAnimation, CelestialMeshes, CelestialPrimitives},
 };
 
@@ -1176,7 +1176,10 @@ impl Program<Message> for Scene {
                             let delta = canvas_cursor_position - last_position;
                             (
                                 Status::Captured,
-                                Some(Message::CameraRotation(self.window_id.unwrap(), delta)),
+                                Some(Message::AnimationMessage(AnimationMessage::CameraRotation(
+                                    self.window_id.unwrap(),
+                                    delta,
+                                ))),
                             )
                         } else {
                             (

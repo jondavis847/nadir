@@ -36,6 +36,15 @@ pub enum AnimationErrors {
     NothingToRender,
 }
 
+#[derive(Debug, Clone)]
+pub enum AnimationMessage {
+    CameraFovChanged(Id, f32),
+    CameraRotation(Id, Vector),
+    CurrentTimeChanged(Id, f64),
+    PlaybackSpeedChanged(Id, f64),
+    TogglePlayPause,
+}
+
 #[derive(Debug, Default)]
 pub struct AnimationResult {
     pub sim_time: Vec<f64>,
@@ -80,16 +89,6 @@ pub struct AnimationProgram {
 }
 
 impl AnimationProgram {
-    pub fn camera_fov_changed(&mut self, value: f32) {
-        self.scene.camera.set_fov(value);
-    }
-
-    pub fn camera_rotated(&mut self, mouse_delta: Vector) {
-        self.scene
-            .camera
-            .update_position_from_mouse_delta(mouse_delta);
-    }
-
     pub fn content(&self) -> Element<Message, Theme> {
         // we use a stack to put content on top of the animation
         // create the stack and add the shader program
@@ -102,14 +101,20 @@ impl AnimationProgram {
                 text(format!("Playback Speed: {}", self.animator.speed)).color(Color::WHITE);
 
             let playback_speed_slider = slider(0.0..=100.0, self.animator.speed, |speed| {
-                Message::PlaybackSpeedChanged(self.window_id.unwrap(), speed)
+                Message::AnimationMessage(AnimationMessage::PlaybackSpeedChanged(
+                    self.window_id.unwrap(),
+                    speed,
+                ))
             });
 
             let camera_fov_text =
                 text(format!("Camera FOV: {}", self.scene.camera.fov_y)).color(Color::WHITE);
 
             let camera_fov_slider = slider(1.0..=179.0, self.scene.camera.fov_y, |fov| {
-                Message::CameraFovChanged(self.window_id.unwrap(), fov)
+                Message::AnimationMessage(AnimationMessage::CameraFovChanged(
+                    self.window_id.unwrap(),
+                    fov,
+                ))
             });
 
             let menu_column = Column::new()
@@ -133,7 +138,12 @@ impl AnimationProgram {
             let progress_slider = slider(
                 self.animator.start_time..=self.animator.end_time,
                 self.animator.current_time,
-                |current_time| Message::CurrentTimeChanged(self.window_id.unwrap(), current_time),
+                |current_time| {
+                    Message::AnimationMessage(AnimationMessage::CurrentTimeChanged(
+                        self.window_id.unwrap(),
+                        current_time,
+                    ))
+                },
             )
             .width(Length::FillPortion(20));
 
@@ -147,7 +157,7 @@ impl AnimationProgram {
                 .center();
 
             let play_button = button(play_or_pause)
-                .on_press(Message::TogglePlayPause)
+                .on_press(Message::AnimationMessage(AnimationMessage::TogglePlayPause))
                 .width(Length::FillPortion(2));
 
             let progress_row = Row::new()
@@ -169,10 +179,6 @@ impl AnimationProgram {
         }
 
         stack.into()
-    }
-
-    pub fn current_time_changed(&mut self, time: f64) {
-        self.animator.current_time = time;
     }
 
     pub fn cursor_moved(&mut self, point: Point) {
@@ -259,6 +265,22 @@ impl AnimationProgram {
         self.animator.speed = value;
     }
 
+    pub fn update(&mut self, message: AnimationMessage) {
+        match message {
+            AnimationMessage::CameraFovChanged(_, fov) => self.scene.camera.set_fov(fov),
+            AnimationMessage::CameraRotation(_, mouse_delta) => self
+                .scene
+                .camera
+                .update_position_from_mouse_delta(mouse_delta),
+            AnimationMessage::CurrentTimeChanged(_, time) => self.animator.current_time = time,
+            AnimationMessage::PlaybackSpeedChanged(_, speed) => self.animator.speed = speed,
+            AnimationMessage::TogglePlayPause => match self.animator.status {
+                AnimatorStatus::Paused => self.animator.status = AnimatorStatus::Playing,
+                AnimatorStatus::Playing => self.animator.status = AnimatorStatus::Paused,
+            },
+        }
+    }
+
     pub fn set_window_id(&mut self, id: Id) {
         self.window_id = Some(id);
         self.scene.set_window_id(id);
@@ -292,13 +314,6 @@ impl AnimationProgram {
             for (_, mesh) in &mut self.scene.celestial.meshes {
                 mesh.set_position_from_target(camera_target);
             }
-        }
-    }
-
-    pub fn toggle_play_pause(&mut self) {
-        match self.animator.status {
-            AnimatorStatus::Paused => self.animator.status = AnimatorStatus::Playing,
-            AnimatorStatus::Playing => self.animator.status = AnimatorStatus::Paused,
         }
     }
 
