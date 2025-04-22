@@ -10,6 +10,7 @@ use std::thread;
 use window_manager::WindowManager;
 mod animation;
 mod helper;
+mod plotting;
 mod registry;
 mod repl;
 mod storage;
