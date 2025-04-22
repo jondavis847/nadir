@@ -58,6 +58,7 @@ pub enum Message {
     ReplClosed,
     RightButtonPressed(Id, Point),
     RightButtonReleased(Id, Point),
+    TogglePlayPause,
     WheelScrolled(Id, ScrollDelta),
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
@@ -273,6 +274,14 @@ impl WindowManager {
                     .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
             }
             Message::Plot => Task::none(),
+            Message::TogglePlayPause => {
+                if let Some(active_id) = self.active_window {
+                    if let Some(window) = self.windows.get_mut(&active_id) {
+                        window.toggle_play_pause();
+                    }
+                }
+                Task::none()
+            }
             Message::WheelScrolled(id, scroll_delta) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     window.wheel_scolled(scroll_delta);
@@ -296,7 +305,14 @@ impl WindowManager {
                 self.active_window = Some(id);
                 Task::none()
             }
-            Message::WindowUnFocused(id) => Task::none(),
+            Message::WindowUnFocused(id) => {
+                if let Some(active_id) = self.active_window {
+                    if active_id == id {
+                        self.active_window = None;
+                    }
+                }
+                Task::none()
+            }
         }
     }
 
@@ -458,6 +474,13 @@ impl NadirWindow {
     fn playback_speed_changed(&mut self, speed: f64) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.playback_speed_changed(speed),
+            NadirProgram::Plot => {}
+        }
+    }
+
+    fn toggle_play_pause(&mut self) {
+        match &mut self.program {
+            NadirProgram::Animation(animation) => animation.toggle_play_pause(),
             NadirProgram::Plot => {}
         }
     }

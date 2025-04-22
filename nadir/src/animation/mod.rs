@@ -7,14 +7,17 @@ use std::{
     time::Instant,
 };
 
-use animator::Animator;
+use animator::{Animator, AnimatorStatus};
 use celestial::CelestialBodies;
 use csv::ReaderBuilder;
 use glam::{DQuat, DVec3, dquat, dvec3};
 use iced::{
     Color, Element, Length, Point, Rectangle, Size, Theme, Vector,
     mouse::ScrollDelta,
-    widget::{Column, Row, Stack, container, horizontal_space, shader, slider, text},
+    widget::{
+        Column, Row, Stack, button, container, horizontal_space, shader, slider, text,
+        vertical_space,
+    },
     window::Id,
 };
 use nadir_3d::mesh::Mesh;
@@ -131,15 +134,38 @@ impl AnimationProgram {
                 self.animator.start_time..=self.animator.end_time,
                 self.animator.current_time,
                 |current_time| Message::CurrentTimeChanged(self.window_id.unwrap(), current_time),
-            );
+            )
+            .width(Length::FillPortion(20));
 
-            let progress_column = Column::new().push(progress_slider);
+            let play_or_pause = match self.animator.status {
+                AnimatorStatus::Paused => "||",
+                AnimatorStatus::Playing => ">",
+            };
+            let play_or_pause = text(play_or_pause)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center();
 
-            let progress = container(progress_column)
-                .center_x(Length::FillPortion(1))
-                .align_bottom(10.0);
+            let play_button = button(play_or_pause)
+                .on_press(Message::TogglePlayPause)
+                .width(Length::FillPortion(2));
 
-            stack = stack.push(progress);
+            let progress_row = Row::new()
+                .push(horizontal_space().width(Length::FillPortion(3)))
+                .push(play_button)
+                .push(horizontal_space().width(Length::FillPortion(1)))
+                .push(progress_slider)
+                .push(horizontal_space().width(Length::FillPortion(3)));
+
+            let progress_margin = vertical_space().height(Length::FillPortion(9));
+
+            let progress_column = Column::new()
+                .push(progress_margin)
+                .push(progress_row)
+                .height(Length::Fill)
+                .width(Length::Fill);
+
+            stack = stack.push(progress_column);
         }
 
         stack.into()
@@ -266,6 +292,13 @@ impl AnimationProgram {
             for (_, mesh) in &mut self.scene.celestial.meshes {
                 mesh.set_position_from_target(camera_target);
             }
+        }
+    }
+
+    pub fn toggle_play_pause(&mut self) {
+        match self.animator.status {
+            AnimatorStatus::Paused => self.animator.status = AnimatorStatus::Playing,
+            AnimatorStatus::Playing => self.animator.status = AnimatorStatus::Paused,
         }
     }
 

@@ -6,7 +6,7 @@ pub struct Animator {
     pub speed: f64,
     instant: iced::time::Instant,
     pub dt: f64,
-    status: AnimatorStatus,
+    pub status: AnimatorStatus,
 }
 
 impl Animator {
@@ -48,7 +48,7 @@ impl Animator {
 }
 
 #[derive(Debug, Clone)]
-enum AnimatorStatus {
+pub enum AnimatorStatus {
     Playing,
     Paused,
 }
