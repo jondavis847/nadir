@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use time::TimeErrors;
 
-use crate::value::{Event, Value, ValueErrors};
+use crate::value::{Event, Linspace, LinspaceErrors, Value, ValueErrors};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
@@ -14,6 +14,8 @@ pub enum RegistryErrors {
     FunctionNotFound(String),
     #[error("struct '{0}' not found")]
     StructNotFound(String),
+    #[error("{0}")]
+    LinspaceErrors(#[from] LinspaceErrors),
     #[error("method '{1}' not found for struct '{0}'")]
     MethodNotFound(String, String),
     #[error("{0}")]
@@ -111,6 +113,38 @@ impl Registry {
     pub fn new() -> Self {
         // Structs with their methods
         let mut structs = HashMap::new();
+
+        // Linspace
+        let mut linspace_struct_methods = HashMap::new();
+        linspace_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("start", "f64"),
+                    Argument::new("stop", "f64"),
+                    Argument::new("step", "f64"),
+                ],
+                |args| {
+                    let start = args[0].as_f64()?;
+                    let stop = args[1].as_f64()?;
+                    let step = args[2].as_f64()?;
+
+                    Ok(Value::Linspace(Linspace::new(start, stop, step)?))
+                },
+            )],
+        );
+
+        let mut linspace_instance_methods = HashMap::new();
+        linspace_instance_methods.insert(
+            "to_vec",
+            vec![InstanceMethod::new(vec![], |val, _| {
+                Ok(Value::Vector(Box::new(val.as_linspace()?.to_vec())))
+            })],
+        );
+        structs.insert(
+            "Linspace",
+            Struct::new(linspace_struct_methods, linspace_instance_methods),
+        );
 
         // Matrix
         let mut matrix_struct_methods = HashMap::new();
@@ -339,7 +373,7 @@ impl Registry {
         &self,
         struct_name: &str,
         method_name: &str,
-        args: Vec<Value>,
+        mut args: Vec<Value>,
     ) -> Result<Value, RegistryErrors> {
         // Get the struct from the registry, or return an error if not found
         let struc = self
@@ -361,10 +395,15 @@ impl Registry {
 
             // Check if each argument type matches
             let mut signature_matches = true;
-            for (required, actual) in method.args.iter().zip(args.iter()) {
+            for (required, actual) in method.args.iter().zip(args.iter_mut()) {
                 if required.type_name != actual.to_string() {
-                    signature_matches = false;
-                    break;
+                    // try to convert ints to float if possible, need better conversion logic
+                    if required.type_name == "f64".to_string() && actual.to_string() == "i64" {
+                        *actual = Value::f64(actual.as_f64()?)
+                    } else {
+                        signature_matches = false;
+                        break;
+                    }
                 }
             }
 

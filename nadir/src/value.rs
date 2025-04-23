@@ -21,20 +21,10 @@ pub enum ValueErrors {
     CannotAddTypes(String, String),
     #[error("cannot compare type {1} by {0}")]
     CannotCompareTypes(String, String),
+    #[error("cannot convert type {0} to type {1}")]
+    CannotConvert(String, String),
     #[error("{0}")]
     CannotConvertToBool(String),
-    #[error("cannot convert type {0} to f64")]
-    CannotConvertToF64(String),
-    #[error("cannot convert type {0} to i64")]
-    CannotConvertToI64(String),
-    #[error("cannot convert type {0} to Quaternion")]
-    CannotConvertToQuaternion(String),
-    #[error("cannot convert type {0} to String")]
-    CannotConvertToString(String),
-    #[error("cannot convert type {0} to UnitQuaternion")]
-    CannotConvertToUnitQuaternion(String),
-    #[error("cannot convert type {0} to usize")]
-    CannotConvertToUsize(String),
     #[error("cannot divide type {1} by {0}")]
     CannotDivideTypes(String, String),
     #[error("cannot index type {0}")]
@@ -71,6 +61,7 @@ pub enum Value {
     bool(bool),
     Enum(Enum),
     Event(Event),
+    Linspace(Linspace),
     Vector(Box<DVector<f64>>),
     VectorBool(Box<DVector<bool>>),
     VectorUsize(Box<DVector<usize>>),
@@ -100,6 +91,7 @@ impl std::fmt::Debug for Value {
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
+            Value::Linspace(v) => writeln!(f, "{:?}", v),
             Value::MultibodySystemBuilder(m) => writeln!(f, "{:?}", m),
             Value::None => writeln!(f, "{}", label("None")),
             Value::Range(r) => {
@@ -231,6 +223,7 @@ impl Value {
             Value::bool(_) => String::from("bool"),
             Value::Enum(_) => String::from("Enum"),
             Value::Event(_) => String::from("Event"),
+            Value::Linspace(_) => String::from("Linspace"),
             Value::MultibodySystemBuilder(_) => String::from("MultibodySystemBuilder"),
             Value::Vector(v) => {
                 let length = v.len();
@@ -297,7 +290,10 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v),
             Value::i64(v) => Ok(*v as f64),
-            _ => Err(ValueErrors::CannotConvertToF64(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "f64".to_string(),
+            )),
         }
     }
 
@@ -305,7 +301,10 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v as i64),
             Value::i64(v) => Ok(*v),
-            _ => Err(ValueErrors::CannotConvertToI64(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "i64".to_string(),
+            )),
         }
     }
 
@@ -323,12 +322,25 @@ impl Value {
         }
     }
 
+    pub fn as_linspace(&self) -> Result<Linspace, ValueErrors> {
+        match self {
+            Value::Linspace(v) => Ok(*v),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Linspace".to_string(),
+            )),
+        }
+    }
+
     pub fn as_string(&self) -> Result<String, ValueErrors> {
         match self {
             Value::f64(v) => Ok(v.to_string()),
             Value::i64(v) => Ok(v.to_string()),
             Value::String(v) => Ok(*v.clone()),
-            _ => Err(ValueErrors::CannotConvertToString(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "string".to_string(),
+            )),
         }
     }
 
@@ -336,21 +348,30 @@ impl Value {
         match self {
             Value::f64(v) => Ok(*v as usize),
             Value::i64(v) => Ok(*v as usize),
-            _ => Err(ValueErrors::CannotConvertToUsize(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "usize".to_string(),
+            )),
         }
     }
 
     pub fn as_quaternion(&self) -> Result<Quaternion, ValueErrors> {
         match self {
             Value::Quaternion(v) => Ok(**v),
-            _ => Err(ValueErrors::CannotConvertToQuaternion(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Quaternion".to_string(),
+            )),
         }
     }
 
     pub fn as_unit_quaternion(&self) -> Result<UnitQuaternion, ValueErrors> {
         match self {
             Value::UnitQuaternion(v) => Ok(**v),
-            _ => Err(ValueErrors::CannotConvertToUnitQuaternion(self.to_string())),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "UnitQuaternion".to_string(),
+            )),
         }
     }
 
@@ -869,4 +890,54 @@ pub enum Event {
     Animate,
     CloseAllFigures,
     NewFigure,
+}
+
+#[derive(Debug, Clone, Error)]
+pub enum LinspaceErrors {
+    #[error("linspace step must be less than stop - start ")]
+    StepTooBig,
+    #[error("linspace step must be greater than 0")]
+    StepTooSmall,
+    #[error("linspace step is in wrong direction")]
+    StepWrongDirection,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Linspace {
+    start: f64,
+    stop: f64,
+    step: f64,
+}
+
+impl Linspace {
+    pub fn new(start: f64, stop: f64, step: f64) -> Result<Self, LinspaceErrors> {
+        if step.abs() < std::f64::EPSILON {
+            return Err(LinspaceErrors::StepTooSmall);
+        }
+        if step.abs() > (stop - start).abs() {
+            return Err(LinspaceErrors::StepTooBig);
+        }
+        if (step > 0.0 && start > stop) | (step < 0.0 && start < stop) {
+            return Err(LinspaceErrors::StepWrongDirection);
+        }
+        Ok(Self { start, stop, step })
+    }
+
+    pub fn to_vec(&self) -> DVector<f64> {
+        let n = ((self.stop - self.start) / self.step).ceil() as usize;
+        let mut v = Vec::with_capacity(n);
+        v.push(self.start);
+        for _ in 1..=n {
+            v.push(v.last().unwrap() + self.step);
+        }
+        // add an extra point if we didn't quite make it to stop
+        if v[n] < self.stop {
+            v.push(v[n] + self.step);
+        }
+        // truncate if we went too far
+        if v[n] > self.stop {
+            v[n] = self.stop;
+        }
+        DVector::from(v)
+    }
 }
