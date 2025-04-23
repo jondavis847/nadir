@@ -25,7 +25,7 @@ impl PlotThemes {
                 dark_background: color!(0x111111),
                 light_background: color!(0x202020),
                 border: color!(0x000000),
-                axis_border: color!(0xffffff),
+                axis_border: color!(0x000000),
                 axis_color: color!(0x202020),
                 grid_color: color!(0x202020),
                 text_color: color!(0x565656),
