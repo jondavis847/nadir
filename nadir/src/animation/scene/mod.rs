@@ -1188,10 +1188,9 @@ impl Program<Message> for Scene {
                             )
                         }
                     }
-                    mouse::Event::WheelScrolled { delta } => (
-                        Status::Captured,
-                        Some(Message::WheelScrolled(self.window_id.unwrap(), delta)),
-                    ),
+                    mouse::Event::WheelScrolled { delta } => {
+                        (Status::Captured, Some(Message::WheelScrolled(delta)))
+                    }
                     _ => (Status::Captured, None),
                 },
                 _ => (Status::Ignored, None),

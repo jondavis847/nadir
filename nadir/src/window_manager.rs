@@ -40,7 +40,6 @@ pub struct WindowManager {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    AnimationLoaded(Uuid, Arc<AnimationProgram>),
     AnimationMessage(AnimationMessage),
     AnimationTick(Instant),
     CancelRequest(Uuid),
@@ -56,7 +55,6 @@ pub enum Message {
     None,
     OpenWindow(Uuid, Size),
     Plot,
-    PlotLoaded(Uuid, Arc<PlotProgram>),
     PlotMessage(PlotMessage),
     ReplToSubscription(Sender<ReplToSubscription>),
     ReplClosed,
@@ -84,19 +82,6 @@ impl WindowManager {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::AnimationLoaded(request_id, arc_animation) => {
-                if let Some(animation) = Arc::into_inner(arc_animation) {
-                    if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id)
-                    {
-                        request.program = Some(NadirProgram::Animation(animation));
-                        Task::done(Message::CheckRequestReady(request_id))
-                    } else {
-                        Task::done(Message::CancelRequest(request_id))
-                    }
-                } else {
-                    Task::done(Message::CancelRequest(request_id))
-                }
-            }
             Message::AnimationMessage(message) => {
                 if let Some(id) = &self.active_window {
                     if let Some(window) = self.windows.get_mut(id) {
@@ -183,19 +168,30 @@ impl WindowManager {
                 }
                 Task::none()
             }
-            Message::LoadPlot(request_id) => Task::done(Message::PlotLoaded(
-                request_id,
-                Arc::new(PlotProgram::new()),
-            )),
             Message::LoadAnimation(request_id, result_path) => {
                 match AnimationProgram::new(result_path) {
                     Ok(animation) => {
-                        Task::done(Message::AnimationLoaded(request_id, Arc::new(animation)))
+                        if let Some(request) =
+                            self.window_requests.lock().unwrap().get_mut(&request_id)
+                        {
+                            request.program = Some(NadirProgram::Animation(animation));
+                            Task::done(Message::CheckRequestReady(request_id))
+                        } else {
+                            Task::done(Message::CancelRequest(request_id)) //Todo maybe this doesnt make sense since we didnt find the request id?
+                        }
                     }
                     Err(e) => {
                         eprintln!("{e}");
                         Task::done(Message::CancelRequest(request_id))
                     }
+                }
+            }
+            Message::LoadPlot(request_id) => {
+                if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id) {
+                    request.program = Some(NadirProgram::Plot(PlotProgram::new()));
+                    Task::done(Message::CheckRequestReady(request_id))
+                } else {
+                    Task::done(Message::CancelRequest(request_id)) //Todo maybe this doesnt make sense since we didnt find the request id?
                 }
             }
             Message::NewAnimation(result_path) => {
@@ -216,11 +212,10 @@ impl WindowManager {
                     .lock()
                     .unwrap()
                     .insert(request_id, NadirWindowRequest::default());
-                Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0))).then(),
-                
+                Task::batch([
                     Task::done(Message::LoadPlot(request_id)),
-                    
-                
+                    Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0))),
+                ])
             }
             Message::None => return Task::none(),
             Message::OpenWindow(request_id, size) => {
@@ -263,19 +258,6 @@ impl WindowManager {
                     .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
             }
             Message::Plot => Task::none(),
-            Message::PlotLoaded(request_id, arc_plot) => {
-                if let Some(plot) = Arc::into_inner(arc_plot) {
-                    if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id)
-                    {
-                        request.program = Some(NadirProgram::Plot(plot));
-                        Task::done(Message::CheckRequestReady(request_id))
-                    } else {
-                        Task::done(Message::CancelRequest(request_id))
-                    }
-                } else {
-                    Task::done(Message::CancelRequest(request_id))
-                }
-            }
             Message::PlotMessage(message) => {
                 if let Some(id) = &self.active_window {
                     if let Some(window) = self.windows.get_mut(id) {
@@ -296,11 +278,14 @@ impl WindowManager {
             }
             Message::ReplClosed => iced::exit(),
             Message::RightButtonPressed(_id, _point) => Task::none(),
-            Message::RightButtonReleased(_id, _point) => Task::none(), 
-            Message::WheelScrolled(id, scroll_delta) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.wheel_scolled(scroll_delta);
+            Message::RightButtonReleased(_id, _point) => Task::none(),
+            Message::WheelScrolled(scroll_delta) => {
+                if let Some(active_id) = self.active_window {
+                    if let Some(window) = self.windows.get_mut(&active_id) {
+                        window.wheel_scolled(scroll_delta);
+                    }
                 }
+
                 Task::none()
             }
             Message::WindowOpened(request_id, id) => {
