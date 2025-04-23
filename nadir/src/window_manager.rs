@@ -1,5 +1,5 @@
 use iced::{
-    Element, Point, Size, Subscription, Task, Vector,
+    Element, Length, Point, Size, Subscription, Task, Vector,
     futures::{
         SinkExt, Stream, StreamExt,
         channel::mpsc::{self, Sender},
@@ -9,7 +9,7 @@ use iced::{
     mouse::ScrollDelta,
     stream,
     time::Instant,
-    widget::{button, center, column},
+    widget::{button, canvas, center, column},
     window::{self, Id, icon},
 };
 use std::{
@@ -64,6 +64,7 @@ pub enum Message {
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
     WindowFocused(Id),
+    WindowResized(Id, Size),
     WindowUnFocused(Id),
 }
 
@@ -305,6 +306,15 @@ impl WindowManager {
                 self.active_window = Some(id);
                 Task::none()
             }
+            Message::WindowResized(id, size) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    match &mut window.program {
+                        NadirProgram::Animation(_) => {} // window events handled inside the animation program
+                        NadirProgram::Plot(plot) => plot.window_resized(size),
+                    }
+                }
+                Task::none()
+            }
             Message::WindowUnFocused(id) => {
                 if let Some(active_id) = self.active_window {
                     if active_id == id {
@@ -331,6 +341,7 @@ impl WindowManager {
                 window::Event::Closed => Some(Message::WindowClosed(id)),
                 window::Event::Focused => Some(Message::WindowFocused(id)),
                 window::Event::Unfocused => Some(Message::WindowUnFocused(id)),
+                window::Event::Resized(size) => Some(Message::WindowResized(id, size)),
                 _ => None,
             },
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
@@ -478,7 +489,9 @@ impl NadirWindow {
     fn view(&self) -> Element<Message> {
         match &self.program {
             NadirProgram::Animation(animation) => animation.content(),
-            NadirProgram::Plot(_) => column![button("new window")].into(),
+            NadirProgram::Plot(plot) => {
+                column![canvas(plot).height(Length::Fill).width(Length::Fill)].into()
+            }
         }
     }
 

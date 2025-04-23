@@ -1,6 +1,6 @@
 use figure::Figure;
 use iced::{
-    Point, Rectangle, Renderer, Size, Theme,
+    Point, Rectangle, Renderer, Size, Theme, Vector,
     event::Status,
     mouse::{self, Button, Cursor, ScrollDelta},
     widget::canvas::{Cache, Event, Geometry, Program},
@@ -43,7 +43,7 @@ pub struct PlotProgram {
     id: Option<Id>,
     figure: Figure,
     cache: Cache,
-    theme: PlotThemes,
+    theme: PlotTheme,
 }
 
 impl PlotProgram {
@@ -62,7 +62,7 @@ impl PlotProgram {
             id: None,
             figure: Figure::new(),
             cache: Cache::new(),
-            theme: PlotThemes::Dark,
+            theme: PlotThemes::Dark.palette(),
         }
     }
 
@@ -93,36 +93,26 @@ impl PlotProgram {
 }
 
 impl Program<Message> for PlotProgram {
-    type State = Cache;
+    type State = ();
 
     fn draw(
         &self,
-        state: &Self::State,
+        _state: &Self::State,
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let content = self.cache.draw(renderer, bounds.size(), |frame| {
-            // background
-            frame.fill_rectangle(
-                Point::ORIGIN,
-                frame.size(),
-                self.theme.palette().dark_background,
-            );
+            // make sure frame starts at origin
+            frame.translate(Point::ORIGIN - frame.center());
+            // make sure the frame is the right size
+            frame.scale_nonuniform(Vector::new(
+                bounds.width / frame.width(),
+                bounds.height / frame.height(),
+            ));
 
-            // // axes
-            // for axes in &self.axes {
-            //     frame.with_save(|frame| {
-            //         // move to axis location
-            //         frame.translate(axes.bounds.position() - Point::ORIGIN);
-            //         // scale down to axes size
-            //         let x_scale = axes.bounds.width / frame.width();
-            //         let y_scale = axes.bounds.height / frame.height();
-            //         frame.scale_nonuniform(Vector::new(x_scale, y_scale));
-            //         axes.draw(frame, &state.theme);
-            //     });
-            // }
+            self.figure.draw(frame, &self.theme);
         });
         vec![content]
     }

@@ -27,130 +27,6 @@ pub struct Axes {
 }
 
 impl Axes {
-    pub fn new(location: (usize, usize), bounds: Rectangle) -> Self {
-        Self {
-            axis: Axis::default(),
-            xlim: (0.0, 1.0),
-            ylim: (-1.0, 1.0),
-            legend: Legend {},
-            lines: Vec::new(),
-            location,
-            click_start: None,
-            bounds,
-            padding: Padding {
-                left: 50.0,
-                right: 50.0,
-                top: 50.0,
-                bottom: 50.0,
-            },
-        }
-    }
-    pub fn draw(&mut self, frame: &mut Frame, theme: &PlotTheme) {
-        self.draw_background(frame, theme);
-        let axis_bounds = Rectangle::new(
-            Point::new(self.padding.left, self.padding.top),
-            Size::new(
-                frame.width() - self.padding.left - self.padding.right,
-                frame.height() - self.padding.top - self.padding.bottom,
-            ),
-        );
-        frame.with_clip(axis_bounds, |frame| {
-            self.draw_axis(frame, theme);
-            self.draw_lines(frame, theme);
-        })
-    }
-
-    fn draw_axis(&self, frame: &mut Frame, theme: &PlotTheme) {
-        self.axis.draw(frame, theme, &self.xlim, &self.ylim);
-    }
-
-    fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let center = frame.center();
-        let size = frame.size();
-        let top_left = Point::new(center.x - size.width / 2.0, center.y - size.height / 2.0);
-        frame.fill_rectangle(top_left, size, theme.dark_background)
-    }
-
-    fn draw_lines(&mut self, frame: &mut Frame, theme: &PlotTheme) {
-        // Define axis bounds and scaling factors
-        let axis = &self.axis;
-        let frame_size = frame.size();
-        let left = 0.0;
-        let top = 0.0;
-        let right = frame_size.width;
-        let bottom = frame_size.height;
-
-        let (x_min, x_max) = self.xlim;
-        let (y_min, y_max) = self.ylim;
-        let x_scale = frame_size.width / (x_max - x_min) as f32;
-        let y_scale = frame_size.height / (y_max - y_min) as f32;
-
-        // Helper to transform data points to canvas coordinates
-        let update_canvas_point = |p: &mut PlotPoint| {
-            p.canvas_position.x =
-                (p.data.x as f32 - x_min) * x_scale + left + axis.line_width / 2.0;
-            p.canvas_position.y =
-                bottom + axis.line_width / 2.0 - (p.data.y as f32 - y_min) * y_scale;
-        };
-
-        // Initialize legend tracking
-        let legend_y = 8.0;
-        let char_width = 8.0; // Approximate width of a character
-        let padding = 10.0; // Padding between legend entries        
-        let mut current_x = right - axis.x_padding;
-
-        // Iterate over lines in reverse for legend ordering
-        for (i, line) in self.lines.iter_mut().enumerate().rev() {
-            if line.data.len() <= 1 {
-                continue;
-            }
-
-            let color = line.color.unwrap_or(theme.line_colors[i]);
-            line.data
-                .points
-                .iter_mut()
-                .for_each(|point| update_canvas_point(point));
-
-            // Draw the line
-            let path = Path::new(|builder| {
-                builder.move_to(line.data.points[0].canvas_position);
-                for pt in &line.data.points[1..] {
-                    builder.line_to(pt.canvas_position);
-                }
-            });
-            frame.stroke(&path, Stroke::default().with_color(color));
-
-            // Draw legend entry if applicable
-            if line.legend {
-                let label = if let Some(label) = &line.label {
-                    label.clone()
-                } else {
-                    i.to_string()
-                };
-
-                let entry_width = label.len() as f32 * char_width + padding;
-
-                // // Check if the entry fits in the remaining space
-                // if current_x + entry_width > frame.width() - axis.x_padding {
-                //     break; // Stop rendering if there's no more space
-                // }
-                current_x -= entry_width;
-
-                let position = Point::new(current_x, legend_y);
-
-                let text = Text {
-                    content: label.clone(),
-                    position,
-                    color,
-                    size: iced::Pixels(14.0),
-                    font: Font::MONOSPACE,
-                    ..Default::default()
-                };
-                frame.fill_text(text);
-            }
-        }
-    }
-
     pub fn add_line(&mut self, series: Series, color: Option<Color>) {
         let mut line = Line::new(series);
         if let Some(color) = color {
@@ -166,6 +42,86 @@ impl Axes {
         let (xlim, ylim) = get_global_lims(&self.lines);
         self.xlim = xlim;
         self.ylim = ylim;
+    }
+
+    pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
+        self.draw_background(frame, theme);
+        self.axis.draw(frame, theme, &self.xlim, &self.ylim);
+        //self.draw_lines(frame, theme);
+    }
+
+    fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
+        let center = frame.center();
+        let size = frame.size();
+        let top_left = Point::new(center.x - size.width / 2.0, center.y - size.height / 2.0);
+        frame.fill_rectangle(top_left, size, theme.dark_background)
+    }
+
+    pub fn mouse_left_clicked(&mut self, point: Point) {
+        if self.axis.bounds.contains(point) {
+            self.click_start = Some(point);
+        }
+    }
+
+    pub fn mouse_left_released(&mut self, point: Point) {
+        if self.axis.bounds.contains(point) {
+            if let Some(start_point) = self.click_start {
+                // determine the value at the start point
+                let sx_start = (start_point.x - self.axis.bounds.x) / self.axis.bounds.width;
+                let new_xlim_0 = sx_start * (self.xlim.1 - self.xlim.0) + self.xlim.0;
+
+                let sx_end = (point.x - self.axis.bounds.x) / self.axis.bounds.width;
+                let new_xlim_1 = sx_end * (self.xlim.1 - self.xlim.0) + self.xlim.0;
+                self.xlim = if new_xlim_1 > new_xlim_0 {
+                    (new_xlim_0, new_xlim_1)
+                } else {
+                    (new_xlim_1, new_xlim_0)
+                };
+
+                // remeber point.y start from the top, but ylim is from bottom
+                let sy_start = ((self.axis.bounds.y + self.axis.bounds.height) - start_point.y)
+                    / self.axis.bounds.height;
+                let new_ylim_1 = sy_start * (self.ylim.1 - self.ylim.0) + self.ylim.0;
+
+                let sy_end = ((self.axis.bounds.y + self.axis.bounds.height) - point.y)
+                    / self.axis.bounds.height;
+                let new_ylim_0 = sy_end * (self.ylim.1 - self.ylim.0) + self.ylim.0;
+                self.ylim = if new_ylim_1 > new_ylim_0 {
+                    (new_ylim_0, new_ylim_1)
+                } else {
+                    (new_ylim_1, new_ylim_0)
+                };
+            }
+        }
+        self.click_start = None;
+    }
+
+    pub fn new(location: (usize, usize)) -> Self {
+        Self {
+            axis: Axis::default(),
+            xlim: (0.0, 1.0),
+            ylim: (-1.0, 1.0),
+            legend: Legend {},
+            lines: Vec::new(),
+            location,
+            click_start: None,
+            bounds: Rectangle::default(), // to be updated later
+            padding: Padding {
+                left: 10.0,
+                right: 10.0,
+                top: 10.0,
+                bottom: 10.0,
+            },
+        }
+    }
+    pub fn update_bounds(&mut self, fig_size: Size, nrows: usize, ncols: usize) {
+        self.bounds.height =
+            fig_size.height / nrows as f32 - self.padding.top - self.padding.bottom;
+        self.bounds.width = fig_size.width / ncols as f32 - self.padding.left - self.padding.right;
+        self.bounds.x = self.bounds.width * self.location.0 as f32 + self.padding.left;
+        self.bounds.y = self.bounds.height * self.location.1 as f32 + self.padding.top;
+
+        self.axis.update_bounds(&self.bounds);
     }
 }
 
