@@ -2,11 +2,14 @@ use nalgebra::{DMatrix, DVector};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
 use time::TimeErrors;
 
-use crate::value::{Event, Linspace, LinspaceErrors, Value, ValueErrors};
+use crate::value::{Event, Linspace, LinspaceErrors, Map, Value, ValueErrors};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
@@ -128,23 +131,39 @@ impl Registry {
                     let start = args[0].as_f64()?;
                     let stop = args[1].as_f64()?;
                     let step = args[2].as_f64()?;
-
-                    Ok(Value::Linspace(Linspace::new(start, stop, step)?))
+                    let v = Linspace::new(start, stop, step)?.to_vec();
+                    Ok(Value::Vector(Arc::new(Mutex::new(v))))
                 },
             )],
         );
 
-        let mut linspace_instance_methods = HashMap::new();
-        linspace_instance_methods.insert(
-            "to_vec",
-            vec![InstanceMethod::new(vec![], |val, _| {
-                Ok(Value::Vector(Box::new(val.as_linspace()?.to_vec())))
-            })],
-        );
+        let linspace_instance_methods = HashMap::new();
         structs.insert(
             "Linspace",
             Struct::new(linspace_struct_methods, linspace_instance_methods),
         );
+
+        // Map
+        let mut map_struct_methods = HashMap::new();
+        map_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(vec![], |_args| {
+                Ok(Value::Map(Arc::new(Mutex::new(Map::new()))))
+            })],
+        );
+        let mut map_instance_methods = HashMap::new();
+        map_instance_methods.insert(
+            "keys",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let map_guard = val.as_map()?;
+                let map = map_guard.lock().unwrap();
+                for key in map.0.keys() {
+                    println!("{key}");
+                }
+                Ok(Value::None)
+            })],
+        );
+        structs.insert("Map", Struct::new(map_struct_methods, map_instance_methods));
 
         // Matrix
         let mut matrix_struct_methods = HashMap::new();
@@ -156,7 +175,7 @@ impl Registry {
                     let mut rng = rand::rng();
                     let data: Vec<f64> = (0..(n * n)).map(|_| rng.random()).collect();
                     let matrix = DMatrix::from_vec(n, n, data);
-                    Ok(Value::Matrix(Box::new(matrix)))
+                    Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
                 }),
                 StructMethod::new(
                     vec![Argument::new("m", "i64"), Argument::new("n", "i64")],
@@ -166,7 +185,7 @@ impl Registry {
                         let mut rng = rand::rng();
                         let data: Vec<f64> = (0..(rows * cols)).map(|_| rng.random()).collect();
                         let matrix = DMatrix::from_vec(rows, cols, data);
-                        Ok(Value::Matrix(Box::new(matrix)))
+                        Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
                     },
                 ),
             ],
@@ -180,7 +199,7 @@ impl Registry {
                     let normal = Normal::new(0.0, 1.0 / 3.0).unwrap();
                     let data: Vec<f64> = (0..(n * n)).map(|_| normal.sample(&mut rng)).collect();
                     let matrix = DMatrix::from_vec(n, n, data);
-                    Ok(Value::Matrix(Box::new(matrix)))
+                    Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
                 }),
                 StructMethod::new(
                     vec![Argument::new("m", "i64"), Argument::new("n", "i64")],
@@ -193,7 +212,7 @@ impl Registry {
                             .map(|_| normal.sample(&mut rng))
                             .collect();
                         let matrix = DMatrix::from_vec(rows, cols, data);
-                        Ok(Value::Matrix(Box::new(matrix)))
+                        Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
                     },
                 ),
             ],
@@ -216,26 +235,28 @@ impl Registry {
                     Argument::new("w", "f64"),
                 ],
                 |args| {
-                    Ok(Value::Quaternion(Box::new(Quaternion::new(
+                    Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::new(
                         args[0].as_f64()?,
                         args[1].as_f64()?,
                         args[2].as_f64()?,
                         args[3].as_f64()?,
-                    ))))
+                    )))))
                 },
             )],
         );
         quaternion_struct_methods.insert(
             "rand",
             vec![StructMethod::new(vec![], |_| {
-                Ok(Value::Quaternion(Box::new(Quaternion::rand())))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
             })],
         );
         let mut quaternion_instance_methods = HashMap::new();
         quaternion_instance_methods.insert(
             "inv",
             vec![InstanceMethod::new(vec![], |val, _| {
-                Ok(Value::Quaternion(Box::new(val.as_quaternion()?.inv())))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(
+                    val.as_quaternion()?.inv(),
+                ))))
             })],
         );
         // MultibodySystem
@@ -281,19 +302,21 @@ impl Registry {
                     Argument::new("w", "f64"),
                 ],
                 |args| {
-                    Ok(Value::UnitQuaternion(Box::new(UnitQuaternion::new(
-                        args[0].as_f64()?,
-                        args[1].as_f64()?,
-                        args[2].as_f64()?,
-                        args[3].as_f64()?,
-                    )?)))
+                    Ok(Value::UnitQuaternion(Arc::new(Mutex::new(
+                        UnitQuaternion::new(
+                            args[0].as_f64()?,
+                            args[1].as_f64()?,
+                            args[2].as_f64()?,
+                            args[3].as_f64()?,
+                        )?,
+                    ))))
                 },
             )],
         );
         unit_quaternion_struct_methods.insert(
             "rand",
             vec![StructMethod::new(vec![], |_args| {
-                Ok(Value::Quaternion(Box::new(Quaternion::rand())))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
             })],
         );
 
@@ -301,7 +324,9 @@ impl Registry {
         unit_quaternion_instance_methods.insert(
             "inv",
             vec![InstanceMethod::new(vec![], |val, _args| {
-                Ok(Value::Quaternion(Box::new(val.as_quaternion()?.inv())))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(
+                    val.as_quaternion()?.inv(),
+                ))))
             })],
         );
 
@@ -321,7 +346,7 @@ impl Registry {
                 let mut rng = rand::rng();
                 let vector =
                     DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
-                Ok(Value::Vector(Box::new(vector)))
+                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
             })],
         );
         vector_struct_methods.insert(
@@ -333,7 +358,7 @@ impl Registry {
                 let normal = Normal::new(0.0, 1.0).unwrap();
                 let vector =
                     DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
-                Ok(Value::Vector(Box::new(vector)))
+                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
             })],
         );
 

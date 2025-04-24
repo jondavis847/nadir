@@ -340,7 +340,7 @@ impl NadirRepl {
                 // Create the DMatrix using from_row_slice which accepts row-major data.
                 let matrix = DMatrix::from_row_slice(num_rows, row_len, &flat_data);
 
-                Ok(Value::Matrix(Box::new(matrix)))
+                Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
             }
             Rule::matrix_index => {
                 let mut inner_pairs = pair.into_inner();
@@ -362,10 +362,10 @@ impl NadirRepl {
                 };
 
                 let matrix = match self.parse_expr(matrix_pair)? {
-                    Value::Matrix(matrix) => *matrix,
+                    Value::Matrix(matrix) => matrix,
                     _ => unreachable!("shouldn't be here if it's not a matrix"),
                 };
-
+                let matrix = &*matrix.lock().unwrap();
                 // Extract the desired elements based on the selection
                 match (row_selection, col_selection) {
                     (Some(row), Some(col)) => {
@@ -388,16 +388,16 @@ impl NadirRepl {
                     (Some(row), None) => {
                         // Entire row
                         let row_vec = matrix.row(row).transpose().into_owned();
-                        Ok(Value::Vector(Box::new(row_vec)))
+                        Ok(Value::Vector(Arc::new(Mutex::new(row_vec))))
                     }
                     (None, Some(col)) => {
                         // Entire column
                         let col_vec = matrix.column(col).into_owned();
-                        Ok(Value::Vector(Box::new(col_vec)))
+                        Ok(Value::Vector(Arc::new(Mutex::new(col_vec))))
                     }
                     (None, None) => {
                         // Entire matrix
-                        Ok(Value::Matrix(Box::new(matrix.clone())))
+                        Ok(Value::Matrix(Arc::new(Mutex::new(matrix.clone()))))
                     }
                 }
             }
@@ -433,7 +433,9 @@ impl NadirRepl {
             Rule::string => {
                 let parsed_str = pair.as_str();
                 let unquoted_str = &parsed_str[1..parsed_str.len() - 1]; // Remove the first and last character (the quotes)
-                Ok(Value::String(Box::new(unquoted_str.to_string())))
+                Ok(Value::String(Arc::new(Mutex::new(
+                    unquoted_str.to_string(),
+                ))))
             }
             Rule::struct_call => {
                 let mut pairs = pair.into_inner();
@@ -492,7 +494,9 @@ impl NadirRepl {
                     let value = self.parse_expr(value_pair)?;
                     values.push(value.as_f64()?);
                 }
-                Ok(Value::Vector(Box::new(DVector::from_vec(values))))
+                Ok(Value::Vector(Arc::new(Mutex::new(DVector::from_vec(
+                    values,
+                )))))
             }
 
             _ => Err(ReplErrors::UnexpectedRule(pair.as_rule())),
@@ -546,28 +550,47 @@ impl NadirRepl {
         let instance = storage.get(instance_name)?;
         let field = pairs.next().unwrap().as_str();
         match &instance {
-            Value::Quaternion(q) => match field {
-                "x" => Ok(Value::f64(q.x)),
-                "y" => Ok(Value::f64(q.y)),
-                "z" => Ok(Value::f64(q.z)),
-                "w" => Ok(Value::f64(q.w)),
-                _ => Err(ReplErrors::InvalidField(
+            Value::Quaternion(q) => {
+                let q = q.lock().unwrap();
+                match field {
+                    "x" => Ok(Value::f64(q.x)),
+                    "y" => Ok(Value::f64(q.y)),
+                    "z" => Ok(Value::f64(q.z)),
+                    "w" => Ok(Value::f64(q.w)),
+                    _ => Err(ReplErrors::InvalidField(
+                        instance_name.to_string(),
+                        field.to_string(),
+                        instance.to_string(),
+                    )),
+                }
+            }
+            Value::UnitQuaternion(q) => {
+                let q = q.lock().unwrap();
+                match field {
+                    "x" => Ok(Value::f64(q.0.x)),
+                    "y" => Ok(Value::f64(q.0.y)),
+                    "z" => Ok(Value::f64(q.0.z)),
+                    "w" => Ok(Value::f64(q.0.w)),
+                    _ => Err(ReplErrors::InvalidField(
+                        instance_name.to_string(),
+                        field.to_string(),
+                        instance.to_string(),
+                    )),
+                }
+            }
+            Value::Map(map) => {
+                let map = &*map.lock().unwrap();
+                for (key, value) in &map.0 {
+                    if field == key {
+                        return Ok(value.clone());
+                    }
+                }
+                Err(ReplErrors::InvalidField(
                     instance_name.to_string(),
                     field.to_string(),
                     instance.to_string(),
-                )),
-            },
-            Value::UnitQuaternion(q) => match field {
-                "x" => Ok(Value::f64(q.0.x)),
-                "y" => Ok(Value::f64(q.0.y)),
-                "z" => Ok(Value::f64(q.0.z)),
-                "w" => Ok(Value::f64(q.0.w)),
-                _ => Err(ReplErrors::InvalidField(
-                    instance_name.to_string(),
-                    field.to_string(),
-                    instance.to_string(),
-                )),
-            },
+                ))
+            }
             _ => Err(ReplErrors::InvalidField(
                 instance_name.to_string(),
                 field.to_string(),
