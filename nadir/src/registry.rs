@@ -153,6 +153,22 @@ impl Registry {
         );
         let mut map_instance_methods = HashMap::new();
         map_instance_methods.insert(
+            "insert",
+            vec![InstanceMethod::new(
+                vec![
+                    Argument::new("key", "String"),
+                    Argument::new("value", "Value"),
+                ],
+                |val, args| {
+                    let map_guard = val.as_map()?;
+                    let mut map = map_guard.lock().unwrap();
+                    let value = Value::from(args[1].clone());
+                    map.0.insert(args[0].as_string()?, value);
+                    Ok(Value::None)
+                },
+            )],
+        );
+        map_instance_methods.insert(
             "keys",
             vec![InstanceMethod::new(vec![], |val, _args| {
                 let map_guard = val.as_map()?;
@@ -468,7 +484,6 @@ impl Registry {
         let method_overloads = struc.instance_methods.get(method_name).ok_or_else(|| {
             RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
         })?;
-
         // Try each possible overload
         for method in method_overloads {
             // Check if argument lengths match
@@ -479,7 +494,7 @@ impl Registry {
             // Check if each argument type matches
             let mut signature_matches = true;
             for (required, actual) in method.args.iter().zip(args.iter()) {
-                if required.type_name != actual.to_string() {
+                if required.type_name != actual.to_string() && required.type_name != "Value" {
                     signature_matches = false;
                     break;
                 }

@@ -693,7 +693,7 @@ impl NadirRepl {
         let method_name = function_pairs.next().unwrap().as_str();
 
         // Process each argument
-        let args_pair = pairs.next();
+        let args_pair = function_pairs.next();
         let args = if let Some(args_pair) = args_pair {
             let inner = args_pair.into_inner();
             let mut args = Vec::new();

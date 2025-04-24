@@ -100,10 +100,21 @@ impl std::fmt::Debug for Value {
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
             Value::Map(m) => {
-                writeln!(f, "Map");
+                writeln!(f, "Map")?;
                 let map = &m.lock().unwrap().0;
+
+                // Find the length of the longest key
+                let max_key_length = map.keys().map(|key| key.len()).max().unwrap_or(0);
+
+                // Format each key-value pair with aligned keys
                 for (key, value) in map {
-                    writeln!(f, "{} {}", label(&value.to_string()), key);
+                    writeln!(
+                        f,
+                        "{:width$} {}",
+                        key,
+                        label(&value.to_string()),
+                        width = max_key_length + 2
+                    )?;
                 }
                 Ok(())
             }
@@ -1034,5 +1045,9 @@ pub struct Map(pub HashMap<String, Value>);
 impl Map {
     pub fn new() -> Self {
         Self(HashMap::new())
+    }
+
+    pub fn insert(&mut self, key: String, value: Value) {
+        self.0.insert(key, value);
     }
 }
