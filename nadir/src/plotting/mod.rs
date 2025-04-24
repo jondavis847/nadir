@@ -6,7 +6,10 @@ use iced::{
     widget::canvas::{Cache, Event, Geometry, Program},
     window::Id,
 };
-use std::time::Instant;
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 use theme::{PlotTheme, PlotThemes};
 use thiserror::Error;
 
@@ -41,26 +44,28 @@ pub enum PlotMessage {
 #[derive(Debug)]
 pub struct PlotProgram {
     id: Option<Id>,
-    figure: Figure,
+    pub figure: Arc<Mutex<Figure>>,
     cache: Cache,
     theme: PlotTheme,
 }
 
 impl PlotProgram {
     pub fn mouse_left_clicked(&mut self, point: Point) {
-        self.figure.mouse_left_clicked(point);
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.mouse_left_clicked(point);
         self.cache.clear();
     }
 
     pub fn mouse_left_released(&mut self, point: Point) {
-        self.figure.mouse_left_released(point);
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.mouse_left_released(point);
         self.cache.clear();
     }
 
-    pub fn new() -> Self {
+    pub fn new(figure: Arc<Mutex<Figure>>) -> Self {
         PlotProgram {
             id: None,
-            figure: Figure::new(),
+            figure,
             cache: Cache::new(),
             theme: PlotThemes::Dark.palette(),
         }
@@ -82,12 +87,14 @@ impl PlotProgram {
     }
 
     pub fn window_resized(&mut self, window_size: Size) {
-        self.figure.window_resized(window_size);
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.window_resized(window_size);
         self.cache.clear();
     }
 
     pub fn wheel_scrolled(&mut self, point: Point, delta: ScrollDelta) {
-        self.figure.wheel_scrolled(point, delta);
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.wheel_scrolled(point, delta);
         self.cache.clear();
     }
 }
@@ -111,8 +118,8 @@ impl Program<Message> for PlotProgram {
                 bounds.width / frame.width(),
                 bounds.height / frame.height(),
             ));
-
-            self.figure.draw(frame, &self.theme);
+            let figure = &*self.figure.lock().unwrap();
+            figure.draw(frame, &self.theme);
         });
         vec![content]
     }

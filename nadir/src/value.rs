@@ -15,6 +15,8 @@ use std::{
 use thiserror::Error;
 use time::{Time, TimeSystem};
 
+use crate::plotting::figure::Figure;
+
 pub fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(237).paint(s).to_string()
 }
@@ -43,8 +45,6 @@ pub enum ValueErrors {
     CannotPowType(String),
     #[error("cannot add type {1} to {0}")]
     CannotSubtractTypes(String, String),
-    #[error("poisoned mutex error")]
-    PoisonedMutexError,
     #[error("index was {0}, can't be negative")]
     NegativeIndex(String),
     #[error("cannot calculate factorial of negative number")]
@@ -76,6 +76,7 @@ pub enum Value {
     MultibodySystemBuilder(Arc<Mutex<MultibodySystemBuilder>>),
     Map(Arc<Mutex<Map>>),
     None,
+    Plot(Arc<Mutex<Figure>>),
     Range(Range),
     Quaternion(Arc<Mutex<Quaternion>>),
     UnitQuaternion(Arc<Mutex<UnitQuaternion>>),
@@ -118,8 +119,49 @@ impl std::fmt::Debug for Value {
                 }
                 Ok(())
             }
+            Value::Matrix(m) => {
+                let m = m.lock().unwrap();
+                writeln!(
+                    f,
+                    "{}",
+                    label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
+                )?;
+
+                let col_width: usize = 8; // Explicitly define col_width as `usize`
+
+                // Print column headers (aligned with columns)
+                write!(f, "         ")?; // Space for row index alignment
+                for j in 0..m.ncols() {
+                    let header = label(&j.to_string()); // Apply color formatting
+                    let header_width: usize = UnicodeWidthStr::width(j.to_string().as_str()); // Get actual width
+                    let padding: usize = col_width.saturating_sub(header_width); // Explicitly declare as usize
+
+                    write!(f, "{}{:width$} ", header, "", width = padding)?; // Corrected alignment
+                }
+                writeln!(f)?; // New line after header
+
+                // Print matrix rows with row indices
+                for (i, row) in m.row_iter().enumerate() {
+                    write!(f, "{:>3} ", label(&i.to_string()))?; // Print row index with spacing
+
+                    for &value in row.iter() {
+                        if value.fract().abs() < 1e-6 {
+                            write!(f, "{:width$.1} ", value, width = col_width)?;
+                        } else {
+                            write!(f, "{:width$.5} ", value, width = col_width)?;
+                        }
+                    }
+                    writeln!(f)?;
+                }
+                Ok(())
+            }
             Value::MultibodySystemBuilder(m) => writeln!(f, "{:?}", m),
             Value::None => writeln!(f, "{}", label("None")),
+            Value::Plot(p) => {
+                let figure = p.lock().unwrap();
+                writeln!(f, "{}", label("Plot"))?;
+                writeln!(f, "{:?}", figure)
+            }
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
                 let start = if let Some(start) = r.start {
@@ -203,42 +245,6 @@ impl std::fmt::Debug for Value {
                 }
                 Ok(())
             }
-            Value::Matrix(m) => {
-                let m = m.lock().unwrap();
-                writeln!(
-                    f,
-                    "{}",
-                    label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
-                )?;
-
-                let col_width: usize = 8; // Explicitly define col_width as `usize`
-
-                // Print column headers (aligned with columns)
-                write!(f, "         ")?; // Space for row index alignment
-                for j in 0..m.ncols() {
-                    let header = label(&j.to_string()); // Apply color formatting
-                    let header_width: usize = UnicodeWidthStr::width(j.to_string().as_str()); // Get actual width
-                    let padding: usize = col_width.saturating_sub(header_width); // Explicitly declare as usize
-
-                    write!(f, "{}{:width$} ", header, "", width = padding)?; // Corrected alignment
-                }
-                writeln!(f)?; // New line after header
-
-                // Print matrix rows with row indices
-                for (i, row) in m.row_iter().enumerate() {
-                    write!(f, "{:>3} ", label(&i.to_string()))?; // Print row index with spacing
-
-                    for &value in row.iter() {
-                        if value.fract().abs() < 1e-6 {
-                            write!(f, "{:width$.1} ", value, width = col_width)?;
-                        } else {
-                            write!(f, "{:width$.5} ", value, width = col_width)?;
-                        }
-                    }
-                    writeln!(f)?;
-                }
-                Ok(())
-            }
 
             Value::String(s) => {
                 let s = s.lock().unwrap();
@@ -290,6 +296,7 @@ impl Value {
             Value::Event(_) => String::from("Event"),
             Value::Map(_) => String::from("Map"),
             Value::MultibodySystemBuilder(_) => String::from("MultibodySystemBuilder"),
+            Value::Plot(_) => "plot".into(),
             Value::Vector(v) => {
                 let v = v.lock().unwrap();
                 let length = v.len();
@@ -1017,7 +1024,7 @@ pub struct Enum {
 pub enum Event {
     Animate,
     CloseAllFigures,
-    NewFigure,
+    NewFigure(Arc<Mutex<Figure>>),
 }
 
 #[derive(Debug, Clone, Error)]

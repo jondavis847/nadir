@@ -15,7 +15,10 @@ use std::{
 use thiserror::Error;
 use time::TimeErrors;
 
-use crate::value::{Event, Linspace, LinspaceErrors, Map, Value, ValueErrors};
+use crate::{
+    plotting::figure::Figure,
+    value::{Event, Linspace, LinspaceErrors, Map, Value, ValueErrors},
+};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
@@ -465,7 +468,8 @@ impl Registry {
         functions.insert(
             "figure",
             vec![FunctionMethod::new(vec![], |_args| {
-                Ok(Value::Event(Event::NewFigure))
+                let figure = Arc::new(Mutex::new(Figure::new()));
+                Ok(Value::Event(Event::NewFigure(figure)))
             })],
         );
 

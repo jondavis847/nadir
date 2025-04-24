@@ -104,7 +104,10 @@ impl NadirRepl {
                         DaemonToRepl::ReplToSubscriptionTx(tx) => {
                             self.channels.repl_to_plot_subscription = Some(tx);
                             break;
-                        } // Handle other message types...
+                        }
+                        _ => unreachable!(
+                            "shouldn't get any other commands until we get past this loop"
+                        ),
                     }
                 }
             }
@@ -162,14 +165,14 @@ impl NadirRepl {
                                                 )?
                                             }
                                         }
-                                        Event::NewFigure => {
+                                        Event::NewFigure(plot) => {
                                             if let Some(repl_to_subscription) =
                                                 &mut self.channels.repl_to_plot_subscription
                                             {
                                                 block_on(
                                                     repl_to_subscription
-                                                        .send(ReplToSubscription::NewFigure),
-                                                )?
+                                                        .send(ReplToSubscription::NewFigure(plot)),
+                                                )?;
                                             }
                                         }
                                         Event::CloseAllFigures => {
@@ -246,10 +249,25 @@ impl NadirRepl {
                 }
                 let expr = inner.next().unwrap();
                 let value = self.parse_expr(expr)?;
-                self.storage
-                    .lock()
-                    .unwrap()
-                    .insert(name.to_string(), value.clone())?;
+
+                // handle event as a value
+                match &value {
+                    Value::Event(event) => match event {
+                        Event::NewFigure(plot) => {
+                            self.storage
+                                .lock()
+                                .unwrap()
+                                .insert(name.to_string(), Value::Plot(plot.clone()))?;
+                        }
+                        _ => eprintln!("cant assign this type"),
+                    },
+                    _ => {
+                        self.storage
+                            .lock()
+                            .unwrap()
+                            .insert(name.to_string(), value.clone())?;
+                    }
+                }
 
                 Ok(value)
             }

@@ -49,9 +49,8 @@ pub enum Message {
     CursorMoved(Id, Point),
     EscapePressed(Id),
     LoadAnimation(Uuid, PathBuf),
-    LoadPlot(Uuid),
     NewAnimation(PathBuf),
-    NewFigure,
+    NewFigure(Arc<Mutex<Figure>>),
     None,
     OpenWindow(Uuid, Size),
     Plot,
@@ -129,6 +128,28 @@ impl WindowManager {
                             NadirProgram::Plot(plot) => plot.set_window_id(id),
                         }
                         self.windows.insert(id, window);
+
+                        // send a handle back to the repl
+                        if let Some(window) = self.windows.get(&id) {
+                            match &window.program {
+                                NadirProgram::Animation(_) => {}
+                                NadirProgram::Plot(plot) => {
+                                    match self
+                                        .channels
+                                        .daemon_to_repl
+                                        .try_send(DaemonToRepl::PlotReady(plot.figure.clone()))
+                                    {
+                                        Ok(_) => {
+                                            // Message sent successfully
+                                        }
+                                        Err(e) => {
+                                            // Handle send error (channel full or closed)
+                                            println!("Failed to send plot handle to REPL: {}", e);
+                                        }
+                                    }
+                                }
+                            };
+                        }
                     }
                 }
 
@@ -187,14 +208,6 @@ impl WindowManager {
                     }
                 }
             }
-            Message::LoadPlot(request_id) => {
-                if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id) {
-                    request.program = Some(NadirProgram::Plot(PlotProgram::new()));
-                    Task::done(Message::CheckRequestReady(request_id))
-                } else {
-                    Task::done(Message::CancelRequest(request_id)) //Todo maybe this doesnt make sense since we didnt find the request id?
-                }
-            }
             Message::NewAnimation(result_path) => {
                 let request_id = Uuid::new_v4();
                 self.window_requests
@@ -207,16 +220,16 @@ impl WindowManager {
                     Task::done(Message::OpenWindow(request_id, Size::new(1280.0, 720.0))),
                 ])
             }
-            Message::NewFigure => {
+            Message::NewFigure(plot) => {
                 let request_id = Uuid::new_v4();
+                let mut window_request = NadirWindowRequest::default();
+                window_request.program = Some(NadirProgram::Plot(PlotProgram::new(plot)));
                 self.window_requests
                     .lock()
                     .unwrap()
                     .insert(request_id, NadirWindowRequest::default());
-                Task::batch([
-                    Task::done(Message::LoadPlot(request_id)),
-                    Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0))),
-                ])
+
+                Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0)))
             }
             Message::None => return Task::none(),
             Message::OpenWindow(request_id, size) => {
@@ -398,9 +411,9 @@ fn plot_subscription() -> impl Stream<Item = Message> {
                             .await
                             .expect("error sending CloseAllFigures from subscription to daemon");
                     }
-                    ReplToSubscription::NewFigure => {
+                    ReplToSubscription::NewFigure(plot) => {
                         output
-                            .send(Message::NewFigure)
+                            .send(Message::NewFigure(plot))
                             .await
                             .expect("error sending NewFigure from subscription to daemon");
                     }
