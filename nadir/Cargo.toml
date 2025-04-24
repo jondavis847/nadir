@@ -17,6 +17,7 @@ egui.workspace = true
 glam.workspace = true
 iced.workspace = true
 image.workspace = true
+inquire.workspace = true
 multibody.workspace = true
 nadir_3d.workspace = true
 nalgebra.workspace = true

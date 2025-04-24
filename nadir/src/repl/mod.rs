@@ -135,7 +135,7 @@ impl NadirRepl {
                         _ => {
                             // Parse the input using the "line" rule.
                             let mut pairs = NadirParser::parse(Rule::line, &line)?;
-
+                            //dbg!(&pairs);
                             if let Some(line_pair) = pairs.next() {
                                 // dbg!(&line_pair);
                                 // get to next level, with is a silent_line or print_line
@@ -445,7 +445,10 @@ impl NadirRepl {
                 let next_pair = pair.into_inner().next().unwrap();
                 let value = self.parse_expr(next_pair)?;
                 self.ans = value.clone();
-                println!("{:?}", value);
+                match value {
+                    Value::None => {} // do nothing
+                    _ => println!("{:?}", value),
+                }
                 Ok(value)
             }
             Rule::silent_line => {
@@ -556,11 +559,12 @@ impl NadirRepl {
         };
 
         if let Some(struct_name) = struct_name {
-            Ok(self
-                .registry
-                .lock()
-                .unwrap()
-                .eval_struct_method(struct_name, fn_name, args)?)
+            Ok(self.registry.lock().unwrap().eval_struct_method(
+                struct_name,
+                fn_name,
+                args,
+                self.pwd.clone(),
+            )?)
         } else {
             Ok(self.registry.lock().unwrap().eval_function(fn_name, args)?)
         }

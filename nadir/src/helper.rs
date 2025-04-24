@@ -1,5 +1,5 @@
 use rustyline::Context;
-use rustyline::completion::{Completer, FilenameCompleter};
+use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
 use rustyline::validate::MatchingBracketValidator;
@@ -65,7 +65,6 @@ pub struct FunctionCompleter {
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
     current_dir: Arc<Mutex<PathBuf>>,
-    filename_completer: FilenameCompleter,
 }
 
 impl FunctionCompleter {
@@ -78,7 +77,6 @@ impl FunctionCompleter {
             registry,
             storage,
             current_dir,
-            filename_completer: FilenameCompleter::new(),
         }
     }
 
@@ -90,18 +88,6 @@ impl FunctionCompleter {
     //         .cloned()
     //         .collect()
     // }
-
-    // Add this method
-    fn complete_path(
-        &self,
-        line: &str,
-        pos: usize,
-        ctx: &Context<'_>,
-    ) -> Result<(usize, Vec<String>), ReadlineError> {
-        let (offset, completions) = self.filename_completer.complete(line, pos, ctx)?;
-        let string_completions = completions.into_iter().map(|c| c.replacement).collect();
-        Ok((offset, string_completions))
-    }
 
     /// Helper to complete struct names
     fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
@@ -239,6 +225,44 @@ impl FunctionCompleter {
             })
             .collect()
     }
+
+    // Helper to check if character is any kind of slash
+    fn is_any_slash(c: char) -> bool {
+        c == '/' || c == '\\'
+    }
+
+    // Helper to detect any kind of slash in a string
+    fn contains_any_slash(s: &str) -> bool {
+        s.contains('/') || s.contains('\\')
+    }
+
+    // Helper to find the last slash of either type
+    fn rfind_any_slash(s: &str) -> Option<usize> {
+        s.rfind('/').or_else(|| s.rfind('\\'))
+    }
+
+    // Helper to determine which slash type the user prefers (based on last used)
+    fn preferred_slash(path_part: &str) -> char {
+        if path_part.rfind('/').is_some() {
+            '/'
+        } else if path_part.rfind('\\').is_some() {
+            '\\'
+        } else {
+            std::path::MAIN_SEPARATOR
+        }
+    }
+
+    // Convert string path with any slash to PathBuf
+    fn string_to_pathbuf(path: &str) -> PathBuf {
+        // Use a consistent separator for OS operations
+        #[cfg(unix)]
+        let normalized = path.replace('\\', "/");
+
+        #[cfg(windows)]
+        let normalized = path.replace('/', "\\");
+
+        PathBuf::from(normalized)
+    }
 }
 
 impl Completer for FunctionCompleter {
@@ -248,7 +272,7 @@ impl Completer for FunctionCompleter {
         &self,
         line: &str,
         pos: usize,
-        ctx: &Context<'_>,
+        _ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
         // Check if we need path completion
         if line.starts_with("cd ") || line.starts_with("ls ") {
@@ -263,6 +287,9 @@ impl Completer for FunctionCompleter {
             // Extract the path part being typed
             let path_part = &line[path_start..pos];
 
+            // Determine user's preferred slash style
+            let preferred_slash = Self::preferred_slash(path_part);
+
             // Get the current directory
             let current = self.current_dir.lock().unwrap().clone();
 
@@ -270,27 +297,35 @@ impl Completer for FunctionCompleter {
             let mut matches = Vec::new();
 
             // Create the directory to search in
-            let search_dir = if path_part.contains('/') || path_part.contains('\\') {
+            let search_dir = if Self::contains_any_slash(path_part) {
                 // If there's a separator in the path, we need to resolve relative to current dir
                 let mut full_path = current.clone();
 
                 // Handle special paths
-                if path_part.starts_with("~/") || path_part.starts_with("~\\") {
+                if path_part.starts_with("~")
+                    && path_part.len() > 1
+                    && Self::is_any_slash(path_part.chars().nth(1).unwrap_or('\0'))
+                {
                     if let Some(home) = dirs::home_dir() {
                         full_path = home;
-                        // Remove the ~ from path_part for matching
+                        // Remove the ~ and slash from path_part for matching
                         let path_suffix = &path_part[2..];
                         if !path_suffix.is_empty() {
-                            full_path.push(path_suffix);
+                            // Use PathBuf::push which handles OS-specific path handling
+                            let path_to_add = Self::string_to_pathbuf(path_suffix);
+                            full_path.push(path_to_add);
                         }
                     }
-                } else if path_part.starts_with('/') || path_part.starts_with('\\') {
+                } else if path_part.len() > 0
+                    && Self::is_any_slash(path_part.chars().next().unwrap())
+                {
                     // Absolute path
                     #[cfg(unix)]
                     {
                         full_path = PathBuf::from("/");
                         if path_part.len() > 1 {
-                            full_path.push(&path_part[1..]);
+                            let path_to_add = Self::string_to_pathbuf(&path_part[1..]);
+                            full_path.push(path_to_add);
                         }
                     }
                     #[cfg(windows)]
@@ -299,18 +334,19 @@ impl Completer for FunctionCompleter {
                         if let Some(root) = current.components().next() {
                             full_path = PathBuf::from(root.as_os_str());
                             if path_part.len() > 1 {
-                                full_path.push(&path_part[1..]);
+                                let path_to_add = Self::string_to_pathbuf(&path_part[1..]);
+                                full_path.push(path_to_add);
                             }
                         }
                     }
                 } else {
                     // Relative path with directory component
-                    let last_sep = path_part
-                        .rfind('/')
-                        .or_else(|| path_part.rfind('\\'))
-                        .unwrap();
-                    let dir_part = &path_part[..=last_sep];
-                    full_path.push(dir_part);
+                    if let Some(last_sep) = Self::rfind_any_slash(path_part) {
+                        let dir_part = &path_part[..=last_sep];
+                        // Convert to PathBuf using our helper
+                        let path_to_add = Self::string_to_pathbuf(dir_part);
+                        full_path.push(path_to_add);
+                    }
                 }
 
                 full_path
@@ -320,12 +356,12 @@ impl Completer for FunctionCompleter {
             };
 
             // Get the prefix to match against file names
-            let name_prefix = if path_part.contains('/') || path_part.contains('\\') {
-                path_part
-                    .rfind('/')
-                    .or_else(|| path_part.rfind('\\'))
-                    .map(|i| &path_part[i + 1..])
-                    .unwrap_or(path_part)
+            let name_prefix = if Self::contains_any_slash(path_part) {
+                if let Some(i) = Self::rfind_any_slash(path_part) {
+                    &path_part[i + 1..]
+                } else {
+                    path_part
+                }
             } else {
                 path_part
             };
@@ -337,24 +373,22 @@ impl Completer for FunctionCompleter {
                         if let Some(name) = entry.file_name().to_str() {
                             if name.starts_with(name_prefix) {
                                 // Compute the completion text
-                                let base_path =
-                                    if path_part.contains('/') || path_part.contains('\\') {
-                                        let last_sep = path_part
-                                            .rfind('/')
-                                            .or_else(|| path_part.rfind('\\'))
-                                            .unwrap();
+                                let base_path = if Self::contains_any_slash(path_part) {
+                                    if let Some(last_sep) = Self::rfind_any_slash(path_part) {
                                         path_part[..=last_sep].to_string()
                                     } else {
                                         String::new()
-                                    };
+                                    }
+                                } else {
+                                    String::new()
+                                };
 
-                                // Build the completion
+                                // Build the completion - maintaining user's preferred slash
                                 let mut completion = format!("{}{}", base_path, name);
 
-                                // Add a trailing slash for directories
+                                // Add a trailing slash for directories using the user's preferred slash
                                 if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                                    use std::path::MAIN_SEPARATOR;
-                                    completion.push(MAIN_SEPARATOR);
+                                    completion.push(preferred_slash);
                                 }
 
                                 matches.push(completion);

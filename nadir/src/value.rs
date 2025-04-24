@@ -142,18 +142,49 @@ impl std::fmt::Debug for Value {
                 writeln!(f, "step: {}", step)
             }
             Value::Vector(v) => {
-                let v = v.lock().unwrap();
-                writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
-                for (i, e) in v.iter().enumerate() {
+                // Helper function to format a single vector element
+                fn format_vector_element(
+                    f: &mut std::fmt::Formatter<'_>,
+                    index: usize,
+                    value: f64,
+                ) -> std::fmt::Result {
                     // Check if the fractional part is effectively 0
-                    if e.fract().abs() < std::f64::EPSILON {
+                    if value.fract().abs() < std::f64::EPSILON {
                         // Print with one decimal place (appending ".0")
-                        writeln!(f, "{} {:.1}", label(&i.to_string()), e)?;
+                        writeln!(f, "{} {:.1}", label(&index.to_string()), value)
                     } else {
                         // Print the full decimal representation
-                        writeln!(f, "{} {}", label(&i.to_string()), e)?;
+                        writeln!(f, "{} {}", label(&index.to_string()), value)
                     }
                 }
+                let v = v.lock().unwrap();
+                writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
+
+                // Determine how many entries to display
+                let len = v.len();
+
+                if len <= 20 {
+                    // For smaller vectors, display all elements
+                    for (i, e) in v.iter().enumerate() {
+                        format_vector_element(f, i, *e)?;
+                    }
+                } else {
+                    // For larger vectors, display first 10, ellipsis, last 10
+
+                    // Display first 10 elements
+                    for i in 0..10 {
+                        format_vector_element(f, i, v[i])?;
+                    }
+
+                    // Display ellipsis
+                    writeln!(f, ":")?;
+
+                    // Display last 10 elements
+                    for i in (len - 10)..len {
+                        format_vector_element(f, i, v[i])?;
+                    }
+                }
+
                 Ok(())
             }
             Value::VectorUsize(v) => {

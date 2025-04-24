@@ -34,18 +34,19 @@ comparator = { gt | gte | lt | lte}
 
 comparison = { additive ~ comparator ~ additive }
 
-expr = _{ 
+expr = _{       
     &(primary ~ EOI) ~ primary 
-    | comparison 
+    | comparison     
     | additive
+    | command
 }
 
 string = @{ "\"" ~ (escaped_char | !("\"" | "\\") ~ ANY)* ~ "\"" }
 escaped_char   = { "\\" ~ ANY }
 
-assignment = { "let " ~ identifier ~ "=" ~ expr }
+assignment = { identifier ~ "=" ~ expr }
 
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ !command_name ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
 number = _{ float | integer }
@@ -57,7 +58,7 @@ space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)* }
 function_call = { identifier ~ "(" ~ arguments? ~ ")" }
 arguments = { comma_separated }
 
-command_name = @{ identifier }
+command_name = @{ "cd" | "ls" | "pwd" | "help" }
 command_argument = @{ (!WHITE_SPACE ~ ANY)+ }
 command_with_args = { command_name ~ command_argument+ }
 command_without_args = { command_name }
@@ -68,7 +69,7 @@ instance_field = { identifier ~ "." ~ identifier }
 instance_call = { identifier ~ "." ~ function_call}
 enumeration = { identifier ~ "::" ~ identifier}
 
-line = { command | silent_line | print_line}
+line = { silent_line | print_line }
 silent_line = { (assignment | expr) ~ ";" }
 print_line = { assignment | expr }
 

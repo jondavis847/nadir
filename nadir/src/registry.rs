@@ -1,3 +1,5 @@
+use csv::ReaderBuilder;
+use inquire::Select;
 use nalgebra::{DMatrix, DVector};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
@@ -5,8 +7,9 @@ use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::{
     collections::HashMap,
     ffi::OsString,
-    fs,
-    path::PathBuf,
+    fs::{self, File},
+    io::BufReader,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
@@ -42,11 +45,13 @@ pub enum RegistryErrors {
     ValueErrors(#[from] ValueErrors),
     #[error("{0} should have {1} arguments")]
     WrongNumberArgs(String, String),
+    #[error("{0}")]
+    Error(#[from] Box<dyn std::error::Error>),
 }
 
 // Types for method implementations
 type FunctionFn = fn(Vec<Value>) -> Result<Value, RegistryErrors>;
-type StructMethodFn = fn(Vec<Value>) -> Result<Value, RegistryErrors>;
+type StructMethodFn = fn(Vec<Value>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 type InstanceMethodFn = fn(Value, Vec<Value>) -> Result<Value, RegistryErrors>;
 
 #[derive(Default, Debug)]
@@ -155,7 +160,7 @@ impl Registry {
                     Argument::new("stop", "f64"),
                     Argument::new("step", "f64"),
                 ],
-                |args| {
+                |args, _pwd| {
                     let start = args[0].as_f64()?;
                     let stop = args[1].as_f64()?;
                     let step = args[2].as_f64()?;
@@ -175,7 +180,7 @@ impl Registry {
         let mut map_struct_methods = HashMap::new();
         map_struct_methods.insert(
             "new",
-            vec![StructMethod::new(vec![], |_args| {
+            vec![StructMethod::new(vec![], |_args, _pwd| {
                 Ok(Value::Map(Arc::new(Mutex::new(Map::new()))))
             })],
         );
@@ -214,7 +219,7 @@ impl Registry {
         matrix_struct_methods.insert(
             "rand",
             vec![
-                StructMethod::new(vec![Argument::new("n", "i64")], |args| {
+                StructMethod::new(vec![Argument::new("n", "i64")], |args, _pwd| {
                     let n = args[0].as_usize()?;
                     let mut rng = rand::rng();
                     let data: Vec<f64> = (0..(n * n)).map(|_| rng.random()).collect();
@@ -223,7 +228,7 @@ impl Registry {
                 }),
                 StructMethod::new(
                     vec![Argument::new("m", "i64"), Argument::new("n", "i64")],
-                    |args| {
+                    |args, _pwd| {
                         let rows = args[0].as_usize()?;
                         let cols = args[1].as_usize()?;
                         let mut rng = rand::rng();
@@ -237,7 +242,7 @@ impl Registry {
         matrix_struct_methods.insert(
             "randn",
             vec![
-                StructMethod::new(vec![Argument::new("n", "i64")], |args| {
+                StructMethod::new(vec![Argument::new("n", "i64")], |args, _pwd| {
                     let n = args[0].as_usize()?;
                     let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0 / 3.0).unwrap();
@@ -247,7 +252,7 @@ impl Registry {
                 }),
                 StructMethod::new(
                     vec![Argument::new("m", "i64"), Argument::new("n", "i64")],
-                    |args| {
+                    |args, _pwd| {
                         let rows = args[0].as_usize()?;
                         let cols = args[1].as_usize()?;
                         let mut rng = rand::rng();
@@ -278,7 +283,7 @@ impl Registry {
                     Argument::new("z", "f64"),
                     Argument::new("w", "f64"),
                 ],
-                |args| {
+                |args, _pwd| {
                     Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::new(
                         args[0].as_f64()?,
                         args[1].as_f64()?,
@@ -290,7 +295,7 @@ impl Registry {
         );
         quaternion_struct_methods.insert(
             "rand",
-            vec![StructMethod::new(vec![], |_| {
+            vec![StructMethod::new(vec![], |_, _pwd| {
                 Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
             })],
         );
@@ -309,7 +314,7 @@ impl Registry {
             "load",
             vec![StructMethod::new(
                 vec![Argument::new("file", "String")],
-                |args| {
+                |args, _pwd| {
                     let file = std::env::current_dir().unwrap().join(args[0].as_string()?);
 
                     Ok(Value::None)
@@ -345,7 +350,7 @@ impl Registry {
                     Argument::new("z", "f64"),
                     Argument::new("w", "f64"),
                 ],
-                |args| {
+                |args, _pwd| {
                     Ok(Value::UnitQuaternion(Arc::new(Mutex::new(
                         UnitQuaternion::new(
                             args[0].as_f64()?,
@@ -359,7 +364,7 @@ impl Registry {
         );
         unit_quaternion_struct_methods.insert(
             "rand",
-            vec![StructMethod::new(vec![], |_args| {
+            vec![StructMethod::new(vec![], |_args, _pwd| {
                 Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
             })],
         );
@@ -386,26 +391,57 @@ impl Registry {
         let mut vector_struct_methods = HashMap::new();
         vector_struct_methods.insert(
             "rand",
-            vec![StructMethod::new(vec![Argument::new("n", "i64")], |args| {
-                let mut rng = rand::rng();
-                let vector =
-                    DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
-                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
-            })],
+            vec![StructMethod::new(
+                vec![Argument::new("n", "i64")],
+                |args, _pwd| {
+                    let mut rng = rand::rng();
+                    let vector =
+                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
+                    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+                },
+            )],
         );
         vector_struct_methods.insert(
             "randn",
-            vec![StructMethod::new(vec![Argument::new("n", "i64")], |args| {
-                let size = args[0].as_usize()?;
+            vec![StructMethod::new(
+                vec![Argument::new("n", "i64")],
+                |args, _pwd| {
+                    let size = args[0].as_usize()?;
 
-                let mut rng = rand::rng();
-                let normal = Normal::new(0.0, 1.0).unwrap();
-                let vector =
-                    DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
-                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+                    let mut rng = rand::rng();
+                    let normal = Normal::new(0.0, 1.0).unwrap();
+                    let vector =
+                        DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
+                    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+                },
+            )],
+        );
+        vector_struct_methods.insert(
+            "from_csv",
+            vec![StructMethod::new(vec![], |_args, pwd| {
+                let pwd = &*pwd.lock().unwrap();
+                // Start the file selection loop
+                let selected_file = navigate_and_select_file(pwd)?;
+
+                // Load and process the selected file
+                let file_ext = selected_file
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .unwrap_or("");
+
+                let v = match file_ext {
+                    "csv" => load_csv_file(&selected_file)?,
+                    "txt" => load_txt_file(&selected_file)?,
+                    "42" => load_42_file(&selected_file)?,
+                    _ => {
+                        return Err(RegistryErrors::Error(
+                            format!("Unsupported file extension: {}", file_ext).into(),
+                        ));
+                    }
+                };
+                Ok(v)
             })],
         );
-
         let vector_instance_methods = HashMap::new();
         structs.insert(
             "Vector",
@@ -560,6 +596,7 @@ impl Registry {
         struct_name: &str,
         method_name: &str,
         mut args: Vec<Value>,
+        pwd: Arc<Mutex<PathBuf>>,
     ) -> Result<Value, RegistryErrors> {
         // Get the struct from the registry, or return an error if not found
         let struc = self
@@ -598,7 +635,7 @@ impl Registry {
             }
 
             // If we get here, we've found a matching signature. Call the implementation.
-            return (method.implementation)(args);
+            return (method.implementation)(args, pwd);
         }
 
         // If we exhaust all overloads without finding a match:
@@ -751,4 +788,255 @@ fn display_in_columns(entries: &[String], terminal_width: usize) -> String {
     }
 
     result
+}
+
+// Function to navigate directories and select a file
+fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let mut current_dir = start_dir.to_path_buf();
+
+    loop {
+        // Read directory contents
+        let entries = fs::read_dir(&current_dir)?;
+
+        // Filter and collect valid entries
+        let mut valid_entries = Vec::new();
+        let parent_dir = current_dir.parent().map(|p| p.to_path_buf());
+
+        // Add parent directory option if not at root
+        if parent_dir.is_some() {
+            valid_entries.push(("..".to_string(), None));
+        }
+
+        // Add directories and valid files
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+            let file_type = entry.file_type()?;
+
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("[Invalid Name]")
+                .to_string();
+
+            if file_type.is_dir() {
+                valid_entries.push((format!("{}/", name), Some(path)));
+            } else if file_type.is_file() {
+                // Check if file has a valid extension
+                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    if ["csv", "txt", "42"].contains(&ext) {
+                        valid_entries.push((name, Some(path)));
+                    }
+                }
+            }
+        }
+
+        // Sort entries with parent directory first, files second, and directories last
+        valid_entries.sort_by(|(name_a, _), (name_b, _)| {
+            // Special case: Parent directory (..) always comes first
+            if name_a == ".." {
+                return std::cmp::Ordering::Less;
+            }
+            if name_b == ".." {
+                return std::cmp::Ordering::Greater;
+            }
+
+            let is_dir_a = name_a.ends_with('/');
+            let is_dir_b = name_b.ends_with('/');
+
+            match (is_dir_a, is_dir_b) {
+                // If one is a directory and one is a file, put files before directories
+                (true, false) => std::cmp::Ordering::Greater, // Changed from Less to Greater
+                (false, true) => std::cmp::Ordering::Less,    // Changed from Greater to Less
+
+                // If both are the same type, sort alphabetically
+                _ => name_a.cmp(name_b),
+            }
+        });
+
+        // Extract just the display names for selection
+        let options: Vec<&str> = valid_entries
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+
+        // No valid options? Return an error
+        if options.is_empty() {
+            return Err("No valid files or directories found.".to_string().into());
+        }
+
+        // Prompt user to select an entry
+        let selection = Select::new("Select a file or directory:", options)
+            .prompt()
+            .map_err(|e| format!("Selection failed: {}", e))?;
+
+        // Find the selected entry directly from valid_entries
+        let selected_idx = valid_entries
+            .iter()
+            .position(|(name, _)| name.as_str() == selection)
+            .ok_or("Selection not found")?;
+
+        // Handle the selection
+        match &valid_entries[selected_idx] {
+            (name, None) if name == ".." => {
+                // Go up to parent directory
+                if let Some(parent) = parent_dir {
+                    current_dir = parent;
+                }
+            }
+            (_, Some(path)) if path.is_dir() => {
+                // Navigate into the selected directory
+                current_dir = path.clone();
+            }
+            (_, Some(path)) => {
+                // Selected a file, return it
+                return Ok(path.clone());
+            }
+            _ => {
+                return Err("Invalid selection".to_string().into());
+            }
+        }
+    }
+}
+
+// Function to load CSV files
+fn load_csv_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
+    // Open the file
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    // Create a CSV reader
+    let mut csv_reader = ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(reader);
+
+    // Check if the file has headers
+    let headers = csv_reader.headers().map(|h| h.clone()).ok();
+
+    let column_options = if let Some(headers) = &headers {
+        // File has headers - offer them as options
+        headers
+            .iter()
+            .enumerate()
+            .map(|(i, h)| format!("{}: {}", i + 1, h))
+            .collect::<Vec<_>>()
+    } else {
+        let record = csv_reader
+            .records()
+            .next()
+            .ok_or_else(|| "CSV file appears to be empty".to_string())?
+            .map_err(|e| format!("Failed to read CSV: {}", e))?;
+
+        (1..=record.len())
+            .map(|i| format!("Column {}", i))
+            .collect()
+    };
+
+    // Prompt user to select a column
+    let column_selection = Select::new("Select a column to load:", column_options)
+        .prompt()
+        .map_err(|e| format!("Selection failed: {}", e))?;
+
+    // Extract the column index from the selection string
+    let column_idx = if column_selection.starts_with("Column ") {
+        // Parse from "Column X"
+        column_selection[7..]
+            .parse::<usize>()
+            .map_err(|_| "Failed to parse column index".to_string())?
+            - 1
+    } else {
+        // Parse from "X: Header"
+        column_selection
+            .split(':')
+            .next()
+            .and_then(|s| s.parse::<usize>().ok())
+            .map(|i| i - 1)
+            .ok_or("Failed to parse column index".to_string())?
+    };
+
+    // Reset and reopen the CSV reader
+    let file = File::open(file_path).map_err(|e| format!("Failed to reopen file: {}", e))?;
+    let reader = BufReader::new(file);
+    let mut csv_reader = ReaderBuilder::new()
+        .has_headers(headers.is_some())
+        .from_reader(reader);
+
+    // Skip header row if needed
+    if headers.is_some() {
+        let _ = csv_reader.headers();
+    }
+
+    // Read the selected column into a vector
+    let mut values = Vec::new();
+
+    for result in csv_reader.records() {
+        let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
+
+        if column_idx < record.len() {
+            // Try to parse the value as a floating point number
+            let value_str = record.get(column_idx).unwrap_or_default();
+            values.push(value_str.parse::<f64>()?);
+        } else {
+            return Err(format!("Column index {} out of bounds", column_idx + 1).into());
+        }
+    }
+
+    // Create DVector from the values
+    let vector = DVector::from_vec(values);
+    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+}
+
+// Function to load TXT files
+fn load_txt_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string(file_path)
+        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
+
+    // Split the content by lines and/or whitespace
+    let values: Result<Vec<f64>, _> = contents
+        .lines()
+        .flat_map(|line| line.split_whitespace())
+        .map(|s| {
+            s.parse::<f64>()
+                .map_err(|_| format!("Invalid number: '{}'", s))
+        })
+        .collect();
+
+    let values = values?;
+
+    if values.is_empty() {
+        return Err("File contains no valid numeric values".to_string().into());
+    }
+
+    // Create DVector from the values
+    let vector = DVector::from_vec(values);
+    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+}
+
+// Function to load .42 files (assuming this is a custom format)
+fn load_42_file(file_path: &PathBuf) -> Result<Value, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string(file_path)
+        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
+
+    // Parse your custom .42 file format here
+    // This is just a placeholder implementation assuming .42 files are similar to txt files
+    let values: Result<Vec<f64>, _> = contents
+        .lines()
+        .filter(|line| !line.trim().starts_with('#')) // Skip comment lines
+        .flat_map(|line| line.split_whitespace())
+        .map(|s| {
+            s.parse::<f64>()
+                .map_err(|_| format!("Invalid number: '{}'", s))
+        })
+        .collect();
+
+    let values = values?;
+
+    if values.is_empty() {
+        return Err("File contains no valid numeric values".to_string().into());
+    }
+
+    // Create DVector from the values
+    let vector = DVector::from_vec(values);
+    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
 }
