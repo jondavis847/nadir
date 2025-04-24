@@ -57,12 +57,18 @@ space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)* }
 function_call = { identifier ~ "(" ~ arguments? ~ ")" }
 arguments = { comma_separated }
 
+command_name = @{ identifier }
+command_argument = @{ (!WHITE_SPACE ~ ANY)+ }
+command_with_args = { command_name ~ command_argument+ }
+command_without_args = { command_name }
+command = { command_with_args | command_without_args }
+
 struct_call = { identifier ~ "::" ~ function_call}
 instance_field = { identifier ~ "." ~ identifier }
 instance_call = { identifier ~ "." ~ function_call}
 enumeration = { identifier ~ "::" ~ identifier}
 
-line = { silent_line | print_line }
+line = { command | silent_line | print_line}
 silent_line = { (assignment | expr) ~ ";" }
 print_line = { assignment | expr }
 

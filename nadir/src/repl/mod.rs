@@ -245,6 +245,21 @@ impl NadirRepl {
 
                 Ok(value)
             }
+            Rule::command => {
+                let mut inner = pair.into_inner();
+                let mut has_args_pair = inner.next().unwrap().into_inner();
+                let cmd_name = has_args_pair.next().unwrap().as_str();
+                let mut args = Vec::new();
+                while let Some(arg) = has_args_pair.next() {
+                    args.push(arg.as_str().to_string())
+                }
+                // Execute the command
+                Ok(self
+                    .registry
+                    .lock()
+                    .unwrap()
+                    .eval_command(cmd_name, args, &mut self.pwd)?)
+            }
             Rule::comparison => {
                 let mut inner_pairs = pair.into_inner();
                 // The first additive (e.g. `a`)

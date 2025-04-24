@@ -4,6 +4,9 @@ use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::{
     collections::HashMap,
+    ffi::OsString,
+    fs,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
@@ -13,20 +16,32 @@ use crate::value::{Event, Linspace, LinspaceErrors, Map, Value, ValueErrors};
 
 #[derive(Debug, Error)]
 pub enum RegistryErrors {
+    #[error("command '{0}' not found")]
+    CommandNotFound(String),
     #[error("function '{0}' not found")]
     FunctionNotFound(String),
-    #[error("struct '{0}' not found")]
-    StructNotFound(String),
+    #[error("{0}")]
+    IoError(#[from] std::io::Error),
     #[error("{0}")]
     LinspaceErrors(#[from] LinspaceErrors),
     #[error("method '{1}' not found for struct '{0}'")]
     MethodNotFound(String, String),
+    #[error("path {0} could not canonicalize")]
+    PathCouldntCanonicalize(String),
+    #[error("path {0} does not exist")]
+    PathDoesNotExist(String),
+    #[error("path {0} is not a directory")]
+    PathIsNotADir(String),
     #[error("{0}")]
     QuaternionErrors(#[from] QuaternionErrors),
+    #[error("struct '{0}' not found")]
+    StructNotFound(String),
     #[error("{0}")]
     TimeErrors(#[from] TimeErrors),
     #[error("{0}")]
     ValueErrors(#[from] ValueErrors),
+    #[error("{0} should have {1} arguments")]
+    WrongNumberArgs(String, String),
 }
 
 // Types for method implementations
@@ -107,9 +122,22 @@ impl Argument {
     }
 }
 
+#[derive(Debug)]
+pub struct CommandMethod {
+    pub implementation: CommandFn,
+}
+impl CommandMethod {
+    fn new(implementation: CommandFn) -> Self {
+        Self { implementation }
+    }
+}
+
+type CommandFn = fn(Vec<String>, &mut PathBuf) -> Result<Value, RegistryErrors>;
+
 pub struct Registry {
     pub structs: HashMap<&'static str, Struct>,
     pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
+    pub commands: HashMap<&'static str, CommandMethod>, // basically the same as functions, just different syntax
 }
 
 impl Registry {
@@ -405,7 +433,135 @@ impl Registry {
             })],
         );
 
-        Self { structs, functions }
+        // Commands like cd . etc,
+        let mut commands = HashMap::new();
+        commands.insert(
+            "cd",
+            CommandMethod::new(|args, path| {
+                use std::fs;
+                use std::path::{Path, PathBuf};
+
+                if args.len() != 1 {
+                    return Err(RegistryErrors::WrongNumberArgs(
+                        "cd".to_string(),
+                        "1".to_string(),
+                    ));
+                }
+
+                let input_path = &args[0];
+                let new_path: PathBuf = if input_path == "~" {
+                    // Handle home directory
+                    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+                } else if input_path == ".." {
+                    // Go up one directory
+                    path.parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| path.clone())
+                } else if input_path == "." {
+                    // Stay in current directory
+                    path.clone()
+                } else if Path::new(&input_path).is_absolute() {
+                    // Absolute path
+                    PathBuf::from(input_path)
+                } else {
+                    // Relative path
+                    let mut new_path = path.clone();
+                    new_path.push(input_path);
+                    new_path
+                };
+
+                // Verify the directory exists
+                if !new_path.exists() {
+                    return Err(RegistryErrors::PathDoesNotExist(
+                        new_path.to_string_lossy().to_string(),
+                    ));
+                }
+
+                if !new_path.is_dir() {
+                    return Err(RegistryErrors::PathIsNotADir(
+                        new_path.to_string_lossy().to_string(),
+                    ));
+                }
+
+                // Canonicalize the path to resolve any symlinks or relative components
+                match fs::canonicalize(&new_path) {
+                    Ok(canonical_path) => {
+                        *path = canonical_path;
+                        let mut path_string = path.to_string_lossy().to_string();
+                        if cfg!(windows) && path_string.starts_with(r"\\?\") {
+                            path_string = path_string[4..].to_string();
+                        }
+                        println!("{path_string}");
+                        Ok(Value::None)
+                    }
+                    Err(_e) => Err(RegistryErrors::PathCouldntCanonicalize(
+                        new_path.to_string_lossy().to_string(),
+                    )),
+                }
+            }),
+        );
+        commands.insert(
+            "pwd",
+            CommandMethod::new(|_args, path| {
+                let path_string = path.to_string_lossy().to_string();
+                println!("{path_string}");
+                Ok(Value::None)
+            }),
+        );
+
+        commands.insert(
+            "ls",
+            CommandMethod::new(|args, path| {
+                if args.len() > 1 {
+                    return Err(RegistryErrors::WrongNumberArgs(
+                        "ls".to_string(),
+                        "0-1".to_string(),
+                    ));
+                }
+
+                let path = if args.is_empty() {
+                    path
+                } else {
+                    &mut path.join(&args[0])
+                };
+                if !path.exists() {
+                    return Err(RegistryErrors::PathDoesNotExist(
+                        path.to_string_lossy().to_string(),
+                    ));
+                }
+
+                let mut entries = Vec::new();
+
+                for entry in fs::read_dir(path)? {
+                    let entry = entry?;
+                    let file_type = entry.file_type()?;
+                    let file_name = entry.file_name().into_string().unwrap();
+
+                    let display_name = if file_type.is_dir() {
+                        format!("\x1b[1;34m{}/\x1b[0m", file_name)
+                    } else {
+                        file_name
+                    };
+
+                    entries.push(display_name);
+                }
+
+                // Sort entries alphabetically
+                entries.sort();
+
+                // Print all entries
+                for name in entries {
+                    println!("{}", name);
+                }
+                Ok(Value::None)
+            }),
+        );
+
+        Self {
+            structs,
+            functions,
+            commands,
+        }
     }
 }
 
@@ -551,5 +707,20 @@ impl Registry {
         }
         // If we exhaust all overloads without finding a match:
         Err(RegistryErrors::FunctionNotFound(function_name.to_string()))
+    }
+
+    pub fn eval_command(
+        &self,
+        cmd_name: &str,
+        args: Vec<String>,
+        pwd: &mut PathBuf,
+    ) -> Result<Value, RegistryErrors> {
+        // Get the struct from the registry, or return an error if not found
+        let method = self
+            .commands
+            .get(cmd_name)
+            .ok_or_else(|| RegistryErrors::CommandNotFound(cmd_name.to_string()))?;
+
+        (method.implementation)(args, pwd)
     }
 }
