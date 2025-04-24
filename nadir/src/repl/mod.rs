@@ -33,18 +33,22 @@ pub struct NadirRepl {
     ans: Value,
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
-    pwd: PathBuf,
+    pwd: Arc<Mutex<PathBuf>>,
     channels: ReplChannels,
 }
 
 impl NadirRepl {
-    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
+    pub fn new(
+        registry: Arc<Mutex<Registry>>,
+        storage: Arc<Mutex<Storage>>,
+        pwd: Arc<Mutex<PathBuf>>,
+    ) -> Self {
         Self {
             ans: Value::None,
             registry,
             storage,
             channels: ReplChannels::default(),
-            pwd: std::env::current_dir().expect("couldn't get the current directory"),
+            pwd,
         }
     }
 
@@ -63,7 +67,11 @@ impl NadirRepl {
             .completion_type(CompletionType::List)
             .edit_mode(EditMode::Emacs)
             .build();
-        let h = NadirHelper::new(self.registry.clone(), self.storage.clone());
+        let h = NadirHelper::new(
+            self.registry.clone(),
+            self.storage.clone(),
+            self.pwd.clone(),
+        );
 
         // `()` can be used when no completer is required
         let mut rl = Editor::with_config(config)?;
@@ -258,7 +266,7 @@ impl NadirRepl {
                     .registry
                     .lock()
                     .unwrap()
-                    .eval_command(cmd_name, args, &mut self.pwd)?)
+                    .eval_command(cmd_name, args, self.pwd.clone())?)
             }
             Rule::comparison => {
                 let mut inner_pairs = pair.into_inner();

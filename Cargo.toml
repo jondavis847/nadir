@@ -90,6 +90,7 @@ serde = {version = "1.0.215" , features = ["derive", "rc"]}
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"} 
+term_size = "0.3.2"
 thiserror = "2.0.12"
 time = {path = "time"} 
 transforms = {path = "transforms"} 

@@ -1,10 +1,11 @@
 use rustyline::Context;
-use rustyline::completion::Completer;
+use rustyline::completion::{Completer, FilenameCompleter};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
 use rustyline::validate::MatchingBracketValidator;
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::registry::Registry;
@@ -21,9 +22,13 @@ pub struct NadirHelper {
 }
 
 impl NadirHelper {
-    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
+    pub fn new(
+        registry: Arc<Mutex<Registry>>,
+        storage: Arc<Mutex<Storage>>,
+        current_dir: Arc<Mutex<PathBuf>>,
+    ) -> Self {
         NadirHelper {
-            completer: FunctionCompleter::new(registry, storage),
+            completer: FunctionCompleter::new(registry, storage, current_dir),
             highlighter: MatchingBracketHighlighter::new(),
             colored_prompt: "".to_owned(),
             validator: MatchingBracketValidator::new(),
@@ -59,11 +64,22 @@ impl Highlighter for NadirHelper {
 pub struct FunctionCompleter {
     registry: Arc<Mutex<Registry>>,
     storage: Arc<Mutex<Storage>>,
+    current_dir: Arc<Mutex<PathBuf>>,
+    filename_completer: FilenameCompleter,
 }
 
 impl FunctionCompleter {
-    pub fn new(registry: Arc<Mutex<Registry>>, storage: Arc<Mutex<Storage>>) -> Self {
-        Self { registry, storage }
+    pub fn new(
+        registry: Arc<Mutex<Registry>>,
+        storage: Arc<Mutex<Storage>>,
+        current_dir: Arc<Mutex<PathBuf>>,
+    ) -> Self {
+        Self {
+            registry,
+            storage,
+            current_dir,
+            filename_completer: FilenameCompleter::new(),
+        }
     }
 
     // /// Helper to complete function names
@@ -74,6 +90,18 @@ impl FunctionCompleter {
     //         .cloned()
     //         .collect()
     // }
+
+    // Add this method
+    fn complete_path(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> Result<(usize, Vec<String>), ReadlineError> {
+        let (offset, completions) = self.filename_completer.complete(line, pos, ctx)?;
+        let string_completions = completions.into_iter().map(|c| c.replacement).collect();
+        Ok((offset, string_completions))
+    }
 
     /// Helper to complete struct names
     fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
@@ -220,8 +248,125 @@ impl Completer for FunctionCompleter {
         &self,
         line: &str,
         pos: usize,
-        _ctx: &Context<'_>,
+        ctx: &Context<'_>,
     ) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
+        // Check if we need path completion
+        if line.starts_with("cd ") || line.starts_with("ls ") {
+            // Find where the path argument begins
+            let cmd_end = line.find(' ').unwrap_or(line.len());
+            let path_start = if cmd_end < line.len() {
+                cmd_end + 1
+            } else {
+                cmd_end
+            };
+
+            // Extract the path part being typed
+            let path_part = &line[path_start..pos];
+
+            // Get the current directory
+            let current = self.current_dir.lock().unwrap().clone();
+
+            // Find paths that match
+            let mut matches = Vec::new();
+
+            // Create the directory to search in
+            let search_dir = if path_part.contains('/') || path_part.contains('\\') {
+                // If there's a separator in the path, we need to resolve relative to current dir
+                let mut full_path = current.clone();
+
+                // Handle special paths
+                if path_part.starts_with("~/") || path_part.starts_with("~\\") {
+                    if let Some(home) = dirs::home_dir() {
+                        full_path = home;
+                        // Remove the ~ from path_part for matching
+                        let path_suffix = &path_part[2..];
+                        if !path_suffix.is_empty() {
+                            full_path.push(path_suffix);
+                        }
+                    }
+                } else if path_part.starts_with('/') || path_part.starts_with('\\') {
+                    // Absolute path
+                    #[cfg(unix)]
+                    {
+                        full_path = PathBuf::from("/");
+                        if path_part.len() > 1 {
+                            full_path.push(&path_part[1..]);
+                        }
+                    }
+                    #[cfg(windows)]
+                    {
+                        // On Windows, need to handle drive letters carefully
+                        if let Some(root) = current.components().next() {
+                            full_path = PathBuf::from(root.as_os_str());
+                            if path_part.len() > 1 {
+                                full_path.push(&path_part[1..]);
+                            }
+                        }
+                    }
+                } else {
+                    // Relative path with directory component
+                    let last_sep = path_part
+                        .rfind('/')
+                        .or_else(|| path_part.rfind('\\'))
+                        .unwrap();
+                    let dir_part = &path_part[..=last_sep];
+                    full_path.push(dir_part);
+                }
+
+                full_path
+            } else {
+                // No separators, just search in the current directory
+                current
+            };
+
+            // Get the prefix to match against file names
+            let name_prefix = if path_part.contains('/') || path_part.contains('\\') {
+                path_part
+                    .rfind('/')
+                    .or_else(|| path_part.rfind('\\'))
+                    .map(|i| &path_part[i + 1..])
+                    .unwrap_or(path_part)
+            } else {
+                path_part
+            };
+
+            // Try to read the directory contents
+            if let Ok(entries) = std::fs::read_dir(&search_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.starts_with(name_prefix) {
+                                // Compute the completion text
+                                let base_path =
+                                    if path_part.contains('/') || path_part.contains('\\') {
+                                        let last_sep = path_part
+                                            .rfind('/')
+                                            .or_else(|| path_part.rfind('\\'))
+                                            .unwrap();
+                                        path_part[..=last_sep].to_string()
+                                    } else {
+                                        String::new()
+                                    };
+
+                                // Build the completion
+                                let mut completion = format!("{}{}", base_path, name);
+
+                                // Add a trailing slash for directories
+                                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                                    use std::path::MAIN_SEPARATOR;
+                                    completion.push(MAIN_SEPARATOR);
+                                }
+
+                                matches.push(completion);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Ok((path_start, matches));
+        }
+
         // Find the starting index for the current word being completed
         let start = line[..pos].rfind(' ').map_or(0, |n| n + 1);
         let prefix = &line[start..pos];

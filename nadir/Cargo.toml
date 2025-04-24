@@ -29,6 +29,7 @@ ron.workspace = true
 rotations.workspace = true
 rustyline.workspace = true
 rustyline-derive.workspace = true
+term_size.workspace = true
 thiserror.workspace = true
 time.workspace = true
 unicode-width.workspace = true

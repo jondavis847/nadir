@@ -132,7 +132,7 @@ impl CommandMethod {
     }
 }
 
-type CommandFn = fn(Vec<String>, &mut PathBuf) -> Result<Value, RegistryErrors>;
+type CommandFn = fn(Vec<String>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 
 pub struct Registry {
     pub structs: HashMap<&'static str, Struct>,
@@ -447,7 +447,7 @@ impl Registry {
                         "1".to_string(),
                     ));
                 }
-
+                let path = &mut *path.lock().unwrap();
                 let input_path = &args[0];
                 let new_path: PathBuf = if input_path == "~" {
                     // Handle home directory
@@ -487,11 +487,6 @@ impl Registry {
                 match fs::canonicalize(&new_path) {
                     Ok(canonical_path) => {
                         *path = canonical_path;
-                        let mut path_string = path.to_string_lossy().to_string();
-                        if cfg!(windows) && path_string.starts_with(r"\\?\") {
-                            path_string = path_string[4..].to_string();
-                        }
-                        println!("{path_string}");
                         Ok(Value::None)
                     }
                     Err(_e) => Err(RegistryErrors::PathCouldntCanonicalize(
@@ -503,7 +498,11 @@ impl Registry {
         commands.insert(
             "pwd",
             CommandMethod::new(|_args, path| {
-                let path_string = path.to_string_lossy().to_string();
+                let path = &*path.lock().unwrap();
+                let mut path_string = path.to_string_lossy().to_string();
+                if cfg!(windows) && path_string.starts_with(r"\\?\") {
+                    path_string = path_string[4..].to_string();
+                }
                 println!("{path_string}");
                 Ok(Value::None)
             }),
@@ -511,34 +510,18 @@ impl Registry {
 
         commands.insert(
             "ls",
-            CommandMethod::new(|args, path| {
-                if args.len() > 1 {
-                    return Err(RegistryErrors::WrongNumberArgs(
-                        "ls".to_string(),
-                        "0-1".to_string(),
-                    ));
-                }
-
-                let path = if args.is_empty() {
-                    path
-                } else {
-                    &mut path.join(&args[0])
-                };
-                if !path.exists() {
-                    return Err(RegistryErrors::PathDoesNotExist(
-                        path.to_string_lossy().to_string(),
-                    ));
-                }
-
+            CommandMethod::new(|_args, path| {
                 let mut entries = Vec::new();
-
+                let path = &*path.lock().unwrap();
+                // Collect directory entries
                 for entry in fs::read_dir(path)? {
                     let entry = entry?;
                     let file_type = entry.file_type()?;
                     let file_name = entry.file_name().into_string().unwrap();
 
+                    // No color formatting, just add separator for directories
                     let display_name = if file_type.is_dir() {
-                        format!("\x1b[1;34m{}/\x1b[0m", file_name)
+                        format!("{}{}", file_name, std::path::MAIN_SEPARATOR)
                     } else {
                         file_name
                     };
@@ -546,13 +529,19 @@ impl Registry {
                     entries.push(display_name);
                 }
 
-                // Sort entries alphabetically
+                // Sort entries (optional)
                 entries.sort();
 
-                // Print all entries
-                for name in entries {
-                    println!("{}", name);
-                }
+                // Get terminal width
+                let terminal_width = match term_size::dimensions() {
+                    Some((width, _)) => width,
+                    None => 80, // Default if terminal size can't be determined
+                };
+
+                // Display in columns
+                let formatted_output = display_in_columns(&entries, terminal_width);
+                print!("{}", formatted_output);
+
                 Ok(Value::None)
             }),
         );
@@ -713,7 +702,7 @@ impl Registry {
         &self,
         cmd_name: &str,
         args: Vec<String>,
-        pwd: &mut PathBuf,
+        pwd: Arc<Mutex<PathBuf>>,
     ) -> Result<Value, RegistryErrors> {
         // Get the struct from the registry, or return an error if not found
         let method = self
@@ -723,4 +712,43 @@ impl Registry {
 
         (method.implementation)(args, pwd)
     }
+}
+
+fn display_in_columns(entries: &[String], terminal_width: usize) -> String {
+    if entries.is_empty() {
+        return String::new();
+    }
+
+    // Find the maximum entry length for column width calculation
+    let max_len = entries.iter().map(|entry| entry.len()).max().unwrap_or(0);
+
+    // Add padding between columns
+    let column_width = max_len + 2;
+
+    // Calculate how many columns can fit in the terminal
+    let num_columns = if column_width > 0 {
+        std::cmp::max(1, terminal_width / column_width)
+    } else {
+        1
+    };
+
+    // Calculate how many rows we need
+    let num_rows = (entries.len() + num_columns - 1) / num_columns;
+
+    let mut result = String::new();
+
+    // Format in columns
+    for row in 0..num_rows {
+        for col in 0..num_columns {
+            let index = row + col * num_rows;
+            if index < entries.len() {
+                let entry = &entries[index];
+                // Add padding to align columns
+                result.push_str(&format!("{:<width$}", entry, width = column_width));
+            }
+        }
+        result.push('\n');
+    }
+
+    result
 }

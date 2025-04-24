@@ -45,10 +45,11 @@ fn main() {
 
     let registry = Arc::new(Mutex::new(Registry::new()));
     let storage = Arc::new(Mutex::new(Storage::default()));
+    let pwd = Arc::new(Mutex::new(std::env::current_dir().unwrap_or_default()));
 
     // Start the REPL on a separate thread
     thread::spawn(move || {
-        let mut repl = NadirRepl::new(registry.clone(), storage.clone());
+        let mut repl = NadirRepl::new(registry.clone(), storage.clone(), pwd.clone());
         // TODO: make the daemon only start when necessary on command
         repl.connect_plot_daemon(repl_to_daemon_tx, daemon_to_repl_rx);
         if let Err(e) = repl.run() {
