@@ -106,12 +106,19 @@ impl Line {
         frame.stroke(&path.build(), stroke);
     }
 
-    pub fn update_canvas_position(&mut self, axis: &Axis) {
+    pub fn update_scale(&mut self, axis: &Axis) {
         for plotpoint in &mut self.data.points {
-            plotpoint.canvas_position.x = plotpoint.data.x as f32 * axis.data_to_canvas_scale_x
-                + axis.data_to_canvas_origin.x;
-            plotpoint.canvas_position.y = plotpoint.data.y as f32 * axis.data_to_canvas_scale_y
-                + axis.data_to_canvas_origin.y;
+            plotpoint.canvas_position.x =
+                plotpoint.data.x as f32 * axis.data_to_canvas_scale_x + axis.canvas_origin.x;
+            plotpoint.canvas_position.y =
+                plotpoint.data.y as f32 * axis.data_to_canvas_scale_y + axis.canvas_origin.y;
+        }
+    }
+
+    pub fn update_position(&mut self, axis: &Axis) {
+        for plotpoint in &mut self.data.points {
+            plotpoint.canvas_position.x = plotpoint.data.x as f32 * axis.data_to_canvas_scale_x;
+            plotpoint.canvas_position.y = plotpoint.data.y as f32 * axis.data_to_canvas_scale_y;
         }
     }
 }

@@ -28,11 +28,6 @@ pub struct Axes {
 
 impl Axes {
     pub fn add_line(&mut self, line: Arc<Mutex<Line>>) {
-        // update the line canvas data based on axes
-        {
-            let line = &mut *line.lock().unwrap();
-            line.update_canvas_position(&self.axis);
-        }
         self.lines.push(line);
 
         //update xlim and ylim based on line data
@@ -45,7 +40,7 @@ impl Axes {
 
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
-            line.update_canvas_position(&self.axis);
+            line.update_scale(&self.axis);
         }
     }
 
@@ -142,7 +137,7 @@ impl Axes {
             .update_bounds(&self.bounds, &self.xlim, &self.ylim);
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
-            line.update_canvas_position(&self.axis);
+            line.update_scale(&self.axis);
         }
     }
 }

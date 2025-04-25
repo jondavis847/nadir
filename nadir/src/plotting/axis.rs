@@ -13,7 +13,7 @@ pub struct Axis {
     n_ticks: u32,
     tick_length: f32,
     tick_text_spacing: f32,
-    pub data_to_canvas_origin: Point, // data to canvas position
+    pub canvas_origin: Point, // data to canvas position
     pub data_to_canvas_scale_x: f32,
     pub data_to_canvas_scale_y: f32,
 }
@@ -33,7 +33,7 @@ impl Default for Axis {
             n_ticks: 5,
             tick_length: 10.0,
             tick_text_spacing: 20.0,
-            data_to_canvas_origin: Point::new(0.0, bounds.height),
+            canvas_origin: Point::new(0.0, bounds.height),
             data_to_canvas_scale_x: 1.0,
             data_to_canvas_scale_y: 1.0,
         }
@@ -286,8 +286,8 @@ impl Axis {
 
         self.data_to_canvas_scale_x = self.bounds.width / (xlim.1 - xlim.0).abs();
         self.data_to_canvas_scale_y = self.bounds.height / (ylim.1 - ylim.0).abs();
-        self.data_to_canvas_origin.x *= self.data_to_canvas_scale_x;
-        self.data_to_canvas_origin.y *= self.data_to_canvas_scale_y;
+        self.canvas_origin.x *= self.data_to_canvas_scale_x;
+        self.canvas_origin.y *= self.data_to_canvas_scale_y;
     }
 }
 
