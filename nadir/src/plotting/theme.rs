@@ -8,11 +8,11 @@ pub enum PlotThemes {
 
 #[derive(Debug)]
 pub struct PlotTheme {
-    pub dark_background: Color,
-    pub light_background: Color,
-    pub border: Color,
+    pub axes_border: Color,
+    pub axes_background: Color,
+    pub axis_background: Color,
     pub axis_border: Color,
-    pub axis_color: Color,
+    pub figure_background: Color,
     pub grid_color: Color,
     pub text_color: Color,
     pub line_colors: [Color; 10],
@@ -22,13 +22,13 @@ impl PlotThemes {
     pub fn palette(&self) -> PlotTheme {
         match self {
             PlotThemes::Dark => PlotTheme {
-                dark_background: color!(0x111111),
-                light_background: color!(0x202020),
-                border: color!(0x000000),
+                axes_border: color!(0x000000),
+                axes_background: color!(0x111111),
                 axis_border: color!(0x000000),
-                axis_color: color!(0x202020),
-                grid_color: color!(0x202020),
-                text_color: color!(0x565656),
+                axis_background: color!(0x131313),
+                figure_background: color!(0x121212),
+                grid_color: color!(0x191919),
+                text_color: color!(0x767676),
                 line_colors: [
                     color!(0xf94144), //red
                     color!(0x277da1), //blue

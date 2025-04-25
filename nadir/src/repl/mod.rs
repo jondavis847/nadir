@@ -175,6 +175,16 @@ impl NadirRepl {
                                                 )?;
                                             }
                                         }
+                                        Event::ClearCache(id) => {
+                                            if let Some(repl_to_subscription) =
+                                                &mut self.channels.repl_to_plot_subscription
+                                            {
+                                                block_on(
+                                                    repl_to_subscription
+                                                        .send(ReplToSubscription::ClearCache(id)),
+                                                )?
+                                            }
+                                        }
                                         Event::CloseAllFigures => {
                                             if let Some(repl_to_subscription) =
                                                 &mut self.channels.repl_to_plot_subscription

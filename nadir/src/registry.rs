@@ -275,6 +275,42 @@ impl Registry {
             Struct::new(matrix_struct_methods, matrix_instance_methods),
         );
 
+        // Plot
+        let mut plot_struct_methods = HashMap::new();
+        plot_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(vec![], |_args, _pwd| {
+                let figure = Arc::new(Mutex::new(Figure::new()));
+                Ok(Value::Event(Event::NewFigure(figure)))
+            })],
+        );
+        let mut plot_instance_methods = HashMap::new();
+        plot_instance_methods.insert(
+            "add_axes",
+            vec![InstanceMethod::new(
+                vec![Argument::new("row", "i64"), Argument::new("col", "i64")],
+                |val, args| {
+                    let row = args[0].as_usize()?;
+                    let col = args[1].as_usize()?;
+                    let plot = val.as_plot()?;
+                    let plot = &mut *plot.lock().unwrap();
+                    if let Some(id) = plot.id {
+                        plot.add_axes(row, col);
+                        Ok(Value::Event(Event::ClearCache(id)))
+                    } else {
+                        return Err(RegistryErrors::Error(
+                            "Figure ID not set. Ensure the figure is created first.".into(),
+                        ));
+                    }
+                },
+            )],
+        );
+
+        structs.insert(
+            "Plot",
+            Struct::new(plot_struct_methods, plot_instance_methods),
+        );
+
         // Quaternion
         let mut quaternion_struct_methods = HashMap::new();
         quaternion_struct_methods.insert(
@@ -311,6 +347,12 @@ impl Registry {
                 ))))
             })],
         );
+
+        structs.insert(
+            "Quaternion",
+            Struct::new(quaternion_struct_methods, quaternion_instance_methods),
+        );
+
         // MultibodySystem
         let mut multibody_system_methods = HashMap::new();
         multibody_system_methods.insert(
@@ -323,11 +365,6 @@ impl Registry {
                     Ok(Value::None)
                 },
             )],
-        );
-
-        structs.insert(
-            "Quaternion",
-            Struct::new(quaternion_struct_methods, quaternion_instance_methods),
         );
 
         // Time
@@ -463,13 +500,6 @@ impl Registry {
             "close_all_figures",
             vec![FunctionMethod::new(vec![], |_args| {
                 Ok(Value::Event(Event::CloseAllFigures))
-            })],
-        );
-        functions.insert(
-            "figure",
-            vec![FunctionMethod::new(vec![], |_args| {
-                let figure = Arc::new(Mutex::new(Figure::new()));
-                Ok(Value::Event(Event::NewFigure(figure)))
             })],
         );
 

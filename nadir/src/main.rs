@@ -1,5 +1,6 @@
 use iced::daemon;
 use iced::futures::channel::mpsc::{self, Sender};
+use iced::window::Id;
 use pest_derive::Parser;
 use plotting::figure::Figure;
 use registry::Registry;
@@ -35,6 +36,7 @@ enum DaemonToRepl {
 #[derive(Debug)]
 enum ReplToSubscription {
     Animate(PathBuf),
+    ClearCache(Id),
     CloseAllFigures,
     NewFigure(Arc<Mutex<Figure>>),
     ReplClosed,

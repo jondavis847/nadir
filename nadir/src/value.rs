@@ -1,3 +1,4 @@
+use iced::window::Id;
 use multibody::system::MultibodySystemBuilder;
 use nalgebra::{DMatrix, DVector};
 use rotations::{
@@ -296,7 +297,7 @@ impl Value {
             Value::Event(_) => String::from("Event"),
             Value::Map(_) => String::from("Map"),
             Value::MultibodySystemBuilder(_) => String::from("MultibodySystemBuilder"),
-            Value::Plot(_) => "plot".into(),
+            Value::Plot(_) => "Plot".into(),
             Value::Vector(v) => {
                 let v = v.lock().unwrap();
                 let length = v.len();
@@ -395,6 +396,16 @@ impl Value {
             Value::VectorBool(v) => Ok(IndexStyle::VecBool(v.lock().unwrap().clone())),
             Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(v.lock().unwrap().clone())),
             _ => Err(ValueErrors::NonIndexType(self.to_string())),
+        }
+    }
+
+    pub fn as_plot(&self) -> Result<Arc<Mutex<Figure>>, ValueErrors> {
+        match self {
+            Value::Plot(p) => Ok(Arc::clone(p)),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Plot".to_string(),
+            )),
         }
     }
 
@@ -1023,6 +1034,7 @@ pub struct Enum {
 #[derive(Debug, Clone)]
 pub enum Event {
     Animate,
+    ClearCache(Id),
     CloseAllFigures,
     NewFigure(Arc<Mutex<Figure>>),
 }

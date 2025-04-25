@@ -1,58 +1,90 @@
-use std::collections::HashMap;
+use iced::{Point, Size, mouse::ScrollDelta, widget::canvas::Frame, window::Id};
 
-use color::Color;
-use iced::{Point, Rectangle, Size, Vector, mouse::ScrollDelta, widget::canvas::Frame};
-
-use super::{axes::Axes, note_bar::NoteBar, theme::PlotTheme, title_bar::TitleBar};
+use super::{
+    axes::{self, Axes},
+    note_bar::NoteBar,
+    theme::PlotTheme,
+    title_bar::TitleBar,
+};
 
 #[derive(Debug, Clone)]
 pub struct Figure {
+    pub id: Option<Id>,
     size: Size,
     axes: Vec<Axes>,
-    background_color: Color,
     title_bar: Option<TitleBar>,
     note_bar: Option<NoteBar>,
     nrows: usize,
     ncols: usize,
+    current_axes: usize,
 }
 
 impl Figure {
-    pub fn add_axes(&mut self, position: (usize, usize)) {
+    pub fn add_axes(&mut self, row: usize, col: usize) {
         // update # of rows and cols
-        if position.0 > self.nrows {
-            self.nrows = position.0
+        // +1 because 0 based indexing
+        if row + 1 > self.nrows {
+            self.nrows = row + 1
         }
-        if position.1 > self.ncols {
-            self.ncols = position.1
+        if col + 1 > self.ncols {
+            self.ncols = col + 1
         }
 
-        let mut axes = Axes::new(position);
-        axes.update_bounds(self.size, self.nrows, self.ncols);
+        let axes = Axes::new((row, col));
         self.axes.push(axes);
+        for axes in &mut self.axes {
+            axes.update_bounds(self.size, self.nrows, self.ncols);
+        }
+    }
+
+    pub fn delete_axes(&mut self, i: usize) {
+        if i >= self.axes.len() {
+            return;
+        }
+
+        // update # of rows and cols
+        self.axes.remove(i);
+        self.nrows = 1;
+        self.ncols = 1;
+        for axes in &self.axes {
+            if axes.location.0 > self.nrows {
+                self.nrows = axes.location.0;
+            }
+            if axes.location.1 > self.ncols {
+                self.ncols = axes.location.1;
+            }
+        }
+        for axes in &mut self.axes {
+            axes.update_bounds(self.size, self.nrows, self.ncols);
+        }
     }
 
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
-        // axes
+        // draw background
+        // frame.with_save(|frame| {
+        //     frame.fill_rectangle(Point::ORIGIN, frame.size(), Color::from_rgb(1.0, 0.0, 0.0)); // theme.figure_background);
+        // });
+
         for axes in &self.axes {
-            frame.with_save(|frame| {
-                frame.with_clip(axes.bounds, |frame| {
-                    axes.draw(frame, theme);
-                });
+            frame.with_clip(axes.bounds, |frame| {
+                axes.draw(frame, theme);
             });
         }
     }
+
     pub fn new() -> Self {
         let mut fig = Self {
+            id: None,
             axes: vec![],
             size: Size::new(720.0, 480.0),
-            background_color: Color::new(0.9, 0.9, 0.9, 1.0),
             title_bar: None,
             note_bar: None,
             nrows: 1,
             ncols: 1,
+            current_axes: 0,
         };
 
-        fig.add_axes((0, 0));
+        fig.add_axes(0, 0);
 
         fig
     }
@@ -67,10 +99,6 @@ impl Figure {
         for axes in &mut self.axes {
             axes.mouse_left_released(point);
         }
-    }
-
-    pub fn set_background_color(&mut self, color: Color) {
-        self.background_color = color;
     }
 
     pub fn set_height(&mut self, height: f32) {

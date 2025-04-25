@@ -50,6 +50,10 @@ pub struct PlotProgram {
 }
 
 impl PlotProgram {
+    pub fn clear_cache(&mut self) {
+        self.cache.clear();
+    }
+
     pub fn mouse_left_clicked(&mut self, point: Point) {
         let figure = &mut *self.figure.lock().unwrap();
         figure.mouse_left_clicked(point);
@@ -73,6 +77,7 @@ impl PlotProgram {
 
     pub fn set_window_id(&mut self, id: Id) {
         self.id = Some(id);
+        self.figure.lock().unwrap().id = Some(id);
     }
 
     pub fn update(&mut self, message: PlotMessage) {
@@ -111,13 +116,13 @@ impl Program<Message> for PlotProgram {
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let content = self.cache.draw(renderer, bounds.size(), |frame| {
-            // make sure frame starts at origin
-            frame.translate(Point::ORIGIN - frame.center());
-            // make sure the frame is the right size
-            frame.scale_nonuniform(Vector::new(
-                bounds.width / frame.width(),
-                bounds.height / frame.height(),
-            ));
+            // // make sure frame starts at origin
+            // frame.translate(Point::ORIGIN - frame.center());
+            // // make sure the frame is the right size
+            // frame.scale_nonuniform(Vector::new(
+            //     bounds.width / frame.width(),
+            //     bounds.height / frame.height(),
+            // ));
             let figure = &*self.figure.lock().unwrap();
             figure.draw(frame, &self.theme);
         });

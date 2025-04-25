@@ -45,6 +45,7 @@ pub enum Message {
     CancelRequest(Uuid),
     ChannelDataReceived,
     CheckRequestReady(Uuid),
+    ClearCache(Id),
     CloseAllFigures,
     CursorMoved(Id, Point),
     EscapePressed(Id),
@@ -128,31 +129,21 @@ impl WindowManager {
                             NadirProgram::Plot(plot) => plot.set_window_id(id),
                         }
                         self.windows.insert(id, window);
-
-                        // send a handle back to the repl
-                        if let Some(window) = self.windows.get(&id) {
-                            match &window.program {
-                                NadirProgram::Animation(_) => {}
-                                NadirProgram::Plot(plot) => {
-                                    match self
-                                        .channels
-                                        .daemon_to_repl
-                                        .try_send(DaemonToRepl::PlotReady(plot.figure.clone()))
-                                    {
-                                        Ok(_) => {
-                                            // Message sent successfully
-                                        }
-                                        Err(e) => {
-                                            // Handle send error (channel full or closed)
-                                            println!("Failed to send plot handle to REPL: {}", e);
-                                        }
-                                    }
-                                }
-                            };
-                        }
                     }
                 }
 
+                Task::none()
+            }
+            Message::ClearCache(id) => {
+                if let Some(window) = self.windows.get_mut(&id) {
+                    match &mut window.program {
+                        NadirProgram::Animation(_) => {
+                            unreachable!("animation program should not send clear cache message")
+                        }
+                        NadirProgram::Plot(plot) => plot.clear_cache(),
+                    }
+                }
+                dbg!("cleared_cache");
                 Task::none()
             }
 
@@ -227,7 +218,7 @@ impl WindowManager {
                 self.window_requests
                     .lock()
                     .unwrap()
-                    .insert(request_id, NadirWindowRequest::default());
+                    .insert(request_id, window_request);
 
                 Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0)))
             }
@@ -404,6 +395,12 @@ fn plot_subscription() -> impl Stream<Item = Message> {
                             .send(Message::NewAnimation(result_path))
                             .await
                             .expect("error sending Animate from subscription to daemon");
+                    }
+                    ReplToSubscription::ClearCache(id) => {
+                        output
+                            .send(Message::ClearCache(id))
+                            .await
+                            .expect("error sending ClearCache from subscription to daemon");
                     }
                     ReplToSubscription::CloseAllFigures => {
                         output

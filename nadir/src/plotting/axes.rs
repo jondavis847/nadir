@@ -51,10 +51,7 @@ impl Axes {
     }
 
     fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let center = frame.center();
-        let size = frame.size();
-        let top_left = Point::new(center.x - size.width / 2.0, center.y - size.height / 2.0);
-        frame.fill_rectangle(top_left, size, theme.dark_background)
+        frame.fill_rectangle(Point::ORIGIN, frame.size(), theme.axes_background)
     }
 
     pub fn mouse_left_clicked(&mut self, point: Point) {
@@ -107,10 +104,10 @@ impl Axes {
             click_start: None,
             bounds: Rectangle::default(), // to be updated later
             padding: Padding {
-                left: 10.0,
-                right: 10.0,
-                top: 10.0,
-                bottom: 10.0,
+                left: 0.0,
+                right: 0.0,
+                top: 0.0,
+                bottom: 0.0,
             },
         }
     }
@@ -118,8 +115,8 @@ impl Axes {
         self.bounds.height =
             fig_size.height / nrows as f32 - self.padding.top - self.padding.bottom;
         self.bounds.width = fig_size.width / ncols as f32 - self.padding.left - self.padding.right;
-        self.bounds.x = self.bounds.width * self.location.0 as f32 + self.padding.left;
-        self.bounds.y = self.bounds.height * self.location.1 as f32 + self.padding.top;
+        self.bounds.x = self.bounds.width * self.location.1 as f32 + self.padding.left;
+        self.bounds.y = self.bounds.height * self.location.0 as f32 + self.padding.top;
 
         self.axis.update_bounds(&self.bounds);
     }
