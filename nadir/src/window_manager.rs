@@ -143,7 +143,6 @@ impl WindowManager {
                         NadirProgram::Plot(plot) => plot.clear_cache(),
                     }
                 }
-                dbg!("cleared_cache");
                 Task::none()
             }
 
