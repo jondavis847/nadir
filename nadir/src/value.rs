@@ -16,7 +16,7 @@ use std::{
 use thiserror::Error;
 use time::{Time, TimeSystem};
 
-use crate::plotting::figure::Figure;
+use crate::plotting::{axes::Axes, figure::Figure, line::Line};
 
 pub fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(237).paint(s).to_string()
@@ -68,21 +68,23 @@ pub enum Value {
     f64(f64),
     i64(i64),
     bool(bool),
+    Axes(Arc<Mutex<Axes>>),
     Enum(Enum),
     Event(Event),
-    Vector(Arc<Mutex<DVector<f64>>>),
-    VectorBool(Arc<Mutex<DVector<bool>>>),
-    VectorUsize(Arc<Mutex<DVector<usize>>>),
+    Line(Arc<Mutex<Line>>),
     Matrix(Arc<Mutex<DMatrix<f64>>>),
     MultibodySystemBuilder(Arc<Mutex<MultibodySystemBuilder>>),
     Map(Arc<Mutex<Map>>),
     None,
     Plot(Arc<Mutex<Figure>>),
-    Range(Range),
     Quaternion(Arc<Mutex<Quaternion>>),
-    UnitQuaternion(Arc<Mutex<UnitQuaternion>>),
+    Range(Range),
     String(Arc<Mutex<String>>),
     Time(Arc<Mutex<Time>>),
+    UnitQuaternion(Arc<Mutex<UnitQuaternion>>),
+    Vector(Arc<Mutex<DVector<f64>>>),
+    VectorBool(Arc<Mutex<DVector<bool>>>),
+    VectorUsize(Arc<Mutex<DVector<usize>>>),
 }
 
 impl std::fmt::Debug for Value {
@@ -99,8 +101,16 @@ impl std::fmt::Debug for Value {
             }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
+            Value::Axes(axes) => {
+                let axes = axes.lock().unwrap();
+                writeln!(f, "{:?}", axes)
+            }
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
+            Value::Line(line) => {
+                let line = line.lock().unwrap();
+                writeln!(f, "{:?}", line)
+            }
             Value::Map(m) => {
                 writeln!(f, "Map")?;
                 let map = &m.lock().unwrap().0;
@@ -161,7 +171,28 @@ impl std::fmt::Debug for Value {
             Value::Plot(p) => {
                 let figure = p.lock().unwrap();
                 writeln!(f, "{}", label("Plot"))?;
-                writeln!(f, "{:?}", figure)
+                let id = &match figure.get_id() {
+                    Some(id) => id.to_string(),
+                    None => "None".to_string(),
+                };
+                writeln!(f, "id: {},", id)?;
+                if figure.axes.is_empty() {
+                    writeln!(f, "axes: [],")?;
+                } else {
+                    writeln!(f, "axes: [ ")?;
+                    for (i, axes) in figure.axes.iter().enumerate() {
+                        let axes = &*axes.lock().unwrap();
+                        writeln!(
+                            f,
+                            "     {} Axes({},{}),",
+                            label(&i.to_string()),
+                            axes.location.0,
+                            axes.location.1
+                        )?;
+                    }
+                    writeln!(f, "   ],")?;
+                }
+                Ok(())
             }
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
@@ -290,13 +321,15 @@ impl std::fmt::Debug for Value {
 impl Value {
     pub fn to_string(&self) -> String {
         match self {
-            Value::f64(_) => String::from("f64"),
-            Value::i64(_) => String::from("i64"),
-            Value::bool(_) => String::from("bool"),
-            Value::Enum(_) => String::from("Enum"),
-            Value::Event(_) => String::from("Event"),
-            Value::Map(_) => String::from("Map"),
-            Value::MultibodySystemBuilder(_) => String::from("MultibodySystemBuilder"),
+            Value::f64(_) => "f64".into(),
+            Value::i64(_) => "i64".into(),
+            Value::bool(_) => "bool".into(),
+            Value::Axes(_) => "Axes".into(),
+            Value::Enum(_) => "Enum".into(),
+            Value::Event(_) => "Event".into(),
+            Value::Line(_) => "Line".into(),
+            Value::Map(_) => "Map".into(),
+            Value::MultibodySystemBuilder(_) => "MultibodySystemBuilder".into(),
             Value::Plot(_) => "Plot".into(),
             Value::Vector(v) => {
                 let v = v.lock().unwrap();
@@ -319,12 +352,34 @@ impl Value {
                 let cols = v.ncols();
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
             }
-            Value::Time(_) => "Time".to_string(),
-            Value::None => "None".to_string(),
-            Value::Range(_) => String::from("Range"),
-            Value::Quaternion(_) => String::from("Quaternion"),
-            Value::UnitQuaternion(_) => String::from("UnitQuaternion"),
-            Value::String(_) => String::from("String"),
+            Value::Time(_) => "Time".into(),
+            Value::None => "None".into(),
+            Value::Range(_) => "Range".into(),
+            Value::Quaternion(_) => "Quaternion".into(),
+            Value::UnitQuaternion(_) => "UnitQuaternion".into(),
+            Value::String(_) => "String".into(),
+        }
+    }
+
+    // returns the general type of the Value
+    // we need this since we custom format to_string() to pring the size and type
+    pub fn type_check(&self) -> String {
+        match self {
+            Value::Vector(_) => "Vector".to_string(),
+            Value::VectorUsize(_) => "VectorUsize".to_string(),
+            Value::VectorBool(_) => "VectorBool".to_string(),
+            Value::Matrix(_) => "Matrix".to_string(),
+            _ => self.to_string(),
+        }
+    }
+
+    pub fn as_axes(&self) -> Result<Arc<Mutex<Axes>>, ValueErrors> {
+        match self {
+            Value::Axes(a) => Ok(Arc::clone(a)),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Axes".to_string(),
+            )),
         }
     }
 
@@ -399,6 +454,16 @@ impl Value {
         }
     }
 
+    pub fn as_line(&self) -> Result<Arc<Mutex<Line>>, ValueErrors> {
+        match self {
+            Value::Line(l) => Ok(Arc::clone(l)),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Line".to_string(),
+            )),
+        }
+    }
+
     pub fn as_plot(&self) -> Result<Arc<Mutex<Figure>>, ValueErrors> {
         match self {
             Value::Plot(p) => Ok(Arc::clone(p)),
@@ -460,6 +525,16 @@ impl Value {
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
                 "UnitQuaternion".to_string(),
+            )),
+        }
+    }
+
+    pub fn as_vector(&self) -> Result<Arc<Mutex<DVector<f64>>>, ValueErrors> {
+        match self {
+            Value::Vector(v) => Ok(v.clone()),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "usize".to_string(),
             )),
         }
     }

@@ -1,4 +1,5 @@
 use iced::Point;
+use nalgebra::DVector;
 
 use super::PlotErrors;
 
@@ -14,7 +15,7 @@ pub struct Series {
 }
 
 impl Series {
-    pub fn new(xdata: Vec<f64>, ydata: Vec<f64>) -> Result<Self, PlotErrors> {
+    pub fn new(xdata: &DVector<f64>, ydata: &DVector<f64>) -> Result<Self, PlotErrors> {
         if xdata.len() != ydata.len() {
             return Err(PlotErrors::DataSizeMismatch);
         }
@@ -26,8 +27,8 @@ impl Series {
 
         let points = xdata
             .iter()
-            .zip(ydata)
-            .map(|(x, y)| PlotPoint::new(*x, y))
+            .zip(ydata.into_iter())
+            .map(|(x, y)| PlotPoint::new(*x, *y))
             .collect();
         Ok(Self {
             xname: None,

@@ -6,7 +6,6 @@ use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::{
     collections::HashMap,
-    ffi::OsString,
     fs::{self, File},
     io::BufReader,
     path::{Path, PathBuf},
@@ -16,7 +15,7 @@ use thiserror::Error;
 use time::TimeErrors;
 
 use crate::{
-    plotting::figure::Figure,
+    plotting::{PlotErrors, figure::Figure, line::Line, series::Series},
     value::{Event, Linspace, LinspaceErrors, Map, Value, ValueErrors},
 };
 
@@ -38,6 +37,8 @@ pub enum RegistryErrors {
     PathDoesNotExist(String),
     #[error("path {0} is not a directory")]
     PathIsNotADir(String),
+    #[error("{0}")]
+    PlotErrors(#[from] PlotErrors),
     #[error("{0}")]
     QuaternionErrors(#[from] QuaternionErrors),
     #[error("struct '{0}' not found")]
@@ -152,6 +153,62 @@ impl Registry {
     pub fn new() -> Self {
         // Structs with their methods
         let mut structs = HashMap::new();
+
+        // Axes
+        let axes_struct_methods = HashMap::new();
+
+        let mut axes_instance_methods = HashMap::new();
+        axes_instance_methods.insert(
+            "add_line",
+            vec![InstanceMethod::new(
+                vec![Argument::new("line", "Line")],
+                |val, args| {
+                    let line = args[0].as_line()?;
+                    let axes_guard = val.as_axes()?;
+                    let mut axes = axes_guard.lock().unwrap();
+
+                    axes.add_line(line);
+                    Ok(Value::Event(Event::ClearCache(
+                        axes.get_figure_id().unwrap(),
+                    )))
+                },
+            )],
+        );
+
+        structs.insert(
+            "Axes",
+            Struct::new(axes_struct_methods, axes_instance_methods),
+        );
+
+        // Line
+        let mut line_struct_methods = HashMap::new();
+        line_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("x_data", "Vector"),
+                    Argument::new("y_data", "Vector"),
+                ],
+                |args, _pwd| {
+                    let x_data = args[0].as_vector()?;
+                    let x_data = &*x_data.lock().unwrap();
+                    let y_data = args[1].as_vector()?;
+                    let y_data = &*y_data.lock().unwrap();
+                    let series = match Series::new(x_data, y_data) {
+                        Ok(series) => series,
+                        Err(e) => return Err(RegistryErrors::Error(e.into())),
+                    };
+                    let line = Line::new(series);
+                    Ok(Value::Line(Arc::new(Mutex::new(line))))
+                },
+            )],
+        );
+
+        let line_instance_methods = HashMap::new();
+        structs.insert(
+            "Line",
+            Struct::new(line_struct_methods, line_instance_methods),
+        );
 
         // Linspace
         let mut linspace_struct_methods = HashMap::new();
@@ -284,6 +341,20 @@ impl Registry {
                 Ok(Value::Event(Event::NewFigure(figure)))
             })],
         );
+        plot_struct_methods.insert(
+            "from_csv",
+            vec![StructMethod::new(vec![], |_args, pwd| {
+                let x = load_vector_from_file(&pwd)?;
+                let y = load_vector_from_file(&pwd)?;
+                let series = Series::new(&x, &y)?;
+                let l = Arc::new(Mutex::new(Line::new(series)));
+                let mut figure = Figure::new();
+                let axes = figure.get_axes(0)?;
+                let axes = &mut *axes.lock().unwrap();
+                axes.add_line(l);
+                Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
+            })],
+        );
         let mut plot_instance_methods = HashMap::new();
         plot_instance_methods.insert(
             "add_axes",
@@ -294,7 +365,7 @@ impl Registry {
                     let col = args[1].as_usize()?;
                     let plot = val.as_plot()?;
                     let plot = &mut *plot.lock().unwrap();
-                    if let Some(id) = plot.id {
+                    if let Some(id) = plot.get_id() {
                         plot.add_axes(row, col);
                         Ok(Value::Event(Event::ClearCache(id)))
                     } else {
@@ -302,6 +373,22 @@ impl Registry {
                             "Figure ID not set. Ensure the figure is created first.".into(),
                         ));
                     }
+                },
+            )],
+        );
+        plot_instance_methods.insert(
+            "get_axes",
+            vec![InstanceMethod::new(
+                vec![Argument::new("index", "i64")],
+                |val, args| {
+                    let i = args[0].as_usize()?;
+                    let plot = val.as_plot()?;
+                    let plot = &mut *plot.lock().unwrap();
+                    let axes = match plot.get_axes(i) {
+                        Ok(axes) => axes,
+                        Err(e) => return Err(RegistryErrors::Error(e.into())),
+                    };
+                    Ok(Value::Axes(axes))
                 },
             )],
         );
@@ -459,27 +546,9 @@ impl Registry {
         vector_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                let pwd = &*pwd.lock().unwrap();
-                // Start the file selection loop
-                let selected_file = navigate_and_select_file(pwd)?;
-
-                // Load and process the selected file
-                let file_ext = selected_file
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .unwrap_or("");
-
-                let v = match file_ext {
-                    "csv" => load_csv_file(&selected_file)?,
-                    "txt" => load_txt_file(&selected_file)?,
-                    "42" => load_42_file(&selected_file)?,
-                    _ => {
-                        return Err(RegistryErrors::Error(
-                            format!("Unsupported file extension: {}", file_ext).into(),
-                        ));
-                    }
-                };
-                Ok(v)
+                Ok(Value::Vector(Arc::new(Mutex::new(load_vector_from_file(
+                    &pwd,
+                )?))))
             })],
         );
         let vector_instance_methods = HashMap::new();
@@ -653,9 +722,9 @@ impl Registry {
             // Check if each argument type matches
             let mut signature_matches = true;
             for (required, actual) in method.args.iter().zip(args.iter_mut()) {
-                if required.type_name != actual.to_string() {
+                if required.type_name != actual.type_check() {
                     // try to convert ints to float if possible, need better conversion logic
-                    if required.type_name == "f64".to_string() && actual.to_string() == "i64" {
+                    if required.type_name == "f64".to_string() && actual.type_check() == "i64" {
                         *actual = Value::f64(actual.as_f64()?)
                     } else {
                         signature_matches = false;
@@ -934,7 +1003,7 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
 }
 
 // Function to load CSV files
-fn load_csv_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
+fn load_csv_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
     // Open the file
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
@@ -1018,11 +1087,11 @@ fn load_csv_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> 
 
     // Create DVector from the values
     let vector = DVector::from_vec(values);
-    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+    Ok(vector)
 }
 
 // Function to load TXT files
-fn load_txt_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
+fn load_txt_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
     let contents = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
 
@@ -1044,11 +1113,11 @@ fn load_txt_file(file_path: &Path) -> Result<Value, Box<dyn std::error::Error>> 
 
     // Create DVector from the values
     let vector = DVector::from_vec(values);
-    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+    Ok(vector)
 }
 
 // Function to load .42 files (assuming this is a custom format)
-fn load_42_file(file_path: &PathBuf) -> Result<Value, Box<dyn std::error::Error>> {
+fn load_42_file(file_path: &PathBuf) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
     let contents = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
 
@@ -1072,5 +1141,29 @@ fn load_42_file(file_path: &PathBuf) -> Result<Value, Box<dyn std::error::Error>
 
     // Create DVector from the values
     let vector = DVector::from_vec(values);
-    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+    Ok(vector)
+}
+
+fn load_vector_from_file(pwd: &Arc<Mutex<PathBuf>>) -> Result<DVector<f64>, RegistryErrors> {
+    let pwd = &*pwd.lock().unwrap();
+    // Start the file selection loop
+    let selected_file = navigate_and_select_file(pwd)?;
+
+    // Load and process the selected file
+    let file_ext = selected_file
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+
+    let v = match file_ext {
+        "csv" => load_csv_file(&selected_file)?,
+        "txt" => load_txt_file(&selected_file)?,
+        "42" => load_42_file(&selected_file)?,
+        _ => {
+            return Err(RegistryErrors::Error(
+                format!("Unsupported file extension: {}", file_ext).into(),
+            ));
+        }
+    };
+    Ok(v)
 }

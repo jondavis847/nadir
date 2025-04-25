@@ -1,7 +1,11 @@
+use std::sync::{Arc, Mutex};
+
 use iced::{Point, Size, mouse::ScrollDelta, widget::canvas::Frame, window::Id};
 
 use super::{
+    PlotErrors,
     axes::{self, Axes},
+    line::Line,
     note_bar::NoteBar,
     theme::PlotTheme,
     title_bar::TitleBar,
@@ -9,14 +13,13 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct Figure {
-    pub id: Option<Id>,
+    id: Option<Id>,
     size: Size,
-    axes: Vec<Axes>,
+    pub axes: Vec<Arc<Mutex<Axes>>>,
     title_bar: Option<TitleBar>,
     note_bar: Option<NoteBar>,
     nrows: usize,
     ncols: usize,
-    current_axes: usize,
 }
 
 impl Figure {
@@ -30,9 +33,10 @@ impl Figure {
             self.ncols = col + 1
         }
 
-        let axes = Axes::new((row, col));
+        let axes = Arc::new(Mutex::new(Axes::new((row, col), None)));
         self.axes.push(axes);
         for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
     }
@@ -47,6 +51,7 @@ impl Figure {
         self.nrows = 1;
         self.ncols = 1;
         for axes in &self.axes {
+            let axes = &*axes.lock().unwrap();
             if axes.location.0 > self.nrows {
                 self.nrows = axes.location.0;
             }
@@ -55,6 +60,7 @@ impl Figure {
             }
         }
         for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
     }
@@ -66,10 +72,20 @@ impl Figure {
         // });
 
         for axes in &self.axes {
-            frame.with_clip(axes.bounds, |frame| {
-                axes.draw(frame, theme);
-            });
+            let axes = &*axes.lock().unwrap();
+            axes.draw(frame, theme);
         }
+    }
+
+    pub fn get_axes(&mut self, index: usize) -> Result<Arc<Mutex<Axes>>, PlotErrors> {
+        if index > self.axes.len() - 1 {
+            return Err(PlotErrors::AxesIndexOOB);
+        }
+        Ok(self.axes[index].clone())
+    }
+
+    pub fn get_id(&self) -> Option<Id> {
+        self.id
     }
 
     pub fn new() -> Self {
@@ -81,7 +97,6 @@ impl Figure {
             note_bar: None,
             nrows: 1,
             ncols: 1,
-            current_axes: 0,
         };
 
         fig.add_axes(0, 0);
@@ -91,12 +106,14 @@ impl Figure {
 
     pub fn mouse_left_clicked(&mut self, point: Point) {
         for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
             axes.mouse_left_clicked(point);
         }
     }
 
     pub fn mouse_left_released(&mut self, point: Point) {
         for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
             axes.mouse_left_released(point);
         }
     }
@@ -109,6 +126,14 @@ impl Figure {
         self.size.width = width;
     }
 
+    pub fn set_window_id(&mut self, id: Id) {
+        self.id = Some(id);
+        for axes in &self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.set_figure_id(id);
+        }
+    }
+
     pub fn wheel_scrolled(&mut self, _point: Point, delta: ScrollDelta) {
         const SPEED: f32 = 0.1;
         let delta = match delta {
@@ -116,7 +141,8 @@ impl Figure {
             ScrollDelta::Pixels { x: _, y } => y,
         };
 
-        for axes in &mut self.axes {
+        for axes in &self.axes {
+            let axes = &mut *axes.lock().unwrap();
             let width = axes.xlim.1 - axes.xlim.0;
             let height = axes.ylim.1 - axes.ylim.0;
             axes.xlim.0 += width * SPEED * delta;
@@ -130,8 +156,9 @@ impl Figure {
         self.size.width = window_size.width;
         self.size.height = window_size.height;
 
-        self.axes
-            .iter_mut()
-            .for_each(|axes| axes.update_bounds(self.size, self.nrows, self.ncols));
+        for axes in &self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.update_bounds(self.size, self.nrows, self.ncols);
+        }
     }
 }

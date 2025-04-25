@@ -15,18 +15,20 @@ use thiserror::Error;
 
 use crate::window_manager::Message;
 
-mod axes;
+pub mod axes;
 mod axis;
 pub mod figure;
 mod legend;
-mod line;
+pub mod line;
 mod note_bar;
-mod series;
+pub mod series;
 mod theme;
 mod title_bar;
 
 #[derive(Debug, Error)]
 pub enum PlotErrors {
+    #[error("axes index out of bounds")]
+    AxesIndexOOB,
     #[error("x data and y data lengths must match")]
     DataSizeMismatch,
 }
@@ -77,7 +79,8 @@ impl PlotProgram {
 
     pub fn set_window_id(&mut self, id: Id) {
         self.id = Some(id);
-        self.figure.lock().unwrap().id = Some(id);
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.set_window_id(id);
     }
 
     pub fn update(&mut self, message: PlotMessage) {

@@ -1,6 +1,6 @@
 use super::theme::PlotTheme;
 use iced::{
-    Border, Color, Padding, Point, Rectangle, Size, Vector,
+    Padding, Point, Rectangle, Size, Vector,
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text},
 };
@@ -13,10 +13,14 @@ pub struct Axis {
     n_ticks: u32,
     tick_length: f32,
     tick_text_spacing: f32,
+    pub data_to_canvas_origin: Point, // data to canvas position
+    pub data_to_canvas_scale_x: f32,
+    pub data_to_canvas_scale_y: f32,
 }
 
 impl Default for Axis {
     fn default() -> Self {
+        let bounds = Rectangle::default();
         Self {
             padding: Padding {
                 left: 50.0,
@@ -25,16 +29,56 @@ impl Default for Axis {
                 bottom: 50.0,
             },
             border_width: 1.0,
-            bounds: Rectangle::default(),
+            bounds,
             n_ticks: 5,
             tick_length: 10.0,
             tick_text_spacing: 20.0,
+            data_to_canvas_origin: Point::new(0.0, bounds.height),
+            data_to_canvas_scale_x: 1.0,
+            data_to_canvas_scale_y: 1.0,
         }
     }
 }
 
 impl Axis {
-    pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme, xlim: &(f32, f32), ylim: &(f32, f32)) {
+    pub fn draw_border(&self, frame: &mut Frame, theme: &PlotTheme) {
+        // Points are relative to the clipped axes frame, hence only padding, since bounds is overall canvas bounds, including axes padding
+        let bottom_left = Point::new(self.padding.left, self.padding.top + self.bounds.height);
+        let bottom_right = Point::new(
+            self.padding.left + self.bounds.width,
+            self.padding.top + self.bounds.height,
+        );
+        let top_left = Point::new(self.padding.left, self.padding.top);
+        let top_right = Point::new(self.padding.left + self.bounds.width, self.padding.top);
+
+        let border_lines = [
+            (bottom_left, top_left), // left border
+            (
+                bottom_left + Vector::new(-self.border_width / 2.0, 0.0),
+                bottom_right + Vector::new(self.border_width / 2.0, 0.0),
+            ), // bottom border
+            (
+                top_left + Vector::new(-self.border_width / 2.0, 0.0),
+                top_right + Vector::new(self.border_width / 2.0, 0.0),
+            ), // top border
+            (top_right, bottom_right), // right border
+        ];
+        // Draw border lines
+        let border_stroke = Stroke::default()
+            .with_width(self.border_width)
+            .with_color(theme.axis_border);
+
+        for &(start, end) in &border_lines {
+            frame.stroke(&Path::line(start, end), border_stroke.clone());
+        }
+    }
+    pub fn draw_grid(
+        &self,
+        frame: &mut Frame,
+        theme: &PlotTheme,
+        xlim: &(f32, f32),
+        ylim: &(f32, f32),
+    ) {
         // Points are relative to the clipped axes frame, hence only padding, since bounds is overall canvas bounds, including axes padding
         let bottom_left = Point::new(self.padding.left, self.padding.top + self.bounds.height);
         let bottom_right = Point::new(
@@ -232,35 +276,18 @@ impl Axis {
             self.tick_text_spacing,
             self.border_width,
         );
-
-        // Draw border lines
-        let border_stroke = Stroke::default()
-            .with_width(self.border_width)
-            .with_color(theme.axis_border);
-
-        let border_lines = [
-            (bottom_left, top_left), // left border
-            (
-                bottom_left + Vector::new(-self.border_width / 2.0, 0.0),
-                bottom_right + Vector::new(self.border_width / 2.0, 0.0),
-            ), // bottom border
-            (
-                top_left + Vector::new(-self.border_width / 2.0, 0.0),
-                top_right + Vector::new(self.border_width / 2.0, 0.0),
-            ), // top border
-            (top_right, bottom_right), // right border
-        ];
-
-        for &(start, end) in &border_lines {
-            frame.stroke(&Path::line(start, end), border_stroke.clone());
-        }
     }
 
-    pub fn update_bounds(&mut self, axes_bounds: &Rectangle) {
+    pub fn update_bounds(&mut self, axes_bounds: &Rectangle, xlim: &(f32, f32), ylim: &(f32, f32)) {
         self.bounds.x = axes_bounds.x + self.padding.left;
         self.bounds.y = axes_bounds.y + self.padding.top;
         self.bounds.width = axes_bounds.width - self.padding.left - self.padding.right;
         self.bounds.height = axes_bounds.height - self.padding.top - self.padding.bottom;
+
+        self.data_to_canvas_scale_x = self.bounds.width / (xlim.1 - xlim.0).abs();
+        self.data_to_canvas_scale_y = self.bounds.height / (ylim.1 - ylim.0).abs();
+        self.data_to_canvas_origin.x *= self.data_to_canvas_scale_x;
+        self.data_to_canvas_origin.y *= self.data_to_canvas_scale_y;
     }
 }
 

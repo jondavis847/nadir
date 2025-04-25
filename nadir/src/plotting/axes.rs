@@ -1,57 +1,71 @@
+use std::sync::{Arc, Mutex};
+
 use super::legend::Legend;
-use super::series::PlotPoint;
+use super::theme::PlotTheme;
 use super::{
     // legend::{Legend, LegendEntry},
     line::Line,
 };
-use super::{series::Series, theme::PlotTheme};
 use iced::Padding;
-use iced::{
-    Color, Font, Point, Rectangle, Size,
-    widget::canvas::{Frame, Path, Stroke, Text},
-};
+use iced::window::Id;
+use iced::{Point, Rectangle, Size, widget::canvas::Frame};
 
 use super::axis::Axis;
 
 #[derive(Debug, Clone)]
 pub struct Axes {
+    figure_id: Option<Id>,
     legend: Legend,
     padding: Padding,
     pub axis: Axis,
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
-    lines: Vec<Line>,
+    lines: Vec<Arc<Mutex<Line>>>,
     pub location: (usize, usize),
     pub click_start: Option<Point>,
     pub bounds: Rectangle,
 }
 
 impl Axes {
-    pub fn add_line(&mut self, series: Series, color: Option<Color>) {
-        let mut line = Line::new(series);
-        if let Some(color) = color {
-            line.set_color(color);
+    pub fn add_line(&mut self, line: Arc<Mutex<Line>>) {
+        // update the line canvas data based on axes
+        {
+            let line = &mut *line.lock().unwrap();
+            line.update_canvas_position(&self.axis);
         }
-        if let Some(yname) = &line.data.yname {
-            line.set_label(yname.clone());
-        }
-
         self.lines.push(line);
 
         //update xlim and ylim based on line data
         let (xlim, ylim) = get_global_lims(&self.lines);
         self.xlim = xlim;
         self.ylim = ylim;
+
+        self.axis
+            .update_bounds(&self.bounds, &self.xlim, &self.ylim);
+
+        for line in &self.lines {
+            let line = &mut *line.lock().unwrap();
+            line.update_canvas_position(&self.axis);
+        }
     }
 
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
         self.draw_background(frame, theme);
-        self.axis.draw(frame, theme, &self.xlim, &self.ylim);
-        //self.draw_lines(frame, theme);
+        self.axis.draw_grid(frame, theme, &self.xlim, &self.ylim);
+
+        for (i, line) in self.lines.iter().enumerate() {
+            let line = &*line.lock().unwrap();
+            line.draw(frame, theme, i, &self.axis.bounds);
+        }
+        self.axis.draw_border(frame, theme);
     }
 
     fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
         frame.fill_rectangle(Point::ORIGIN, frame.size(), theme.axes_background)
+    }
+
+    pub fn get_figure_id(&self) -> Option<Id> {
+        self.figure_id
     }
 
     pub fn mouse_left_clicked(&mut self, point: Point) {
@@ -93,8 +107,9 @@ impl Axes {
         self.click_start = None;
     }
 
-    pub fn new(location: (usize, usize)) -> Self {
+    pub fn new(location: (usize, usize), figure_id: Option<Id>) -> Self {
         Self {
+            figure_id,
             axis: Axis::default(),
             xlim: (0.0, 1.0),
             ylim: (-1.0, 1.0),
@@ -111,6 +126,11 @@ impl Axes {
             },
         }
     }
+
+    pub fn set_figure_id(&mut self, id: Id) {
+        self.figure_id = Some(id);
+    }
+
     pub fn update_bounds(&mut self, fig_size: Size, nrows: usize, ncols: usize) {
         self.bounds.height =
             fig_size.height / nrows as f32 - self.padding.top - self.padding.bottom;
@@ -118,14 +138,22 @@ impl Axes {
         self.bounds.x = self.bounds.width * self.location.1 as f32 + self.padding.left;
         self.bounds.y = self.bounds.height * self.location.0 as f32 + self.padding.top;
 
-        self.axis.update_bounds(&self.bounds);
+        self.axis
+            .update_bounds(&self.bounds, &self.xlim, &self.ylim);
+        for line in &self.lines {
+            let line = &mut *line.lock().unwrap();
+            line.update_canvas_position(&self.axis);
+        }
     }
 }
 
-fn get_global_lims(lines: &Vec<Line>) -> ((f32, f32), (f32, f32)) {
+fn get_global_lims(lines: &Vec<Arc<Mutex<Line>>>) -> ((f32, f32), (f32, f32)) {
     let mut xmin = if let Some(xmin) = lines
         .iter()
-        .map(|line| line.data.xmin)
+        .map(|line| {
+            let line = &*line.lock().unwrap();
+            line.data.xmin
+        })
         .min_by(|a, b| a.total_cmp(b))
     {
         xmin
@@ -135,7 +163,10 @@ fn get_global_lims(lines: &Vec<Line>) -> ((f32, f32), (f32, f32)) {
 
     let mut xmax = if let Some(xmax) = lines
         .iter()
-        .map(|line| line.data.xmin)
+        .map(|line| {
+            let line = &*line.lock().unwrap();
+            line.data.xmax
+        })
         .max_by(|a, b| a.total_cmp(b))
     {
         xmax
@@ -145,7 +176,10 @@ fn get_global_lims(lines: &Vec<Line>) -> ((f32, f32), (f32, f32)) {
 
     let mut ymin = if let Some(ymin) = lines
         .iter()
-        .map(|line| line.data.ymin)
+        .map(|line| {
+            let line = &*line.lock().unwrap();
+            line.data.ymin
+        })
         .min_by(|a, b| a.total_cmp(b))
     {
         ymin
@@ -155,7 +189,10 @@ fn get_global_lims(lines: &Vec<Line>) -> ((f32, f32), (f32, f32)) {
 
     let mut ymax = if let Some(ymax) = lines
         .iter()
-        .map(|line| line.data.ymax)
+        .map(|line| {
+            let line = &*line.lock().unwrap();
+            line.data.ymax
+        })
         .max_by(|a, b| a.total_cmp(b))
     {
         ymax

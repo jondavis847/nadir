@@ -66,6 +66,7 @@ fn main() {
         WindowManager::update,
         WindowManager::view,
     )
+    .antialiasing(true)
     .subscription(WindowManager::subscription)
     .run_with(|| WindowManager::new(daemon_to_repl_tx))
     {
