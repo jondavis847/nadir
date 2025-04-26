@@ -76,7 +76,7 @@ pub enum Value {
     MultibodySystemBuilder(Arc<Mutex<MultibodySystemBuilder>>),
     Map(Arc<Mutex<Map>>),
     None,
-    Plot(Arc<Mutex<Figure>>),
+    Figure(Arc<Mutex<Figure>>),
     Quaternion(Arc<Mutex<Quaternion>>),
     Range(Range),
     String(Arc<Mutex<String>>),
@@ -101,15 +101,63 @@ impl std::fmt::Debug for Value {
             }
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
-            Value::Axes(axes) => {
-                let axes = axes.lock().unwrap();
-                writeln!(f, "{:?}", axes)
+            Value::Axes(p) => {
+                let axes = &*p.lock().unwrap();
+                writeln!(f, "{}", label("Axes"))?;
+                writeln!(f, "axis: Axis,")?;
+                writeln!(f, "figure_id: {:?},", axes.figure_id)?;
+                writeln!(f, "bounds: {:?},", axes.bounds)?;
+                writeln!(f, "legend: Legend,")?;
+                writeln!(f, "location: {:?},", axes.location)?;
+                writeln!(f, "padding: {:?},", axes.padding)?;
+                writeln!(f, "xlim: {:?},", axes.xlim)?;
+                writeln!(f, "ylim: {:?},", axes.ylim)?;
+                if axes.lines.is_empty() {
+                    writeln!(f, "lines: [],")?;
+                } else {
+                    writeln!(f, "lines: [ ")?;
+                    for (i, _line) in axes.lines.iter().enumerate() {
+                        writeln!(f, "     {} Line,", label(&i.to_string()),)?;
+                    }
+                    writeln!(f, "   ],")?;
+                }
+                Ok(())
             }
             Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
+            Value::Figure(p) => {
+                let figure = p.lock().unwrap();
+                writeln!(f, "{}", label("Figure"))?;
+                let id = &match figure.get_id() {
+                    Some(id) => id.to_string(),
+                    None => "None".to_string(),
+                };
+                writeln!(f, "id: {},", id)?;
+                if figure.axes.is_empty() {
+                    writeln!(f, "axes: [],")?;
+                } else {
+                    writeln!(f, "axes: [ ")?;
+                    for (i, axes) in figure.axes.iter().enumerate() {
+                        let axes = &*axes.lock().unwrap();
+                        writeln!(
+                            f,
+                            "     {} Axes({},{}),",
+                            label(&i.to_string()),
+                            axes.location.0,
+                            axes.location.1
+                        )?;
+                    }
+                    writeln!(f, "   ],")?;
+                }
+                Ok(())
+            }
             Value::Line(line) => {
                 let line = line.lock().unwrap();
-                writeln!(f, "{:?}", line)
+                writeln!(f, "{}", label("Line"))?;
+                writeln!(f, "label: {:?}", line.label)?;
+                writeln!(f, "color: {:?}", line.color)?;
+                writeln!(f, "width: {:?}", line.width)?;
+                writeln!(f, "data: Vector<f64,{}>", line.data.len())
             }
             Value::Map(m) => {
                 writeln!(f, "Map")?;
@@ -168,32 +216,6 @@ impl std::fmt::Debug for Value {
             }
             Value::MultibodySystemBuilder(m) => writeln!(f, "{:?}", m),
             Value::None => writeln!(f, "{}", label("None")),
-            Value::Plot(p) => {
-                let figure = p.lock().unwrap();
-                writeln!(f, "{}", label("Plot"))?;
-                let id = &match figure.get_id() {
-                    Some(id) => id.to_string(),
-                    None => "None".to_string(),
-                };
-                writeln!(f, "id: {},", id)?;
-                if figure.axes.is_empty() {
-                    writeln!(f, "axes: [],")?;
-                } else {
-                    writeln!(f, "axes: [ ")?;
-                    for (i, axes) in figure.axes.iter().enumerate() {
-                        let axes = &*axes.lock().unwrap();
-                        writeln!(
-                            f,
-                            "     {} Axes({},{}),",
-                            label(&i.to_string()),
-                            axes.location.0,
-                            axes.location.1
-                        )?;
-                    }
-                    writeln!(f, "   ],")?;
-                }
-                Ok(())
-            }
             Value::Range(r) => {
                 writeln!(f, "{}", label("Range"))?;
                 let start = if let Some(start) = r.start {
@@ -330,7 +352,7 @@ impl Value {
             Value::Line(_) => "Line".into(),
             Value::Map(_) => "Map".into(),
             Value::MultibodySystemBuilder(_) => "MultibodySystemBuilder".into(),
-            Value::Plot(_) => "Plot".into(),
+            Value::Figure(_) => "Figure".into(),
             Value::Vector(v) => {
                 let v = v.lock().unwrap();
                 let length = v.len();
@@ -464,12 +486,12 @@ impl Value {
         }
     }
 
-    pub fn as_plot(&self) -> Result<Arc<Mutex<Figure>>, ValueErrors> {
+    pub fn as_figure(&self) -> Result<Arc<Mutex<Figure>>, ValueErrors> {
         match self {
-            Value::Plot(p) => Ok(Arc::clone(p)),
+            Value::Figure(p) => Ok(Arc::clone(p)),
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
-                "Plot".to_string(),
+                "Figure".to_string(),
             )),
         }
     }

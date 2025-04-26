@@ -1,17 +1,11 @@
+use core::fmt;
 use std::sync::{Arc, Mutex};
 
 use iced::{Point, Size, mouse::ScrollDelta, widget::canvas::Frame, window::Id};
 
-use super::{
-    PlotErrors,
-    axes::{self, Axes},
-    line::Line,
-    note_bar::NoteBar,
-    theme::PlotTheme,
-    title_bar::TitleBar,
-};
+use super::{PlotErrors, axes::Axes, note_bar::NoteBar, theme::PlotTheme, title_bar::TitleBar};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Figure {
     id: Option<Id>,
     size: Size,
@@ -160,5 +154,36 @@ impl Figure {
             let axes = &mut *axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
+    }
+}
+
+impl fmt::Debug for Figure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Figure")?;
+
+        let id = match self.get_id() {
+            Some(id) => id.to_string(),
+            None => "None".to_string(),
+        };
+        writeln!(f, "id: {},", id)?;
+
+        if self.axes.is_empty() {
+            writeln!(f, "axes: [],")?;
+        } else {
+            writeln!(f, "axes: [")?;
+            for (i, axes) in self.axes.iter().enumerate() {
+                let axes = axes.lock().unwrap();
+                writeln!(
+                    f,
+                    "     {} Axes({},{}),",
+                    &i.to_string(),
+                    axes.location.0,
+                    axes.location.1
+                )?;
+            }
+            writeln!(f, "   ],")?;
+        }
+
+        Ok(())
     }
 }

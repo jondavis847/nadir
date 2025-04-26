@@ -286,8 +286,9 @@ impl Axis {
 
         self.data_to_canvas_scale_x = self.bounds.width / (xlim.1 - xlim.0).abs();
         self.data_to_canvas_scale_y = self.bounds.height / (ylim.1 - ylim.0).abs();
-        self.canvas_origin.x *= self.data_to_canvas_scale_x;
-        self.canvas_origin.y *= self.data_to_canvas_scale_y;
+
+        self.canvas_origin.x = self.bounds.x - xlim.0 * self.data_to_canvas_scale_x;
+        self.canvas_origin.y = self.bounds.y + ylim.0 * self.data_to_canvas_scale_y;
     }
 }
 

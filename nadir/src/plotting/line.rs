@@ -1,4 +1,4 @@
-use super::{axis::Axis, series::Series, theme::PlotTheme};
+use super::{series::Series, theme::PlotTheme};
 use iced::{
     Color, Point, Rectangle,
     widget::canvas::{Frame, Stroke, path::Builder},
@@ -20,7 +20,7 @@ impl Line {
             data,
             color: None,
             legend: true,
-            width: 3.0,
+            width: 1.0,
         }
     }
 
@@ -106,19 +106,19 @@ impl Line {
         frame.stroke(&path.build(), stroke);
     }
 
-    pub fn update_scale(&mut self, axis: &Axis) {
+    pub fn update_canvas_position(
+        &mut self,
+        axis_bounds: &Rectangle,
+        xlim: &(f32, f32),
+        ylim: &(f32, f32),
+    ) {
+        let axis_bottom = axis_bounds.y + axis_bounds.height;
         for plotpoint in &mut self.data.points {
-            plotpoint.canvas_position.x =
-                plotpoint.data.x as f32 * axis.data_to_canvas_scale_x + axis.canvas_origin.x;
-            plotpoint.canvas_position.y =
-                plotpoint.data.y as f32 * axis.data_to_canvas_scale_y + axis.canvas_origin.y;
-        }
-    }
+            let u = (plotpoint.data.x as f32 - xlim.0) / (xlim.1 - xlim.0);
+            let v = (plotpoint.data.y as f32 - ylim.0) / (ylim.1 - ylim.0);
 
-    pub fn update_position(&mut self, axis: &Axis) {
-        for plotpoint in &mut self.data.points {
-            plotpoint.canvas_position.x = plotpoint.data.x as f32 * axis.data_to_canvas_scale_x;
-            plotpoint.canvas_position.y = plotpoint.data.y as f32 * axis.data_to_canvas_scale_y;
+            plotpoint.canvas_position.x = u * axis_bounds.width + axis_bounds.x;
+            plotpoint.canvas_position.y = axis_bottom - v * axis_bounds.height;
         }
     }
 }

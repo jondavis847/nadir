@@ -267,7 +267,7 @@ impl NadirRepl {
                             self.storage
                                 .lock()
                                 .unwrap()
-                                .insert(name.to_string(), Value::Plot(plot.clone()))?;
+                                .insert(name.to_string(), Value::Figure(plot.clone()))?;
                         }
                         _ => eprintln!("cant assign this type"),
                     },

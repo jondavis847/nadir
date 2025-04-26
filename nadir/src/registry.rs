@@ -204,6 +204,16 @@ impl Registry {
             )],
         );
 
+        line_struct_methods.insert(
+            "from_csv",
+            vec![StructMethod::new(vec![], |_args, pwd| {
+                let x = load_vector_from_file(&pwd)?;
+                let y = load_vector_from_file(&pwd)?;
+                let series = Series::new(&x, &y)?;
+                let l = Arc::new(Mutex::new(Line::new(series)));
+                Ok(Value::Line(l))
+            })],
+        );
         let line_instance_methods = HashMap::new();
         structs.insert(
             "Line",
@@ -332,16 +342,16 @@ impl Registry {
             Struct::new(matrix_struct_methods, matrix_instance_methods),
         );
 
-        // Plot
-        let mut plot_struct_methods = HashMap::new();
-        plot_struct_methods.insert(
+        // Figure
+        let mut figure_struct_methods = HashMap::new();
+        figure_struct_methods.insert(
             "new",
             vec![StructMethod::new(vec![], |_args, _pwd| {
                 let figure = Arc::new(Mutex::new(Figure::new()));
                 Ok(Value::Event(Event::NewFigure(figure)))
             })],
         );
-        plot_struct_methods.insert(
+        figure_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
                 let x = load_vector_from_file(&pwd)?;
@@ -355,15 +365,15 @@ impl Registry {
                 Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
             })],
         );
-        let mut plot_instance_methods = HashMap::new();
-        plot_instance_methods.insert(
+        let mut figure_instance_methods = HashMap::new();
+        figure_instance_methods.insert(
             "add_axes",
             vec![InstanceMethod::new(
                 vec![Argument::new("row", "i64"), Argument::new("col", "i64")],
                 |val, args| {
                     let row = args[0].as_usize()?;
                     let col = args[1].as_usize()?;
-                    let plot = val.as_plot()?;
+                    let plot = val.as_figure()?;
                     let plot = &mut *plot.lock().unwrap();
                     if let Some(id) = plot.get_id() {
                         plot.add_axes(row, col);
@@ -376,13 +386,13 @@ impl Registry {
                 },
             )],
         );
-        plot_instance_methods.insert(
+        figure_instance_methods.insert(
             "get_axes",
             vec![InstanceMethod::new(
                 vec![Argument::new("index", "i64")],
                 |val, args| {
                     let i = args[0].as_usize()?;
-                    let plot = val.as_plot()?;
+                    let plot = val.as_figure()?;
                     let plot = &mut *plot.lock().unwrap();
                     let axes = match plot.get_axes(i) {
                         Ok(axes) => axes,
@@ -394,8 +404,8 @@ impl Registry {
         );
 
         structs.insert(
-            "Plot",
-            Struct::new(plot_struct_methods, plot_instance_methods),
+            "Figure",
+            Struct::new(figure_struct_methods, figure_instance_methods),
         );
 
         // Quaternion

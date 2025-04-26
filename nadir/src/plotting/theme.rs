@@ -30,14 +30,14 @@ impl PlotThemes {
                 grid_color: color!(0x191919),
                 text_color: color!(0x767676),
                 line_colors: [
-                    color!(0xf94144), //red
+                    color!(0xf8961e), //orange
                     color!(0x277da1), //blue
                     color!(0x90be6d), //green
+                    color!(0xf94144), //red
                     color!(0xf9c74f), //yello
                     color!(0x577590), // bluish purple
                     color!(0xf9844a), //salmon
                     color!(0x43aa8b), //teal
-                    color!(0xf8961e), //orange
                     color!(0xf3722c), // dark orange
                     color!(0x4d908e), // gray blue
                 ],

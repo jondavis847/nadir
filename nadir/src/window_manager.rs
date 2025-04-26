@@ -9,7 +9,7 @@ use iced::{
     mouse::ScrollDelta,
     stream,
     time::Instant,
-    widget::{button, canvas, center, column},
+    widget::{canvas, center, column},
     window::{self, Id, icon},
 };
 use std::{
@@ -43,7 +43,6 @@ pub enum Message {
     AnimationMessage(AnimationMessage),
     AnimationTick(Instant),
     CancelRequest(Uuid),
-    ChannelDataReceived,
     CheckRequestReady(Uuid),
     ClearCache(Id),
     CloseAllFigures,
@@ -52,9 +51,7 @@ pub enum Message {
     LoadAnimation(Uuid, PathBuf),
     NewAnimation(PathBuf),
     NewFigure(Arc<Mutex<Figure>>),
-    None,
     OpenWindow(Uuid, Size),
-    Plot,
     PlotMessage(PlotMessage),
     ReplToSubscription(Sender<ReplToSubscription>),
     ReplClosed,
@@ -103,7 +100,6 @@ impl WindowManager {
                 self.window_requests.lock().unwrap().remove(&request_id);
                 Task::none()
             }
-            Message::ChannelDataReceived => Task::none(),
             Message::CheckRequestReady(request_id) => {
                 // First just check status without removing
                 let ready = {
@@ -221,7 +217,6 @@ impl WindowManager {
 
                 Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0)))
             }
-            Message::None => return Task::none(),
             Message::OpenWindow(request_id, size) => {
                 // Create a task that will open a window
                 let position = if let Some(last_window) = self.windows.keys().last() {
@@ -261,7 +256,6 @@ impl WindowManager {
                     })
                     .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
             }
-            Message::Plot => Task::none(),
             Message::PlotMessage(message) => {
                 if let Some(id) = &self.active_window {
                     if let Some(window) = self.windows.get_mut(id) {
@@ -440,7 +434,7 @@ impl From<AnimationProgram> for NadirProgram {
 
 #[derive(Debug)]
 pub struct NadirWindow {
-    id: Id,
+    //id: Id,
     program: NadirProgram,
 }
 
@@ -466,15 +460,8 @@ impl NadirWindow {
         }
     }
 
-    fn new(id: Id, program: NadirProgram) -> Self {
-        Self { id, program }
-    }
-
-    fn playback_speed_changed(&mut self, speed: f64) {
-        match &mut self.program {
-            NadirProgram::Animation(animation) => animation.playback_speed_changed(speed),
-            NadirProgram::Plot(_) => {}
-        }
+    fn new(_id: Id, program: NadirProgram) -> Self {
+        Self { program }
     }
 
     fn process_animation_message(&mut self, message: AnimationMessage) {

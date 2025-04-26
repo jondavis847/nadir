@@ -29,7 +29,6 @@ enum ReplToDaemon {}
 
 #[derive(Debug)]
 enum DaemonToRepl {
-    PlotReady(Arc<Mutex<Figure>>),
     ReplToSubscriptionTx(Sender<ReplToSubscription>),
 }
 

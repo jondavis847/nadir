@@ -14,16 +14,16 @@ use super::axis::Axis;
 
 #[derive(Debug, Clone)]
 pub struct Axes {
-    figure_id: Option<Id>,
-    legend: Legend,
-    padding: Padding,
     pub axis: Axis,
+    pub bounds: Rectangle,
+    pub figure_id: Option<Id>,
+    pub legend: Legend,
+    pub lines: Vec<Arc<Mutex<Line>>>,
+    pub location: (usize, usize),
+    pub padding: Padding,
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
-    lines: Vec<Arc<Mutex<Line>>>,
-    pub location: (usize, usize),
-    pub click_start: Option<Point>,
-    pub bounds: Rectangle,
+    click_start: Option<Point>,
 }
 
 impl Axes {
@@ -40,7 +40,7 @@ impl Axes {
 
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
-            line.update_scale(&self.axis);
+            line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
         }
     }
 
@@ -137,7 +137,7 @@ impl Axes {
             .update_bounds(&self.bounds, &self.xlim, &self.ylim);
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
-            line.update_scale(&self.axis);
+            line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
         }
     }
 }
