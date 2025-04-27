@@ -346,9 +346,6 @@ impl Axis {
         self.bounds.width = axes_bounds.width - left - self.padding.right;
         self.bounds.height = bottom - self.bounds.y;
         self.update_corners();
-
-        dbg!(&self.bounds);
-        dbg!(&self.corners);
     }
 
     pub fn update_corners(&mut self) {

@@ -184,8 +184,6 @@ impl Axes {
         self.bounds.width = fig_size.width / ncols as f32 - self.padding.left - self.padding.right;
         self.bounds.x = self.bounds.width * self.location.1 as f32 + self.padding.left;
         self.bounds.y = self.bounds.height * self.location.0 as f32 + self.padding.top;
-
-        dbg!(&self.bounds);
         self.axis.update_bounds(&self.bounds);
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
