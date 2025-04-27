@@ -34,7 +34,7 @@ enum DaemonToRepl {
 
 #[derive(Debug)]
 enum ReplToSubscription {
-    Animate(PathBuf),
+    Animate(Arc<Mutex<PathBuf>>),
     ClearCache(Id),
     CloseAllFigures,
     NewFigure(Arc<Mutex<Figure>>),

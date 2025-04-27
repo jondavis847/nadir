@@ -4,6 +4,7 @@ mod scene;
 
 use std::{
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -192,7 +193,8 @@ impl AnimationProgram {
         self.show_menu = !self.show_menu;
     }
 
-    pub fn new(result_path: PathBuf) -> Result<Self, AnimationErrors> {
+    pub fn new(result_path: Arc<Mutex<PathBuf>>) -> Result<Self, AnimationErrors> {
+        let result_path = result_path.lock().unwrap();
         let mut reader = ReaderBuilder::new()
             .has_headers(true) // Assuming the file has headers
             .from_path(&result_path.join("sim_time.csv"))?;

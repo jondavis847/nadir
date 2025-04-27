@@ -56,6 +56,12 @@ impl PlotProgram {
         self.cache.clear();
     }
 
+    pub fn cursor_moved(&mut self, point: Point) {
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.cursor_moved(point);
+        self.cache.clear();
+    }
+
     pub fn mouse_left_clicked(&mut self, point: Point) {
         let figure = &mut *self.figure.lock().unwrap();
         figure.mouse_left_clicked(point);
@@ -65,6 +71,18 @@ impl PlotProgram {
     pub fn mouse_left_released(&mut self, point: Point) {
         let figure = &mut *self.figure.lock().unwrap();
         figure.mouse_left_released(point);
+        self.cache.clear();
+    }
+
+    pub fn mouse_middle_clicked(&mut self, point: Point) {
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.mouse_middle_clicked(point);
+        self.cache.clear();
+    }
+
+    pub fn mouse_middle_released(&mut self, point: Point) {
+        let figure = &mut *self.figure.lock().unwrap();
+        figure.mouse_middle_released(point);
         self.cache.clear();
     }
 
@@ -143,7 +161,7 @@ impl Program<Message> for PlotProgram {
             Event::Mouse(event) => match event {
                 mouse::Event::WheelScrolled { delta } => {
                     if let Some(point) = cursor.position() {
-                        (Status::Captured, Some(Message::WheelScrolled(delta)))
+                        (Status::Captured, Some(Message::WheelScrolled(point, delta)))
                     } else {
                         (Status::Captured, None)
                     }
@@ -155,6 +173,13 @@ impl Program<Message> for PlotProgram {
                                 Status::Captured,
                                 Some(Message::PlotMessage(PlotMessage::MouseLeftPressed(point))),
                             )
+                        } else {
+                            (Status::Captured, None)
+                        }
+                    }
+                    Button::Middle => {
+                        if let Some(point) = cursor.position() {
+                            (Status::Captured, Some(Message::MouseMiddlePressed(point)))
                         } else {
                             (Status::Captured, None)
                         }
@@ -172,11 +197,18 @@ impl Program<Message> for PlotProgram {
                             (Status::Captured, None)
                         }
                     }
+                    Button::Middle => {
+                        if let Some(point) = cursor.position() {
+                            (Status::Captured, Some(Message::MouseMiddleReleased(point)))
+                        } else {
+                            (Status::Captured, None)
+                        }
+                    }
                     _ => (Status::Captured, None),
                 },
-                // mouse::Event::CursorMoved { position } => {
-                //     (Status::Captured, Some(Message::CursorMoved(position)))
-                // }
+                mouse::Event::CursorMoved { position } => {
+                    (Status::Captured, Some(Message::CursorMoved(position)))
+                }
                 _ => (Status::Captured, None),
             },
             _ => (Status::Ignored, None),

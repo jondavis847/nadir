@@ -46,10 +46,12 @@ pub enum Message {
     CheckRequestReady(Uuid),
     ClearCache(Id),
     CloseAllFigures,
-    CursorMoved(Id, Point),
+    CursorMoved(Point),
     EscapePressed(Id),
-    LoadAnimation(Uuid, PathBuf),
-    NewAnimation(PathBuf),
+    LoadAnimation(Uuid, Arc<Mutex<PathBuf>>),
+    MouseMiddlePressed(Point),
+    MouseMiddleReleased(Point),
+    NewAnimation(Arc<Mutex<PathBuf>>),
     NewFigure(Arc<Mutex<Figure>>),
     OpenWindow(Uuid, Size),
     PlotMessage(PlotMessage),
@@ -57,7 +59,7 @@ pub enum Message {
     ReplClosed,
     RightButtonPressed(Id, Point),
     RightButtonReleased(Id, Point),
-    WheelScrolled(ScrollDelta),
+    WheelScrolled(Point, ScrollDelta),
     WindowOpened(Uuid, Id),
     WindowClosed(Id),
     WindowFocused(Id),
@@ -164,9 +166,11 @@ impl WindowManager {
                 // which will update your state
                 Task::batch(close_commands)
             }
-            Message::CursorMoved(id, point) => {
-                if let Some(window) = self.windows.get_mut(&id) {
-                    window.cursor_moved(point);
+            Message::CursorMoved(point) => {
+                if let Some(id) = &self.active_window {
+                    if let Some(window) = self.windows.get_mut(id) {
+                        window.cursor_moved(point);
+                    }
                 }
                 Task::none()
             }
@@ -193,6 +197,22 @@ impl WindowManager {
                         Task::done(Message::CancelRequest(request_id))
                     }
                 }
+            }
+            Message::MouseMiddlePressed(point) => {
+                if let Some(id) = &self.active_window {
+                    if let Some(window) = self.windows.get_mut(id) {
+                        window.mouse_middle_pressed(point);
+                    }
+                }
+                Task::none()
+            }
+            Message::MouseMiddleReleased(point) => {
+                if let Some(id) = &self.active_window {
+                    if let Some(window) = self.windows.get_mut(id) {
+                        window.mouse_middle_released(point);
+                    }
+                }
+                Task::none()
             }
             Message::NewAnimation(result_path) => {
                 let request_id = Uuid::new_v4();
@@ -277,10 +297,10 @@ impl WindowManager {
             Message::ReplClosed => iced::exit(),
             Message::RightButtonPressed(_id, _point) => Task::none(),
             Message::RightButtonReleased(_id, _point) => Task::none(),
-            Message::WheelScrolled(scroll_delta) => {
+            Message::WheelScrolled(point, scroll_delta) => {
                 if let Some(active_id) = self.active_window {
                     if let Some(window) = self.windows.get_mut(&active_id) {
-                        window.wheel_scolled(scroll_delta);
+                        window.wheel_scolled(point, scroll_delta);
                     }
                 }
 
@@ -449,7 +469,7 @@ impl NadirWindow {
     fn cursor_moved(&mut self, point: Point) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.cursor_moved(point),
-            NadirProgram::Plot(_) => {}
+            NadirProgram::Plot(plot) => plot.cursor_moved(point),
         }
     }
 
@@ -457,6 +477,19 @@ impl NadirWindow {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.escape_pressed(),
             NadirProgram::Plot(_) => {}
+        }
+    }
+
+    fn mouse_middle_pressed(&mut self, point: Point) {
+        match &mut self.program {
+            NadirProgram::Animation(_) => {}
+            NadirProgram::Plot(plot) => plot.mouse_middle_clicked(point),
+        }
+    }
+    fn mouse_middle_released(&mut self, point: Point) {
+        match &mut self.program {
+            NadirProgram::Animation(_) => {}
+            NadirProgram::Plot(plot) => plot.mouse_middle_released(point),
         }
     }
 
@@ -491,10 +524,10 @@ impl NadirWindow {
         }
     }
 
-    fn wheel_scolled(&mut self, scroll_delta: ScrollDelta) {
+    fn wheel_scolled(&mut self, point: Point, scroll_delta: ScrollDelta) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.wheel_scrolled(scroll_delta),
-            NadirProgram::Plot(_) => {}
+            NadirProgram::Plot(plot) => plot.wheel_scrolled(point, scroll_delta),
         }
     }
 }

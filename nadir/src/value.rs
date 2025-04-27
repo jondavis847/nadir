@@ -11,6 +11,7 @@ use unicode_width::UnicodeWidthStr;
 use std::{
     collections::HashMap,
     f64::{INFINITY, NAN},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
@@ -1130,7 +1131,7 @@ pub struct Enum {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    Animate,
+    Animate(Arc<Mutex<PathBuf>>),
     ClearCache(Id),
     CloseAllFigures,
     NewFigure(Arc<Mutex<Figure>>),

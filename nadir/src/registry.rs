@@ -54,7 +54,7 @@ pub enum RegistryErrors {
 }
 
 // Types for method implementations
-type FunctionFn = fn(Vec<Value>) -> Result<Value, RegistryErrors>;
+type FunctionFn = fn(Vec<Value>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 type StructMethodFn = fn(Vec<Value>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 type InstanceMethodFn = fn(Value, Vec<Value>) -> Result<Value, RegistryErrors>;
 
@@ -180,6 +180,74 @@ impl Registry {
             Struct::new(axes_struct_methods, axes_instance_methods),
         );
 
+        // Figure
+        let mut figure_struct_methods = HashMap::new();
+        figure_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(vec![], |_args, _pwd| {
+                let figure = Arc::new(Mutex::new(Figure::new()));
+                Ok(Value::Event(Event::NewFigure(figure)))
+            })],
+        );
+        figure_struct_methods.insert(
+            "from_csv",
+            vec![StructMethod::new(vec![], |_args, pwd| {
+                let (xname, x) = load_vector_from_file(&pwd)?;
+                let (yname, y) = load_vector_from_file(&pwd)?;
+                let mut series = Series::new(&x, &y)?;
+                series.set_x_name(xname);
+                series.set_y_name(yname);
+                let l = Arc::new(Mutex::new(Line::new(series)));
+                let mut figure = Figure::new();
+                let axes = figure.get_axes(0)?;
+                let axes = &mut *axes.lock().unwrap();
+                axes.add_line(l);
+                Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
+            })],
+        );
+        let mut figure_instance_methods = HashMap::new();
+        figure_instance_methods.insert(
+            "add_axes",
+            vec![InstanceMethod::new(
+                vec![Argument::new("row", "i64"), Argument::new("col", "i64")],
+                |val, args| {
+                    let row = args[0].as_usize()?;
+                    let col = args[1].as_usize()?;
+                    let plot = val.as_figure()?;
+                    let plot = &mut *plot.lock().unwrap();
+                    if let Some(id) = plot.get_id() {
+                        plot.add_axes(row, col);
+                        Ok(Value::Event(Event::ClearCache(id)))
+                    } else {
+                        return Err(RegistryErrors::Error(
+                            "Figure ID not set. Ensure the figure is created first.".into(),
+                        ));
+                    }
+                },
+            )],
+        );
+        figure_instance_methods.insert(
+            "get_axes",
+            vec![InstanceMethod::new(
+                vec![Argument::new("index", "i64")],
+                |val, args| {
+                    let i = args[0].as_usize()?;
+                    let plot = val.as_figure()?;
+                    let plot = &mut *plot.lock().unwrap();
+                    let axes = match plot.get_axes(i) {
+                        Ok(axes) => axes,
+                        Err(e) => return Err(RegistryErrors::Error(e.into())),
+                    };
+                    Ok(Value::Axes(axes))
+                },
+            )],
+        );
+
+        structs.insert(
+            "Figure",
+            Struct::new(figure_struct_methods, figure_instance_methods),
+        );
+
         // Line
         let mut line_struct_methods = HashMap::new();
         line_struct_methods.insert(
@@ -207,9 +275,11 @@ impl Registry {
         line_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                let x = load_vector_from_file(&pwd)?;
-                let y = load_vector_from_file(&pwd)?;
-                let series = Series::new(&x, &y)?;
+                let (xname, x) = load_vector_from_file(&pwd)?;
+                let (yname, y) = load_vector_from_file(&pwd)?;
+                let mut series = Series::new(&x, &y)?;
+                series.set_x_name(xname);
+                series.set_y_name(yname);
                 let l = Arc::new(Mutex::new(Line::new(series)));
                 Ok(Value::Line(l))
             })],
@@ -340,72 +410,6 @@ impl Registry {
         structs.insert(
             "Matrix",
             Struct::new(matrix_struct_methods, matrix_instance_methods),
-        );
-
-        // Figure
-        let mut figure_struct_methods = HashMap::new();
-        figure_struct_methods.insert(
-            "new",
-            vec![StructMethod::new(vec![], |_args, _pwd| {
-                let figure = Arc::new(Mutex::new(Figure::new()));
-                Ok(Value::Event(Event::NewFigure(figure)))
-            })],
-        );
-        figure_struct_methods.insert(
-            "from_csv",
-            vec![StructMethod::new(vec![], |_args, pwd| {
-                let x = load_vector_from_file(&pwd)?;
-                let y = load_vector_from_file(&pwd)?;
-                let series = Series::new(&x, &y)?;
-                let l = Arc::new(Mutex::new(Line::new(series)));
-                let mut figure = Figure::new();
-                let axes = figure.get_axes(0)?;
-                let axes = &mut *axes.lock().unwrap();
-                axes.add_line(l);
-                Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
-            })],
-        );
-        let mut figure_instance_methods = HashMap::new();
-        figure_instance_methods.insert(
-            "add_axes",
-            vec![InstanceMethod::new(
-                vec![Argument::new("row", "i64"), Argument::new("col", "i64")],
-                |val, args| {
-                    let row = args[0].as_usize()?;
-                    let col = args[1].as_usize()?;
-                    let plot = val.as_figure()?;
-                    let plot = &mut *plot.lock().unwrap();
-                    if let Some(id) = plot.get_id() {
-                        plot.add_axes(row, col);
-                        Ok(Value::Event(Event::ClearCache(id)))
-                    } else {
-                        return Err(RegistryErrors::Error(
-                            "Figure ID not set. Ensure the figure is created first.".into(),
-                        ));
-                    }
-                },
-            )],
-        );
-        figure_instance_methods.insert(
-            "get_axes",
-            vec![InstanceMethod::new(
-                vec![Argument::new("index", "i64")],
-                |val, args| {
-                    let i = args[0].as_usize()?;
-                    let plot = val.as_figure()?;
-                    let plot = &mut *plot.lock().unwrap();
-                    let axes = match plot.get_axes(i) {
-                        Ok(axes) => axes,
-                        Err(e) => return Err(RegistryErrors::Error(e.into())),
-                    };
-                    Ok(Value::Axes(axes))
-                },
-            )],
-        );
-
-        structs.insert(
-            "Figure",
-            Struct::new(figure_struct_methods, figure_instance_methods),
         );
 
         // Quaternion
@@ -556,9 +560,8 @@ impl Registry {
         vector_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                Ok(Value::Vector(Arc::new(Mutex::new(load_vector_from_file(
-                    &pwd,
-                )?))))
+                let (_, v) = load_vector_from_file(&pwd)?;
+                Ok(Value::Vector(Arc::new(Mutex::new(v))))
             })],
         );
         let vector_instance_methods = HashMap::new();
@@ -571,13 +574,13 @@ impl Registry {
         let mut functions = HashMap::new();
         functions.insert(
             "animate",
-            vec![FunctionMethod::new(vec![], |_args| {
-                Ok(Value::Event(Event::Animate))
+            vec![FunctionMethod::new(vec![], |_args, pwd| {
+                Ok(Value::Event(Event::Animate(pwd)))
             })],
         );
         functions.insert(
             "close_all_figures",
-            vec![FunctionMethod::new(vec![], |_args| {
+            vec![FunctionMethod::new(vec![], |_args, _pwd| {
                 Ok(Value::Event(Event::CloseAllFigures))
             })],
         );
@@ -814,6 +817,7 @@ impl Registry {
         &self,
         function_name: &str,
         args: Vec<Value>,
+        pwd: Arc<Mutex<PathBuf>>,
     ) -> Result<Value, RegistryErrors> {
         // Get the struct from the registry, or return an error if not found
         let method_overloads = self
@@ -842,7 +846,7 @@ impl Registry {
             }
 
             // If we get here, we've found a matching signature. Call the implementation.
-            return (method.implementation)(args);
+            return (method.implementation)(args, pwd);
         }
         // If we exhaust all overloads without finding a match:
         Err(RegistryErrors::FunctionNotFound(function_name.to_string()))
@@ -1012,23 +1016,24 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
     }
 }
 
-// Function to load CSV files
-fn load_csv_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
-    // Open the file
+// Updated CSV loader
+fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
-    // Create a CSV reader
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
         .from_reader(reader);
 
-    // Check if the file has headers
     let headers = csv_reader.headers().map(|h| h.clone()).ok();
 
+    let file_stem = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+
     let column_options = if let Some(headers) = &headers {
-        // File has headers - offer them as options
         headers
             .iter()
             .enumerate()
@@ -1042,52 +1047,54 @@ fn load_csv_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::E
             .map_err(|e| format!("Failed to read CSV: {}", e))?;
 
         (1..=record.len())
-            .map(|i| format!("Column {}", i))
+            .map(|i| format!("{}[{}]", file_stem, i))
             .collect()
     };
 
-    // Prompt user to select a column
     let column_selection = Select::new("Select a column to load:", column_options)
         .prompt()
         .map_err(|e| format!("Selection failed: {}", e))?;
 
-    // Extract the column index from the selection string
-    let column_idx = if column_selection.starts_with("Column ") {
-        // Parse from "Column X"
-        column_selection[7..]
+    let column_idx = if let Some(pos) = column_selection.find(':') {
+        column_selection[..pos]
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "Failed to parse column index".to_string())?
+            - 1
+    } else if let Some(start) = column_selection.find('[') {
+        column_selection[start + 1..column_selection.len() - 1]
             .parse::<usize>()
             .map_err(|_| "Failed to parse column index".to_string())?
             - 1
     } else {
-        // Parse from "X: Header"
-        column_selection
-            .split(':')
-            .next()
-            .and_then(|s| s.parse::<usize>().ok())
-            .map(|i| i - 1)
-            .ok_or("Failed to parse column index".to_string())?
+        return Err("Failed to parse column selection".to_string().into());
     };
 
-    // Reset and reopen the CSV reader
-    let file = File::open(file_path).map_err(|e| format!("Failed to reopen file: {}", e))?;
+    let header_name = if let Some(headers) = &headers {
+        headers
+            .get(column_idx)
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| format!("{}[{}]", file_stem, column_idx + 1))
+    } else {
+        format!("{}[{}]", file_stem, column_idx + 1)
+    };
+
+    // Reset and reopen
+    let file = File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(headers.is_some())
         .from_reader(reader);
 
-    // Skip header row if needed
     if headers.is_some() {
         let _ = csv_reader.headers();
     }
 
-    // Read the selected column into a vector
     let mut values = Vec::new();
-
     for result in csv_reader.records() {
         let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
         if column_idx < record.len() {
-            // Try to parse the value as a floating point number
             let value_str = record.get(column_idx).unwrap_or_default();
             values.push(value_str.parse::<f64>()?);
         } else {
@@ -1095,17 +1102,14 @@ fn load_csv_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::E
         }
     }
 
-    // Create DVector from the values
-    let vector = DVector::from_vec(values);
-    Ok(vector)
+    Ok((header_name, DVector::from_vec(values)))
 }
 
-// Function to load TXT files
-fn load_txt_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
+// Updated TXT loader
+fn load_txt_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
     let contents = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
 
-    // Split the content by lines and/or whitespace
     let values: Result<Vec<f64>, _> = contents
         .lines()
         .flat_map(|line| line.split_whitespace())
@@ -1121,21 +1125,24 @@ fn load_txt_file(file_path: &Path) -> Result<DVector<f64>, Box<dyn std::error::E
         return Err("File contains no valid numeric values".to_string().into());
     }
 
-    // Create DVector from the values
-    let vector = DVector::from_vec(values);
-    Ok(vector)
+    let file_stem = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("txt");
+
+    let header_name = format!("{}[1]", file_stem);
+
+    Ok((header_name, DVector::from_vec(values)))
 }
 
-// Function to load .42 files (assuming this is a custom format)
-fn load_42_file(file_path: &PathBuf) -> Result<DVector<f64>, Box<dyn std::error::Error>> {
+// Updated .42 loader
+fn load_42_file(file_path: &PathBuf) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
     let contents = fs::read_to_string(file_path)
         .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
 
-    // Parse your custom .42 file format here
-    // This is just a placeholder implementation assuming .42 files are similar to txt files
     let values: Result<Vec<f64>, _> = contents
         .lines()
-        .filter(|line| !line.trim().starts_with('#')) // Skip comment lines
+        .filter(|line| !line.trim().starts_with('#'))
         .flat_map(|line| line.split_whitespace())
         .map(|s| {
             s.parse::<f64>()
@@ -1149,17 +1156,23 @@ fn load_42_file(file_path: &PathBuf) -> Result<DVector<f64>, Box<dyn std::error:
         return Err("File contains no valid numeric values".to_string().into());
     }
 
-    // Create DVector from the values
-    let vector = DVector::from_vec(values);
-    Ok(vector)
+    let file_stem = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file42");
+
+    let header_name = format!("{}[1]", file_stem);
+
+    Ok((header_name, DVector::from_vec(values)))
 }
 
-fn load_vector_from_file(pwd: &Arc<Mutex<PathBuf>>) -> Result<DVector<f64>, RegistryErrors> {
+// Updated wrapper
+fn load_vector_from_file(
+    pwd: &Arc<Mutex<PathBuf>>,
+) -> Result<(String, DVector<f64>), RegistryErrors> {
     let pwd = &*pwd.lock().unwrap();
-    // Start the file selection loop
     let selected_file = navigate_and_select_file(pwd)?;
 
-    // Load and process the selected file
     let file_ext = selected_file
         .extension()
         .and_then(|ext| ext.to_str())
@@ -1175,5 +1188,6 @@ fn load_vector_from_file(pwd: &Arc<Mutex<PathBuf>>) -> Result<DVector<f64>, Regi
             ));
         }
     };
+
     Ok(v)
 }

@@ -1182,15 +1182,13 @@ impl Program<Message> for Scene {
                                 ))),
                             )
                         } else {
-                            (
-                                Status::Captured,
-                                Some(Message::CursorMoved(self.window_id.unwrap(), position)),
-                            )
+                            (Status::Captured, Some(Message::CursorMoved(position)))
                         }
                     }
-                    mouse::Event::WheelScrolled { delta } => {
-                        (Status::Captured, Some(Message::WheelScrolled(delta)))
-                    }
+                    mouse::Event::WheelScrolled { delta } => (
+                        Status::Captured,
+                        Some(Message::WheelScrolled(canvas_cursor_position, delta)),
+                    ),
                     _ => (Status::Captured, None),
                 },
                 _ => (Status::Ignored, None),

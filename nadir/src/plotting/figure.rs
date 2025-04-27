@@ -35,6 +35,13 @@ impl Figure {
         }
     }
 
+    pub fn cursor_moved(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.cursor_moved(point);
+        }
+    }
+
     pub fn delete_axes(&mut self, i: usize) {
         if i >= self.axes.len() {
             return;
@@ -112,6 +119,20 @@ impl Figure {
         }
     }
 
+    pub fn mouse_middle_clicked(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.mouse_middle_clicked(point);
+        }
+    }
+
+    pub fn mouse_middle_released(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.mouse_middle_released(point);
+        }
+    }
+
     pub fn set_height(&mut self, height: f32) {
         self.size.height = height;
     }
@@ -128,7 +149,7 @@ impl Figure {
         }
     }
 
-    pub fn wheel_scrolled(&mut self, _point: Point, delta: ScrollDelta) {
+    pub fn wheel_scrolled(&mut self, point: Point, delta: ScrollDelta) {
         const SPEED: f32 = 0.1;
         let delta = match delta {
             ScrollDelta::Lines { x: _, y } => y,
@@ -137,12 +158,19 @@ impl Figure {
 
         for axes in &self.axes {
             let axes = &mut *axes.lock().unwrap();
-            let width = axes.xlim.1 - axes.xlim.0;
-            let height = axes.ylim.1 - axes.ylim.0;
-            axes.xlim.0 += width * SPEED * delta;
-            axes.xlim.1 += -width * SPEED * delta;
-            axes.ylim.0 += height * SPEED * delta;
-            axes.ylim.1 += -height * SPEED * delta;
+            if axes.axis.bounds.contains(point) {
+                let width = axes.xlim.1 - axes.xlim.0;
+                let height = axes.ylim.1 - axes.ylim.0;
+                axes.xlim.0 += width * SPEED * delta;
+                axes.xlim.1 += -width * SPEED * delta;
+                axes.ylim.0 += height * SPEED * delta;
+                axes.ylim.1 += -height * SPEED * delta;
+
+                for line in &mut axes.lines {
+                    let line = &mut *line.lock().unwrap();
+                    line.update_canvas_position(&axes.axis.bounds, &axes.xlim, &axes.ylim);
+                }
+            }
         }
     }
 

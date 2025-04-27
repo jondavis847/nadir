@@ -154,11 +154,10 @@ impl NadirRepl {
                                 // If there is some event, perform it
                                 match value {
                                     Value::Event(event) => match event {
-                                        Event::Animate => {
+                                        Event::Animate(pwd) => {
                                             if let Some(repl_to_subscription) =
                                                 &mut self.channels.repl_to_plot_subscription
                                             {
-                                                let pwd = std::env::current_dir()?;
                                                 block_on(
                                                     repl_to_subscription
                                                         .send(ReplToSubscription::Animate(pwd)),
@@ -350,7 +349,7 @@ impl NadirRepl {
                 Ok(value)
             }
             Rule::float => Ok(Value::f64(pair.as_str().parse::<f64>().unwrap())),
-            Rule::function_call => self.evaluate_function_call(pair, None),
+            Rule::function_call => self.evaluate_function_call(pair, None, self.pwd.clone()),
             Rule::identifier => {
                 let ident = pair.as_str();
                 match ident {
@@ -496,7 +495,7 @@ impl NadirRepl {
                 let struct_name_pair = pairs.next().unwrap();
                 let struct_name = struct_name_pair.as_str();
                 let fn_call_pair = pairs.next().unwrap();
-                self.evaluate_function_call(fn_call_pair, Some(struct_name))
+                self.evaluate_function_call(fn_call_pair, Some(struct_name), self.pwd.clone())
             }
             Rule::postfix => {
                 let mut inner_pairs = pair.into_inner();
@@ -561,6 +560,7 @@ impl NadirRepl {
         &mut self,
         pair: Pair<Rule>,
         struct_name: Option<&str>,
+        pwd: Arc<Mutex<PathBuf>>,
     ) -> Result<Value, ReplErrors> {
         let mut pairs = pair.into_inner();
 
@@ -594,7 +594,11 @@ impl NadirRepl {
                 self.pwd.clone(),
             )?)
         } else {
-            Ok(self.registry.lock().unwrap().eval_function(fn_name, args)?)
+            Ok(self
+                .registry
+                .lock()
+                .unwrap()
+                .eval_function(fn_name, args, pwd)?)
         }
     }
 

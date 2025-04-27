@@ -24,6 +24,7 @@ pub struct Axes {
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
     click_start: Option<Point>,
+    is_panning: bool,
 }
 
 impl Axes {
@@ -35,8 +36,7 @@ impl Axes {
         self.xlim = xlim;
         self.ylim = ylim;
 
-        self.axis
-            .update_bounds(&self.bounds, &self.xlim, &self.ylim);
+        self.axis.update_bounds(&self.bounds);
 
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
@@ -44,8 +44,44 @@ impl Axes {
         }
     }
 
+    pub fn cursor_moved(&mut self, point: Point) {
+        if self.is_panning {
+            if let Some(start_point) = self.click_start {
+                let dx = point.x - start_point.x;
+                let dy = point.y - start_point.y;
+
+                let xrange = self.xlim.1 - self.xlim.0;
+                let yrange = self.ylim.1 - self.ylim.0;
+
+                // fraction of canvas moved
+                let frac_x = dx / self.axis.bounds.width;
+                let frac_y = dy / self.axis.bounds.height;
+
+                // convert to data space shift
+                let data_dx = -frac_x * xrange;
+                let data_dy = frac_y * yrange; // careful: Y axis is typically flipped
+
+                // shift limits
+                self.xlim.0 += data_dx;
+                self.xlim.1 += data_dx;
+                self.ylim.0 += data_dy;
+                self.ylim.1 += data_dy;
+
+                // update lines
+                for line in &self.lines {
+                    let line = &mut *line.lock().unwrap();
+                    line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
+                }
+                // update click start point
+                self.click_start = Some(point);
+            }
+        }
+    }
+
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
-        self.draw_background(frame, theme);
+        // background
+        frame.fill_rectangle(Point::ORIGIN, frame.size(), theme.axes_background);
+
         self.axis.draw_grid(frame, theme, &self.xlim, &self.ylim);
 
         for (i, line) in self.lines.iter().enumerate() {
@@ -53,10 +89,6 @@ impl Axes {
             line.draw(frame, theme, i, &self.axis.bounds);
         }
         self.axis.draw_border(frame, theme);
-    }
-
-    fn draw_background(&self, frame: &mut Frame, theme: &PlotTheme) {
-        frame.fill_rectangle(Point::ORIGIN, frame.size(), theme.axes_background)
     }
 
     pub fn get_figure_id(&self) -> Option<Id> {
@@ -102,6 +134,17 @@ impl Axes {
         self.click_start = None;
     }
 
+    pub fn mouse_middle_clicked(&mut self, point: Point) {
+        if self.axis.bounds.contains(point) {
+            self.click_start = Some(point);
+            self.is_panning = true;
+        }
+    }
+
+    pub fn mouse_middle_released(&mut self, _point: Point) {
+        self.is_panning = false;
+    }
+
     pub fn new(location: (usize, usize), figure_id: Option<Id>) -> Self {
         Self {
             figure_id,
@@ -119,11 +162,20 @@ impl Axes {
                 top: 0.0,
                 bottom: 0.0,
             },
+            is_panning: false,
         }
     }
 
     pub fn set_figure_id(&mut self, id: Id) {
         self.figure_id = Some(id);
+    }
+
+    pub fn set_x_label(&mut self, label: String) {
+        self.axis.set_x_label(label);
+    }
+
+    pub fn set_y_label(&mut self, label: String) {
+        self.axis.set_y_label(label);
     }
 
     pub fn update_bounds(&mut self, fig_size: Size, nrows: usize, ncols: usize) {
@@ -133,8 +185,8 @@ impl Axes {
         self.bounds.x = self.bounds.width * self.location.1 as f32 + self.padding.left;
         self.bounds.y = self.bounds.height * self.location.0 as f32 + self.padding.top;
 
-        self.axis
-            .update_bounds(&self.bounds, &self.xlim, &self.ylim);
+        dbg!(&self.bounds);
+        self.axis.update_bounds(&self.bounds);
         for line in &self.lines {
             let line = &mut *line.lock().unwrap();
             line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);

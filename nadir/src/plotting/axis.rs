@@ -5,6 +5,14 @@ use iced::{
     widget::canvas::{Frame, Path, Stroke, Text},
 };
 
+#[derive(Debug, Default, Clone)]
+struct Corners {
+    top_left: Point,
+    top_right: Point,
+    bottom_left: Point,
+    bottom_right: Point,
+}
+
 #[derive(Debug, Clone)]
 pub struct Axis {
     padding: Padding,
@@ -13,9 +21,9 @@ pub struct Axis {
     n_ticks: u32,
     tick_length: f32,
     tick_text_spacing: f32,
-    pub canvas_origin: Point, // data to canvas position
-    pub data_to_canvas_scale_x: f32,
-    pub data_to_canvas_scale_y: f32,
+    x_label: Option<String>,
+    y_label: Option<String>,
+    corners: Corners,
 }
 
 impl Default for Axis {
@@ -33,35 +41,26 @@ impl Default for Axis {
             n_ticks: 5,
             tick_length: 10.0,
             tick_text_spacing: 20.0,
-            canvas_origin: Point::new(0.0, bounds.height),
-            data_to_canvas_scale_x: 1.0,
-            data_to_canvas_scale_y: 1.0,
+            y_label: None,
+            x_label: None,
+            corners: Corners::default(), // updated in update_bounds
         }
     }
 }
 
 impl Axis {
     pub fn draw_border(&self, frame: &mut Frame, theme: &PlotTheme) {
-        // Points are relative to the clipped axes frame, hence only padding, since bounds is overall canvas bounds, including axes padding
-        let bottom_left = Point::new(self.padding.left, self.padding.top + self.bounds.height);
-        let bottom_right = Point::new(
-            self.padding.left + self.bounds.width,
-            self.padding.top + self.bounds.height,
-        );
-        let top_left = Point::new(self.padding.left, self.padding.top);
-        let top_right = Point::new(self.padding.left + self.bounds.width, self.padding.top);
-
         let border_lines = [
-            (bottom_left, top_left), // left border
+            (self.corners.bottom_left, self.corners.top_left), // left border
             (
-                bottom_left + Vector::new(-self.border_width / 2.0, 0.0),
-                bottom_right + Vector::new(self.border_width / 2.0, 0.0),
+                self.corners.bottom_left + Vector::new(-self.border_width / 2.0, 0.0),
+                self.corners.bottom_right + Vector::new(self.border_width / 2.0, 0.0),
             ), // bottom border
             (
-                top_left + Vector::new(-self.border_width / 2.0, 0.0),
-                top_right + Vector::new(self.border_width / 2.0, 0.0),
+                self.corners.top_left + Vector::new(-self.border_width / 2.0, 0.0),
+                self.corners.top_right + Vector::new(self.border_width / 2.0, 0.0),
             ), // top border
-            (top_right, bottom_right), // right border
+            (self.corners.top_right, self.corners.bottom_right), // right border
         ];
         // Draw border lines
         let border_stroke = Stroke::default()
@@ -79,16 +78,11 @@ impl Axis {
         xlim: &(f32, f32),
         ylim: &(f32, f32),
     ) {
-        // Points are relative to the clipped axes frame, hence only padding, since bounds is overall canvas bounds, including axes padding
-        let bottom_left = Point::new(self.padding.left, self.padding.top + self.bounds.height);
-        let bottom_right = Point::new(
-            self.padding.left + self.bounds.width,
-            self.padding.top + self.bounds.height,
+        frame.fill_rectangle(
+            self.corners.top_left,
+            self.bounds.size(),
+            theme.axis_background,
         );
-        let top_left = Point::new(self.padding.left, self.padding.top);
-        let top_right = Point::new(self.padding.left + self.bounds.width, self.padding.top);
-
-        frame.fill_rectangle(top_left, self.bounds.size(), theme.axis_background);
 
         // Draw ticks, labels, and grid lines
         let draw_ticks_labels_and_grids =
@@ -175,13 +169,13 @@ impl Axis {
                         // Draw grid lines
                         let (grid_start, grid_end) = if is_x_axis {
                             (
-                                Point::new(tick_point.x, top_left.y),
-                                Point::new(tick_point.x, bottom_left.y),
+                                Point::new(tick_point.x, self.corners.top_left.y),
+                                Point::new(tick_point.x, self.corners.bottom_left.y),
                             )
                         } else {
                             (
-                                Point::new(top_left.x, tick_point.y),
-                                Point::new(top_right.x, tick_point.y),
+                                Point::new(self.corners.top_left.x, tick_point.y),
+                                Point::new(self.corners.top_right.x, tick_point.y),
                             )
                         };
 
@@ -250,11 +244,11 @@ impl Axis {
         draw_ticks_labels_and_grids(
             frame,
             theme,
-            bottom_left,
-            bottom_right,
+            self.corners.bottom_left,
+            self.corners.bottom_right,
             self.bounds.size(),
             *xlim,
-            bottom_right.x - bottom_left.x,
+            self.corners.bottom_right.x - self.corners.bottom_left.x,
             self.n_ticks,
             true,
             self.tick_length,
@@ -265,30 +259,108 @@ impl Axis {
         draw_ticks_labels_and_grids(
             frame,
             theme,
-            bottom_left,
-            top_left,
+            self.corners.bottom_left,
+            self.corners.top_left,
             self.bounds.size(),
             *ylim,
-            bottom_left.y - top_left.y,
+            self.corners.bottom_left.y - self.corners.top_left.y,
             self.n_ticks,
             false,
             self.tick_length,
             self.tick_text_spacing,
             self.border_width,
         );
+
+        // -------- Draw x_label and y_label if present --------
+        if let Some(x_label) = &self.x_label {
+            let center_x = (self.corners.bottom_left.x + self.corners.bottom_right.x) / 2.0;
+            let position = Point::new(
+                center_x,
+                self.corners.bottom_left.y + self.tick_text_spacing * 2.0,
+            );
+
+            let text = Text {
+                content: x_label.clone(),
+                color: theme.text_color,
+                horizontal_alignment: Horizontal::Center,
+                vertical_alignment: Vertical::Top,
+                position,
+                size: (16.0).into(),
+                ..Text::default()
+            };
+
+            frame.fill_text(text);
+        }
+
+        if let Some(y_label) = &self.y_label {
+            let center_y = (self.corners.bottom_left.y + self.corners.top_left.y) / 2.0;
+            let position = Point::new(
+                self.corners.top_left.x - self.tick_text_spacing * 4.0,
+                center_y,
+            );
+
+            frame.with_save(|frame| {
+                frame.translate(position - Point::ORIGIN);
+                frame.rotate(std::f32::consts::FRAC_PI_2);
+                let text = Text {
+                    content: y_label.clone(),
+                    color: theme.text_color,
+                    horizontal_alignment: Horizontal::Center,
+                    vertical_alignment: Vertical::Center,
+                    position,
+                    size: (16.0).into(),
+                    ..Text::default()
+                };
+
+                frame.fill_text(text);
+            })
+        }
     }
 
-    pub fn update_bounds(&mut self, axes_bounds: &Rectangle, xlim: &(f32, f32), ylim: &(f32, f32)) {
-        self.bounds.x = axes_bounds.x + self.padding.left;
+    pub fn set_x_label(&mut self, label: String) {
+        self.x_label = Some(label);
+        self.update_corners();
+    }
+    pub fn set_y_label(&mut self, label: String) {
+        self.y_label = Some(label);
+        self.update_corners();
+    }
+
+    pub fn update_bounds(&mut self, axes_bounds: &Rectangle) {
+        // dynamic sizing based on labels
+        let bottom = if self.x_label.is_some() {
+            axes_bounds.height - 2.0 * self.padding.bottom
+        } else {
+            axes_bounds.height - self.padding.bottom
+        };
+
+        // dynamic sizing based on labels
+        let left = if self.y_label.is_some() {
+            2.0 * self.padding.left
+        } else {
+            self.padding.left
+        };
+
+        self.bounds.x = axes_bounds.x + left;
         self.bounds.y = axes_bounds.y + self.padding.top;
-        self.bounds.width = axes_bounds.width - self.padding.left - self.padding.right;
-        self.bounds.height = axes_bounds.height - self.padding.top - self.padding.bottom;
+        self.bounds.width = axes_bounds.width - left - self.padding.right;
+        self.bounds.height = bottom - self.bounds.y;
+        self.update_corners();
 
-        self.data_to_canvas_scale_x = self.bounds.width / (xlim.1 - xlim.0).abs();
-        self.data_to_canvas_scale_y = self.bounds.height / (ylim.1 - ylim.0).abs();
+        dbg!(&self.bounds);
+        dbg!(&self.corners);
+    }
 
-        self.canvas_origin.x = self.bounds.x - xlim.0 * self.data_to_canvas_scale_x;
-        self.canvas_origin.y = self.bounds.y + ylim.0 * self.data_to_canvas_scale_y;
+    pub fn update_corners(&mut self) {
+        let left = self.bounds.x;
+        let bottom = self.bounds.y + self.bounds.height;
+        let top = self.bounds.y;
+        let right = self.bounds.x + self.bounds.width;
+
+        self.corners.bottom_left = Point::new(left, bottom);
+        self.corners.bottom_right = Point::new(right, bottom);
+        self.corners.top_left = Point::new(left, top);
+        self.corners.top_right = Point::new(right, top);
     }
 }
 
