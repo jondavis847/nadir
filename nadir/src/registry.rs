@@ -1,5 +1,5 @@
-use csv::ReaderBuilder;
-use inquire::Select;
+use csv::{ReaderBuilder, StringRecord};
+use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
@@ -192,16 +192,24 @@ impl Registry {
         figure_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                let (xname, x) = load_vector_from_file(&pwd)?;
-                let (yname, y) = load_vector_from_file(&pwd)?;
-                let mut series = Series::new(&x, &y)?;
-                series.set_x_name(xname);
-                series.set_y_name(yname);
-                let l = Arc::new(Mutex::new(Line::new(series)));
+                let pwd = pwd.lock().unwrap();
+                let file = navigate_and_select_file(&pwd)?;
+                let (xname, x) = load_csv_column(&file)?;
+                let file = navigate_and_select_file(&pwd)?;
+                let ydata = load_multiple_csv_columns(&file)?;
+
                 let mut figure = Figure::new();
                 let axes = figure.get_axes(0)?;
                 let axes = &mut *axes.lock().unwrap();
-                axes.add_line(l);
+
+                for (yname, y) in ydata {
+                    let mut series = Series::new(&x, &y)?;
+                    series.set_x_name(xname.clone());
+                    series.set_y_name(yname);
+                    let l = Arc::new(Mutex::new(Line::new(series)));
+                    axes.add_line(l);
+                }
+
                 Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
             })],
         );
@@ -275,8 +283,11 @@ impl Registry {
         line_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                let (xname, x) = load_vector_from_file(&pwd)?;
-                let (yname, y) = load_vector_from_file(&pwd)?;
+                let pwd = pwd.lock().unwrap();
+                let file = navigate_and_select_file(&pwd)?;
+                let (xname, x) = load_csv_column(&file)?;
+                let file = navigate_and_select_file(&pwd)?;
+                let (yname, y) = load_csv_column(&file)?;
                 let mut series = Series::new(&x, &y)?;
                 series.set_x_name(xname);
                 series.set_y_name(yname);
@@ -560,7 +571,9 @@ impl Registry {
         vector_struct_methods.insert(
             "from_csv",
             vec![StructMethod::new(vec![], |_args, pwd| {
-                let (_, v) = load_vector_from_file(&pwd)?;
+                let pwd = pwd.lock().unwrap();
+                let file = navigate_and_select_file(&pwd)?;
+                let (_, v) = load_csv_column(&file)?;
                 Ok(Value::Vector(Arc::new(Mutex::new(v))))
             })],
         );
@@ -1016,11 +1029,13 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
     }
 }
 
-// Updated CSV loader
-fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
+/// Common utility function for CSV operations
+fn csv_utils(
+    file_path: &Path,
+) -> Result<(Vec<String>, Option<StringRecord>, String), Box<dyn std::error::Error>> {
+    // Open and read the CSV file
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
-
     let mut csv_reader = ReaderBuilder::new()
         .has_headers(true)
         .flexible(true)
@@ -1031,8 +1046,10 @@ fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std
     let file_stem = file_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("file");
+        .unwrap_or("file")
+        .to_string();
 
+    // Generate column option labels
     let column_options = if let Some(headers) = &headers {
         headers
             .iter()
@@ -1040,6 +1057,7 @@ fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std
             .map(|(i, h)| format!("{}: {}", i + 1, h))
             .collect::<Vec<_>>()
     } else {
+        // If no headers, create default column names based on index
         let record = csv_reader
             .records()
             .next()
@@ -1051,25 +1069,41 @@ fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std
             .collect()
     };
 
+    Ok((column_options, headers, file_stem))
+}
+
+/// Parse column index from a formatted column selection string
+fn parse_column_index(selection: &str) -> Result<usize, String> {
+    if let Some(pos) = selection.find(':') {
+        selection[..pos]
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "Failed to parse column index".to_string())
+            .map(|idx| idx - 1)
+    } else if let Some(start) = selection.find('[') {
+        selection[start + 1..selection.len() - 1]
+            .parse::<usize>()
+            .map_err(|_| "Failed to parse column index".to_string())
+            .map(|idx| idx - 1)
+    } else {
+        Err("Failed to parse column selection".to_string())
+    }
+}
+
+/// Function to load a single column from a CSV file
+fn load_csv_column(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
+    // Get column options
+    let (column_options, headers, file_stem) = csv_utils(file_path)?;
+
+    // Select a single column
     let column_selection = Select::new("Select a column to load:", column_options)
         .prompt()
         .map_err(|e| format!("Selection failed: {}", e))?;
 
-    let column_idx = if let Some(pos) = column_selection.find(':') {
-        column_selection[..pos]
-            .trim()
-            .parse::<usize>()
-            .map_err(|_| "Failed to parse column index".to_string())?
-            - 1
-    } else if let Some(start) = column_selection.find('[') {
-        column_selection[start + 1..column_selection.len() - 1]
-            .parse::<usize>()
-            .map_err(|_| "Failed to parse column index".to_string())?
-            - 1
-    } else {
-        return Err("Failed to parse column selection".to_string().into());
-    };
+    // Parse column index
+    let column_idx = parse_column_index(&column_selection)?;
 
+    // Get column name
     let header_name = if let Some(headers) = &headers {
         headers
             .get(column_idx)
@@ -1079,7 +1113,7 @@ fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std
         format!("{}[{}]", file_stem, column_idx + 1)
     };
 
-    // Reset and reopen
+    // Read data
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut csv_reader = ReaderBuilder::new()
@@ -1096,13 +1130,100 @@ fn load_csv_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std
 
         if column_idx < record.len() {
             let value_str = record.get(column_idx).unwrap_or_default();
-            values.push(value_str.parse::<f64>()?);
+            values.push(value_str.parse::<f64>().map_err(|_| {
+                format!(
+                    "Failed to parse '{}' as f64 in column {}",
+                    value_str,
+                    column_idx + 1
+                )
+            })?);
         } else {
             return Err(format!("Column index {} out of bounds", column_idx + 1).into());
         }
     }
 
     Ok((header_name, DVector::from_vec(values)))
+}
+
+/// Function to load multiple columns from a CSV file
+fn load_multiple_csv_columns(
+    file_path: &Path,
+) -> Result<Vec<(String, DVector<f64>)>, Box<dyn std::error::Error>> {
+    // Get column options
+    let (column_options, headers, file_stem) = csv_utils(file_path)?;
+
+    // Select multiple columns
+    let selected_columns = MultiSelect::new("Select columns to load:", column_options)
+        .prompt()
+        .map_err(|e| format!("Selection failed: {}", e))?;
+
+    if selected_columns.is_empty() {
+        return Err("No columns were selected".to_string().into());
+    }
+
+    // Parse column indices
+    let column_indices: Vec<usize> = selected_columns
+        .iter()
+        .map(|selection| parse_column_index(selection))
+        .collect::<Result<Vec<usize>, String>>()?;
+
+    // Get column names
+    let column_names: Vec<String> = column_indices
+        .iter()
+        .map(|&idx| {
+            if let Some(headers) = &headers {
+                headers
+                    .get(idx)
+                    .map(|h| h.to_string())
+                    .unwrap_or_else(|| format!("{}[{}]", file_stem, idx + 1))
+            } else {
+                format!("{}[{}]", file_stem, idx + 1)
+            }
+        })
+        .collect();
+
+    // Read data for all selected columns
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+    let mut csv_reader = ReaderBuilder::new()
+        .has_headers(headers.is_some())
+        .from_reader(reader);
+
+    if headers.is_some() {
+        let _ = csv_reader.headers();
+    }
+
+    // Create vectors to hold data for each selected column
+    let mut column_data: Vec<Vec<f64>> = vec![Vec::new(); column_indices.len()];
+
+    // Read all records and extract selected columns
+    for result in csv_reader.records() {
+        let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
+
+        for (vec_idx, &col_idx) in column_indices.iter().enumerate() {
+            if col_idx < record.len() {
+                let value_str = record.get(col_idx).unwrap_or_default();
+                let value = value_str.parse::<f64>().map_err(|_| {
+                    format!(
+                        "Failed to parse value '{}' as f64 in column {}",
+                        value_str,
+                        col_idx + 1
+                    )
+                })?;
+                column_data[vec_idx].push(value);
+            } else {
+                return Err(format!("Column index {} out of bounds", col_idx + 1).into());
+            }
+        }
+    }
+
+    // Create result vector of (name, data) pairs
+    let result: Vec<(String, DVector<f64>)> = column_names
+        .into_iter()
+        .zip(column_data.into_iter().map(DVector::from_vec))
+        .collect();
+
+    Ok(result)
 }
 
 // Updated TXT loader
@@ -1169,7 +1290,7 @@ fn load_42_file(file_path: &PathBuf) -> Result<(String, DVector<f64>), Box<dyn s
 // Updated wrapper
 fn load_vector_from_file(
     pwd: &Arc<Mutex<PathBuf>>,
-) -> Result<(String, DVector<f64>), RegistryErrors> {
+) -> Result<Vec<(String, DVector<f64>)>, RegistryErrors> {
     let pwd = &*pwd.lock().unwrap();
     let selected_file = navigate_and_select_file(pwd)?;
 
@@ -1179,9 +1300,9 @@ fn load_vector_from_file(
         .unwrap_or("");
 
     let v = match file_ext {
-        "csv" => load_csv_file(&selected_file)?,
-        "txt" => load_txt_file(&selected_file)?,
-        "42" => load_42_file(&selected_file)?,
+        "csv" => load_multiple_csv_columns(&selected_file)?,
+        // "txt" => load_txt_file(&selected_file)?,
+        // "42" => load_42_file(&selected_file)?,
         _ => {
             return Err(RegistryErrors::Error(
                 format!("Unsupported file extension: {}", file_ext).into(),

@@ -50,7 +50,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A with_orbit() method is provided for Floating joints
     let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let f = FloatingBuilder::new()
-        .with_attitude(UnitQuaternion::new(-0.4, -0.5, 0.5, 0.5)?)
+        .with_attitude(UnitQuaternion::new(
+            -0.3607597432795579,
+            -0.6081457090887359,
+            0.3607613756444451,
+            0.6081631639526958,
+        )?)
+        .with_angular_rate(0.0, -0.0010471975511965976, 0.0)
         .with_orbit(orbit.into());
     let mut j = sys.new_joint("f", f.into())?;
 
@@ -186,33 +192,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     // TODO: These connections are not the ideal interface and will be improved in the future
     sys.base.connect_outer_joint(&mut j, Transform::IDENTITY)?;
     bus.connect_inner_joint(&mut j, Transform::IDENTITY)?;
-    // bus.connect_outer_joint(
-    //     &mut h1,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -1.0).into()),
-    // )?;
-    // sa1.connect_inner_joint(
-    //     &mut h1,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
-    // )?;
-    // sa1.connect_outer_joint(
-    //     &mut h2,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -0.05).into()),
-    // )?;
+    bus.connect_outer_joint(
+        &mut h1,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -1.0).into()),
+    )?;
+    sa1.connect_inner_joint(
+        &mut h1,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+    )?;
+    sa1.connect_outer_joint(
+        &mut h2,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -0.05).into()),
+    )?;
 
-    // sa2.connect_inner_joint(
-    //     &mut h2,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, -0.05).into()),
-    // )?;
+    sa2.connect_inner_joint(
+        &mut h2,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, -0.05).into()),
+    )?;
 
-    // sa2.connect_outer_joint(
-    //     &mut h3,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, 0.05).into()),
-    // )?;
+    sa2.connect_outer_joint(
+        &mut h3,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, 0.05).into()),
+    )?;
 
-    // sa3.connect_inner_joint(
-    //     &mut h3,
-    //     Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
-    // )?;
+    sa3.connect_inner_joint(
+        &mut h3,
+        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+    )?;
 
     gps.connect_body(bus.id, Transform::IDENTITY)?;
     st.connect_body(bus.id, Transform::IDENTITY)?;
@@ -220,13 +226,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     mag.connect_body(bus.id, Transform::IDENTITY)?;
 
     sys.add_body(bus);
-    // sys.add_body(sa1);
-    // sys.add_body(sa2);
-    // sys.add_body(sa3);
+    sys.add_body(sa1);
+    sys.add_body(sa2);
+    sys.add_body(sa3);
     sys.add_joint(j);
-    // sys.add_joint(h1);
-    // sys.add_joint(h2);
-    // sys.add_joint(h3);
+    sys.add_joint(h1);
+    sys.add_joint(h2);
+    sys.add_joint(h3);
     sys.add_sensor(gps);
     sys.add_sensor(st);
     sys.add_sensor(imu);
@@ -237,8 +243,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    //let path = "../../target/release/software.dll"; //windows
-    let path = "../../target/release/libsoftware.so"; //linux
+    let path = "../../target/release/software.dll"; //windows
+    //let path = "../../target/release/libsoftware.so"; //linux
     let software = Software::new("fsw", path)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
@@ -247,7 +253,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //let pwd = std::env::current_dir()?;
     //sys.save(&pwd);
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 0.1, None);
+    sys.simulate("", 0.0, 1000.0, 0.1, None)?;
 
     Ok(())
 }
