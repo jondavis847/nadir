@@ -168,7 +168,7 @@ impl AnimationProgram {
                 .push(progress_slider)
                 .push(horizontal_space().width(Length::FillPortion(3)));
 
-            let progress_margin = vertical_space().height(Length::FillPortion(9));
+            let progress_margin = vertical_space().height(Length::FillPortion(19));
 
             let progress_column = Column::new()
                 .push(progress_margin)
@@ -263,10 +263,6 @@ impl AnimationProgram {
         })
     }
 
-    pub fn playback_speed_changed(&mut self, value: f64) {
-        self.animator.speed = value;
-    }
-
     pub fn update(&mut self, message: AnimationMessage) {
         match message {
             AnimationMessage::CameraFovChanged(_, fov) => self.scene.camera.set_fov(fov),
@@ -321,6 +317,11 @@ impl AnimationProgram {
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
         self.scene.camera.update_position_from_scroll_delta(delta);
+    }
+
+    pub fn window_resized(&mut self, size: Size) {
+        let top_left = Point::new(0.0, 19.0 / 20.0 * size.height);
+        self.progress_bounds = Rectangle::new(top_left, Size::new(size.width, size.height / 20.0));
     }
 }
 

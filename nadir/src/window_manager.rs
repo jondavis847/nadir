@@ -326,7 +326,7 @@ impl WindowManager {
             Message::WindowResized(id, size) => {
                 if let Some(window) = self.windows.get_mut(&id) {
                     match &mut window.program {
-                        NadirProgram::Animation(_) => {} // window events handled inside the animation program
+                        NadirProgram::Animation(animation) => animation.window_resized(size), // window events handled inside the animation program
                         NadirProgram::Plot(plot) => plot.window_resized(size),
                     }
                 }

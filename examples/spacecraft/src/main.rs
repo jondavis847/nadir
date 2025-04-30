@@ -48,7 +48,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit =
+        KeplerianElements::new(7e6, 0.0, 1.57, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let f = FloatingBuilder::new()
         .with_attitude(UnitQuaternion::new(
             -0.3607597432795579,
@@ -269,7 +270,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //let pwd = std::env::current_dir()?;
     //sys.save(&pwd);
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 0.1, None)?;
+    sys.simulate("", 0.0, 4000.0, 0.1, None)?;
 
     Ok(())
 }

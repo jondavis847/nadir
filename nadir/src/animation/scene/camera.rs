@@ -1,5 +1,5 @@
-use glam::{mat4, vec3, vec4, Mat3, Quat, Vec3};
-use iced::{mouse::ScrollDelta, Rectangle, Vector};
+use glam::{Mat3, Quat, Vec3, mat4, vec3, vec4};
+use iced::{Rectangle, Vector, mouse::ScrollDelta};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Camera {
@@ -23,7 +23,7 @@ impl Default for Camera {
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
-            sensitivity: 0.005,
+            sensitivity: 0.003,
         };
 
         //update rotation to not be identity
@@ -89,7 +89,7 @@ impl Camera {
 
         // Convert mouse delta to yaw and pitch
         let yaw = Quat::from_axis_angle(self.up, -mouse_delta.x * self.sensitivity);
-        let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
+        let pitch = Quat::from_axis_angle(right, mouse_delta.y * self.sensitivity);
 
         // Combine yaw and pitch into a single rotation quaternion and update camera rotation
         let incremental_rotation = yaw * pitch;
@@ -108,19 +108,11 @@ impl Camera {
     pub fn update_position_from_scroll_delta(&mut self, scroll_delta: ScrollDelta) {
         let delta = match scroll_delta {
             ScrollDelta::Lines { x, y } => {
-                if x.abs() > y.abs() {
-                    x
-                } else {
-                    y
-                }
+                if x.abs() > y.abs() { x } else { y }
                 //TODO: Play with scale of the mag
             }
             ScrollDelta::Pixels { x, y } => {
-                if x.abs() > y.abs() {
-                    x
-                } else {
-                    y
-                }
+                if x.abs() > y.abs() { x } else { y }
                 //TODO: Play with scale of the mag
             }
         };

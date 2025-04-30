@@ -139,11 +139,7 @@ struct FxaaUniformBuffer(wgpu::Buffer);
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 struct FxaaUniform {
-    reciprocal_screen_size: [f32; 2],
-    subpix_shift: f32,
-    subpix_trim: f32,
-    reduce_min: f32,
-    reduce_mul: f32,
+    pixel: [f32; 2],
 }
 
 #[derive(Debug)]
@@ -621,18 +617,12 @@ impl Primitive for ScenePrimitive {
 
         // Create and store the fxaa uniform buffer
         if !storage.has::<FxaaUniformBuffer>() || resize {
-            let reciprocal_screen_size = [
+            let pixel = [
                 1.0 / current_viewport_size.width as f32,
                 1.0 / current_viewport_size.height as f32,
             ];
 
-            let fxaa_uniform = FxaaUniform {
-                reciprocal_screen_size,
-                subpix_shift: 1.0 / 4.0, // Typical value
-                subpix_trim: 1.0 / 12.0, // Typical value
-                reduce_min: 1.0 / 128.0, // Typical value
-                reduce_mul: 1.0 / 8.0,   // Typical value
-            };
+            let fxaa_uniform = FxaaUniform { pixel };
 
             let fxaa_uniform_buffer =
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -665,7 +655,7 @@ impl Primitive for ScenePrimitive {
                 fxaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
             storage.store(FxaaView(fxaa_texture_view));
         }
-        if !storage.has::<FxaaBindGroupLayout>() {
+        if !storage.has::<FxaaBindGroupLayout>() || resize {
             // Create the bind group layout for FXAA (texture + sampler)
             let fxaa_bind_group_layout =
                 device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -704,7 +694,7 @@ impl Primitive for ScenePrimitive {
                 });
             storage.store(FxaaBindGroupLayout(fxaa_bind_group_layout));
         }
-        if !storage.has::<FxaaBindGroup>() {
+        if !storage.has::<FxaaBindGroup>() || resize {
             let fxaa_bind_group_layout = &storage
                 .get::<FxaaBindGroupLayout>()
                 .expect("FxaaBindGroupLayout not found")
@@ -739,7 +729,7 @@ impl Primitive for ScenePrimitive {
             });
             storage.store(FxaaBindGroup(fxaa_bind_group));
         }
-        if !storage.has::<FxaaPipeline>() {
+        if !storage.has::<FxaaPipeline>() || resize {
             let fxaa_bind_group_layout = &storage
                 .get::<FxaaBindGroupLayout>()
                 .expect("FxaaBindGroupLayout not found")
