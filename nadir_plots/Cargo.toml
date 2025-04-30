@@ -1,9 +1,0 @@
-[package]
-name = "nadir_plots"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-rust-version.workspace = true
-
-[dependencies]
-iced.workspace = true

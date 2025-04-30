@@ -68,7 +68,7 @@ impl Scene {
             body_meshes: Vec::new(),
             celestial: CelestialAnimation::default(),
             world_target: None,
-            sample_count: 4,
+            sample_count: 1,
         }
     }
     pub fn set_celestial(&mut self) {

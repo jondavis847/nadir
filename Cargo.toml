@@ -18,10 +18,8 @@ members = [
     "mass_properties",
     "multibody", 
     "nadir",    
-    "nadir_3d", "nadir_plots",
-    "nadir_result",     
-    "plotting", 
-    "plotting_egui", 
+    "nadir_3d", 
+    "nadir_result",         
     "rotations",     
     "spatial_algebra",
     "spherical_harmonics", 
@@ -68,7 +66,6 @@ mass_properties = {path = "mass_properties"}
 multibody = {path = "multibody"}  
 nadir = {path = "nadir"}  
 nadir_3d = {path = "nadir_3d"} 
-nadir_plots = {path = "nadir_plots"}
 nadir_result = {path = "nadir_result"}
 nalgebra = {version = "0.33.2", features = ["serde-serialize"] }
 num-traits = "*"
@@ -76,8 +73,6 @@ quote = "1.0.38"
 pest = "2.8.0"
 pest_derive = "2.7.15"
 phf = { version = "0.11.2", features = ["macros"] }
-plotting = {path = "plotting"}
-plotting_egui = {path = "plotting_egui"}
 rand = { version = "0.9.0", features = ["serde", "small_rng"] }
 rand_distr = { version = "0.5.1", features = ["serde"] }
 rayon = "1.10.0"

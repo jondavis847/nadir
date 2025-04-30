@@ -21,7 +21,7 @@ use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
-use std::{error::Error, f64::consts::PI};
+use std::{error::Error, f64::consts::PI, path::Path};
 use time::Time;
 use transforms::{
     Transform,
@@ -243,9 +243,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    let path = "../../target/release/software.dll"; //windows
-    //let path = "../../target/release/libsoftware.so"; //linux
-    let software = Software::new("fsw", path)
+    let lib_name = match std::env::consts::OS {
+        "windows" => "software.dll",
+        "macos" => "libsoftware.dylib",
+        _ => "libsoftware.so", //Linux
+    };
+
+    let lib_path = format!("../../target/release/{}", lib_name);
+    let lib_path_ref = Path::new(&lib_path);
+
+    if !lib_path_ref.exists() {
+        eprintln!(
+            "Error: Dynamic library not found at {}\n\
+             Please compile it first with: `cargo build --release --lib` in the src\\software crate.",
+            lib_path
+        );
+        std::process::exit(1);
+    }
+
+    let software = Software::new("fsw", lib_path_ref)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
