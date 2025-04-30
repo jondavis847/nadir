@@ -18,7 +18,7 @@ use crate::window_manager::Message;
 pub mod axes;
 mod axis;
 pub mod figure;
-mod legend;
+pub mod legend;
 pub mod line;
 mod note_bar;
 pub mod series;

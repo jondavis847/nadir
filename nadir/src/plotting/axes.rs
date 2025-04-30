@@ -17,7 +17,7 @@ pub struct Axes {
     pub axis: Axis,
     pub bounds: Rectangle,
     pub figure_id: Option<Id>,
-    pub legend: Legend,
+    pub legend: Option<Legend>,
     pub lines: Vec<Arc<Mutex<Line>>>,
     pub location: (usize, usize),
     pub padding: Padding,
@@ -89,6 +89,11 @@ impl Axes {
             line.draw(frame, theme, i, &self.axis.bounds);
         }
         self.axis.draw_border(frame, theme);
+
+        //draw legend
+        if let Some(legend) = &self.legend {
+            legend.draw(frame);
+        }
     }
 
     pub fn get_figure_id(&self) -> Option<Id> {
@@ -151,7 +156,7 @@ impl Axes {
             axis: Axis::default(),
             xlim: (0.0, 1.0),
             ylim: (-1.0, 1.0),
-            legend: Legend {},
+            legend: Some(Legend::default()),
             lines: Vec::new(),
             location,
             click_start: None,
