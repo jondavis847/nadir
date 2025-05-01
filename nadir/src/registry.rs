@@ -1,4 +1,4 @@
-use csv::{ReaderBuilder, StringRecord};
+use csv::{ReaderBuilder, StringRecord, Trim};
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
 use rand::Rng;
@@ -190,13 +190,13 @@ impl Registry {
             })],
         );
         figure_struct_methods.insert(
-            "from_csv",
+            "from_file",
             vec![StructMethod::new(vec![], |_args, pwd| {
                 let pwd = pwd.lock().unwrap();
                 let file = navigate_and_select_file(&pwd)?;
-                let (xname, x) = load_csv_column(&file)?;
+                let (xname, x) = load_single_column(&file)?;
                 let file = navigate_and_select_file(&pwd)?;
-                let ydata = load_multiple_csv_columns(&file)?;
+                let ydata = load_multiple_columns(&file)?;
 
                 let mut figure = Figure::new();
                 let axes = figure.get_axes(0)?;
@@ -288,13 +288,13 @@ impl Registry {
         );
 
         line_struct_methods.insert(
-            "from_csv",
+            "from_file",
             vec![StructMethod::new(vec![], |_args, pwd| {
                 let pwd = pwd.lock().unwrap();
                 let file = navigate_and_select_file(&pwd)?;
-                let (xname, x) = load_csv_column(&file)?;
+                let (xname, x) = load_single_column(&file)?;
                 let file = navigate_and_select_file(&pwd)?;
-                let (yname, y) = load_csv_column(&file)?;
+                let (yname, y) = load_single_column(&file)?;
                 let mut series = Series::new(&x, &y)?;
                 series.set_x_name(xname);
                 series.set_y_name(yname);
@@ -576,11 +576,11 @@ impl Registry {
             )],
         );
         vector_struct_methods.insert(
-            "from_csv",
+            "from_file",
             vec![StructMethod::new(vec![], |_args, pwd| {
                 let pwd = pwd.lock().unwrap();
                 let file = navigate_and_select_file(&pwd)?;
-                let (_, v) = load_csv_column(&file)?;
+                let (_, v) = load_single_column(&file)?;
                 Ok(Value::Vector(Arc::new(Mutex::new(v))))
             })],
         );
@@ -983,8 +983,8 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
 
             match (is_dir_a, is_dir_b) {
                 // If one is a directory and one is a file, put files before directories
-                (true, false) => std::cmp::Ordering::Greater, // Changed from Less to Greater
-                (false, true) => std::cmp::Ordering::Less,    // Changed from Greater to Less
+                (true, false) => std::cmp::Ordering::Greater,
+                (false, true) => std::cmp::Ordering::Less,
 
                 // If both are the same type, sort alphabetically
                 _ => name_a.cmp(name_b),
@@ -1036,49 +1036,6 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
     }
 }
 
-/// Common utility function for CSV operations
-fn csv_utils(
-    file_path: &Path,
-) -> Result<(Vec<String>, Option<StringRecord>, String), Box<dyn std::error::Error>> {
-    // Open and read the CSV file
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
-    let mut csv_reader = ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true)
-        .from_reader(reader);
-
-    let headers = csv_reader.headers().map(|h| h.clone()).ok();
-
-    let file_stem = file_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("file")
-        .to_string();
-
-    // Generate column option labels
-    let column_options = if let Some(headers) = &headers {
-        headers
-            .iter()
-            .enumerate()
-            .map(|(i, h)| format!("{}: {}", i + 1, h))
-            .collect::<Vec<_>>()
-    } else {
-        // If no headers, create default column names based on index
-        let record = csv_reader
-            .records()
-            .next()
-            .ok_or_else(|| "CSV file appears to be empty".to_string())?
-            .map_err(|e| format!("Failed to read CSV: {}", e))?;
-
-        (1..=record.len())
-            .map(|i| format!("{}[{}]", file_stem, i))
-            .collect()
-    };
-
-    Ok((column_options, headers, file_stem))
-}
-
 /// Parse column index from a formatted column selection string
 fn parse_column_index(selection: &str) -> Result<usize, String> {
     if let Some(pos) = selection.find(':') {
@@ -1088,19 +1045,168 @@ fn parse_column_index(selection: &str) -> Result<usize, String> {
             .map_err(|_| "Failed to parse column index".to_string())
             .map(|idx| idx - 1)
     } else if let Some(start) = selection.find('[') {
-        selection[start + 1..selection.len() - 1]
-            .parse::<usize>()
-            .map_err(|_| "Failed to parse column index".to_string())
-            .map(|idx| idx - 1)
+        if let Some(end) = selection.find(']') {
+            selection[start + 1..end]
+                .parse::<usize>()
+                .map_err(|_| "Failed to parse column index".to_string())
+                .map(|idx| idx - 1)
+        } else {
+            Err("Invalid column format, missing closing bracket".to_string())
+        }
     } else {
         Err("Failed to parse column selection".to_string())
     }
 }
 
-/// Function to load a single column from a CSV file
-fn load_csv_column(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
-    // Get column options
-    let (column_options, headers, file_stem) = csv_utils(file_path)?;
+/// Smart file utility function that adapts to various file formats
+fn smart_file_utils(
+    file_path: &Path,
+) -> Result<(Vec<String>, Option<StringRecord>, String, u8), Box<dyn std::error::Error>> {
+    // Get file name for column names
+    let file_stem = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file")
+        .to_string();
+
+    // Filter out comments for any file that might have them
+    let content = fs::read_to_string(file_path)?;
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| !line.trim().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if filtered_content.trim().is_empty() {
+        return Err("File is empty or contains only comments".into());
+    }
+
+    // Detect the most likely delimiter
+    let possible_delimiters = [b',', b'\t', b';', b' ', b'|'];
+    let mut best_delimiter = b','; // Default
+    let mut max_consistency = 0;
+
+    for &delimiter in &possible_delimiters {
+        let reader = ReaderBuilder::new()
+            .delimiter(delimiter)
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(filtered_content.as_bytes());
+
+        // Check field count consistency across rows
+        let records: Vec<csv::StringRecord> =
+            reader.into_records().filter_map(Result::ok).collect();
+        if records.is_empty() {
+            continue;
+        }
+
+        // Count occurrences of each field length
+        let mut field_counts = HashMap::new();
+        for record in &records {
+            let count = field_counts.entry(record.len()).or_insert(0);
+            *count += 1;
+        }
+
+        let (_, consistency) = field_counts
+            .iter()
+            .max_by_key(|(_, count)| *count) // Remove the & symbol here
+            .unwrap_or((&0, &0));
+
+        if *consistency > max_consistency && records[0].len() > 1 {
+            max_consistency = *consistency;
+            best_delimiter = delimiter;
+        }
+    }
+
+    // Now check if the file likely has headers
+    let mut reader = ReaderBuilder::new()
+        .delimiter(best_delimiter)
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(filtered_content.as_bytes());
+
+    let records: Vec<csv::StringRecord> = reader.records().take(5).filter_map(Result::ok).collect();
+    if records.len() < 2 {
+        // Not enough data to determine headers, assume no headers
+        let column_options: Vec<String> = if !records.is_empty() {
+            (1..=records[0].len())
+                .map(|i| format!("{}[{}]", file_stem, i))
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        return Ok((column_options, None, file_stem, best_delimiter));
+    }
+
+    // Heuristic to detect headers: first row is more likely to contain text while
+    // subsequent rows are more likely to contain numbers
+    let first_row = &records[0];
+
+    // Count how many fields in the first row look like headers
+    let mut header_like_fields = 0;
+    for field in first_row.iter() {
+        // Headers often contain text that can't be parsed as numbers
+        // or may have special patterns like brackets or underscores
+        if field.parse::<f64>().is_err() || field.contains('_') || field.contains('[') {
+            header_like_fields += 1;
+        }
+    }
+
+    // Check if any subsequent row is mostly numeric
+    let mut any_numeric_row = false;
+    for row in &records[1..] {
+        let mut numeric_fields = 0;
+        for field in row.iter() {
+            if field.parse::<f64>().is_ok() {
+                numeric_fields += 1;
+            }
+        }
+
+        // If most fields in a row are numeric, and first row has header-like fields
+        if numeric_fields > row.len() / 2 && header_like_fields > 0 {
+            any_numeric_row = true;
+            break;
+        }
+    }
+
+    // If first row has any header indicators and subsequent rows have numeric content
+    let headers_likely = header_like_fields > 0 && any_numeric_row;
+
+    // Generate column options based on our detection
+    let (column_options, headers) = if headers_likely {
+        // Use first row as headers
+        let headers = Some(first_row.clone());
+
+        let options = first_row
+            .iter()
+            .enumerate()
+            .map(|(i, h)| format!("{}: {}", i + 1, h))
+            .collect::<Vec<_>>();
+
+        (options, headers)
+    } else {
+        // No headers, use column indices
+        let options = (1..=first_row.len())
+            .map(|i| format!("{}[{}]", file_stem, i))
+            .collect::<Vec<_>>();
+
+        (options, None)
+    };
+
+    Ok((column_options, headers, file_stem, best_delimiter))
+}
+
+/// Function to load a single column from any file type
+fn load_single_column(
+    file_path: &Path,
+) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
+    // Smart detection of file format
+    let (column_options, headers, file_stem, delimiter) = smart_file_utils(file_path)?;
+
+    if column_options.is_empty() {
+        return Err("No data columns detected in file".into());
+    }
 
     // Select a single column
     let column_selection = Select::new("Select a column to load:", column_options)
@@ -1120,46 +1226,67 @@ fn load_csv_column(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn s
         format!("{}[{}]", file_stem, column_idx + 1)
     };
 
-    // Read data
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
+    // Filter content to remove comments
+    let content = fs::read_to_string(file_path)?;
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| !line.trim().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Create reader with detected settings
     let mut csv_reader = ReaderBuilder::new()
+        .delimiter(delimiter)
         .has_headers(headers.is_some())
-        .from_reader(reader);
+        .flexible(true)
+        .trim(Trim::All)
+        .from_reader(filtered_content.as_bytes());
 
     if headers.is_some() {
         let _ = csv_reader.headers();
     }
 
+    // Read the data
     let mut values = Vec::new();
     for result in csv_reader.records() {
         let record = result.map_err(|e| format!("Failed to read record: {}", e))?;
 
         if column_idx < record.len() {
             let value_str = record.get(column_idx).unwrap_or_default();
-            values.push(value_str.parse::<f64>().map_err(|_| {
-                format!(
-                    "Failed to parse '{}' as f64 in column {}",
-                    value_str,
-                    column_idx + 1
-                )
-            })?);
+            if !value_str.trim().is_empty() {
+                let value = value_str.parse::<f64>().map_err(|_| {
+                    format!(
+                        "Failed to parse '{}' as f64 in column {}",
+                        value_str,
+                        column_idx + 1
+                    )
+                })?;
+                values.push(value);
+            }
         } else {
             return Err(format!("Column index {} out of bounds", column_idx + 1).into());
         }
     }
 
+    if values.is_empty() {
+        return Err(format!("No valid numeric data found for column {}", column_idx + 1).into());
+    }
+
     Ok((header_name, DVector::from_vec(values)))
 }
 
-/// Function to load multiple columns from a CSV file
-fn load_multiple_csv_columns(
+/// Unified function to load multiple columns from any file type
+fn load_multiple_columns(
     file_path: &Path,
 ) -> Result<Vec<(String, DVector<f64>)>, Box<dyn std::error::Error>> {
-    // Get column options
-    let (column_options, headers, file_stem) = csv_utils(file_path)?;
+    // Smart detection of file format
+    let (column_options, headers, file_stem, delimiter) = smart_file_utils(file_path)?;
 
-    // Select multiple columns
+    if column_options.is_empty() {
+        return Err("No data columns detected in file".into());
+    }
+
+    // Select columns
     let selected_columns = MultiSelect::new("Select columns to load:", column_options)
         .prompt()
         .map_err(|e| format!("Selection failed: {}", e))?;
@@ -1189,12 +1316,21 @@ fn load_multiple_csv_columns(
         })
         .collect();
 
-    // Read data for all selected columns
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
+    // Filter content to remove comments
+    let content = fs::read_to_string(file_path)?;
+    let filtered_content: String = content
+        .lines()
+        .filter(|line| !line.trim().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Create reader with detected settings
     let mut csv_reader = ReaderBuilder::new()
+        .delimiter(delimiter)
         .has_headers(headers.is_some())
-        .from_reader(reader);
+        .flexible(true)
+        .trim(Trim::All)
+        .from_reader(filtered_content.as_bytes());
 
     if headers.is_some() {
         let _ = csv_reader.headers();
@@ -1210,17 +1346,28 @@ fn load_multiple_csv_columns(
         for (vec_idx, &col_idx) in column_indices.iter().enumerate() {
             if col_idx < record.len() {
                 let value_str = record.get(col_idx).unwrap_or_default();
-                let value = value_str.parse::<f64>().map_err(|_| {
-                    format!(
-                        "Failed to parse value '{}' as f64 in column {}",
-                        value_str,
-                        col_idx + 1
-                    )
-                })?;
-                column_data[vec_idx].push(value);
-            } else {
-                return Err(format!("Column index {} out of bounds", col_idx + 1).into());
+                if !value_str.trim().is_empty() {
+                    let value = value_str.parse::<f64>().map_err(|_| {
+                        format!(
+                            "Failed to parse value '{}' as f64 in column {}",
+                            value_str,
+                            col_idx + 1
+                        )
+                    })?;
+                    column_data[vec_idx].push(value);
+                }
             }
+        }
+    }
+
+    // Validate data
+    for (idx, data) in column_data.iter().enumerate() {
+        if data.is_empty() {
+            return Err(format!(
+                "No valid numeric data found for column {}",
+                column_indices[idx] + 1
+            )
+            .into());
         }
     }
 
@@ -1231,91 +1378,4 @@ fn load_multiple_csv_columns(
         .collect();
 
     Ok(result)
-}
-
-// Updated TXT loader
-fn load_txt_file(file_path: &Path) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
-    let contents = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
-
-    let values: Result<Vec<f64>, _> = contents
-        .lines()
-        .flat_map(|line| line.split_whitespace())
-        .map(|s| {
-            s.parse::<f64>()
-                .map_err(|_| format!("Invalid number: '{}'", s))
-        })
-        .collect();
-
-    let values = values?;
-
-    if values.is_empty() {
-        return Err("File contains no valid numeric values".to_string().into());
-    }
-
-    let file_stem = file_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("txt");
-
-    let header_name = format!("{}[1]", file_stem);
-
-    Ok((header_name, DVector::from_vec(values)))
-}
-
-// Updated .42 loader
-fn load_42_file(file_path: &PathBuf) -> Result<(String, DVector<f64>), Box<dyn std::error::Error>> {
-    let contents = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
-
-    let values: Result<Vec<f64>, _> = contents
-        .lines()
-        .filter(|line| !line.trim().starts_with('#'))
-        .flat_map(|line| line.split_whitespace())
-        .map(|s| {
-            s.parse::<f64>()
-                .map_err(|_| format!("Invalid number: '{}'", s))
-        })
-        .collect();
-
-    let values = values?;
-
-    if values.is_empty() {
-        return Err("File contains no valid numeric values".to_string().into());
-    }
-
-    let file_stem = file_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("file42");
-
-    let header_name = format!("{}[1]", file_stem);
-
-    Ok((header_name, DVector::from_vec(values)))
-}
-
-// Updated wrapper
-fn load_vector_from_file(
-    pwd: &Arc<Mutex<PathBuf>>,
-) -> Result<Vec<(String, DVector<f64>)>, RegistryErrors> {
-    let pwd = &*pwd.lock().unwrap();
-    let selected_file = navigate_and_select_file(pwd)?;
-
-    let file_ext = selected_file
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("");
-
-    let v = match file_ext {
-        "csv" => load_multiple_csv_columns(&selected_file)?,
-        // "txt" => load_txt_file(&selected_file)?,
-        // "42" => load_42_file(&selected_file)?,
-        _ => {
-            return Err(RegistryErrors::Error(
-                format!("Unsupported file extension: {}", file_ext).into(),
-            ));
-        }
-    };
-
-    Ok(v)
 }
