@@ -9,7 +9,7 @@ use crate::{
     system::Id,
 };
 
-use celestial::{CelestialErrors, CelestialSystem};
+use celestial::{CelestialErrors, CelestialSystem, CelestialSystemBuilder};
 use gravity::Gravity;
 
 use serde::{Deserialize, Serialize};
@@ -30,10 +30,25 @@ pub enum BaseErrors {
     OuterJointExists(String, String),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum BaseSystems {
     Basic(Option<Gravity>),
     Celestial(CelestialSystem),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BaseSystemsBuilder {
+    Basic(Option<Gravity>),
+    Celestial(CelestialSystemBuilder),
+}
+
+impl From<&BaseSystemsBuilder> for BaseSystems {
+    fn from(builder: &BaseSystemsBuilder) -> BaseSystems {
+        match builder {
+            BaseSystemsBuilder::Basic(g) => BaseSystems::Basic(g.clone()),
+            BaseSystemsBuilder::Celestial(c) => BaseSystems::Celestial(CelestialSystem::from(c)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,7 +56,7 @@ pub struct BaseBuilder {
     pub id: Id,
     pub name: String,
     pub outer_joints: Vec<Id>,
-    pub system: BaseSystems,
+    pub system: BaseSystemsBuilder,
 }
 
 impl BaseBuilder {
@@ -50,7 +65,7 @@ impl BaseBuilder {
             id,
             name: "base".to_string(),
             outer_joints: Vec::new(),
-            system: BaseSystems::Basic(None),
+            system: BaseSystemsBuilder::Basic(None),
         }
     }
 
@@ -74,23 +89,23 @@ impl BaseBuilder {
     }
 
     /// Builder method for adding a celestial system, ideally used when compiling the system
-    pub fn with_celestial(mut self, celestial: CelestialSystem) -> Self {
-        self.system = BaseSystems::Celestial(celestial);
+    pub fn with_celestial(mut self, celestial: CelestialSystemBuilder) -> Self {
+        self.system = BaseSystemsBuilder::Celestial(celestial);
         self
     }
 
     /// Setter method for adding a celestial system, ideally used interactively from the REPL
-    pub fn set_celestial(&mut self, celestial: CelestialSystem) {
-        self.system = BaseSystems::Celestial(celestial);
+    pub fn set_celestial(&mut self, celestial: CelestialSystemBuilder) {
+        self.system = BaseSystemsBuilder::Celestial(celestial);
     }
 
     pub fn set_basic(&mut self, gravity: Option<Gravity>) -> Result<(), BaseErrors> {
-        self.system = BaseSystems::Basic(gravity);
+        self.system = BaseSystemsBuilder::Basic(gravity);
         Ok(())
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Base {
     pub outer_joints: Vec<Weak<RefCell<Joint>>>,
     pub system: BaseSystems,
@@ -112,7 +127,7 @@ impl From<&BaseBuilder> for Base {
     fn from(builder: &BaseBuilder) -> Self {
         Self {
             outer_joints: Vec::new(),
-            system: builder.system.clone(),
+            system: BaseSystems::from(&builder.system),
         }
     }
 }

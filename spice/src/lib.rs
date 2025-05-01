@@ -36,11 +36,20 @@ pub enum SpiceErrors {
     RecordNotFound,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpiceBuilder;
+
+impl From<&SpiceBuilder> for Spice {
+    fn from(_builder: &SpiceBuilder) -> Spice {
+        Spice::from_local().expect("error fetching spice data")
+    }
+}
+
 pub enum SpiceFileTypes {
     Pck,
     Spk,
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Spice {
     pub earth: EarthParameters,
     moon: MoonParameters,

@@ -1,9 +1,5 @@
-//mod software;
-
-use std::{error::Error, f64::consts::PI};
-
 use aerospace::orbit::KeplerianElements;
-use celestial::{CelestialBodies, CelestialBody, CelestialSystem};
+use celestial::{CelestialBodies, CelestialBodyBuilder, CelestialSystemBuilder};
 use color::Color;
 use gravity::{
     Gravity,
@@ -25,6 +21,7 @@ use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
+use std::{error::Error, f64::consts::PI, path::Path};
 use time::Time;
 use transforms::{
     Transform,
@@ -37,21 +34,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Create the CelestialSystem which contains the planetary models
     // In NADIR the base is GCRF (J2000) when a CelestialSystem is present
     let epoch = Time::now()?;
-    let earth = CelestialBody::new(CelestialBodies::Earth)
-        .with_gravity(Gravity::Egm(
-            EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
-        ))
-        .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?));
-    let celestial = CelestialSystem::new(epoch)?
-        .with_body(earth)?
-        .with_body(CelestialBody::new(CelestialBodies::Moon))?;
+
+    let celestial = CelestialSystemBuilder::new(epoch)?
+        .with_body(
+            CelestialBodyBuilder::new(CelestialBodies::Earth)
+                .with_gravity(Gravity::Egm(
+                    EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
+                ))
+                .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?)),
+        )?
+        .with_body(CelestialBodyBuilder::new(CelestialBodies::Moon))?;
     sys.base.set_celestial(celestial);
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(8e6, 0.0, 0.5, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit =
+        KeplerianElements::new(7e6, 0.0, 1.57, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
     let f = FloatingBuilder::new()
-        .with_attitude(UnitQuaternion::new(-0.4, -0.5, 0.5, 0.5)?)
+        .with_attitude(UnitQuaternion::new(
+            -0.3607597432795579,
+            -0.6081457090887359,
+            0.3607613756444451,
+            0.6081631639526958,
+        )?)
+        .with_angular_rate(0.0, -0.0010471975511965976, 0.0)
         .with_orbit(orbit.into());
     let mut j = sys.new_joint("f", f.into())?;
 
@@ -220,6 +226,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     imu.connect_body(bus.id, Transform::IDENTITY)?;
     mag.connect_body(bus.id, Transform::IDENTITY)?;
 
+    // create the mechanism for calculating system momentum, energy, and doin surface area calcs
+
     sys.add_body(bus);
     sys.add_body(sa1);
     sys.add_body(sa2);
@@ -238,15 +246,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_actuator(rw4);
 
     // Add the software
-    let path = "../../target/release/software.dll"; //windows
-    //let path = "../../target/release/libsoftware.so"; //linux
-    let software = Software::new("fsw", path)
+    let lib_name = match std::env::consts::OS {
+        "windows" => "software.dll",
+        "macos" => "libsoftware.dylib",
+        _ => "libsoftware.so", //Linux
+    };
+
+    let lib_path = format!("../../target/release/{}", lib_name);
+    let lib_path_ref = Path::new(&lib_path);
+
+    if !lib_path_ref.exists() {
+        eprintln!(
+            "Error: Dynamic library not found at {}\n\
+             Please compile it first with: `cargo build --release --lib` in the src\\software crate.",
+            lib_path
+        );
+        std::process::exit(1);
+    }
+
+    let software = Software::new("fsw", lib_path_ref)
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
+    //let pwd = std::env::current_dir()?;
+    //sys.save(&pwd);
     // Run the simulation
-    sys.simulate("", 0.0, 1000.0, 0.1, None)?;
+    sys.simulate("", 0.0, 4000.0, 0.1, None)?;
 
     Ok(())
 }

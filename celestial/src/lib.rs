@@ -1,23 +1,37 @@
-use gravity::{newtonian::NewtonianGravity, Gravity};
+use gravity::{Gravity, newtonian::NewtonianGravity};
 
 use magnetics::{
-    dipole::{Dipole, DipoleErrors},
     MagneticErrors, MagneticField,
+    dipole::{Dipole, DipoleErrors},
 };
 use nadir_result::ResultManager;
 use nalgebra::Vector3;
 use rotations::{
-    prelude::{EulerAngles, EulerSequence, UnitQuaternion},
     RotationTrait,
+    prelude::{EulerAngles, EulerSequence, UnitQuaternion},
 };
 use serde::{Deserialize, Serialize};
-use spice::{Spice, SpiceBodies, SpiceErrors};
+use spice::{Spice, SpiceBodies, SpiceBuilder, SpiceErrors};
 
 use std::f64::consts::PI;
 use thiserror::Error;
 use time::Time;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CelestialEpochBuilder {
+    time: Time,
+}
+
+impl From<&CelestialEpochBuilder> for CelestialEpoch {
+    fn from(builder: &CelestialEpochBuilder) -> CelestialEpoch {
+        CelestialEpoch {
+            time: builder.time.clone(),
+            result_id: None,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct CelestialEpoch {
     time: Time,
     result_id: Option<u32>,
@@ -42,24 +56,21 @@ pub enum CelestialErrors {
     #[error("SpiceError: {0}")]
     SpiceError(#[from] SpiceErrors),
 }
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct CelestialSystem {
-    pub epoch: CelestialEpoch,
-    pub bodies: Vec<CelestialBody>,
-    pub spice: Option<Spice>,
+pub struct CelestialSystemBuilder {
+    epoch: CelestialEpochBuilder,
+    bodies: Vec<CelestialBodyBuilder>,
+    spice: Option<SpiceBuilder>,
 }
 
-impl CelestialSystem {
+impl CelestialSystemBuilder {
     pub fn new(epoch: Time) -> Result<Self, CelestialErrors> {
-        // make sure there's at least a sun for animation
-        let sun = CelestialBody::new(CelestialBodies::Sun);
-        let bodies = vec![sun];
-        // for now lets default to having spice, in the future add analytical ephem
-        let spice = Some(Spice::from_local()?);
-        let epoch = CelestialEpoch {
-            time: epoch,
-            result_id: None,
-        };
+        let bodies = vec![];
+
+        // TODO: for now lets default to having spice, in the future add analytical ephem
+        let spice = Some(SpiceBuilder);
+        let epoch = CelestialEpochBuilder { time: epoch };
         Ok(Self {
             epoch,
             bodies,
@@ -67,6 +78,60 @@ impl CelestialSystem {
         })
     }
 
+    pub fn with_body(mut self, body: CelestialBodyBuilder) -> Result<Self, CelestialErrors> {
+        // Check if the body already exists in the vector
+        if self.bodies.iter().any(|b| b.body == body.body) {
+            return Err(CelestialErrors::CelestialBodyAlreadyExists);
+        };
+        // Create and add the celestial body
+        self.bodies.push(body);
+
+        Ok(self)
+    }
+
+    pub fn delete_body(&mut self, body: CelestialBodies) {
+        self.bodies.retain(|b| b.body != body);
+    }
+}
+impl From<&CelestialSystemBuilder> for CelestialSystem {
+    fn from(builder: &CelestialSystemBuilder) -> CelestialSystem {
+        let mut bodies: Vec<CelestialBody> = builder
+            .bodies
+            .iter()
+            .map(|body| CelestialBody::from(body))
+            .collect();
+
+        // make sure there's at least a sun for animation
+        if !bodies.iter().any(|body| body.body == CelestialBodies::Sun) {
+            bodies.push(CelestialBody {
+                body: CelestialBodies::Sun,
+                position: Vector3::zeros(),
+                orientation: UnitQuaternion::IDENTITY,
+                gravity: None,
+                magnetic_field: None,
+                result_id: None,
+            });
+        }
+
+        CelestialSystem {
+            epoch: CelestialEpoch::from(&builder.epoch),
+            bodies,
+            spice: match &builder.spice {
+                Some(spice) => Some(Spice::from(spice)),
+                None => None,
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CelestialSystem {
+    pub epoch: CelestialEpoch,
+    pub bodies: Vec<CelestialBody>,
+    pub spice: Option<Spice>,
+}
+
+impl CelestialSystem {
     pub fn update(&mut self, t: f64) -> Result<(), CelestialErrors> {
         if let Some(spice) = &mut self.spice {
             // t is sim time in seconds
@@ -141,21 +206,6 @@ impl CelestialSystem {
                 );
             }
         }
-    }
-
-    pub fn with_body(mut self, body: CelestialBody) -> Result<Self, CelestialErrors> {
-        // Check if the body already exists in the vector
-        if self.bodies.iter().any(|b| b.body == body.body) {
-            return Err(CelestialErrors::CelestialBodyAlreadyExists);
-        };
-        // Create and add the celestial body
-        self.bodies.push(body);
-
-        Ok(self)
-    }
-
-    pub fn delete_body(&mut self, body: CelestialBodies) {
-        self.bodies.retain(|b| b.body != body);
     }
 
     /// calculates gravity based on all bodies in the celestial system with a gravity model
@@ -234,24 +284,18 @@ impl CelestialSystem {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CelestialBody {
+pub struct CelestialBodyBuilder {
     pub body: CelestialBodies,
-    pub position: Vector3<f64>,      // gcrf
-    pub orientation: UnitQuaternion, // active in gcrf
     pub gravity: Option<Gravity>,
     pub magnetic_field: Option<MagneticField>,
-    pub result_id: Option<u32>,
 }
 
-impl CelestialBody {
+impl CelestialBodyBuilder {
     pub fn new(body: CelestialBodies) -> Self {
         Self {
             body,
-            position: Vector3::zeros(),            //placeholder
-            orientation: UnitQuaternion::IDENTITY, //placeholder
             gravity: None,
             magnetic_field: None,
-            result_id: None,
         }
     }
 
@@ -281,7 +325,32 @@ impl CelestialBody {
 
         Ok(self)
     }
+}
 
+impl From<&CelestialBodyBuilder> for CelestialBody {
+    fn from(builder: &CelestialBodyBuilder) -> CelestialBody {
+        CelestialBody {
+            body: builder.body,
+            position: Vector3::zeros(),
+            orientation: UnitQuaternion::IDENTITY,
+            gravity: builder.gravity.clone(),
+            magnetic_field: builder.magnetic_field.clone(),
+            result_id: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CelestialBody {
+    pub body: CelestialBodies,
+    pub position: Vector3<f64>,      // gcrf
+    pub orientation: UnitQuaternion, // active in gcrf
+    pub gravity: Option<Gravity>,
+    pub magnetic_field: Option<MagneticField>,
+    pub result_id: Option<u32>,
+}
+
+impl CelestialBody {
     pub fn update(&mut self, t: Time, spice: &mut Spice) -> Result<(), CelestialErrors> {
         //spice uses TDB/TT
         //gsfc planet fact sheet uses UTC

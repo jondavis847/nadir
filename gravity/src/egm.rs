@@ -1,4 +1,4 @@
-use legendre::{factorial, LegendreErrors, LegendreNormalization};
+use legendre::{LegendreErrors, LegendreNormalization, factorial};
 use nalgebra::Vector3;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -21,6 +21,8 @@ pub enum EgmModel {
     Egm2008,
 }
 
+pub struct EgmGravityBuilder {}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct EgmGravity {
     pub model: EgmModel,
@@ -30,7 +32,9 @@ pub struct EgmGravity {
     add_newtonian: bool,
     #[serde(skip)]
     spherical_harmonics: SphericalHarmonics,
+    #[serde(skip)]
     c: Vec<Vec<f64>>,
+    #[serde(skip)]
     s: Vec<Vec<f64>>,
 }
 

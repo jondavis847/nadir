@@ -24,9 +24,9 @@ struct Parameters {
 impl Default for Parameters {
     fn default() -> Self {
         Parameters {
-            k_p: 1.0,
-            k_i: 0.0 * 0.000005, //we account for dt in the gain, since i might change dt when testing in sim
-            k_d: 0.0 * 1.0,
+            k_p: 0.5,
+            k_i: 0.000005, //we account for dt in the gain, since i might change dt when testing in sim
+            k_d: 5.0,
             anti_windup: 0.0075,
             moi: [1000.0, 1000.0, 1000.0],
         }

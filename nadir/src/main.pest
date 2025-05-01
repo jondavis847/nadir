@@ -1,0 +1,96 @@
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+
+primary = _{ 
+    enclosed | 
+    struct_call | 
+    enumeration |
+    instance_call | 
+    instance_field | 
+    function_call |     
+    matrix | 
+    vector | 
+    string |     
+    identifier | 
+    number 
+    }
+term = _{ prefix }
+prefix = { neg* ~ postfix }
+neg = { "-" }
+postfix = { primary ~ (matrix_index | vector_index | fac)* }
+fac = { "!" }
+pow = { "^" }
+exponential = { term ~ ( pow ~ term )? }
+multiplicative = { exponential ~ ( (mul | div) ~ exponential )* }
+mul = { "*" }
+div = { "/" }
+additive = { multiplicative ~ ( (add | sub) ~ multiplicative )* }
+add = { "+" }
+sub = { "-" }
+gt = { ">" }
+gte = { ">=" }
+lt = { "<" }
+lte = { "<=" }
+comparator = { gt | gte | lt | lte}
+
+comparison = { additive ~ comparator ~ additive }
+
+expr = _{       
+    &(primary ~ EOI) ~ primary 
+    | comparison     
+    | additive
+    | command
+}
+
+string = @{ "\"" ~ (escaped_char | !("\"" | "\\") ~ ANY)* ~ "\"" }
+escaped_char   = { "\\" ~ ANY }
+
+assignment = { identifier ~ "=" ~ expr }
+
+identifier = @{ !command_name ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+integer = @{ "-"? ~ ASCII_DIGIT+ }
+float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+number = _{ float | integer }
+enclosed = _{ "(" ~ expr ~ ")" }
+
+comma_separated = _{ expr ~ ( "," ~ expr)* }
+space_separated = ${ expr ~ (SPACE_SEPARATOR+ ~ expr)* }
+
+function_call = { identifier ~ "(" ~ arguments? ~ ")" }
+arguments = { comma_separated }
+
+command_name = @{ "cd" | "ls" | "pwd" | "help" }
+command_argument = @{ (!WHITE_SPACE ~ ANY)+ }
+command_with_args = { command_name ~ command_argument+ }
+command_without_args = { command_name }
+command = { command_with_args | command_without_args }
+
+struct_call = { identifier ~ "::" ~ function_call}
+instance_field = { identifier ~ "." ~ identifier }
+instance_call = { identifier ~ "." ~ function_call}
+enumeration = { identifier ~ "::" ~ identifier}
+
+line = { silent_line | print_line }
+silent_line = { (assignment | expr) ~ ";" }
+print_line = { assignment | expr }
+
+elements = { comma_separated }
+vector = { "[" ~ (elements)? ~ "]" }
+matrix_row = { space_separated }
+matrix = { "[" ~ matrix_row ~ ( ";" ~ matrix_row )* ~ "]" }
+
+vector_index = { "[" ~ index ~ "]" }
+matrix_index = { "[" ~ index ~ "," ~ index ~ "]" }
+
+index = { index_all | index_range_inclusive | index_range_exclusive | index_single }
+
+index_single = { expr }
+
+index_range_inclusive = { 
+    (expr ~ ":" ~ expr ~ (":" ~ expr)?) 
+}
+
+index_range_exclusive = { 
+    (expr ~ ".." ~ expr ~ (".." ~ expr)?) 
+}
+
+index_all = { ":" } // Selects all elements

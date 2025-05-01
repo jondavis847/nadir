@@ -1,11 +1,11 @@
 use super::{
-    noise::{NoiseErrors, QuaternioNoiseBuilder},
     SensorErrors,
+    noise::{NoiseErrors, QuaternioNoiseBuilder},
 };
 use crate::{
-    body::BodyConnection,
-    sensor::{noise::QuaternionNoise, SensorModel},
     HardwareBuffer,
+    body::BodyConnection,
+    sensor::{SensorModel, noise::QuaternionNoise},
 };
 use bytemuck::{Pod, Zeroable};
 use rotations::prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder};
@@ -156,6 +156,7 @@ impl SensorModel for StarTracker {
         self.telemetry.q[1] = self.state.measurement.0.y;
         self.telemetry.q[2] = self.state.measurement.0.z;
         self.telemetry.q[3] = self.state.measurement.0.w;
+        self.telemetry.valid = 1u8;
     }
 
     fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
