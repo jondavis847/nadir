@@ -7,6 +7,7 @@ use super::{
     line::Line,
 };
 use iced::Padding;
+use iced::mouse::ScrollDelta;
 use iced::window::Id;
 use iced::{Point, Rectangle, Size, widget::canvas::Frame};
 
@@ -25,6 +26,10 @@ pub struct Axes {
     pub ylim: (f32, f32),
     click_start: Option<Point>,
     is_panning: bool,
+    target_zoom: f32,
+    current_zoom: f32,
+    zoom_speed: f32,
+    zoom_center: Option<Point>,
 }
 
 impl Axes {
@@ -171,6 +176,10 @@ impl Axes {
                 bottom: 0.0,
             },
             is_panning: false,
+            current_zoom: 1.0,
+            target_zoom: 1.0,
+            zoom_speed: 5.0,
+            zoom_center: None,
         }
     }
 
@@ -186,6 +195,40 @@ impl Axes {
         self.axis.set_y_label(label);
     }
 
+    pub fn animation_tick(&mut self, dt: f32) -> bool {
+        // Clamp dt to prevent huge time steps from causing visual jumps
+        let dt = dt.min(0.1); // Maximum 100ms time step
+
+        // Calculate how much more we need to zoom
+        let zoom_delta = self.target_zoom - self.current_zoom;
+        let mut request_clear = false;
+
+        // If we're very close to target, snap to it and end animation
+        if zoom_delta.abs() < 0.001 || zoom_delta.abs() / self.target_zoom.abs() < 0.01 {
+            if zoom_delta != 0.0 {
+                // Only if we actually need to change
+                self.current_zoom = self.target_zoom;
+                self.update_plot_for_zoom(1.0); // No scaling, just update lines
+                request_clear = true;
+            }
+            return request_clear;
+        }
+
+        // Calculate zoom step based on dt and speed
+        let zoom_step = zoom_delta * (1.0 - (-self.zoom_speed * dt).exp());
+
+        // Calculate the zoom ratio (how much the view will change this frame)
+        let zoom_ratio = (self.current_zoom + zoom_step) / self.current_zoom;
+
+        // Update current zoom
+        self.current_zoom += zoom_step;
+
+        // Apply the zoom at the appropriate center point
+        self.update_plot_for_zoom(zoom_ratio);
+
+        request_clear = true;
+        request_clear
+    }
     pub fn update_bounds(&mut self, fig_size: Size, nrows: usize, ncols: usize) {
         self.bounds.height =
             fig_size.height / nrows as f32 - self.padding.top - self.padding.bottom;
@@ -201,6 +244,82 @@ impl Axes {
         if let Some(legend) = &mut self.legend {
             legend.update(&self.axis.bounds, &self.lines);
         }
+    }
+
+    // Helper method to update plot limits based on zoom ratio and center point
+    fn update_plot_for_zoom(&mut self, zoom_ratio: f32) {
+        // Use zoom center if available, otherwise use plot center
+        if let Some(center) = self.zoom_center {
+            // Calculate new limits, scaling around the zoom center
+            self.xlim.0 = center.x - (center.x - self.xlim.0) * zoom_ratio;
+            self.xlim.1 = center.x + (self.xlim.1 - center.x) * zoom_ratio;
+            self.ylim.0 = center.y - (center.y - self.ylim.0) * zoom_ratio;
+            self.ylim.1 = center.y + (self.ylim.1 - center.y) * zoom_ratio;
+        } else {
+            // Calculate center point of the current view
+            let center_x = (self.xlim.0 + self.xlim.1) / 2.0;
+            let center_y = (self.ylim.0 + self.ylim.1) / 2.0;
+
+            // Calculate current width and height
+            let width = self.xlim.1 - self.xlim.0;
+            let height = self.ylim.1 - self.ylim.0;
+
+            // Calculate new width and height based on zoom ratio
+            let new_width = width * zoom_ratio;
+            let new_height = height * zoom_ratio;
+
+            // Calculate new limits, keeping the center point fixed
+            self.xlim.0 = center_x - (new_width / 2.0);
+            self.xlim.1 = center_x + (new_width / 2.0);
+            self.ylim.0 = center_y - (new_height / 2.0);
+            self.ylim.1 = center_y + (new_height / 2.0);
+        }
+
+        // Update the line positions
+        for line in &mut self.lines {
+            let mut line = line.lock().unwrap();
+            line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
+        }
+    }
+    pub fn wheel_scrolled(&mut self, delta: ScrollDelta, point: Point) {
+        // Only apply zoom if mouse is over the axis
+        if !self.axis.bounds.contains(point) {
+            return;
+        }
+
+        // Convert different scroll inputs to a consistent zoom factor
+        let zoom_factor = match delta {
+            ScrollDelta::Lines { x: _, y } => {
+                // Lines tend to be larger movements, so scale appropriately
+                // Negative y means scroll up (zoom in), positive means scroll down (zoom out)
+                1.0 - (y * 0.2) // 20% change per line
+            }
+            ScrollDelta::Pixels { x: _, y } => {
+                // Pixels need a smaller factor since there are more of them
+                // Typical mouse wheel might generate 20-100 pixels per notch
+                1.0 - (y * 0.005) // 0.5% change per pixel
+            }
+        };
+
+        // Update target zoom based on wheel direction
+        // zoom_factor < 1.0 = zoom in, zoom_factor > 1.0 = zoom out
+        self.target_zoom *= zoom_factor;
+
+        // clamp zoom to reasonable limits
+        let min_zoom = 0.01; // Maximum zoom in (smaller values = more zoomed in)
+        let max_zoom = 10.0; // Maximum zoom out
+        self.target_zoom = self.target_zoom.clamp(min_zoom, max_zoom);
+
+        // This makes the zoom feel more natural (commented out for simplicity)
+        // Convert screen coordinates to plot coordinates
+        let plot_x = self.xlim.0
+            + (point.x - self.axis.bounds.x) / self.axis.bounds.width * (self.xlim.1 - self.xlim.0);
+        let plot_y = self.ylim.1
+            - (point.y - self.axis.bounds.y) / self.axis.bounds.height
+                * (self.ylim.1 - self.ylim.0);
+
+        // Store zoom center for use in animation_tick
+        self.zoom_center = Some(Point::new(plot_x, plot_y));
     }
 }
 

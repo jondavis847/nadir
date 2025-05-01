@@ -49,9 +49,19 @@ pub struct PlotProgram {
     pub figure: Arc<Mutex<Figure>>,
     cache: Cache,
     theme: PlotTheme,
+    last_tick: Instant,
 }
 
 impl PlotProgram {
+    pub fn tick(&mut self, instant: Instant) {
+        let mut figure = self.figure.lock().unwrap();
+        let dt = instant.duration_since(self.last_tick).as_secs_f32();
+        let clear = figure.animation_tick(dt);
+        self.last_tick = instant;
+        if clear {
+            self.cache.clear();
+        }
+    }
     pub fn clear_cache(&mut self) {
         self.cache.clear();
     }
@@ -92,6 +102,7 @@ impl PlotProgram {
             figure,
             cache: Cache::new(),
             theme: PlotThemes::Dark.palette(),
+            last_tick: Instant::now(),
         }
     }
 

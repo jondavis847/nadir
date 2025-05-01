@@ -462,7 +462,7 @@ impl NadirWindow {
     fn animation_tick(&mut self, instant: &Instant) {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.tick(instant),
-            NadirProgram::Plot(_) => {}
+            NadirProgram::Plot(plot) => plot.tick(*instant),
         }
     }
 
