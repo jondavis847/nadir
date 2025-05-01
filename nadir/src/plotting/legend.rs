@@ -2,17 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use super::{line::Line, theme::PlotTheme};
 use iced::{
-    Background, Border, Color, Point, Rectangle, Size, Vector,
-    advanced::{graphics::text::cosmic_text::BufferLine, text::paragraph::Plain},
+    Border, Color, Point, Rectangle, Size, Vector,
     font::Family,
-    widget::{
-        canvas::{
-            Fill, Frame, Stroke, Text,
-            path::{Builder, lyon_path::traits::PathBuilder},
-        },
-        container::draw_background,
-        shader::wgpu::hal::MAX_VERTEX_BUFFERS,
-    },
+    widget::canvas::{Fill, Frame, Stroke, Text, path::Builder},
 };
 #[derive(Debug, Clone)]
 pub struct Legend {
@@ -22,8 +14,6 @@ pub struct Legend {
     entries: Vec<LegendEntry>,
     entry_padding: f32,
     line_height_factor: f32,
-    marker_size: f32,
-    marker_text_gap: f32,
     padding: f32,
     show_background: bool,
     pub(crate) text_size: f32,
@@ -33,13 +23,15 @@ impl Default for Legend {
     fn default() -> Self {
         Self {
             background_color: None,
-            border: Some(Border::default()),
+            border: Some(Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: 0.0.into(),
+            }),
             bounds: Rectangle::new(Point::new(500.0, 100.0), Size::new(100.0, 50.0)),
             entries: Vec::new(),
             entry_padding: 3.0,
             line_height_factor: 1.0,
-            marker_size: 9.0,
-            marker_text_gap: 5.0,
             padding: 10.0,
             show_background: true,
             text_size: 12.0,
@@ -126,12 +118,14 @@ impl Legend {
         }
 
         // draw the border
-        let mut border_path = Builder::new();
-        border_path.rectangle(Point::ORIGIN, self.bounds.size());
-
-        let border_stroke = Stroke::default();
-
-        frame.stroke(&border_path.build(), border_stroke);
+        if let Some(border) = &self.border {
+            let mut border_path = Builder::new();
+            border_path.rectangle(Point::ORIGIN, self.bounds.size());
+            let border_stroke = Stroke::default()
+                .with_color(border.color)
+                .with_width(border.width);
+            frame.stroke(&border_path.build(), border_stroke);
+        }
     }
 }
 

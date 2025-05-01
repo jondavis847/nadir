@@ -197,6 +197,10 @@ impl Axes {
             let line = &mut *line.lock().unwrap();
             line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
         }
+
+        if let Some(legend) = &mut self.legend {
+            legend.update(&self.axis.bounds, &self.lines);
+        }
     }
 }
 
