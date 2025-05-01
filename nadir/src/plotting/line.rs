@@ -6,7 +6,6 @@ use iced::{
 
 #[derive(Debug, Clone)]
 pub struct Line {
-    pub label: Option<String>,
     pub data: Series,
     pub color: Option<Color>,
     pub legend: bool,
@@ -16,16 +15,11 @@ pub struct Line {
 impl Line {
     pub fn new(data: Series) -> Self {
         Self {
-            label: None,
             data,
             color: None,
             legend: true,
             width: 1.0,
         }
-    }
-
-    pub fn set_label(&mut self, label: String) {
-        self.label = Some(label);
     }
 
     pub fn set_color(&mut self, color: Color) {

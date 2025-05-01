@@ -202,9 +202,16 @@ impl Registry {
                 let axes = figure.get_axes(0)?;
                 let axes = &mut *axes.lock().unwrap();
 
+                let file_name = file.file_stem();
+
                 for (yname, y) in ydata {
                     let mut series = Series::new(&x, &y)?;
                     series.set_x_name(xname.clone());
+                    let yname = if let Some(file_name) = &file_name {
+                        format!("{}::{}", file_name.to_string_lossy(), yname)
+                    } else {
+                        yname
+                    };
                     series.set_y_name(yname);
                     let l = Arc::new(Mutex::new(Line::new(series)));
                     axes.add_line(l);

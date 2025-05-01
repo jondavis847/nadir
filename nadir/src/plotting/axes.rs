@@ -42,6 +42,9 @@ impl Axes {
             let line = &mut *line.lock().unwrap();
             line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
         }
+        if let Some(legend) = &mut self.legend {
+            legend.update(&self.lines);
+        }
     }
 
     pub fn cursor_moved(&mut self, point: Point) {
@@ -92,7 +95,7 @@ impl Axes {
 
         //draw legend
         if let Some(legend) = &self.legend {
-            legend.draw(frame);
+            legend.draw(frame, theme);
         }
     }
 

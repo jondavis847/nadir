@@ -155,7 +155,6 @@ impl std::fmt::Debug for Value {
             Value::Line(line) => {
                 let line = line.lock().unwrap();
                 writeln!(f, "{}", label("Line"))?;
-                writeln!(f, "label: {:?}", line.label)?;
                 writeln!(f, "color: {:?}", line.color)?;
                 writeln!(f, "width: {:?}", line.width)?;
                 writeln!(f, "data: Vector<f64,{}>", line.data.len())
