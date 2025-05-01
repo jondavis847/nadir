@@ -2,7 +2,7 @@ use super::theme::PlotTheme;
 use iced::{
     Padding, Point, Rectangle, Size, Vector,
     alignment::{Horizontal, Vertical},
-    widget::canvas::{Frame, Path, Stroke, Text},
+    widget::canvas::{Frame, Path, Stroke, Text, path::Builder},
 };
 
 #[derive(Debug, Default, Clone)]
@@ -50,26 +50,15 @@ impl Default for Axis {
 
 impl Axis {
     pub fn draw_border(&self, frame: &mut Frame, theme: &PlotTheme) {
-        let border_lines = [
-            (self.corners.bottom_left, self.corners.top_left), // left border
-            (
-                self.corners.bottom_left + Vector::new(-self.border_width / 2.0, 0.0),
-                self.corners.bottom_right + Vector::new(self.border_width / 2.0, 0.0),
-            ), // bottom border
-            (
-                self.corners.top_left + Vector::new(-self.border_width / 2.0, 0.0),
-                self.corners.top_right + Vector::new(self.border_width / 2.0, 0.0),
-            ), // top border
-            (self.corners.top_right, self.corners.bottom_right), // right border
-        ];
+        let mut border_path = Builder::new();
+        border_path.rectangle(self.bounds.position(), self.bounds.size());
+
         // Draw border lines
         let border_stroke = Stroke::default()
             .with_width(self.border_width)
             .with_color(theme.axis_border);
 
-        for &(start, end) in &border_lines {
-            frame.stroke(&Path::line(start, end), border_stroke.clone());
-        }
+        frame.stroke(&border_path.build(), border_stroke);
     }
     pub fn draw_grid(
         &self,
