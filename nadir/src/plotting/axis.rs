@@ -60,6 +60,7 @@ impl Axis {
 
         frame.stroke(&border_path.build(), border_stroke);
     }
+
     pub fn draw_grid(
         &self,
         frame: &mut Frame,
@@ -73,7 +74,6 @@ impl Axis {
             theme.axis_background,
         );
 
-        // Draw ticks, labels, and grid lines
         let draw_ticks_labels_and_grids =
             |frame: &mut Frame,
              theme: &PlotTheme,
@@ -84,149 +84,76 @@ impl Axis {
              canvas_span: f32,
              n_ticks: u32,
              is_x_axis: bool,
-             _tick_length: f32,
+             tick_length: f32,
              tick_text_spacing: f32,
              line_width: f32| {
                 let value_span = value_range.1 - value_range.0;
                 let (tick_spacing, tick_increment) =
                     calculate_tick_spacing(value_span, canvas_span, n_ticks);
 
+                let ticks = generate_ticks(value_range.0, value_range.1, tick_increment);
+
                 let grid_stroke = Stroke::default()
                     .with_width(1.0)
                     .with_color(theme.grid_color);
 
-                // Draw ticks in both positive and negative directions from 0.0
-                for direction in [-1, 1].iter() {
-                    // Determine starting value and canvas position
-                    let (mut value, mut canvas_pos) = if value_range.0 <= 0.0
-                        && value_range.1 >= 0.0
-                    {
-                        // If 0.0 is within the range, start at 0.0
-                        let (v, cp) = (
-                            0.0,
-                            if is_x_axis {
-                                (0.0 - value_range.0) / value_span * canvas_span + axis_start.x
-                            } else {
-                                axis_start.y - (0.0 - value_range.0) / value_span * canvas_span
-                            },
-                        );
-
-                        // Draw an axis line for 0.0
-                        let (zero_axis_start, zero_axis_end) = if is_x_axis {
-                            (
-                                Point::new(cp, axis_start.y + self.border_width),
-                                Point::new(cp, axis_start.y - axes_size.height - self.border_width),
-                            )
-                        } else {
-                            (
-                                Point::new(axis_start.x - self.border_width, cp),
-                                Point::new(axis_start.x + axes_size.width + self.border_width, cp),
-                            )
-                        };
-
-                        let zero_axis = Path::line(zero_axis_start, zero_axis_end);
-
-                        frame.stroke(
-                            &zero_axis,
-                            Stroke::default()
-                                .with_width(line_width)
-                                .with_color(theme.axis_border),
-                        );
-                        (v, cp)
+                for &value in &ticks {
+                    let canvas_pos = if is_x_axis {
+                        (value - value_range.0) / value_span * canvas_span + axis_start.x
                     } else {
-                        // Otherwise, start at the range minimum or maximum
+                        axis_start.y - (value - value_range.0) / value_span * canvas_span
+                    };
+
+                    let tick_point = if is_x_axis {
+                        Point::new(canvas_pos, axis_start.y)
+                    } else {
+                        Point::new(axis_start.x, canvas_pos)
+                    };
+
+                    let (grid_start, grid_end) = if is_x_axis {
                         (
-                            value_range.0 * *direction as f32,
-                            if is_x_axis {
-                                axis_start.x
-                            } else {
-                                axis_start.y
-                            },
+                            Point::new(tick_point.x, self.corners.top_left.y),
+                            Point::new(tick_point.x, self.corners.bottom_left.y),
+                        )
+                    } else {
+                        (
+                            Point::new(self.corners.top_left.x, tick_point.y),
+                            Point::new(self.corners.top_right.x, tick_point.y),
                         )
                     };
 
-                    // Draw ticks, labels, and grid lines
-                    while (is_x_axis && canvas_pos <= axis_end.x && canvas_pos >= axis_start.x)
-                        || (!is_x_axis && canvas_pos >= axis_end.y && canvas_pos <= axis_start.y)
-                    {
-                        let tick_point = if is_x_axis {
-                            Point::new(canvas_pos, axis_start.y)
+                    let grid_line = Path::line(grid_start, grid_end);
+                    frame.stroke(&grid_line, grid_stroke.clone());
+
+                    let label = if value == 0.0 {
+                        "0".to_string()
+                    } else if value.abs() < 0.01 || value.abs() > 1000.0 {
+                        format!("{:e}", value)
+                    } else {
+                        let formatted = format!("{:.2}", value);
+                        if formatted.ends_with(".00") {
+                            formatted.trim_end_matches(".00").to_string()
                         } else {
-                            Point::new(axis_start.x, canvas_pos)
-                        };
-
-                        // Draw grid lines
-                        let (grid_start, grid_end) = if is_x_axis {
-                            (
-                                Point::new(tick_point.x, self.corners.top_left.y),
-                                Point::new(tick_point.x, self.corners.bottom_left.y),
-                            )
-                        } else {
-                            (
-                                Point::new(self.corners.top_left.x, tick_point.y),
-                                Point::new(self.corners.top_right.x, tick_point.y),
-                            )
-                        };
-
-                        let grid_line = Path::line(grid_start, grid_end);
-                        frame.stroke(&grid_line, grid_stroke.clone());
-
-                        // Draw tick marks
-                        // let tick_path = if is_x_axis {
-                        //     Path::line(
-                        //         tick_point + Vector::new(0.0, tick_length / 2.0),
-                        //         tick_point + Vector::new(0.0, -tick_length / 2.0),
-                        //     )
-                        // } else {
-                        //     Path::line(
-                        //         tick_point + Vector::new(-tick_length / 2.0, 0.0),
-                        //         tick_point + Vector::new(tick_length / 2.0, 0.0),
-                        //     )
-                        // };
-
-                        // frame.stroke(&tick_path, Stroke::default().with_width(line_width));
-
-                        // Automatically decide between fixed-point and scientific notation
-                        let label =
-                            if value > 0.0 - std::f32::EPSILON && value < 0.0 + std::f32::EPSILON {
-                                "0".to_string()
-                            } else if value.abs() < 0.01 || value.abs() > 1000.0 {
-                                format!("{:e}", value) // use scientific notation
-                            } else {
-                                let formatted = format!("{:.2}", value);
-                                if formatted.ends_with(".00") {
-                                    formatted.trim_end_matches(".00").to_string()
-                                } else {
-                                    formatted
-                                }
-                            };
-
-                        let text_center = if is_x_axis {
-                            tick_point + Vector::new(0.0, tick_text_spacing)
-                        } else {
-                            tick_point + Vector::new(-tick_text_spacing, 0.0)
-                        };
-
-                        let text = Text {
-                            content: label,
-                            color: theme.text_color,
-                            horizontal_alignment: Horizontal::Center,
-                            position: text_center,
-                            vertical_alignment: Vertical::Center,
-                            size: (14.0).into(),
-                            ..Text::default()
-                        };
-
-                        frame.fill_text(text);
-
-                        // Increment counters
-                        if is_x_axis {
-                            canvas_pos += tick_spacing * *direction as f32;
-                        } else {
-                            canvas_pos -= tick_spacing * *direction as f32;
+                            formatted
                         }
-                        value += tick_increment * *direction as f32;
-                    }
+                    };
+                    let text_center = if is_x_axis {
+                        tick_point + Vector::new(0.0, tick_text_spacing)
+                    } else {
+                        tick_point + Vector::new(-tick_text_spacing, 0.0)
+                    };
+
+                    let text = Text {
+                        content: label,
+                        color: theme.text_color,
+                        horizontal_alignment: Horizontal::Center,
+                        position: text_center,
+                        vertical_alignment: Vertical::Center,
+                        size: (14.0).into(),
+                        ..Text::default()
+                    };
+
+                    frame.fill_text(text);
                 }
             };
 
@@ -260,7 +187,7 @@ impl Axis {
             self.border_width,
         );
 
-        // -------- Draw x_label and y_label if present --------
+        // Draw x_label and y_label if present
         if let Some(x_label) = &self.x_label {
             let center_x = (self.corners.bottom_left.x + self.corners.bottom_right.x) / 2.0;
             let position = Point::new(
@@ -305,7 +232,6 @@ impl Axis {
             })
         }
     }
-
     pub fn set_x_label(&mut self, label: String) {
         self.x_label = Some(label);
         self.update_corners();
@@ -351,31 +277,30 @@ impl Axis {
 }
 
 fn calculate_tick_spacing(value_span: f32, canvas_span: f32, n_ticks: u32) -> (f32, f32) {
-    // Ensure n_ticks is at least 2 to avoid division by zero
     let n_ticks = n_ticks.max(2);
-
-    // Calculate initial tick increment
     let raw_tick_increment = value_span / n_ticks as f32;
+    let exponent = raw_tick_increment.log10().floor();
+    let base = 10f32.powf(exponent);
+    let multiples = [1.0, 2.0, 5.0, 10.0];
 
-    // Find the nearest power of 10 for the initial tick increment
-    let base_10_exponent = raw_tick_increment.log10().floor();
-    let mut tick_increment = 10.0f32.powf(base_10_exponent);
-
-    // Scale the tick increment to fit the desired number of ticks
-    let mut ratio = 1.0;
-    while value_span / (tick_increment * ratio) > n_ticks as f32 {
-        ratio *= 2.0;
+    let mut tick_increment = base;
+    for &m in &multiples {
+        if base * m >= raw_tick_increment {
+            tick_increment = base * m;
+            break;
+        }
     }
 
-    // Adjust ratio down if it overshoots the number of ticks
-    while value_span / (tick_increment * ratio / 2.0) <= n_ticks as f32 {
-        ratio /= 2.0;
-    }
-
-    tick_increment *= ratio;
-
-    // Calculate the spacing on the canvas
     let tick_spacing = canvas_span * tick_increment / value_span;
-
     (tick_spacing, tick_increment)
+}
+
+fn generate_ticks(start: f32, end: f32, tick_increment: f32) -> Vec<f32> {
+    let mut ticks = Vec::new();
+    let mut tick = (start / tick_increment).ceil() * tick_increment;
+    while tick <= end {
+        ticks.push(tick);
+        tick += tick_increment;
+    }
+    ticks
 }
