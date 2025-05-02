@@ -74,11 +74,11 @@ impl Figure {
         self.ncols = 1;
         for axes in &self.axes {
             let axes = axes.lock().unwrap();
-            if axes.location.0 > self.nrows {
-                self.nrows = axes.location.0;
+            if axes.location.0 + 1 > self.nrows {
+                self.nrows = axes.location.0 + 1;
             }
-            if axes.location.1 > self.ncols {
-                self.ncols = axes.location.1;
+            if axes.location.1 + 1 > self.ncols {
+                self.ncols = axes.location.1 + 1;
             }
         }
         for axes in &mut self.axes {

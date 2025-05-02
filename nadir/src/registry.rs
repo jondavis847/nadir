@@ -167,7 +167,7 @@ impl Registry {
                     let axes_guard = val.as_axes()?;
                     let mut axes = axes_guard.lock().unwrap();
 
-                    axes.add_line(line);
+                    axes.add_line(line.clone());
                     Ok(Value::Event(Event::ClearCache(
                         axes.get_figure_id().unwrap(),
                     )))
@@ -249,8 +249,14 @@ impl Registry {
                     let i = args[0].as_usize()?;
                     let figure = val.as_figure()?;
                     let mut figure = figure.lock().unwrap();
-                    figure.delete_axes(i);
-                    Ok(Value::None)
+                    if let Some(id) = figure.get_id() {
+                        figure.delete_axes(i);
+                        Ok(Value::Event(Event::ClearCache(id)))
+                    } else {
+                        return Err(RegistryErrors::Error(
+                            "Figure ID not set. Ensure the figure is created first.".into(),
+                        ));
+                    }
                 },
             )],
         );

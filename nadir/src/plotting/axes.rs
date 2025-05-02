@@ -6,9 +6,9 @@ use super::{
     // legend::{Legend, LegendEntry},
     line::Line,
 };
-use iced::Padding;
 use iced::mouse::ScrollDelta;
 use iced::window::Id;
+use iced::{Color, Padding};
 use iced::{Point, Rectangle, Size, widget::canvas::Frame};
 
 use super::axis::Axis;
@@ -25,13 +25,18 @@ pub struct Axes {
     pub xlim: (f32, f32),
     pub ylim: (f32, f32),
     click_start: Option<Point>,
+    cursor_position: Point,
+    initial_xlim: (f32, f32),
+    initial_ylim: (f32, f32),
     is_panning: bool,
+    is_selecting: bool,
+    zoom_rectangle: Option<Rectangle>,
     target_zoom: f32,
     current_zoom: f32,
     zoom_speed: f32,
     zoom_center: Option<Point>,
-    initial_xlim: (f32, f32),
-    initial_ylim: (f32, f32),
+    zoom_color: Color,
+    zoom_axis_threshold: f32,
 }
 
 impl Axes {
@@ -49,7 +54,7 @@ impl Axes {
         self.axis.update_bounds(&self.bounds);
 
         for line in &self.lines {
-            let line = &mut *line.lock().unwrap();
+            let mut line = line.lock().unwrap();
             line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
         }
         if let Some(legend) = &mut self.legend {
@@ -89,6 +94,80 @@ impl Axes {
                 self.click_start = Some(point);
             }
         }
+        self.cursor_position = point;
+
+        if let Some(start) = self.click_start {
+            let delta = point - start;
+            match (
+                delta.x.abs() > self.zoom_axis_threshold,
+                delta.y.abs() > self.zoom_axis_threshold,
+            ) {
+                (true, true) => {
+                    //draw rectangle for both axes
+                    let (left, right) = if delta.x > 0.0 {
+                        // rectangle is selected left to right
+                        (start.x, point.x)
+                    } else {
+                        // rectangle is selected right to left
+                        (point.x, start.x)
+                    };
+
+                    let (top, bottom) = if delta.y > 0.0 {
+                        // rectangle is selected top to bottom
+                        (start.y, point.y)
+                    } else {
+                        //rectangle is selected bottom to top
+                        (point.y, start.y)
+                    };
+
+                    self.zoom_rectangle = Some(Rectangle::new(
+                        Point::new(left, top),
+                        Size::new(right - left, bottom - top),
+                    ));
+                }
+                (true, false) => {
+                    //draw rectangle selecting only x axis
+                    let (left, right) = if delta.x > 0.0 {
+                        // rectangle is selected left to right
+                        (start.x, point.x)
+                    } else {
+                        // rectangle is selected right to left
+                        (point.x, start.x)
+                    };
+
+                    let (top, bottom) = (
+                        self.axis.bounds.y,
+                        self.axis.bounds.y + self.axis.bounds.height,
+                    );
+                    self.zoom_rectangle = Some(Rectangle::new(
+                        Point::new(left, top),
+                        Size::new(right - left, bottom - top),
+                    ));
+                }
+                (false, true) => {
+                    //draw rectangle for both axes
+                    let (left, right) = (
+                        self.axis.bounds.x,
+                        self.axis.bounds.x + self.axis.bounds.width,
+                    );
+                    let (top, bottom) = if delta.y > 0.0 {
+                        // rectangle is selected top to bottom
+                        (start.y, point.y)
+                    } else {
+                        //rectangle is selected bottom to top
+                        (point.y, start.y)
+                    };
+
+                    self.zoom_rectangle = Some(Rectangle::new(
+                        Point::new(left, top),
+                        Size::new(right - left, bottom - top),
+                    ));
+                }
+                (false, false) => {
+                    self.zoom_rectangle = None;
+                }
+            }
+        }
     }
 
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
@@ -107,6 +186,13 @@ impl Axes {
         if let Some(legend) = &self.legend {
             legend.draw(frame, theme);
         }
+
+        //draw zoom selection square
+        if self.is_selecting {
+            if let Some(rectangle) = &self.zoom_rectangle {
+                frame.fill_rectangle(rectangle.position(), rectangle.size(), self.zoom_color);
+            }
+        }
     }
 
     pub fn get_figure_id(&self) -> Option<Id> {
@@ -121,40 +207,42 @@ impl Axes {
     pub fn mouse_left_clicked(&mut self, point: Point) {
         if self.axis.bounds.contains(point) {
             self.click_start = Some(point);
+            self.is_selecting = true;
         }
     }
 
     pub fn mouse_left_released(&mut self, point: Point) {
         if self.axis.bounds.contains(point) {
-            if let Some(start_point) = self.click_start {
-                // determine the value at the start point
-                let sx_start = (start_point.x - self.axis.bounds.x) / self.axis.bounds.width;
+            if let Some(zoom_rectangle) = &self.zoom_rectangle {
+                let sx_start = (zoom_rectangle.x - self.axis.bounds.x) / self.axis.bounds.width;
+                let sx_end = (zoom_rectangle.x + zoom_rectangle.width - self.axis.bounds.x)
+                    / self.axis.bounds.width;
+
                 let new_xlim_0 = sx_start * (self.xlim.1 - self.xlim.0) + self.xlim.0;
-
-                let sx_end = (point.x - self.axis.bounds.x) / self.axis.bounds.width;
                 let new_xlim_1 = sx_end * (self.xlim.1 - self.xlim.0) + self.xlim.0;
-                self.xlim = if new_xlim_1 > new_xlim_0 {
-                    (new_xlim_0, new_xlim_1)
-                } else {
-                    (new_xlim_1, new_xlim_0)
-                };
+                self.xlim = (new_xlim_0, new_xlim_1);
 
-                // remeber point.y start from the top, but ylim is from bottom
-                let sy_start = ((self.axis.bounds.y + self.axis.bounds.height) - start_point.y)
+                let sy_start = (self.axis.bounds.y + self.axis.bounds.height
+                    - (zoom_rectangle.y + zoom_rectangle.height))
                     / self.axis.bounds.height;
-                let new_ylim_1 = sy_start * (self.ylim.1 - self.ylim.0) + self.ylim.0;
+                let sy_end = (self.axis.bounds.y + self.axis.bounds.height - zoom_rectangle.y)
+                    / self.axis.bounds.height;
 
-                let sy_end = ((self.axis.bounds.y + self.axis.bounds.height) - point.y)
-                    / self.axis.bounds.height;
-                let new_ylim_0 = sy_end * (self.ylim.1 - self.ylim.0) + self.ylim.0;
-                self.ylim = if new_ylim_1 > new_ylim_0 {
-                    (new_ylim_0, new_ylim_1)
-                } else {
-                    (new_ylim_1, new_ylim_0)
-                };
+                let new_ylim_0 = sy_start * (self.ylim.1 - self.ylim.0) + self.ylim.0;
+                let new_ylim_1 = sy_end * (self.ylim.1 - self.ylim.0) + self.ylim.0;
+                self.ylim = (new_ylim_0, new_ylim_1);
             }
         }
+        if self.is_selecting {
+            for line in &self.lines {
+                let mut line = line.lock().unwrap();
+                line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
+            }
+        }
+
         self.click_start = None;
+        self.is_selecting = false;
+        self.zoom_rectangle = None;
     }
 
     pub fn mouse_middle_clicked(&mut self, point: Point) {
@@ -178,22 +266,28 @@ impl Axes {
             lines: Vec::new(),
             location,
             click_start: None,
-            bounds: Rectangle::default(), // to be updated later
+            cursor_position: Point::ORIGIN, // to be updated later
+            bounds: Rectangle::default(),   // to be updated later
             padding: Padding {
                 left: 0.0,
                 right: 0.0,
                 top: 0.0,
                 bottom: 0.0,
             },
+            initial_xlim: (-1.0, 1.0),
+            initial_ylim: (-1.0, 1.0),
             is_panning: false,
+            is_selecting: false,
             current_zoom: 1.0,
             target_zoom: 1.0,
             zoom_speed: 5.0,
             zoom_center: None,
-            initial_xlim: (-1.0, 1.0),
-            initial_ylim: (-1.0, 1.0),
+            zoom_color: Color::from_rgba(1.0, 1.0, 1.0, 0.1),
+            zoom_axis_threshold: 15.0,
+            zoom_rectangle: None,
         }
     }
+
     pub fn reset_axis(&mut self) {
         self.xlim = self.initial_xlim;
         self.ylim = self.initial_ylim;
@@ -411,4 +505,10 @@ fn get_global_lims(lines: &Vec<Arc<Mutex<Line>>>) -> ((f32, f32), (f32, f32)) {
     }
 
     ((xmin as f32, xmax as f32), (ymin as f32, ymax as f32))
+}
+
+enum ZoomStyle {
+    Horizontal,
+    Vertical,
+    Both,
 }
