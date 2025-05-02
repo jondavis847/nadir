@@ -6,8 +6,7 @@ use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::{
     collections::HashMap,
-    fs::{self, File},
-    io::BufReader,
+    fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -312,6 +311,13 @@ impl Registry {
                 let (xname, x) = load_single_column(&file)?;
                 let file = navigate_and_select_file(&pwd)?;
                 let (yname, y) = load_single_column(&file)?;
+                let file_name = file.file_stem();
+                let yname = if let Some(file_name) = &file_name {
+                    format!("{}::{}", file_name.to_string_lossy(), yname)
+                } else {
+                    yname
+                };
+
                 let mut series = Series::new(&x, &y)?;
                 series.set_x_name(xname);
                 series.set_y_name(yname);

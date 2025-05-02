@@ -105,9 +105,6 @@ impl NadirRepl {
                             self.channels.repl_to_plot_subscription = Some(tx);
                             break;
                         }
-                        _ => unreachable!(
-                            "shouldn't get any other commands until we get past this loop"
-                        ),
                     }
                 }
             }

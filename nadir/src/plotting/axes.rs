@@ -1,5 +1,7 @@
+use std::f32::INFINITY;
 use std::sync::{Arc, Mutex};
 
+use super::datatip::Datatip;
 use super::legend::Legend;
 use super::theme::PlotTheme;
 use super::{
@@ -17,6 +19,7 @@ use super::axis::Axis;
 pub struct Axes {
     pub axis: Axis,
     pub bounds: Rectangle,
+    datatip: Option<Datatip>,
     pub figure_id: Option<Id>,
     pub legend: Option<Legend>,
     pub lines: Vec<Arc<Mutex<Line>>>,
@@ -63,6 +66,63 @@ impl Axes {
     }
 
     pub fn cursor_moved(&mut self, point: Point) {
+        // Allow datatips if we're not panning and not selecting
+        if !self.is_panning && !self.is_selecting {
+            const MAX_DISTANCE: f32 = 5.0;
+
+            struct NearestPoint {
+                distance: f32,
+                canvas_position: Point,
+                data: Point<f64>,
+                line_index: usize,
+            }
+
+            // Start with a point at infinite distance
+            let mut nearest = NearestPoint {
+                distance: f32::INFINITY,
+                canvas_position: Point::ORIGIN,
+                data: Point::<f64>::new(0.0, 0.0),
+                line_index: 0,
+            };
+
+            // Find the closest point across all lines
+            for (i, line) in self.lines.iter().enumerate() {
+                let line = line.lock().unwrap();
+
+                for datapoint in &line.data.points {
+                    // Calculate squared distance (faster than using sqrt)
+                    let dx = datapoint.canvas_position.x - point.x;
+                    let dy = datapoint.canvas_position.y - point.y;
+                    let distance_squared = dx * dx + dy * dy;
+
+                    // Only take square root if this could be closer than our current best
+                    if distance_squared < nearest.distance * nearest.distance {
+                        let distance = distance_squared.sqrt();
+                        if distance < nearest.distance {
+                            nearest = NearestPoint {
+                                distance,
+                                canvas_position: datapoint.canvas_position,
+                                data: datapoint.data,
+                                line_index: i,
+                            };
+                        }
+                    }
+                }
+            }
+
+            // Only show datatip if a point is close enough
+            self.datatip = if nearest.distance < MAX_DISTANCE {
+                Some(Datatip::new(
+                    nearest.canvas_position,
+                    nearest.line_index,
+                    nearest.data.x,
+                    nearest.data.y,
+                ))
+            } else {
+                None
+            };
+        }
+
         if self.is_panning {
             if let Some(start_point) = self.click_start {
                 let dx = point.x - start_point.x;
@@ -193,6 +253,11 @@ impl Axes {
                 frame.fill_rectangle(rectangle.position(), rectangle.size(), self.zoom_color);
             }
         }
+
+        // draw datatip
+        if let Some(datatip) = &self.datatip {
+            datatip.draw(frame, theme, &self.lines);
+        }
     }
 
     pub fn get_figure_id(&self) -> Option<Id> {
@@ -260,6 +325,7 @@ impl Axes {
         Self {
             figure_id,
             axis: Axis::default(),
+            datatip: None,
             xlim: (0.0, 1.0),
             ylim: (-1.0, 1.0),
             legend: Some(Legend::default()),
@@ -505,10 +571,4 @@ fn get_global_lims(lines: &Vec<Arc<Mutex<Line>>>) -> ((f32, f32), (f32, f32)) {
     }
 
     ((xmin as f32, xmax as f32), (ymin as f32, ymax as f32))
-}
-
-enum ZoomStyle {
-    Horizontal,
-    Vertical,
-    Both,
 }
