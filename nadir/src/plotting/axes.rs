@@ -305,11 +305,6 @@ impl Axes {
         // zoom_factor < 1.0 = zoom in, zoom_factor > 1.0 = zoom out
         self.target_zoom *= zoom_factor;
 
-        // clamp zoom to reasonable limits
-        let min_zoom = 0.01; // Maximum zoom in (smaller values = more zoomed in)
-        let max_zoom = 10.0; // Maximum zoom out
-        self.target_zoom = self.target_zoom.clamp(min_zoom, max_zoom);
-
         // This makes the zoom feel more natural (commented out for simplicity)
         // Convert screen coordinates to plot coordinates
         let plot_x = self.xlim.0
