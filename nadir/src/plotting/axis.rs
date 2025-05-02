@@ -128,7 +128,7 @@ impl Axis {
                     let label = if value == 0.0 {
                         "0".to_string()
                     } else if value.abs() < 0.01 || value.abs() > 1000.0 {
-                        format!("{:e}", value)
+                        format!("{:.2e}", value)
                     } else {
                         let formatted = format!("{:.2}", value);
                         if formatted.ends_with(".00") {
