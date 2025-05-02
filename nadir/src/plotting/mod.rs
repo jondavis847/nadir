@@ -27,6 +27,8 @@ mod title_bar;
 
 #[derive(Debug, Error)]
 pub enum PlotErrors {
+    #[error("axes already at that position")]
+    AxesAlreadyInThatPosition,
     #[error("axes index out of bounds")]
     AxesIndexOOB,
     #[error("x data and y data lengths must match")]
@@ -50,6 +52,7 @@ pub struct PlotProgram {
     cache: Cache,
     theme: PlotTheme,
     last_tick: Instant,
+    last_click: Instant,
 }
 
 impl PlotProgram {
@@ -74,7 +77,16 @@ impl PlotProgram {
 
     pub fn mouse_left_clicked(&mut self, point: Point) {
         let figure = &mut *self.figure.lock().unwrap();
-        figure.mouse_left_clicked(point);
+        // determine if single click or double click
+        let current_click = Instant::now();
+        if current_click.duration_since(self.last_click).as_secs_f32() < 0.5 {
+            // double click
+            figure.mouse_double_clicked(point);
+        } else {
+            //single click
+            figure.mouse_left_clicked(point);
+        }
+        self.last_click = current_click;
         self.cache.clear();
     }
 
@@ -103,6 +115,7 @@ impl PlotProgram {
             cache: Cache::new(),
             theme: PlotThemes::Dark.palette(),
             last_tick: Instant::now(),
+            last_click: Instant::now(),
         }
     }
 

@@ -32,9 +32,9 @@ impl Default for Axis {
         Self {
             padding: Padding {
                 left: 50.0,
-                right: 50.0,
-                top: 50.0,
-                bottom: 50.0,
+                right: 30.0,
+                top: 30.0,
+                bottom: 40.0,
             },
             border_width: 1.0,
             bounds,
@@ -244,9 +244,9 @@ impl Axis {
     pub fn update_bounds(&mut self, axes_bounds: &Rectangle) {
         // dynamic sizing based on labels
         let bottom = if self.x_label.is_some() {
-            axes_bounds.height - 2.0 * self.padding.bottom
+            axes_bounds.y + axes_bounds.height - 2.0 * self.padding.bottom
         } else {
-            axes_bounds.height - self.padding.bottom
+            axes_bounds.y + axes_bounds.height - self.padding.bottom
         };
 
         // dynamic sizing based on labels
@@ -260,7 +260,9 @@ impl Axis {
         self.bounds.y = axes_bounds.y + self.padding.top;
         self.bounds.width = axes_bounds.width - left - self.padding.right;
         self.bounds.height = bottom - self.bounds.y;
+        dbg!(&self.bounds);
         self.update_corners();
+        dbg!(&self.corners);
     }
 
     pub fn update_corners(&mut self) {

@@ -30,6 +30,8 @@ pub struct Axes {
     current_zoom: f32,
     zoom_speed: f32,
     zoom_center: Option<Point>,
+    initial_xlim: (f32, f32),
+    initial_ylim: (f32, f32),
 }
 
 impl Axes {
@@ -40,6 +42,9 @@ impl Axes {
         let (xlim, ylim) = get_global_lims(&self.lines);
         self.xlim = xlim;
         self.ylim = ylim;
+
+        self.initial_xlim = xlim;
+        self.initial_ylim = ylim;
 
         self.axis.update_bounds(&self.bounds);
 
@@ -88,7 +93,7 @@ impl Axes {
 
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
         // background
-        frame.fill_rectangle(Point::ORIGIN, frame.size(), theme.axes_background);
+        frame.fill_rectangle(self.bounds.position(), frame.size(), theme.axes_background);
 
         self.axis.draw_grid(frame, theme, &self.xlim, &self.ylim);
 
@@ -108,6 +113,11 @@ impl Axes {
         self.figure_id
     }
 
+    pub fn mouse_double_clicked(&mut self, point: Point) {
+        if self.axis.bounds.contains(point) {
+            self.reset_axis();
+        }
+    }
     pub fn mouse_left_clicked(&mut self, point: Point) {
         if self.axis.bounds.contains(point) {
             self.click_start = Some(point);
@@ -180,9 +190,20 @@ impl Axes {
             target_zoom: 1.0,
             zoom_speed: 5.0,
             zoom_center: None,
+            initial_xlim: (-1.0, 1.0),
+            initial_ylim: (-1.0, 1.0),
         }
     }
-
+    pub fn reset_axis(&mut self) {
+        self.xlim = self.initial_xlim;
+        self.ylim = self.initial_ylim;
+        for line in &self.lines {
+            let mut line = line.lock().unwrap();
+            line.update_canvas_position(&self.axis.bounds, &self.xlim, &self.ylim);
+        }
+        self.target_zoom = 1.0;
+        self.current_zoom = 1.0;
+    }
     pub fn set_figure_id(&mut self, id: Id) {
         self.figure_id = Some(id);
     }

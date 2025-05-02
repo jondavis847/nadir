@@ -231,7 +231,7 @@ impl Registry {
                     let plot = val.as_figure()?;
                     let plot = &mut *plot.lock().unwrap();
                     if let Some(id) = plot.get_id() {
-                        plot.add_axes(row, col);
+                        plot.add_axes(row, col)?;
                         Ok(Value::Event(Event::ClearCache(id)))
                     } else {
                         return Err(RegistryErrors::Error(
@@ -242,6 +242,20 @@ impl Registry {
             )],
         );
         figure_instance_methods.insert(
+            "delete_axes",
+            vec![InstanceMethod::new(
+                vec![Argument::new("index", "i64")],
+                |val, args| {
+                    let i = args[0].as_usize()?;
+                    let figure = val.as_figure()?;
+                    let mut figure = figure.lock().unwrap();
+                    figure.delete_axes(i);
+                    Ok(Value::None)
+                },
+            )],
+        );
+
+        figure_instance_methods.insert(
             "get_axes",
             vec![InstanceMethod::new(
                 vec![Argument::new("index", "i64")],
@@ -249,10 +263,7 @@ impl Registry {
                     let i = args[0].as_usize()?;
                     let plot = val.as_figure()?;
                     let plot = &mut *plot.lock().unwrap();
-                    let axes = match plot.get_axes(i) {
-                        Ok(axes) => axes,
-                        Err(e) => return Err(RegistryErrors::Error(e.into())),
-                    };
+                    let axes = plot.get_axes(i)?;
                     Ok(Value::Axes(axes))
                 },
             )],
