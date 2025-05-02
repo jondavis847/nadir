@@ -17,7 +17,15 @@ pub struct Figure {
 }
 
 impl Figure {
-    pub fn add_axes(&mut self, row: usize, col: usize) {
+    pub fn add_axes(&mut self, row: usize, col: usize) -> Result<(), PlotErrors> {
+        // check if there's an axes already in that position
+        for axes in &self.axes {
+            let axes = axes.lock().unwrap();
+            if axes.location.0 == row && axes.location.1 == col {
+                return Err(PlotErrors::AxesAlreadyInThatPosition);
+            }
+        }
+
         // update # of rows and cols
         // +1 because 0 based indexing
         if row + 1 > self.nrows {
@@ -27,18 +35,19 @@ impl Figure {
             self.ncols = col + 1
         }
 
-        let axes = Arc::new(Mutex::new(Axes::new((row, col), None)));
+        let axes = Arc::new(Mutex::new(Axes::new((row, col), self.id)));
         self.axes.push(axes);
-        for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+        for axes in &self.axes {
+            let mut axes = axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
+        Ok(())
     }
 
     pub fn animation_tick(&mut self, dt: f32) -> bool {
         let mut clear = false;
         for axes in &self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let mut axes = axes.lock().unwrap();
             let request_clear = axes.animation_tick(dt);
             if request_clear {
                 clear = true;
@@ -64,7 +73,7 @@ impl Figure {
         self.nrows = 1;
         self.ncols = 1;
         for axes in &self.axes {
-            let axes = &*axes.lock().unwrap();
+            let axes = axes.lock().unwrap();
             if axes.location.0 > self.nrows {
                 self.nrows = axes.location.0;
             }
@@ -73,7 +82,7 @@ impl Figure {
             }
         }
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let mut axes = axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
     }
@@ -85,7 +94,7 @@ impl Figure {
         // });
 
         for axes in &self.axes {
-            let axes = &*axes.lock().unwrap();
+            let axes = axes.lock().unwrap();
             axes.draw(frame, theme);
         }
     }
@@ -116,7 +125,12 @@ impl Figure {
 
         fig
     }
-
+    pub fn mouse_double_clicked(&mut self, point: Point) {
+        for axes in &mut self.axes {
+            let axes = &mut *axes.lock().unwrap();
+            axes.mouse_double_clicked(point);
+        }
+    }
     pub fn mouse_left_clicked(&mut self, point: Point) {
         for axes in &mut self.axes {
             let axes = &mut *axes.lock().unwrap();
@@ -173,7 +187,7 @@ impl Figure {
         self.size.height = window_size.height;
 
         for axes in &self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let mut axes = axes.lock().unwrap();
             axes.update_bounds(self.size, self.nrows, self.ncols);
         }
     }

@@ -87,45 +87,47 @@ impl Legend {
     }
     pub fn draw(&self, frame: &mut Frame, theme: &PlotTheme) {
         let legend_position = self.bounds.position();
-        frame.translate(Vector::new(legend_position.x, legend_position.y));
-        if self.show_background {
-            let color = if let Some(background) = &self.background_color {
-                background.clone()
-            } else {
-                theme.figure_background
-            };
+        frame.with_save(|frame| {
+            frame.translate(Vector::new(legend_position.x, legend_position.y));
+            if self.show_background {
+                let color = if let Some(background) = &self.background_color {
+                    background.clone()
+                } else {
+                    theme.figure_background
+                };
 
-            frame.fill_rectangle(Point::ORIGIN, self.bounds.size(), Fill::from(color));
-        }
-        let line_height = self.text_size * self.line_height_factor;
+                frame.fill_rectangle(Point::ORIGIN, self.bounds.size(), Fill::from(color));
+            }
+            let line_height = self.text_size * self.line_height_factor;
 
-        for (i, entry) in self.entries.iter().enumerate() {
-            let mut text = Text::from(entry.label.clone());
-            text.color = if let Some(color) = entry.color {
-                color
-            } else {
-                theme.line_colors[i]
-            };
-            text.size = self.text_size.into();
-            text.position = Point::new(
-                self.entry_padding,
-                self.entry_padding + i as f32 * line_height,
-            );
-            text.font.family = Family::Monospace;
-            // text.line_height = line_height.into();
+            for (i, entry) in self.entries.iter().enumerate() {
+                let mut text = Text::from(entry.label.clone());
+                text.color = if let Some(color) = entry.color {
+                    color
+                } else {
+                    theme.line_colors[i]
+                };
+                text.size = self.text_size.into();
+                text.position = Point::new(
+                    self.entry_padding,
+                    self.entry_padding + i as f32 * line_height,
+                );
+                text.font.family = Family::Monospace;
+                // text.line_height = line_height.into();
 
-            frame.fill_text(text);
-        }
+                frame.fill_text(text);
+            }
 
-        // draw the border
-        if let Some(border) = &self.border {
-            let mut border_path = Builder::new();
-            border_path.rectangle(Point::ORIGIN, self.bounds.size());
-            let border_stroke = Stroke::default()
-                .with_color(border.color)
-                .with_width(border.width);
-            frame.stroke(&border_path.build(), border_stroke);
-        }
+            // draw the border
+            if let Some(border) = &self.border {
+                let mut border_path = Builder::new();
+                border_path.rectangle(Point::ORIGIN, self.bounds.size());
+                let border_stroke = Stroke::default()
+                    .with_color(border.color)
+                    .with_width(border.width);
+                frame.stroke(&border_path.build(), border_stroke);
+            }
+        })
     }
 }
 
