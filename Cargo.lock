@@ -3204,6 +3204,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nadir_diffeq"
+version = "0.0.1"
+
+[[package]]
 name = "nadir_result"
 version = "0.0.1"
 dependencies = [
