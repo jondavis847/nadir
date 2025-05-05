@@ -11,7 +11,7 @@ use unicode_width::UnicodeWidthStr;
 use std::{
     collections::HashMap,
     f64::{INFINITY, NAN},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 use thiserror::Error;

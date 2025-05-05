@@ -12,6 +12,7 @@ pub struct PlotTheme {
     pub axes_background: Color,
     pub axis_background: Color,
     pub axis_border: Color,
+    pub datatip: Color,
     pub figure_background: Color,
     pub grid_color: Color,
     pub text_color: Color,
@@ -26,9 +27,10 @@ impl PlotThemes {
                 axes_background: color!(0x111111),
                 axis_border: color!(0x000000),
                 axis_background: color!(0x131313),
+                datatip: color!(0x090909),
                 figure_background: color!(0x121212),
                 grid_color: color!(0x191919),
-                text_color: color!(0x767676),
+                text_color: color!(0x969696),
                 line_colors: [
                     color!(0xf8961e), //orange
                     color!(0x277da1), //blue

@@ -128,7 +128,7 @@ impl Axis {
                     let label = if value == 0.0 {
                         "0".to_string()
                     } else if value.abs() < 0.01 || value.abs() > 1000.0 {
-                        format!("{:e}", value)
+                        format!("{:.2e}", value)
                     } else {
                         let formatted = format!("{:.2}", value);
                         if formatted.ends_with(".00") {
@@ -260,9 +260,7 @@ impl Axis {
         self.bounds.y = axes_bounds.y + self.padding.top;
         self.bounds.width = axes_bounds.width - left - self.padding.right;
         self.bounds.height = bottom - self.bounds.y;
-        dbg!(&self.bounds);
         self.update_corners();
-        dbg!(&self.corners);
     }
 
     pub fn update_corners(&mut self) {
