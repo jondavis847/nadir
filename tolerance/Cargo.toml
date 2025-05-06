@@ -1,9 +1,8 @@
 [package]
-name = "nadir_diffeq"
+name = "tolerance"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-
