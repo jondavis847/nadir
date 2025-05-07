@@ -1,5 +1,5 @@
 use nadir_diffeq::{
-    ButcherTableau, Integrable, OdeModel, OdeSolver, RungeKutta, SaveMethod, StepMethod,
+    ButcherTableau, Integrable, OdeModel, OdeSolver, RungeKutta, SaveMethod, StepMethod, Tolerance,
 };
 use std::ops::{AddAssign, MulAssign};
 
@@ -65,6 +65,12 @@ impl OdeModel<LorentzState> for Lorentz {
         dx.y = x.x * (self.rho - x.z) - x.y;
         dx.z = x.x * x.y - self.beta * x.z;
     }
+}
+
+struct LorentzTolerance {
+    x: Tolerance,
+    y: Tolerance,
+    z: Tolerance,
 }
 
 fn main() {

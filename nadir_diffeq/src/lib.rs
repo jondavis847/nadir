@@ -1,6 +1,6 @@
 use std::{
     marker::PhantomData,
-    ops::{AddAssign, MulAssign},
+    ops::{AddAssign, Deref, DerefMut, MulAssign},
     path::PathBuf,
 };
 
@@ -300,5 +300,59 @@ impl<State: Integrable, const STAGES: usize> Method<State> for RungeKutta<State,
             self.calc_buffer_derivative *= self.tableau.b[s] * h;
             *xf += &self.calc_buffer_derivative;
         }
+    }
+}
+
+pub struct Tolerance {
+    pub abs_tol: Option<f64>,
+    pub rel_tol: Option<f64>,
+}
+
+#[derive(Clone, Copy)]
+pub struct StateArray<const N: usize>([f64; N]);
+
+impl<const N: usize> StateArray<N> {
+    pub fn new(array: [f64; N]) -> Self {
+        Self(array)
+    }
+}
+
+impl<const N: usize> Default for StateArray<N> {
+    fn default() -> Self {
+        Self([0.0; N])
+    }
+}
+
+impl<const N: usize> AddAssign<&Self> for StateArray<N> {
+    fn add_assign(&mut self, rhs: &Self) {
+        for i in 0..N {
+            self.0[i] += rhs.0[i];
+        }
+    }
+}
+
+impl<const N: usize> MulAssign<f64> for StateArray<N> {
+    fn mul_assign(&mut self, rhs: f64) {
+        for i in 0..N {
+            self.0[i] *= rhs;
+        }
+    }
+}
+
+impl<const N: usize> Integrable for StateArray<N> {
+    type Derivative = Self;
+}
+
+impl<const N: usize> Deref for StateArray<N> {
+    type Target = [f64; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const N: usize> DerefMut for StateArray<N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
