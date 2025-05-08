@@ -107,6 +107,7 @@ where
 
         // main sim loop
         let mut i = 0;
+        let mut init = false;
         while t < tspan.1 {
             // save the current state and time
             if let Some(result) = &mut memory_result {
@@ -124,7 +125,14 @@ where
                     abs_tol,
                     max_dt,
                     min_dt,
-                } => {}
+                } => {
+                    if !init {
+                        const INITIAL_STEP: f64 = 1e-3;
+                        self.solver.step(model, &x0, &mut xf, t, INITIAL_STEP);
+                        init = true;
+                    } else {
+                    }
+                }
             }
             i += 1;
         }
@@ -166,6 +174,7 @@ pub struct ButcherTableau<const STAGES: usize> {
     pub b: [f64; STAGES],
     pub b2: Option<[f64; STAGES]>,
     pub c: [f64; STAGES],
+    pub use_higher_order: bool,
 }
 
 impl ButcherTableau<4> {
@@ -180,6 +189,7 @@ impl ButcherTableau<4> {
         b: [1. / 6., 1. / 3., 1. / 3., 1. / 6.],
         b2: None,
         c: [0., 1.0 / 2.0, 1.0 / 2.0, 1.0],
+        use_higher_order: false,
     };
 }
 impl ButcherTableau<7> {
@@ -237,6 +247,7 @@ impl ButcherTableau<7> {
             1. / 40.,
         ]),
         c: [0., 1. / 5., 3. / 10., 4. / 5., 8. / 9., 1.0, 1.0],
+        use_higher_order: true,
     };
 }
 pub struct RungeKutta<State: Integrable, const STAGES: usize> {
