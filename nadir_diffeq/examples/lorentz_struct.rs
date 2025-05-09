@@ -1,6 +1,4 @@
-use nadir_diffeq::{
-    ButcherTableau, Integrable, OdeModel, OdeSolver, RungeKutta, SaveMethod, StepMethod, Tolerance,
-};
+use nadir_diffeq::{Integrable, OdeModel, OdeSolver, SaveMethod, Solver, StepMethod};
 use std::ops::{AddAssign, MulAssign};
 
 struct Lorentz {
@@ -67,20 +65,18 @@ impl OdeModel<LorentzState> for Lorentz {
     }
 }
 
-struct LorentzTolerance {
-    x: Tolerance,
-    y: Tolerance,
-    z: Tolerance,
-}
-
 fn main() {
     let mut model = Lorentz {
         sigma: 10.,
         rho: 28.,
         beta: 3. / 8.,
     };
-    let dopri45 = RungeKutta::new(ButcherTableau::<7>::DORMANDPRINCE45, &model);
-    let mut solver = OdeSolver::new(dopri45, StepMethod::Fixed(0.001), SaveMethod::Memory);
+
+    let mut solver = OdeSolver::new(
+        Solver::DoPri45,
+        StepMethod::Fixed(0.001),
+        SaveMethod::Memory,
+    );
 
     let x0 = LorentzState {
         x: 1.0,

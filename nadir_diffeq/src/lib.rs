@@ -18,17 +18,6 @@ where
     fn f(&mut self, t: f64, state: &State, derivative: &mut State::Derivative);
 }
 
-pub trait Method<State: Integrable> {
-    fn step<Model: OdeModel<State>>(
-        &mut self,
-        model: &mut Model,
-        x0: &State,
-        xf: &mut State,
-        t: f64,
-        h: f64,
-    );
-}
-
 pub enum StepMethod {
     Fixed(f64),
     Adaptive {
@@ -45,10 +34,9 @@ pub enum SaveMethod {
     None, // no saving by the solver, saving should be handled by the Model
 }
 
-pub struct OdeSolver<Solver, State>
+pub struct OdeSolver<State>
 where
     State: Integrable,
-    Solver: Method<State>,
 {
     solver: Solver,
     step_method: StepMethod,
@@ -56,10 +44,55 @@ where
     _phantom: PhantomData<State>,
 }
 
-impl<Solver, State> OdeSolver<Solver, State>
+pub enum Solver {
+    DoPri45,
+    Rk4,
+}
+
+impl Solver {
+    fn to_storage<State>(&self) -> SolverStorage<State>
+    where
+        State: Integrable,
+    {
+        match self {
+            Solver::DoPri45 => SolverStorage::<State>::DoPri45(RungeKutta::new(
+                ButcherTableau::<7>::DORMANDPRINCE45,
+            )),
+            Solver::Rk4 => SolverStorage::<State>::Rk4(RungeKutta::new(ButcherTableau::<4>::RK4)),
+        }
+    }
+}
+
+enum SolverStorage<State>
 where
     State: Integrable,
-    Solver: Method<State>,
+{
+    DoPri45(RungeKutta<State, 7>),
+    Rk4(RungeKutta<State, 4>),
+}
+
+impl<State> SolverStorage<State>
+where
+    State: Integrable,
+{
+    fn step<Model: OdeModel<State>>(
+        &mut self,
+        model: &mut Model,
+        x0: &State,
+        xf: &mut State,
+        t: f64,
+        h: f64,
+    ) {
+        match self {
+            SolverStorage::DoPri45(rk) => rk.step(model, x0, xf, t, h),
+            SolverStorage::Rk4(rk) => rk.step(model, x0, xf, t, h),
+        }
+    }
+}
+
+impl<State> OdeSolver<State>
+where
+    State: Integrable,
 {
     pub fn new(solver: Solver, step_method: StepMethod, save_method: SaveMethod) -> Self {
         Self {
@@ -80,6 +113,8 @@ where
         let mut x0 = x0.clone();
         let mut xf = State::default();
         let mut t = tspan.0;
+
+        let mut solver = self.solver.to_storage();
 
         // preallocate the memory result if there is one
         let mut memory_result = match self.save_method {
@@ -111,11 +146,14 @@ where
         while t < tspan.1 {
             // save the current state and time
             if let Some(result) = &mut memory_result {
+                if i >= result.len() {
+                    result.extend()
+                }
                 result.insert(i, t, &x0);
             }
             match self.step_method {
                 StepMethod::Fixed(dt) => {
-                    self.solver.step(model, &x0, &mut xf, t, dt);
+                    solver.step(model, &x0, &mut xf, t, dt);
                     // update for next iteration
                     t += dt;
                     x0.clone_from(&xf);
@@ -128,7 +166,7 @@ where
                 } => {
                     if !init {
                         const INITIAL_STEP: f64 = 1e-3;
-                        self.solver.step(model, &x0, &mut xf, t, INITIAL_STEP);
+                        solver.step(model, &x0, &mut xf, t, INITIAL_STEP);
                         init = true;
                     } else {
                     }
@@ -136,7 +174,9 @@ where
             }
             i += 1;
         }
-
+        if let Some(result) = &mut memory_result {
+            result.truncate();
+        }
         memory_result
     }
 }
@@ -147,6 +187,7 @@ where
 {
     pub t: Vec<f64>,
     pub y: Vec<State>,
+    n: usize, // manual tracking of adaptive elements
 }
 
 impl<State: Integrable> MemoryResult<State> {
@@ -154,11 +195,28 @@ impl<State: Integrable> MemoryResult<State> {
         Self {
             t: vec![0.0; n],
             y: vec![State::default(); n],
+            n: 0,
         }
     }
-    pub fn insert(&mut self, i: usize, t: f64, x: &State) {
+    fn insert(&mut self, i: usize, t: f64, x: &State) {
         self.t[i] = t;
         self.y[i].clone_from(x);
+        self.n = i;
+    }
+
+    fn len(&self) -> usize {
+        self.t.len()
+    }
+
+    // doubles the length if capapcity is reached
+    fn extend(&mut self) {
+        self.t.extend(vec![0.0; self.len()]);
+        self.y.extend(vec![State::default(); self.len()]);
+    }
+
+    fn truncate(&mut self) {
+        self.t.truncate(self.n);
+        self.y.truncate(self.n);
     }
 }
 
@@ -258,9 +316,9 @@ pub struct RungeKutta<State: Integrable, const STAGES: usize> {
 }
 
 impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
-    pub fn new<Model>(tableau: ButcherTableau<STAGES>, _model: &Model) -> Self
+    pub fn new(tableau: ButcherTableau<STAGES>) -> Self
     where
-        Model: OdeModel<State>,
+        State: Integrable,
     {
         Self {
             stage_buffer: StageBuffer {
@@ -271,8 +329,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
             tableau,
         }
     }
-}
-impl<State: Integrable, const STAGES: usize> Method<State> for RungeKutta<State, STAGES> {
+
     fn step<Model: OdeModel<State>>(
         &mut self,
         model: &mut Model,
@@ -313,7 +370,6 @@ impl<State: Integrable, const STAGES: usize> Method<State> for RungeKutta<State,
         }
     }
 }
-
 pub struct Tolerance {
     pub abs_tol: Option<f64>,
     pub rel_tol: Option<f64>,

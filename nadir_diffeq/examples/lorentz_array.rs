@@ -1,6 +1,4 @@
-use nadir_diffeq::{
-    ButcherTableau, OdeModel, OdeSolver, RungeKutta, SaveMethod, StateArray, StepMethod,
-};
+use nadir_diffeq::{OdeModel, OdeSolver, SaveMethod, Solver, StateArray, StepMethod};
 
 struct Lorentz {
     sigma: f64,
@@ -22,8 +20,11 @@ fn main() {
         rho: 28.,
         beta: 3. / 8.,
     };
-    let dopri45 = RungeKutta::new(ButcherTableau::<7>::DORMANDPRINCE45, &model);
-    let mut solver = OdeSolver::new(dopri45, StepMethod::Fixed(0.001), SaveMethod::Memory);
+    let mut solver = OdeSolver::new(
+        Solver::DoPri45,
+        StepMethod::Fixed(0.001),
+        SaveMethod::Memory,
+    );
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
