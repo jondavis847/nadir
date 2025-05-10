@@ -87,7 +87,8 @@ spice = {path = "spice"}
 syn = "2.0.101"    
 term_size = "0.3.2"
 thiserror = "2.0.12"
-time = {path = "time"} 
+time = {path = "time"}
+tolerance = {path = "tolerance"} 
 transforms = {path = "transforms"} 
 typetag = "0.2.18"
 uncertainty = {path = "uncertainty"}

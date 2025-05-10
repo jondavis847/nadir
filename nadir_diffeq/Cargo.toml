@@ -6,4 +6,4 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-
+tolerance.workspace = true

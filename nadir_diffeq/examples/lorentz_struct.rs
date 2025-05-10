@@ -1,5 +1,6 @@
 use nadir_diffeq::{Integrable, OdeModel, OdeSolver, SaveMethod, Solver, StepMethod};
 use std::ops::{AddAssign, MulAssign};
+use tolerance::{Tolerance, Tolerances, check_error};
 
 struct Lorentz {
     sigma: f64,
@@ -53,8 +54,49 @@ impl MulAssign<f64> for LorentzDerivative {
     }
 }
 
+struct LorentzTolerances {
+    x: Option<Tolerances>,
+    y: Option<Tolerances>,
+    z: Option<Tolerances>,
+}
+
+impl Default for LorentzTolerances {
+    fn default() -> Self {
+        Self {
+            x: None,
+            y: None,
+            z: Some(Tolerances::new(1e-5, 1e-7)),
+        }
+    }
+}
+
+impl Tolerance for LorentzTolerances {
+    type State = LorentzState;
+
+    fn check_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> bool {
+        let mut result = true;
+        result &= if let Some(tol) = self.x {
+            tol.check_error(x0.x, xf.x)
+        } else {
+            check_error(x0.x, xf.x, rel_tol, abs_tol)
+        };
+        result &= if let Some(tol) = self.y {
+            tol.check_error(x0.y, xf.y)
+        } else {
+            check_error(x0.y, xf.y, rel_tol, abs_tol)
+        };
+        result &= if let Some(tol) = self.z {
+            tol.check_error(x0.z, xf.z)
+        } else {
+            check_error(x0.z, xf.z, rel_tol, abs_tol)
+        };
+        result
+    }
+}
+
 impl Integrable for LorentzState {
     type Derivative = LorentzDerivative;
+    type Tolerance = LorentzTolerances;
 }
 
 impl OdeModel<LorentzState> for Lorentz {
@@ -87,10 +129,12 @@ fn main() {
     let result = solver.solve(&mut model, &x0, (0.0, 30.0));
     if let Some(result) = result {
         for i in 0..result.t.len() {
-            println!(
-                "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
-                result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
-            );
+            if result.t[i] - result.t[i].floor() < 1e-4 {
+                println!(
+                    "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
+                    result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
+                );
+            }
         }
     }
 }

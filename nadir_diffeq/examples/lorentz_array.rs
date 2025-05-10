@@ -1,4 +1,4 @@
-use nadir_diffeq::{OdeModel, OdeSolver, SaveMethod, Solver, StateArray, StepMethod};
+use nadir_diffeq::{OdeModel, OdeSolver, SaveMethod, Solver, StepMethod, state_array::StateArray};
 
 struct Lorentz {
     sigma: f64,
@@ -20,15 +20,11 @@ fn main() {
         rho: 28.,
         beta: 3. / 8.,
     };
-    let mut solver = OdeSolver::new(
-        Solver::DoPri45,
-        StepMethod::Fixed(0.001),
-        SaveMethod::Memory,
-    );
+    let mut solver = OdeSolver::new(Solver::Rk4, StepMethod::Fixed(0.001), SaveMethod::Memory);
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
-    let result = solver.solve(&mut model, &x0, (0.0, 1300.0));
+    let result = solver.solve(&mut model, &x0, (0.0, 30.0));
     if let Some(result) = result {
         for i in 0..result.t.len() {
             if result.t[i] - result.t[i].floor() < 1e-4 {

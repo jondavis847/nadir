@@ -3206,6 +3206,9 @@ dependencies = [
 [[package]]
 name = "nadir_diffeq"
 version = "0.0.1"
+dependencies = [
+ "tolerance",
+]
 
 [[package]]
 name = "nadir_macros"
