@@ -47,6 +47,7 @@ pub enum SaveMethod {
 pub enum Solver {
     DoPri45,
     Rk4,
+    Tsit5,
 }
 
 pub struct OdeProblem<State>
@@ -109,6 +110,10 @@ where
             }
             Solver::Rk4 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<4>::RK4);
+                solver.solve(model, x0, tspan, self.step_method, &mut result);
+            }
+            Solver::Tsit5 => {
+                let mut solver = RungeKutta::new(ButcherTableau::<7>::TSITOURAS5);
                 solver.solve(model, x0, tspan, self.step_method, &mut result);
             }
         }

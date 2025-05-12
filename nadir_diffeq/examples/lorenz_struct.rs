@@ -4,20 +4,20 @@ use nadir_diffeq::{
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
-struct Lorentz {
+struct Lorenz {
     sigma: f64,
     rho: f64,
     beta: f64,
 }
 
 #[derive(Clone, Default, Debug)]
-struct LorentzState {
+struct LorenzState {
     x: f64,
     y: f64,
     z: f64,
 }
 
-impl AddAssign<&Self> for LorentzState {
+impl AddAssign<&Self> for LorenzState {
     fn add_assign(&mut self, rhs: &Self) {
         self.x += rhs.x;
         self.y += rhs.y;
@@ -25,7 +25,7 @@ impl AddAssign<&Self> for LorentzState {
     }
 }
 
-impl MulAssign<f64> for LorentzState {
+impl MulAssign<f64> for LorenzState {
     fn mul_assign(&mut self, rhs: f64) {
         self.x *= rhs;
         self.y *= rhs;
@@ -33,8 +33,8 @@ impl MulAssign<f64> for LorentzState {
     }
 }
 
-impl AddAssign<&LorentzDerivative> for LorentzState {
-    fn add_assign(&mut self, rhs: &LorentzDerivative) {
+impl AddAssign<&LorenzDerivative> for LorenzState {
+    fn add_assign(&mut self, rhs: &LorenzDerivative) {
         self.x += rhs.x;
         self.y += rhs.y;
         self.z += rhs.z;
@@ -42,13 +42,13 @@ impl AddAssign<&LorentzDerivative> for LorentzState {
 }
 
 #[derive(Clone, Default)]
-struct LorentzDerivative {
+struct LorenzDerivative {
     x: f64,
     y: f64,
     z: f64,
 }
 
-impl MulAssign<f64> for LorentzDerivative {
+impl MulAssign<f64> for LorenzDerivative {
     fn mul_assign(&mut self, rhs: f64) {
         self.x *= rhs;
         self.y *= rhs;
@@ -56,13 +56,13 @@ impl MulAssign<f64> for LorentzDerivative {
     }
 }
 
-struct LorentzTolerances {
+struct LorenzTolerances {
     x: Option<Tolerances>,
     y: Option<Tolerances>,
     z: Option<Tolerances>,
 }
 
-impl Default for LorentzTolerances {
+impl Default for LorenzTolerances {
     fn default() -> Self {
         Self {
             x: None,
@@ -72,8 +72,8 @@ impl Default for LorentzTolerances {
     }
 }
 
-impl Tolerance for LorentzTolerances {
-    type State = LorentzState;
+impl Tolerance for LorenzTolerances {
+    type State = LorenzState;
 
     fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64 {
         let mut sum_squared_errors = 0.0;
@@ -110,13 +110,13 @@ impl Tolerance for LorentzTolerances {
     }
 }
 
-impl Integrable for LorentzState {
-    type Derivative = LorentzDerivative;
-    type Tolerance = LorentzTolerances;
+impl Integrable for LorenzState {
+    type Derivative = LorenzDerivative;
+    type Tolerance = LorenzTolerances;
 }
 
-impl OdeModel<LorentzState> for Lorentz {
-    fn f(&mut self, _t: f64, x: &LorentzState, dx: &mut LorentzDerivative) {
+impl OdeModel<LorenzState> for Lorenz {
+    fn f(&mut self, _t: f64, x: &LorenzState, dx: &mut LorenzDerivative) {
         dx.x = self.sigma * (x.y - x.x);
         dx.y = x.x * (self.rho - x.z) - x.y;
         dx.z = x.x * x.y - self.beta * x.z;
@@ -124,24 +124,25 @@ impl OdeModel<LorentzState> for Lorentz {
 }
 
 fn main() {
-    let mut model = Lorentz {
+    let mut model = Lorenz {
         sigma: 10.,
         rho: 28.,
-        beta: 3. / 8.,
+        beta: 8. / 3.,
     };
 
     let mut solver = OdeProblem::new(
-        Solver::DoPri45,
+        //Solver::DoPri45,
+        Solver::Tsit5,
         StepMethod::Adaptive {
-            rel_tol: 1e-6,
-            abs_tol: 1e-9,
+            rel_tol: 1e-3,
+            abs_tol: 1e-6,
             max_dt: None,
             min_dt: None,
         },
         SaveMethod::Memory,
     );
 
-    let x0 = LorentzState {
+    let x0 = LorenzState {
         x: 1.0,
         y: 0.0,
         z: 0.0,

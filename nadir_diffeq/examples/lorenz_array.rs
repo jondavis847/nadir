@@ -3,13 +3,13 @@ use nadir_diffeq::{
     state_array::StateArray,
 };
 
-struct Lorentz {
+struct Lorenz {
     sigma: f64,
     rho: f64,
     beta: f64,
 }
 
-impl OdeModel<StateArray<3>> for Lorentz {
+impl OdeModel<StateArray<3>> for Lorenz {
     fn f(&mut self, _t: f64, x: &StateArray<3>, dx: &mut StateArray<3>) {
         dx[0] = self.sigma * (x[1] - x[0]);
         dx[1] = x[0] * (self.rho - x[2]) - x[1];
@@ -18,12 +18,12 @@ impl OdeModel<StateArray<3>> for Lorentz {
 }
 
 fn main() {
-    let mut model = Lorentz {
+    let mut model = Lorenz {
         sigma: 10.,
         rho: 28.,
-        beta: 3. / 8.,
+        beta: 8. / 3.,
     };
-    let mut solver = OdeProblem::new(Solver::Rk4, StepMethod::Fixed(0.001), SaveMethod::Memory);
+    let mut solver = OdeProblem::new(Solver::Tsit5, StepMethod::Fixed(0.001), SaveMethod::Memory);
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 

@@ -138,6 +138,15 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
                     }
                 }
             }
+            // Add a constant minimum step size regardless of min_dt parameter
+            const EMERGENCY_MIN_DT: f64 = 1e-10;
+
+            if dt < EMERGENCY_MIN_DT {
+                panic!(
+                    "Emergency minimum step size reached at t = {}, error = {}",
+                    t, error
+                );
+            }
         }
     }
 
