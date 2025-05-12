@@ -1,13 +1,23 @@
+use std::array;
+
 use tolerance::Tolerance;
 
-use crate::{Integrable, OdeModel, tableau::ButcherTableau};
+use crate::{Integrable, OdeModel, SaveStorage, StepMethod, tableau::ButcherTableau};
+
+// preallocated buffers for intermediate calculations
+#[derive(Default)]
+struct RKBuffers<State: Integrable, const STAGES: usize> {
+    stage: StageBuffer<State, STAGES>,
+    state: State,
+    derivative: State::Derivative,
+}
 
 pub struct RungeKutta<State: Integrable, const STAGES: usize> {
-    stage_buffer: StageBuffer<State, STAGES>, // preallocated buffer for stage results
-    calc_buffer_state: State,                 // preallocated buffer for calculations
-    calc_buffer_derivative: State::Derivative,
+    y: State,
+    y_star: State,
     tableau: ButcherTableau<STAGES>,
     tolerances: State::Tolerance,
+    buffers: RKBuffers<State, STAGES>,
 }
 
 impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
@@ -16,25 +26,16 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         State: Integrable,
     {
         Self {
-            stage_buffer: StageBuffer {
-                k: std::array::from_fn(|_| State::Derivative::default()),
-            },
-            calc_buffer_state: State::default(),
-            calc_buffer_derivative: State::Derivative::default(),
+            buffers: RKBuffers::default(),
+            y: State::default(),
+            y_star: State::default(),
             tableau,
             tolerances: State::Tolerance::default(),
         }
     }
 
-    pub fn step<Model: OdeModel<State>>(
-        &mut self,
-        model: &mut Model,
-        x0: &State,
-        xf: &mut State,
-        t: f64,
-        h: f64,
-    ) {
-        let k = &mut self.stage_buffer.k;
+    pub fn step<Model: OdeModel<State>>(&mut self, model: &mut Model, x0: &State, t: f64, h: f64) {
+        let k = &mut self.buffers.stage.k;
 
         // k0
         model.f(t, x0, &mut k[0]);
@@ -42,27 +43,35 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         // k1 - ks
         for s in 1..STAGES {
             // in place calculation of intermediate points
-            self.calc_buffer_state *= 0.0;
+            self.buffers.state *= 0.0;
             // sum previous ks with appropriate scaling from tableau
             for i in 0..s {
-                self.calc_buffer_derivative.clone_from(&k[i]);
-                self.calc_buffer_derivative *= self.tableau.a[s][i];
-                self.calc_buffer_state += &self.calc_buffer_derivative;
+                self.buffers.derivative.clone_from(&k[i]);
+                self.buffers.derivative *= self.tableau.a[s][i];
+                self.buffers.state += &self.buffers.derivative;
             }
-            self.calc_buffer_state *= h;
-            self.calc_buffer_state += x0;
+            self.buffers.state *= h;
+            self.buffers.state += x0;
 
-            model.f(
-                t + self.tableau.c[s] * h,
-                &self.calc_buffer_state,
-                &mut k[s],
-            );
+            model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
         }
-        xf.clone_from(x0);
+        self.y.clone_from(x0);
         for s in 0..STAGES {
-            self.calc_buffer_derivative.clone_from(&k[s]);
-            self.calc_buffer_derivative *= self.tableau.b[s] * h;
-            *xf += &self.calc_buffer_derivative;
+            self.buffers.derivative.clone_from(&k[s]);
+            self.buffers.derivative *= self.tableau.b[s] * h;
+            self.y += &self.buffers.derivative;
+        }
+
+        // adaptive solving logic
+        if let Some(b_star) = self.tableau.b_star {
+            // calculate error estimate from tableau
+            // e[n+1] = h * sum((b - b_star) * k)
+            self.buffers.derivative *= 0.0;
+            for s in 0..STAGES {
+                k[s] *= self.tableau.b[s] - b_star[s];
+                self.buffers.derivative.clone_from(&k[s]);
+            }
+            self.buffers.derivative *= h;
         }
     }
 
@@ -76,4 +85,15 @@ where
     State: Integrable,
 {
     pub k: [State::Derivative; STAGES],
+}
+
+impl<State, const STAGES: usize> Default for StageBuffer<State, STAGES>
+where
+    State: Integrable,
+{
+    fn default() -> Self {
+        Self {
+            k: array::from_fn(|_| State::Derivative::default()),
+        }
+    }
 }

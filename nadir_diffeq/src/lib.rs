@@ -201,6 +201,15 @@ where
     }
 }
 
+pub enum SaveStorage<State>
+where
+    State: Integrable,
+{
+    Memory(MemoryResult<State>),
+    File(PathBuf),
+    None,
+}
+
 pub struct MemoryResult<State>
 where
     State: Integrable,
