@@ -84,10 +84,10 @@ where
                 let n = match self.step_method {
                     StepMethod::Fixed(dt) => ((tspan.1 - tspan.0) / dt).ceil() as usize,
                     StepMethod::Adaptive {
-                        rel_tol,
-                        abs_tol,
+                        rel_tol: _,
+                        abs_tol: _,
                         max_dt,
-                        min_dt,
+                        min_dt: _,
                     } => {
                         if let Some(max_dt) = &max_dt {
                             ((tspan.1 - tspan.0) / max_dt).ceil() as usize

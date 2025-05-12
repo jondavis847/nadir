@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::Integrable;
 
+#[derive(Debug)]
 pub enum ResultStorage<State>
 where
     State: Integrable,
@@ -31,6 +32,7 @@ impl<State: Integrable> ResultStorage<State> {
     }
 }
 
+#[derive(Debug)]
 pub struct MemoryResult<State>
 where
     State: Integrable,

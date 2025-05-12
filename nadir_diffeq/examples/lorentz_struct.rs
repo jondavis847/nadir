@@ -2,7 +2,7 @@ use nadir_diffeq::{
     Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, result::ResultStorage,
 };
 use std::ops::{AddAssign, MulAssign};
-use tolerance::{Tolerance, Tolerances, check_error};
+use tolerance::{Tolerance, Tolerances, compute_error};
 
 struct Lorentz {
     sigma: f64,
@@ -10,7 +10,7 @@ struct Lorentz {
     beta: f64,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct LorentzState {
     x: f64,
     y: f64,
@@ -75,24 +75,24 @@ impl Default for LorentzTolerances {
 impl Tolerance for LorentzTolerances {
     type State = LorentzState;
 
-    fn check_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> bool {
-        let mut result = true;
-        result &= if let Some(tol) = self.x {
-            tol.check_error(x0.x, xf.x)
+    fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64 {
+        let mut error: f64 = 0.0;
+        if let Some(tol) = self.x {
+            error = error.max(tol.compute_error(x0.x, xf.x))
         } else {
-            check_error(x0.x, xf.x, rel_tol, abs_tol)
+            error = error.max(compute_error(x0.x, xf.x, rel_tol, abs_tol))
         };
-        result &= if let Some(tol) = self.y {
-            tol.check_error(x0.y, xf.y)
+        if let Some(tol) = self.y {
+            error = error.max(tol.compute_error(x0.y, xf.y))
         } else {
-            check_error(x0.y, xf.y, rel_tol, abs_tol)
+            error = error.max(compute_error(x0.y, xf.y, rel_tol, abs_tol))
         };
-        result &= if let Some(tol) = self.z {
-            tol.check_error(x0.z, xf.z)
+        if let Some(tol) = self.z {
+            error = error.max(tol.compute_error(x0.z, xf.z))
         } else {
-            check_error(x0.z, xf.z, rel_tol, abs_tol)
+            error = error.max(compute_error(x0.z, xf.z, rel_tol, abs_tol))
         };
-        result
+        error
     }
 }
 
@@ -118,7 +118,12 @@ fn main() {
 
     let mut solver = OdeProblem::new(
         Solver::DoPri45,
-        StepMethod::Fixed(0.001),
+        StepMethod::Adaptive {
+            rel_tol: 1e-6,
+            abs_tol: 1e-9,
+            max_dt: None,
+            min_dt: None,
+        },
         SaveMethod::Memory,
     );
 
@@ -128,11 +133,12 @@ fn main() {
         z: 0.0,
     };
 
-    let result = solver.solve(&mut model, &x0, (0.0, 30.0));
+    let result = solver.solve(&mut model, &x0, (0.0, 1000.0));
+
     match result {
         ResultStorage::Memory(result) => {
             for i in 0..result.t.len() {
-                if result.t[i] - result.t[i].floor() < 1e-4 {
+                if result.t[i] - result.t[i].floor() < 1e-3 {
                     println!(
                         "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
                         result.t[i], result.y[i].x, result.y[i].y, result.y[i].z

@@ -1,6 +1,6 @@
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 
-use tolerance::{Tolerance, Tolerances, check_error};
+use tolerance::{Tolerance, Tolerances, compute_error};
 
 use crate::Integrable;
 
@@ -57,25 +57,22 @@ impl<const N: usize> DerefMut for StateArray<N> {
 pub struct StateArrayTolerances<const N: usize>([Option<Tolerances>; N]);
 impl<const N: usize> Tolerance for StateArrayTolerances<N> {
     type State = StateArray<N>;
-    fn check_error(
+    fn compute_error(
         &self,
         x0: &StateArray<N>,
         xf: &StateArray<N>,
         rel_tol: f64,
         abs_tol: f64,
-    ) -> bool {
+    ) -> f64 {
+        let mut max_error: f64 = 0.0;
         for (i, tol) in self.0.iter().enumerate() {
             if let Some(tol) = tol {
-                if !tol.check_error(x0.0[i], xf.0[i]) {
-                    return false;
-                }
+                max_error = max_error.max(tol.compute_error(x0.0[i], xf.0[i]));
             } else {
-                if !check_error(x0.0[i], xf.0[i], rel_tol, abs_tol) {
-                    return false;
-                }
+                max_error = max_error.max(compute_error(x0.0[i], xf.0[i], rel_tol, abs_tol));
             }
         }
-        true
+        max_error
     }
 }
 

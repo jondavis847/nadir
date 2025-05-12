@@ -16,22 +16,22 @@ impl Tolerances {
     pub fn new(rel_tol: f64, abs_tol: f64) -> Self {
         Self { rel_tol, abs_tol }
     }
-    pub fn check_error(&self, x0: f64, xf: f64) -> bool {
-        check_error(x0, xf, self.rel_tol, self.abs_tol)
+    pub fn compute_error(&self, x0: f64, xf: f64) -> f64 {
+        compute_error(x0, xf, self.rel_tol, self.abs_tol)
     }
 }
 
 pub trait Tolerance: Default {
     type State;
-    fn check_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> bool;
+    fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64;
 }
 
-pub fn check_error(x0: f64, xf: f64, rel_tol: f64, abs_tol: f64) -> bool {
+pub fn compute_error(x0: f64, xf: f64, rel_tol: f64, abs_tol: f64) -> f64 {
     let abs_diff = (xf - x0).abs();
-    let rel_diff = if x0.abs() > 1e-10 {
-        abs_diff / x0.abs()
-    } else {
-        0.0
-    };
-    abs_diff <= abs_tol || rel_diff <= rel_tol
+
+    // Calculate scale using mixed relative/absolute tolerance approach
+    let scale = abs_tol + rel_tol * x0.abs().max(1e-10);
+
+    // Return scaled error (values <= 1.0 indicate acceptable error)
+    abs_diff / scale
 }

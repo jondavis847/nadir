@@ -3,7 +3,7 @@ pub struct ButcherTableau<const STAGES: usize> {
     pub b: [f64; STAGES],
     pub b_star: Option<[f64; STAGES]>,
     pub c: [f64; STAGES],
-    pub use_higher_order: bool,
+    pub order: usize,
 }
 
 impl ButcherTableau<4> {
@@ -18,7 +18,7 @@ impl ButcherTableau<4> {
         b: [1. / 6., 1. / 3., 1. / 3., 1. / 6.],
         b_star: None,
         c: [0., 1.0 / 2.0, 1.0 / 2.0, 1.0],
-        use_higher_order: false,
+        order: 4,
     };
 }
 impl ButcherTableau<7> {
@@ -76,6 +76,6 @@ impl ButcherTableau<7> {
             1. / 40.,
         ]),
         c: [0., 1. / 5., 3. / 10., 4. / 5., 8. / 9., 1.0, 1.0],
-        use_higher_order: true,
+        order: 5,
     };
 }
