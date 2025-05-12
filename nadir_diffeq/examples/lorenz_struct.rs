@@ -131,8 +131,7 @@ fn main() {
     };
 
     let mut solver = OdeProblem::new(
-        //Solver::DoPri45,
-        Solver::Tsit5,
+        Solver::DoPri45,
         StepMethod::Adaptive {
             rel_tol: 1e-3,
             abs_tol: 1e-6,
