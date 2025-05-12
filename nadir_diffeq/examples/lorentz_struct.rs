@@ -76,23 +76,37 @@ impl Tolerance for LorentzTolerances {
     type State = LorentzState;
 
     fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64 {
-        let mut error: f64 = 0.0;
+        let mut sum_squared_errors = 0.0;
+
+        // Calculate squared error for x component
         if let Some(tol) = self.x {
-            error = error.max(tol.compute_error(x0.x, xf.x))
+            let err = tol.compute_error(x0.x, xf.x);
+            sum_squared_errors += err * err;
         } else {
-            error = error.max(compute_error(x0.x, xf.x, rel_tol, abs_tol))
-        };
+            let err = compute_error(x0.x, xf.x, rel_tol, abs_tol);
+            sum_squared_errors += err * err;
+        }
+
+        // Calculate squared error for y component
         if let Some(tol) = self.y {
-            error = error.max(tol.compute_error(x0.y, xf.y))
+            let err = tol.compute_error(x0.y, xf.y);
+            sum_squared_errors += err * err;
         } else {
-            error = error.max(compute_error(x0.y, xf.y, rel_tol, abs_tol))
-        };
+            let err = compute_error(x0.y, xf.y, rel_tol, abs_tol);
+            sum_squared_errors += err * err;
+        }
+
+        // Calculate squared error for z component
         if let Some(tol) = self.z {
-            error = error.max(tol.compute_error(x0.z, xf.z))
+            let err = tol.compute_error(x0.z, xf.z);
+            sum_squared_errors += err * err;
         } else {
-            error = error.max(compute_error(x0.z, xf.z, rel_tol, abs_tol))
-        };
-        error
+            let err = compute_error(x0.z, xf.z, rel_tol, abs_tol);
+            sum_squared_errors += err * err;
+        }
+
+        // Return RMS error
+        (sum_squared_errors / 3.0).sqrt()
     }
 }
 

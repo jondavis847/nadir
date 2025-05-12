@@ -64,15 +64,28 @@ impl<const N: usize> Tolerance for StateArrayTolerances<N> {
         rel_tol: f64,
         abs_tol: f64,
     ) -> f64 {
-        let mut max_error: f64 = 0.0;
+        let mut sum_squared_errors = 0.0;
+        let mut count = 0;
+
+        // Compute the squared error for each component
         for (i, tol) in self.0.iter().enumerate() {
-            if let Some(tol) = tol {
-                max_error = max_error.max(tol.compute_error(x0.0[i], xf.0[i]));
+            let component_error = if let Some(tol) = tol {
+                tol.compute_error(x0.0[i], xf.0[i])
             } else {
-                max_error = max_error.max(compute_error(x0.0[i], xf.0[i], rel_tol, abs_tol));
-            }
+                compute_error(x0.0[i], xf.0[i], rel_tol, abs_tol)
+            };
+
+            sum_squared_errors += component_error * component_error;
+            count += 1;
         }
-        max_error
+
+        // If no components were checked, return 0.0
+        if count == 0 {
+            return 0.0;
+        }
+
+        // Return the root mean square error
+        (sum_squared_errors / count as f64).sqrt()
     }
 }
 

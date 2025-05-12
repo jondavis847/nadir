@@ -7,8 +7,8 @@ pub struct Tolerances {
 impl Default for Tolerances {
     fn default() -> Self {
         Self {
-            abs_tol: 1e-3,
-            rel_tol: 1e-6,
+            abs_tol: 1e-6,
+            rel_tol: 1e-3,
         }
     }
 }
@@ -29,9 +29,9 @@ pub trait Tolerance: Default {
 pub fn compute_error(x0: f64, xf: f64, rel_tol: f64, abs_tol: f64) -> f64 {
     let abs_diff = (xf - x0).abs();
 
-    // Calculate scale using mixed relative/absolute tolerance approach
-    let scale = abs_tol + rel_tol * x0.abs().max(1e-10);
+    // Use max of both values for scaling (MATLAB-compatible)
+    let scale = abs_tol + rel_tol * x0.abs().max(xf.abs()).max(1e-10);
 
-    // Return scaled error (values <= 1.0 indicate acceptable error)
+    // Return scaled error
     abs_diff / scale
 }
