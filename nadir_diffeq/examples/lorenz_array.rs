@@ -24,20 +24,7 @@ fn main() {
         beta: 8. / 3.,
     };
 
-    // Create a results directory in the project folder
-    let mut results_dir = std::env::current_dir().unwrap();
-    results_dir.push("results");
-
-    // Create the directory if it doesn't exist
-    if !results_dir.exists() {
-        std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
-    }
-
-    let mut solver = OdeProblem::new(
-        Solver::Tsit5,
-        StepMethod::Fixed(0.001),
-        SaveMethod::File(results_dir),
-    );
+    let mut solver = OdeProblem::new(Solver::Tsit5, StepMethod::Fixed(0.001), SaveMethod::Memory);
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 

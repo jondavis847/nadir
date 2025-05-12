@@ -1,11 +1,8 @@
 use std::{
-    fs::File,
-    io::BufWriter,
     ops::{AddAssign, Deref, DerefMut, MulAssign},
     path::PathBuf,
 };
 
-use csv::Writer;
 use tolerance::{Tolerance, Tolerances, compute_error};
 
 use crate::Integrable;

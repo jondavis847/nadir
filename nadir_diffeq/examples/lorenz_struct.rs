@@ -1,6 +1,4 @@
-use nadir_diffeq::{
-    Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, result::ResultStorage,
-};
+use nadir_diffeq::{Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod};
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
@@ -188,19 +186,5 @@ fn main() {
         z: 0.0,
     };
 
-    let result = solver.solve(&mut model, &x0, (0.0, 30.0));
-
-    match result {
-        ResultStorage::Memory(result) => {
-            for i in 0..result.t.len() {
-                if result.t[i] - result.t[i].floor() < 1e-3 {
-                    println!(
-                        "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
-                        result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
-                    );
-                }
-            }
-        }
-        _ => {}
-    }
+    solver.solve(&mut model, &x0, (0.0, 30.0));
 }
