@@ -2,7 +2,7 @@ use std::array;
 
 use tolerance::Tolerance;
 
-use crate::{Integrable, OdeModel, SaveStorage, StepMethod, tableau::ButcherTableau};
+use crate::{Integrable, OdeModel, StepMethod, result::ResultStorage, tableau::ButcherTableau};
 
 // preallocated buffers for intermediate calculations
 #[derive(Default)]
@@ -13,6 +13,7 @@ struct RKBuffers<State: Integrable, const STAGES: usize> {
 }
 
 pub struct RungeKutta<State: Integrable, const STAGES: usize> {
+    x: State,
     y: State,
     y_star: State,
     tableau: ButcherTableau<STAGES>,
@@ -27,6 +28,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
     {
         Self {
             buffers: RKBuffers::default(),
+            x: State::default(),
             y: State::default(),
             y_star: State::default(),
             tableau,
@@ -34,11 +36,54 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         }
     }
 
-    pub fn step<Model: OdeModel<State>>(&mut self, model: &mut Model, x0: &State, t: f64, h: f64) {
+    pub fn solve<Model: OdeModel<State>>(
+        &mut self,
+        model: &mut Model,
+        x0: &State,
+        tspan: (f64, f64),
+        step_method: StepMethod,
+        result: &mut ResultStorage<State>,
+    ) {
+        match step_method {
+            StepMethod::Fixed(dt) => self.solve_fixed(model, x0, tspan, dt, result),
+            StepMethod::Adaptive {
+                rel_tol,
+                abs_tol,
+                max_dt,
+                min_dt,
+            } => {} // todo ! self.solve_adaptive(model, x0, tspan, rel_tol, abs_tol, max_dt, min_dt, result),
+        }
+    }
+
+    pub fn solve_fixed<Model: OdeModel<State>>(
+        &mut self,
+        model: &mut Model,
+        x0: &State,
+        tspan: (f64, f64),
+        dt: f64,
+        result: &mut ResultStorage<State>,
+    ) {
+        let mut t = tspan.0;
+        self.x.clone_from(x0);
+        while t < tspan.1 {
+            self.step(model, t, dt, false);
+            result.save(t, &self.y);
+            t += dt;
+            self.x.clone_from(&self.y);
+        }
+    }
+
+    pub fn step<Model: OdeModel<State>>(
+        &mut self,
+        model: &mut Model,
+        t: f64,
+        h: f64,
+        adaptive: bool,
+    ) {
         let k = &mut self.buffers.stage.k;
 
         // k0
-        model.f(t, x0, &mut k[0]);
+        model.f(t, &self.x, &mut k[0]);
 
         // k1 - ks
         for s in 1..STAGES {
@@ -51,11 +96,11 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
                 self.buffers.state += &self.buffers.derivative;
             }
             self.buffers.state *= h;
-            self.buffers.state += x0;
+            self.buffers.state += &self.x;
 
             model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
         }
-        self.y.clone_from(x0);
+        self.y.clone_from(&self.x);
         for s in 0..STAGES {
             self.buffers.derivative.clone_from(&k[s]);
             self.buffers.derivative *= self.tableau.b[s] * h;
@@ -63,15 +108,15 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         }
 
         // adaptive solving logic
-        if let Some(b_star) = self.tableau.b_star {
-            // calculate error estimate from tableau
-            // e[n+1] = h * sum((b - b_star) * k)
-            self.buffers.derivative *= 0.0;
-            for s in 0..STAGES {
-                k[s] *= self.tableau.b[s] - b_star[s];
-                self.buffers.derivative.clone_from(&k[s]);
+        if adaptive {
+            if let Some(b_star) = self.tableau.b_star {
+                self.y_star.clone_from(&self.x);
+                for s in 0..STAGES {
+                    self.buffers.derivative.clone_from(&k[s]);
+                    self.buffers.derivative *= b_star[s] * h;
+                    self.y_star += &self.buffers.derivative;
+                }
             }
-            self.buffers.derivative *= h;
         }
     }
 

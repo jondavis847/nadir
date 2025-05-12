@@ -1,4 +1,7 @@
-use nadir_diffeq::{OdeModel, OdeSolver, SaveMethod, Solver, StepMethod, state_array::StateArray};
+use nadir_diffeq::{
+    OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, result::ResultStorage,
+    state_array::StateArray,
+};
 
 struct Lorentz {
     sigma: f64,
@@ -20,19 +23,22 @@ fn main() {
         rho: 28.,
         beta: 3. / 8.,
     };
-    let mut solver = OdeSolver::new(Solver::Rk4, StepMethod::Fixed(0.001), SaveMethod::Memory);
+    let mut solver = OdeProblem::new(Solver::Rk4, StepMethod::Fixed(0.001), SaveMethod::Memory);
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
     let result = solver.solve(&mut model, &x0, (0.0, 30.0));
-    if let Some(result) = result {
-        for i in 0..result.t.len() {
-            if result.t[i] - result.t[i].floor() < 1e-4 {
-                println!(
-                    "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
-                    result.t[i], result.y[i][0], result.y[i][1], result.y[i][2]
-                );
+    match result {
+        ResultStorage::Memory(result) => {
+            for i in 0..result.t.len() {
+                if result.t[i] - result.t[i].floor() < 1e-4 {
+                    println!(
+                        "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
+                        result.t[i], result.y[i][0], result.y[i][1], result.y[i][2]
+                    );
+                }
             }
         }
+        _ => {}
     }
 }

@@ -1,4 +1,6 @@
-use nadir_diffeq::{Integrable, OdeModel, OdeSolver, SaveMethod, Solver, StepMethod};
+use nadir_diffeq::{
+    Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, result::ResultStorage,
+};
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, check_error};
 
@@ -114,7 +116,7 @@ fn main() {
         beta: 3. / 8.,
     };
 
-    let mut solver = OdeSolver::new(
+    let mut solver = OdeProblem::new(
         Solver::DoPri45,
         StepMethod::Fixed(0.001),
         SaveMethod::Memory,
@@ -127,14 +129,17 @@ fn main() {
     };
 
     let result = solver.solve(&mut model, &x0, (0.0, 30.0));
-    if let Some(result) = result {
-        for i in 0..result.t.len() {
-            if result.t[i] - result.t[i].floor() < 1e-4 {
-                println!(
-                    "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
-                    result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
-                );
+    match result {
+        ResultStorage::Memory(result) => {
+            for i in 0..result.t.len() {
+                if result.t[i] - result.t[i].floor() < 1e-4 {
+                    println!(
+                        "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
+                        result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
+                    );
+                }
             }
         }
+        _ => {}
     }
 }
