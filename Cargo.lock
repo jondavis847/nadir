@@ -3207,6 +3207,7 @@ dependencies = [
 name = "nadir_diffeq"
 version = "0.0.1"
 dependencies = [
+ "csv",
  "tolerance",
 ]
 

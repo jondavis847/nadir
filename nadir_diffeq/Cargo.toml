@@ -6,4 +6,5 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+csv.workspace = true
 tolerance.workspace = true

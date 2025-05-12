@@ -1,5 +1,11 @@
-use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
+use std::{
+    fs::File,
+    io::BufWriter,
+    ops::{AddAssign, Deref, DerefMut, MulAssign},
+    path::PathBuf,
+};
 
+use csv::Writer;
 use tolerance::{Tolerance, Tolerances, compute_error};
 
 use crate::Integrable;
@@ -38,6 +44,68 @@ impl<const N: usize> MulAssign<f64> for StateArray<N> {
 impl<const N: usize> Integrable for StateArray<N> {
     type Derivative = Self;
     type Tolerance = StateArrayTolerances<N>;
+
+    fn initialize_writer(path: &PathBuf) -> Option<csv::Writer<std::io::BufWriter<std::fs::File>>> {
+        // Create a new path by joining the directory path with the filename
+        let file_path = path.join("result.csv");
+
+        // Ensure the directory exists
+        if let Some(parent) = file_path.parent() {
+            if !parent.exists() {
+                if let Err(err) = std::fs::create_dir_all(parent) {
+                    eprintln!("Failed to create directory {:?}: {}", parent, err);
+                    return None;
+                }
+            }
+        }
+        match std::fs::File::create(&file_path) {
+            Ok(file) => {
+                let mut writer = csv::Writer::from_writer(std::io::BufWriter::new(file));
+
+                // Create header vector
+                let mut headers = Vec::with_capacity(N + 1);
+                headers.push("t".to_string());
+
+                // Add element headers
+                for i in 0..N {
+                    headers.push(format!("x[{}]", i));
+                }
+
+                // Write headers
+                if let Err(err) = writer.write_record(&headers) {
+                    eprintln!("Failed to write headers: {}", err);
+                    return None;
+                }
+
+                // Flush to ensure headers are written
+                if let Err(err) = writer.flush() {
+                    eprintln!("Failed to flush writer: {}", err);
+                    return None;
+                }
+
+                Some(writer)
+            }
+            Err(err) => {
+                eprintln!("Failed to create file at {:?}: {}", path, err);
+                None
+            }
+        }
+    }
+
+    fn save_to_writer(&self, writer: &mut csv::Writer<std::io::BufWriter<std::fs::File>>, t: f64) {
+        // Using the serializer approach avoids string conversions
+        let mut record = vec![t];
+
+        // Add each element directly as f64
+        for i in 0..N {
+            record.push(self.0[i]);
+        }
+
+        // Serialize and write the record
+        if let Err(err) = writer.serialize(&record) {
+            eprintln!("Failed to serialize record at t={}: {}", t, err);
+        }
+    }
 }
 
 impl<const N: usize> Deref for StateArray<N> {

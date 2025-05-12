@@ -1,4 +1,6 @@
 use std::{
+    fs::File,
+    io::BufWriter,
     marker::PhantomData,
     ops::{AddAssign, MulAssign},
     path::PathBuf,
@@ -9,6 +11,7 @@ pub mod state_array;
 pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
+use csv::Writer;
 use result::{MemoryResult, ResultStorage};
 use tolerance::Tolerance;
 
@@ -18,6 +21,12 @@ where
 {
     type Derivative: Clone + MulAssign<f64> + Sized + Default;
     type Tolerance: Tolerance<State = Self>;
+
+    fn initialize_writer(_path: &PathBuf) -> Option<Writer<BufWriter<File>>> {
+        None
+    }
+
+    fn save_to_writer(&self, _writer: &mut Writer<BufWriter<File>>, _t: f64) {}
 }
 
 pub trait OdeModel<State>
@@ -80,7 +89,7 @@ where
         tspan: (f64, f64),
     ) -> ResultStorage<State> {
         // preallocate the memory result if there is one
-        let mut result = match self.save_method {
+        let mut result = match &self.save_method {
             SaveMethod::Memory => {
                 let n = match self.step_method {
                     StepMethod::Fixed(dt) => ((tspan.1 - tspan.0) / dt).ceil() as usize,
@@ -99,6 +108,13 @@ where
                     }
                 };
                 ResultStorage::Memory(MemoryResult::<State>::new(n))
+            }
+            SaveMethod::File(path) => {
+                if let Some(writer) = State::initialize_writer(path) {
+                    ResultStorage::File(writer)
+                } else {
+                    ResultStorage::None
+                }
             }
             _ => ResultStorage::None,
         };

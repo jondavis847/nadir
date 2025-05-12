@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::{fs::File, io::BufWriter, path::PathBuf};
+
+use csv::Writer;
 
 use crate::Integrable;
 
@@ -8,7 +10,7 @@ where
     State: Integrable,
 {
     Memory(MemoryResult<State>),
-    File(PathBuf),
+    File(Writer<BufWriter<File>>),
     None,
 }
 
@@ -18,6 +20,7 @@ impl<State: Integrable> ResultStorage<State> {
             ResultStorage::Memory(result) => {
                 result.insert(t, y);
             }
+            ResultStorage::File(writer) => y.save_to_writer(writer, t),
             _ => {}
         }
     }

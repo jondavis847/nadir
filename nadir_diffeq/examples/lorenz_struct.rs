@@ -113,6 +113,39 @@ impl Tolerance for LorenzTolerances {
 impl Integrable for LorenzState {
     type Derivative = LorenzDerivative;
     type Tolerance = LorenzTolerances;
+
+    fn initialize_writer(
+        path: &std::path::PathBuf,
+    ) -> Option<csv::Writer<std::io::BufWriter<std::fs::File>>> {
+        // Create a new path by joining the directory path with the filename
+        let file_path = path.join("result.csv");
+
+        // Ensure the directory exists
+        if let Some(parent) = file_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+        }
+        let file = std::fs::File::create(&file_path).unwrap();
+        let mut writer = csv::Writer::from_writer(std::io::BufWriter::new(file));
+        // Create header vector
+        let headers = ["t", "x", "y", "z"];
+        // Write headers
+        writer.write_record(&headers).unwrap();
+        // Flush to ensure headers are written
+        writer.flush().unwrap();
+        Some(writer)
+    }
+
+    fn save_to_writer(&self, writer: &mut csv::Writer<std::io::BufWriter<std::fs::File>>, t: f64) {
+        // Using the serializer approach avoids string conversions
+        let record = [t, self.x, self.y, self.z];
+
+        // Serialize and write the record
+        if let Err(err) = writer.serialize(&record) {
+            eprintln!("Failed to serialize record at t={}: {}", t, err);
+        }
+    }
 }
 
 impl OdeModel<LorenzState> for Lorenz {
@@ -130,15 +163,23 @@ fn main() {
         beta: 8. / 3.,
     };
 
+    // Create a results directory in the project folder
+    let mut results_dir = std::env::current_dir().unwrap();
+    results_dir.push("results");
+    // Create the directory if it doesn't exist
+    if !results_dir.exists() {
+        std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
+    }
+
     let mut solver = OdeProblem::new(
         Solver::DoPri45,
         StepMethod::Adaptive {
-            rel_tol: 1e-3,
-            abs_tol: 1e-6,
+            rel_tol: 1e-5,
+            abs_tol: 1e-7,
             max_dt: None,
             min_dt: None,
         },
-        SaveMethod::Memory,
+        SaveMethod::File(results_dir),
     );
 
     let x0 = LorenzState {
@@ -147,7 +188,7 @@ fn main() {
         z: 0.0,
     };
 
-    let result = solver.solve(&mut model, &x0, (0.0, 1000.0));
+    let result = solver.solve(&mut model, &x0, (0.0, 30.0));
 
     match result {
         ResultStorage::Memory(result) => {
