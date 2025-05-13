@@ -1,3 +1,4 @@
+use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
@@ -11,7 +12,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
-use time::{TimeErrors, TimeFormat, TimeSystem};
+use time::{Time, TimeErrors, TimeFormat, TimeSystem};
 
 use crate::{
     plotting::{PlotErrors, figure::Figure, line::Line, series::Series},
@@ -162,6 +163,28 @@ impl Registry {
     pub fn new() -> Self {
         // Enums
         let mut enums = HashMap::new();
+
+        // CelestialBodies
+        let mut celestial_bodies_variants = HashMap::new();
+        celestial_bodies_variants.insert("Earth", Value::CelestialBodies(CelestialBodies::Earth));
+        celestial_bodies_variants
+            .insert("Jupiter", Value::CelestialBodies(CelestialBodies::Jupiter));
+        celestial_bodies_variants.insert("Mars", Value::CelestialBodies(CelestialBodies::Mars));
+        celestial_bodies_variants
+            .insert("Mercury", Value::CelestialBodies(CelestialBodies::Mercury));
+        celestial_bodies_variants
+            .insert("Neptune", Value::CelestialBodies(CelestialBodies::Neptune));
+        celestial_bodies_variants.insert("Pluto", Value::CelestialBodies(CelestialBodies::Pluto));
+        celestial_bodies_variants.insert("Saturn", Value::CelestialBodies(CelestialBodies::Saturn));
+        celestial_bodies_variants.insert("Sun", Value::CelestialBodies(CelestialBodies::Sun));
+        celestial_bodies_variants.insert("Uranus", Value::CelestialBodies(CelestialBodies::Uranus));
+        celestial_bodies_variants.insert("Venus", Value::CelestialBodies(CelestialBodies::Mercury));
+        enums.insert(
+            "CelestialBodies",
+            Enum {
+                variants: celestial_bodies_variants,
+            },
+        );
 
         //TimeFormat
         let mut time_format_variants = HashMap::new();
@@ -553,10 +576,141 @@ impl Registry {
 
         // Time
         let mut time_struct_methods = HashMap::new();
-        time_struct_methods.insert("new", vec![]);
-        time_struct_methods.insert("now", vec![]);
+        time_struct_methods.insert(
+            "now",
+            vec![StructMethod::new(vec![], |_args, _pwd| {
+                let time = Time::now()?;
+                Ok(Value::Time(Arc::new(Mutex::new(time))))
+            })],
+        );
+        time_struct_methods.insert(
+            "from_jd",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("jd", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let jd = args[0].as_f64()?;
+                    let system = args[1].as_time_system()?;
+                    let time = Time::from_jd(jd, system);
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
 
-        let time_instance_methods = HashMap::new();
+        time_struct_methods.insert(
+            "from_ymdhms",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("y", "i64"),
+                    Argument::new("m", "i64"),
+                    Argument::new("d", "i64"),
+                    Argument::new("H", "i64"),
+                    Argument::new("M", "i64"),
+                    Argument::new("S", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_i64()?;
+                    let m = args[1].as_i64()?;
+                    let d = args[2].as_i64()?;
+                    let h = args[3].as_i64()?;
+                    let mm = args[4].as_i64()?;
+                    let s = args[5].as_f64()?;
+                    let system = args[6].as_time_system()?;
+                    let time = Time::from_ymdhms(
+                        y as i32, m as u32, d as u32, h as u32, mm as u32, s, system,
+                    )?;
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        time_struct_methods.insert(
+            "from_doy",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("year", "i64"),
+                    Argument::new("doy", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_i64()?;
+                    let d = args[1].as_f64()?;
+                    let system = args[2].as_time_system()?;
+                    let time = Time::from_doy(y as i32, d, system)?;
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        time_struct_methods.insert(
+            "from_sec_j2k",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("sec", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_f64()?;
+                    let system = args[1].as_time_system()?;
+                    let time = Time::from_sec_j2k(y, system);
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        let mut time_instance_methods = HashMap::new();
+        time_instance_methods.insert(
+            "to_system",
+            vec![InstanceMethod::new(
+                vec![Argument::new("system", "TimeSystem")],
+                |val, args| {
+                    let val = val.as_time()?;
+                    let val = &*val.lock().unwrap();
+                    let system = args[0].as_time_system()?;
+                    Ok(Value::Time(Arc::new(Mutex::new(val.to_system(system)))))
+                },
+            )],
+        );
+
+        time_instance_methods.insert(
+            "get_jd",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_jd()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_jd_centuries",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_jd_centuries()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_seconds_j2k",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_seconds_j2k()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_datetime",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::DateTime(val.get_datetime()))
+            })],
+        );
+
         structs.insert(
             "Time",
             Struct::new(time_struct_methods, time_instance_methods),

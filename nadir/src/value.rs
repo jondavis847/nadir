@@ -1,3 +1,5 @@
+use celestial::CelestialBodies;
+use chrono::NaiveDateTime;
 use iced::window::Id;
 use multibody::system::MultibodySystemBuilder;
 use nalgebra::{DMatrix, DVector};
@@ -70,6 +72,8 @@ pub enum Value {
     i64(i64),
     bool(bool),
     Axes(Arc<Mutex<Axes>>),
+    CelestialBodies(CelestialBodies),
+    DateTime(NaiveDateTime),
     Event(Event),
     Line(Arc<Mutex<Line>>),
     Matrix(Arc<Mutex<DMatrix<f64>>>),
@@ -124,6 +128,12 @@ impl std::fmt::Debug for Value {
                     writeln!(f, "   ],")?;
                 }
                 Ok(())
+            }
+            Value::CelestialBodies(c) => {
+                writeln!(f, "{}{:?}", label("CelestialBodies::"), c)
+            }
+            Value::DateTime(dt) => {
+                writeln!(f, "{:?}", dt)
             }
             Value::Event(e) => writeln!(f, "{:?}", e),
             Value::Figure(p) => {
@@ -353,7 +363,9 @@ impl Value {
             Value::i64(_) => "i64".into(),
             Value::bool(_) => "bool".into(),
             Value::Axes(_) => "Axes".into(),
+            Value::DateTime(_) => "DateTime".into(),
             Value::Event(_) => "Event".into(),
+            Value::CelestialBodies(_) => "CelestialBodies".into(),
             Value::Line(_) => "Line".into(),
             Value::Map(_) => "Map".into(),
             Value::MultibodySystemBuilder(_) => "MultibodySystemBuilder".into(),
@@ -521,6 +533,36 @@ impl Value {
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
                 "String".to_string(),
+            )),
+        }
+    }
+
+    pub fn as_time(&self) -> Result<Arc<Mutex<Time>>, ValueErrors> {
+        match self {
+            Value::Time(v) => Ok(v.clone()),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "Time".to_string(),
+            )),
+        }
+    }
+
+    pub fn as_time_format(&self) -> Result<TimeFormat, ValueErrors> {
+        match self {
+            Value::TimeFormat(v) => Ok(*v),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "TimeFormat".to_string(),
+            )),
+        }
+    }
+
+    pub fn as_time_system(&self) -> Result<TimeSystem, ValueErrors> {
+        match self {
+            Value::TimeSystem(v) => Ok(*v),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "TimeSystem".to_string(),
             )),
         }
     }
