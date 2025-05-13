@@ -9,6 +9,7 @@ rust-version.workspace = true
 ansi_term.workspace = true
 bytemuck.workspace = true
 celestial.workspace = true
+chrono.workspace = true
 color.workspace = true
 csv.workspace = true
 dirs.workspace = true

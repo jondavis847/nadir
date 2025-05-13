@@ -1,3 +1,4 @@
+use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
@@ -11,7 +12,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
-use time::TimeErrors;
+use time::{Time, TimeErrors, TimeFormat, TimeSystem};
 
 use crate::{
     plotting::{PlotErrors, figure::Figure, line::Line, series::Series},
@@ -22,6 +23,8 @@ use crate::{
 pub enum RegistryErrors {
     #[error("command '{0}' not found")]
     CommandNotFound(String),
+    #[error("enum '{0}' not found")]
+    EnumNotFound(String),
     #[error("function '{0}' not found")]
     FunctionNotFound(String),
     #[error("{0}")]
@@ -46,6 +49,8 @@ pub enum RegistryErrors {
     TimeErrors(#[from] TimeErrors),
     #[error("{0}")]
     ValueErrors(#[from] ValueErrors),
+    #[error("variant '{1}' not found for enum '{0}'")]
+    VariantNotFound(String, String),
     #[error("{0} should have {1} arguments")]
     WrongNumberArgs(String, String),
     #[error("{0}")]
@@ -142,14 +147,74 @@ impl CommandMethod {
 
 type CommandFn = fn(Vec<String>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 
+#[derive(Debug, Clone)]
+pub struct Enum {
+    pub variants: HashMap<&'static str, Value>,
+}
+
 pub struct Registry {
     pub structs: HashMap<&'static str, Struct>,
     pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
+    pub enums: HashMap<&'static str, Enum>,
     pub commands: HashMap<&'static str, CommandMethod>, // basically the same as functions, just different syntax
 }
 
 impl Registry {
     pub fn new() -> Self {
+        // Enums
+        let mut enums = HashMap::new();
+
+        // CelestialBodies
+        let mut celestial_bodies_variants = HashMap::new();
+        celestial_bodies_variants.insert("Earth", Value::CelestialBodies(CelestialBodies::Earth));
+        celestial_bodies_variants
+            .insert("Jupiter", Value::CelestialBodies(CelestialBodies::Jupiter));
+        celestial_bodies_variants.insert("Mars", Value::CelestialBodies(CelestialBodies::Mars));
+        celestial_bodies_variants
+            .insert("Mercury", Value::CelestialBodies(CelestialBodies::Mercury));
+        celestial_bodies_variants
+            .insert("Neptune", Value::CelestialBodies(CelestialBodies::Neptune));
+        celestial_bodies_variants.insert("Pluto", Value::CelestialBodies(CelestialBodies::Pluto));
+        celestial_bodies_variants.insert("Saturn", Value::CelestialBodies(CelestialBodies::Saturn));
+        celestial_bodies_variants.insert("Sun", Value::CelestialBodies(CelestialBodies::Sun));
+        celestial_bodies_variants.insert("Uranus", Value::CelestialBodies(CelestialBodies::Uranus));
+        celestial_bodies_variants.insert("Venus", Value::CelestialBodies(CelestialBodies::Mercury));
+        enums.insert(
+            "CelestialBodies",
+            Enum {
+                variants: celestial_bodies_variants,
+            },
+        );
+
+        //TimeFormat
+        let mut time_format_variants = HashMap::new();
+        time_format_variants.insert("JulianDate", Value::TimeFormat(TimeFormat::JulianDate));
+        time_format_variants.insert(
+            "SecondsSinceJ2000",
+            Value::TimeFormat(TimeFormat::SecondsSinceJ2000),
+        );
+        time_format_variants.insert("DateTime", Value::TimeFormat(TimeFormat::DateTime));
+        enums.insert(
+            "TimeFormat",
+            Enum {
+                variants: time_format_variants,
+            },
+        );
+
+        //TimeSystem
+        let mut time_system_variants = HashMap::new();
+        time_system_variants.insert("GPS", Value::TimeSystem(TimeSystem::GPS));
+        time_system_variants.insert("TAI", Value::TimeSystem(TimeSystem::TAI));
+        time_system_variants.insert("TDB", Value::TimeSystem(TimeSystem::TDB));
+        time_system_variants.insert("TT", Value::TimeSystem(TimeSystem::TT));
+        time_system_variants.insert("UTC", Value::TimeSystem(TimeSystem::UTC));
+        enums.insert(
+            "TimeSystem",
+            Enum {
+                variants: time_system_variants,
+            },
+        );
+
         // Structs with their methods
         let mut structs = HashMap::new();
 
@@ -511,10 +576,141 @@ impl Registry {
 
         // Time
         let mut time_struct_methods = HashMap::new();
-        time_struct_methods.insert("new", vec![]);
-        time_struct_methods.insert("now", vec![]);
+        time_struct_methods.insert(
+            "now",
+            vec![StructMethod::new(vec![], |_args, _pwd| {
+                let time = Time::now()?;
+                Ok(Value::Time(Arc::new(Mutex::new(time))))
+            })],
+        );
+        time_struct_methods.insert(
+            "from_jd",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("jd", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let jd = args[0].as_f64()?;
+                    let system = args[1].as_time_system()?;
+                    let time = Time::from_jd(jd, system);
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
 
-        let time_instance_methods = HashMap::new();
+        time_struct_methods.insert(
+            "from_ymdhms",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("y", "i64"),
+                    Argument::new("m", "i64"),
+                    Argument::new("d", "i64"),
+                    Argument::new("H", "i64"),
+                    Argument::new("M", "i64"),
+                    Argument::new("S", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_i64()?;
+                    let m = args[1].as_i64()?;
+                    let d = args[2].as_i64()?;
+                    let h = args[3].as_i64()?;
+                    let mm = args[4].as_i64()?;
+                    let s = args[5].as_f64()?;
+                    let system = args[6].as_time_system()?;
+                    let time = Time::from_ymdhms(
+                        y as i32, m as u32, d as u32, h as u32, mm as u32, s, system,
+                    )?;
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        time_struct_methods.insert(
+            "from_doy",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("year", "i64"),
+                    Argument::new("doy", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_i64()?;
+                    let d = args[1].as_f64()?;
+                    let system = args[2].as_time_system()?;
+                    let time = Time::from_doy(y as i32, d, system)?;
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        time_struct_methods.insert(
+            "from_sec_j2k",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("sec", "f64"),
+                    Argument::new("system", "TimeSystem"),
+                ],
+                |args, _pwd| {
+                    let y = args[0].as_f64()?;
+                    let system = args[1].as_time_system()?;
+                    let time = Time::from_sec_j2k(y, system);
+                    Ok(Value::Time(Arc::new(Mutex::new(time))))
+                },
+            )],
+        );
+
+        let mut time_instance_methods = HashMap::new();
+        time_instance_methods.insert(
+            "to_system",
+            vec![InstanceMethod::new(
+                vec![Argument::new("system", "TimeSystem")],
+                |val, args| {
+                    let val = val.as_time()?;
+                    let val = &*val.lock().unwrap();
+                    let system = args[0].as_time_system()?;
+                    Ok(Value::Time(Arc::new(Mutex::new(val.to_system(system)))))
+                },
+            )],
+        );
+
+        time_instance_methods.insert(
+            "get_jd",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_jd()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_jd_centuries",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_jd_centuries()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_seconds_j2k",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::f64(val.get_seconds_j2k()))
+            })],
+        );
+
+        time_instance_methods.insert(
+            "get_datetime",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let val = val.as_time()?;
+                let val = &*val.lock().unwrap();
+                Ok(Value::DateTime(val.get_datetime()))
+            })],
+        );
+
         structs.insert(
             "Time",
             Struct::new(time_struct_methods, time_instance_methods),
@@ -745,11 +941,27 @@ impl Registry {
             structs,
             functions,
             commands,
+            enums,
         }
     }
 }
 
 impl Registry {
+    pub fn eval_enum(&self, name: &str, variant: &str) -> Result<Value, RegistryErrors> {
+        // Get the enum from the registry, or return an error if not found
+        let enum_name = self
+            .enums
+            .get(name)
+            .ok_or_else(|| RegistryErrors::EnumNotFound(name.to_string()))?;
+
+        // Get the variant from the enum, or return an error if not found
+        let variant = enum_name.variants.get(variant).ok_or_else(|| {
+            RegistryErrors::VariantNotFound(name.to_string(), variant.to_string())
+        })?;
+
+        Ok(variant.clone())
+    }
+
     pub fn eval_struct_method(
         &self,
         struct_name: &str,
@@ -802,6 +1014,10 @@ impl Registry {
             struct_name.to_string(),
             method_name.to_string(),
         ))
+    }
+
+    pub fn get_enums(&self) -> Vec<&'static str> {
+        self.enums.keys().into_iter().cloned().collect()
     }
 
     pub fn get_structs(&self) -> Vec<&'static str> {
