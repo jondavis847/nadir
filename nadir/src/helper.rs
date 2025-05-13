@@ -80,14 +80,46 @@ impl FunctionCompleter {
         }
     }
 
-    // /// Helper to complete function names
-    // fn complete_enums(prefix: &str) -> Vec<&'static str> {
-    //     Self::ENUMS
-    //         .iter()
-    //         .filter(|func| func.starts_with(prefix))
-    //         .cloned()
-    //         .collect()
-    // }
+    /// Helper to complete enums
+    fn complete_enums(&self, prefix: &str) -> Vec<String> {
+        self.registry
+            .lock()
+            .unwrap()
+            .get_enums()
+            .iter()
+            .filter(|s| s.starts_with(prefix))
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    /// Helper to complete variants
+    fn complete_variants(&self, prefix: &str) -> Vec<String> {
+        // Split the prefix on the first "::" delimiter.
+        let (enum_name, variant_name) = match prefix.split_once("::") {
+            Some((e, v)) => (e, v),
+            None => return Vec::new(),
+        };
+
+        // Look up the enum information in the registry.
+        let registry = self.registry.lock().unwrap();
+        let enum_info = match registry.enums.get(enum_name) {
+            Some(info) => info,
+            None => return Vec::new(),
+        };
+
+        // Filter and collect matching variant names as Strings
+        enum_info
+            .variants
+            .iter()
+            .filter_map(|(name, _)| {
+                if name.starts_with(variant_name) {
+                    Some(name.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 
     /// Helper to complete struct names
     fn complete_structs(&self, prefix: &str) -> Vec<&'static str> {
@@ -406,37 +438,48 @@ impl Completer for FunctionCompleter {
         let prefix = &line[start..pos];
 
         // Determine completion strategy based on prefix pattern
-        let matches = if prefix.contains('.') {
-            // Instance method completion (var.method)
-            self.complete_instance_methods(prefix, &self.storage)
-        } else if prefix.contains("::") {
-            // Struct method completion (Struct::method)
-            self.complete_struct_methods(prefix)
-                .into_iter()
-                .map(|method| {
-                    let suffix = method.strip_prefix(prefix).unwrap_or("");
-                    format!("{prefix}{suffix}")
-                })
-                .collect()
-        } else {
-            // Try multiple completion types and combine results
-            let mut completions = Vec::new();
+        let matches =
+            if prefix.contains('.') {
+                // Instance method completion (var.method)
+                self.complete_instance_methods(prefix, &self.storage)
+            } else if prefix.contains("::") {
+                let mut completions = Vec::new();
+                // Struct method completion (Struct::method)
+                completions.extend(self.complete_struct_methods(prefix).into_iter().map(
+                    |method| {
+                        let suffix = method.strip_prefix(prefix).unwrap_or("");
+                        format!("{prefix}{suffix}")
+                    },
+                ));
 
-            // Functions
-            completions.extend(self.complete_functions(prefix));
+                completions.extend(self.complete_variants(prefix));
+                completions
+            } else {
+                // Try multiple completion types and combine results
+                let mut completions = Vec::new();
 
-            // Variables
-            completions.extend(self.complete_vars(prefix));
+                // Enums and variants
+                completions.extend(
+                    self.complete_enums(prefix)
+                        .into_iter()
+                        .map(|s| format!("{}::", s)),
+                );
 
-            // Struct types (adding :: suffix)
-            completions.extend(
-                self.complete_structs(prefix)
-                    .into_iter()
-                    .map(|s| format!("{}::", s)),
-            );
+                // Functions
+                completions.extend(self.complete_functions(prefix));
 
-            completions
-        };
+                // Variables
+                completions.extend(self.complete_vars(prefix));
+
+                // Struct types (adding :: suffix)
+                completions.extend(
+                    self.complete_structs(prefix)
+                        .into_iter()
+                        .map(|s| format!("{}::", s)),
+                );
+
+                completions
+            };
 
         Ok((start, matches))
     }

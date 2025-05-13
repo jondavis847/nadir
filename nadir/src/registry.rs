@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
-use time::TimeErrors;
+use time::{TimeErrors, TimeFormat, TimeSystem};
 
 use crate::{
     plotting::{PlotErrors, figure::Figure, line::Line, series::Series},
@@ -22,6 +22,8 @@ use crate::{
 pub enum RegistryErrors {
     #[error("command '{0}' not found")]
     CommandNotFound(String),
+    #[error("enum '{0}' not found")]
+    EnumNotFound(String),
     #[error("function '{0}' not found")]
     FunctionNotFound(String),
     #[error("{0}")]
@@ -46,6 +48,8 @@ pub enum RegistryErrors {
     TimeErrors(#[from] TimeErrors),
     #[error("{0}")]
     ValueErrors(#[from] ValueErrors),
+    #[error("variant '{1}' not found for enum '{0}'")]
+    VariantNotFound(String, String),
     #[error("{0} should have {1} arguments")]
     WrongNumberArgs(String, String),
     #[error("{0}")]
@@ -142,14 +146,52 @@ impl CommandMethod {
 
 type CommandFn = fn(Vec<String>, Arc<Mutex<PathBuf>>) -> Result<Value, RegistryErrors>;
 
+#[derive(Debug, Clone)]
+pub struct Enum {
+    pub variants: HashMap<&'static str, Value>,
+}
+
 pub struct Registry {
     pub structs: HashMap<&'static str, Struct>,
     pub functions: HashMap<&'static str, Vec<FunctionMethod>>,
+    pub enums: HashMap<&'static str, Enum>,
     pub commands: HashMap<&'static str, CommandMethod>, // basically the same as functions, just different syntax
 }
 
 impl Registry {
     pub fn new() -> Self {
+        // Enums
+        let mut enums = HashMap::new();
+
+        //TimeFormat
+        let mut time_format_variants = HashMap::new();
+        time_format_variants.insert("JulianDate", Value::TimeFormat(TimeFormat::JulianDate));
+        time_format_variants.insert(
+            "SecondsSinceJ2000",
+            Value::TimeFormat(TimeFormat::SecondsSinceJ2000),
+        );
+        time_format_variants.insert("DateTime", Value::TimeFormat(TimeFormat::DateTime));
+        enums.insert(
+            "TimeFormat",
+            Enum {
+                variants: time_format_variants,
+            },
+        );
+
+        //TimeSystem
+        let mut time_system_variants = HashMap::new();
+        time_system_variants.insert("GPS", Value::TimeSystem(TimeSystem::GPS));
+        time_system_variants.insert("TAI", Value::TimeSystem(TimeSystem::TAI));
+        time_system_variants.insert("TDB", Value::TimeSystem(TimeSystem::TDB));
+        time_system_variants.insert("TT", Value::TimeSystem(TimeSystem::TT));
+        time_system_variants.insert("UTC", Value::TimeSystem(TimeSystem::UTC));
+        enums.insert(
+            "TimeSystem",
+            Enum {
+                variants: time_system_variants,
+            },
+        );
+
         // Structs with their methods
         let mut structs = HashMap::new();
 
@@ -745,11 +787,27 @@ impl Registry {
             structs,
             functions,
             commands,
+            enums,
         }
     }
 }
 
 impl Registry {
+    pub fn eval_enum(&self, name: &str, variant: &str) -> Result<Value, RegistryErrors> {
+        // Get the enum from the registry, or return an error if not found
+        let enum_name = self
+            .enums
+            .get(name)
+            .ok_or_else(|| RegistryErrors::EnumNotFound(name.to_string()))?;
+
+        // Get the variant from the enum, or return an error if not found
+        let variant = enum_name.variants.get(variant).ok_or_else(|| {
+            RegistryErrors::VariantNotFound(name.to_string(), variant.to_string())
+        })?;
+
+        Ok(variant.clone())
+    }
+
     pub fn eval_struct_method(
         &self,
         struct_name: &str,
@@ -802,6 +860,10 @@ impl Registry {
             struct_name.to_string(),
             method_name.to_string(),
         ))
+    }
+
+    pub fn get_enums(&self) -> Vec<&'static str> {
+        self.enums.keys().into_iter().cloned().collect()
     }
 
     pub fn get_structs(&self) -> Vec<&'static str> {

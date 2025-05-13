@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
-use time::{Time, TimeSystem};
+use time::{Time, TimeFormat, TimeSystem};
 
 use crate::plotting::{axes::Axes, figure::Figure, line::Line};
 
@@ -70,7 +70,6 @@ pub enum Value {
     i64(i64),
     bool(bool),
     Axes(Arc<Mutex<Axes>>),
-    Enum(Enum),
     Event(Event),
     Line(Arc<Mutex<Line>>),
     Matrix(Arc<Mutex<DMatrix<f64>>>),
@@ -82,6 +81,8 @@ pub enum Value {
     Range(Range),
     String(Arc<Mutex<String>>),
     Time(Arc<Mutex<Time>>),
+    TimeFormat(TimeFormat),
+    TimeSystem(TimeSystem),
     UnitQuaternion(Arc<Mutex<UnitQuaternion>>),
     Vector(Arc<Mutex<DVector<f64>>>),
     VectorBool(Arc<Mutex<DVector<bool>>>),
@@ -124,7 +125,6 @@ impl std::fmt::Debug for Value {
                 }
                 Ok(())
             }
-            Value::Enum(e) => writeln!(f, "{}::{}", e.name, e.variant),
             Value::Event(e) => writeln!(f, "{:?}", e),
             Value::Figure(p) => {
                 let figure = p.lock().unwrap();
@@ -328,6 +328,12 @@ impl std::fmt::Debug for Value {
                 writeln!(f, "{}", label(time_label))?;
                 writeln!(f, "{value}")
             }
+            Value::TimeFormat(t) => {
+                writeln!(f, "{}{:?}", label("TimeFormat::"), t)
+            }
+            Value::TimeSystem(t) => {
+                writeln!(f, "{}{:?}", label("TimeSystem::"), t)
+            }
             Value::UnitQuaternion(q) => {
                 let q = q.lock().unwrap();
                 writeln!(f, "{}", label("UnitQuaternion"))?;
@@ -347,7 +353,6 @@ impl Value {
             Value::i64(_) => "i64".into(),
             Value::bool(_) => "bool".into(),
             Value::Axes(_) => "Axes".into(),
-            Value::Enum(_) => "Enum".into(),
             Value::Event(_) => "Event".into(),
             Value::Line(_) => "Line".into(),
             Value::Map(_) => "Map".into(),
@@ -375,6 +380,8 @@ impl Value {
                 String::from(format!("Matrix<f64,{},{}>", rows, cols))
             }
             Value::Time(_) => "Time".into(),
+            Value::TimeFormat(_) => "TimeFormat".into(),
+            Value::TimeSystem(_) => "TimeSystem".into(),
             Value::None => "None".into(),
             Value::Range(_) => "Range".into(),
             Value::Quaternion(_) => "Quaternion".into(),
@@ -1120,12 +1127,6 @@ pub struct Range {
     pub start: Option<usize>,
     pub stop: Option<usize>,
     pub step: Option<usize>,
-}
-
-#[derive(Clone)]
-pub struct Enum {
-    pub name: String,
-    pub variant: String,
 }
 
 #[derive(Debug, Clone)]
