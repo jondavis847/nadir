@@ -3,7 +3,10 @@ use std::array;
 use tolerance::Tolerance;
 
 use crate::{
-    Integrable, OdeModel, StepMethod, saving::ResultStorage, stepping::StepPIDControl,
+    Integrable, OdeModel, StepMethod,
+    events::Events,
+    saving::ResultStorage,
+    stepping::{FixedStepControl, StepPIDControl},
     tableau::ButcherTableau,
 };
 
@@ -49,13 +52,17 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         model: &mut Model,
         x0: &State,
         tspan: (f64, f64),
-        step_method: StepMethod,
+        step_method: &mut StepMethod,
+        events: &mut Vec<Events<Model, State>>,
         result: &mut ResultStorage<State>,
     ) {
         match step_method {
-            StepMethod::Fixed(dt) => self.solve_fixed(model, x0, tspan, dt, result),
-            StepMethod::Adaptive(mut controller) => {
-                self.solve_adaptive(model, x0, tspan, &mut controller, result)
+            StepMethod::Fixed(controller) => {
+                controller.next_time = tspan.0;
+                self.solve_fixed(model, x0, tspan, controller, events, result)
+            }
+            StepMethod::Adaptive(controller) => {
+                self.solve_adaptive(model, x0, tspan, controller, events, result)
             }
         }
     }
@@ -65,16 +72,32 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         model: &mut Model,
         x0: &State,
         tspan: (f64, f64),
-        dt: f64,
+        controller: &mut FixedStepControl,
+        events: &mut Vec<Events<Model, State>>,
         result: &mut ResultStorage<State>,
     ) {
         let mut t = tspan.0;
         let mut function_calls = 0;
         self.x.clone_from(x0);
         while t < tspan.1 {
-            self.step(model, t, dt, false, &mut function_calls);
+            self.step(model, t, controller.dt, false, &mut function_calls);
+            // determine if any events occurred
+            // todo
             result.save(t, &self.y);
-            t += dt;
+            // determine if any events will occur
+            t += controller.dt;
+            // todo
+            // for event in events {
+            //     match event {
+            //         Events::Periodic(e) => {
+            //             if t > e.next_time {
+            //                 controller.next_time = e.next_time;
+            //             }
+            //         }
+            //     }
+            // }
+
+            // initialize next loop
             self.x.clone_from(&self.y);
         }
     }
@@ -85,6 +108,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         x0: &State,
         tspan: (f64, f64),
         controller: &mut StepPIDControl,
+        events: &mut Vec<Events<Model, State>>,
         result: &mut ResultStorage<State>,
     ) {
         let mut t = tspan.0;

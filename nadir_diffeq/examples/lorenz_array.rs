@@ -2,7 +2,7 @@ use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
-    stepping::StepMethod,
+    stepping::{FixedStepControl, StepMethod},
 };
 
 struct Lorenz {
@@ -20,17 +20,22 @@ impl OdeModel<StateArray<3>> for Lorenz {
 }
 
 fn main() {
-    let mut model = Lorenz {
+    let model = Lorenz {
         sigma: 10.,
         rho: 28.,
         beta: 8. / 3.,
     };
 
-    let mut solver = OdeProblem::new(Solver::Tsit5, StepMethod::Fixed(0.001), SaveMethod::Memory);
+    let mut solver = OdeProblem::new(
+        model,
+        Solver::Tsit5,
+        StepMethod::Fixed(FixedStepControl::new(0.001)),
+        SaveMethod::Memory,
+    );
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
-    let result = solver.solve(&mut model, &x0, (0.0, 30.0));
+    let result = solver.solve(&x0, (0.0, 30.0));
     match result {
         ResultStorage::Memory(result) => {
             for i in 0..result.t.len() {

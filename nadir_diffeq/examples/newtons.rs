@@ -31,7 +31,7 @@ impl OdeModel<StateArray<6>> for Newtons {
 }
 
 fn main() {
-    let mut model = Newtons { mu: 3.986e14 };
+    let model = Newtons { mu: 3.986e14 };
     // Initial conditions for elliptical orbit
     let x0 = StateArray::new([
         -1821886.532,
@@ -44,17 +44,18 @@ fn main() {
 
     // Create a results directory in the project folder
     let mut results_dir = std::env::current_dir().unwrap();
-    results_dir.push("results2");
+    results_dir.push("results");
     // Create the directory if it doesn't exist
     if !results_dir.exists() {
         std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
     }
 
     let mut solver = OdeProblem::new(
-        Solver::New45,
+        model,
+        Solver::DoPri45,
         StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
         SaveMethod::File(results_dir),
     );
 
-    solver.solve(&mut model, &x0, (0.0, 7200.0));
+    solver.solve(&x0, (0.0, 7200.0));
 }

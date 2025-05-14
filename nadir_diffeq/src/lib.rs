@@ -1,10 +1,10 @@
 use std::{
     fs::File,
     io::BufWriter,
-    marker::PhantomData,
     ops::{AddAssign, MulAssign},
     path::PathBuf,
 };
+pub mod events;
 pub mod rk;
 pub mod saving;
 pub mod state_array;
@@ -13,6 +13,7 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use csv::Writer;
+use events::Events;
 use saving::{MemoryResult, ResultStorage, SaveMethod};
 use stepping::StepMethod;
 use tolerance::Tolerance;
@@ -45,21 +46,29 @@ pub enum Solver {
     Tsit5,
 }
 
-pub struct OdeProblem<State>
+pub struct OdeProblem<Model, State>
 where
+    Model: OdeModel<State>,
     State: Integrable,
 {
+    model: Model,
     solver: Solver,
     step_method: StepMethod,
     save_method: SaveMethod,
-    _phantom: PhantomData<State>,
+    events: Vec<Events<Model, State>>,
 }
 
-impl<State> OdeProblem<State>
+impl<Model, State> OdeProblem<Model, State>
 where
+    Model: OdeModel<State>,
     State: Integrable,
 {
-    pub fn new(solver: Solver, step_method: StepMethod, save_method: SaveMethod) -> Self {
+    pub fn new(
+        model: Model,
+        solver: Solver,
+        step_method: StepMethod,
+        save_method: SaveMethod,
+    ) -> Self {
         match (&solver, &step_method) {
             (Solver::Rk4, StepMethod::Adaptive(_)) => {
                 panic!("Rk4 solver does not support adaptive step size")
@@ -68,24 +77,27 @@ where
         }
 
         Self {
+            model,
             solver,
             save_method,
             step_method,
-            _phantom: PhantomData,
+            events: Vec::new(),
         }
     }
 
-    pub fn solve<Model: OdeModel<State>>(
-        &mut self,
-        model: &mut Model,
-        x0: &State,
-        tspan: (f64, f64),
-    ) -> ResultStorage<State> {
+    pub fn with_event(mut self, event: Events<Model, State>) -> Self {
+        self.events.push(event);
+        self
+    }
+
+    pub fn solve(&mut self, x0: &State, tspan: (f64, f64)) -> ResultStorage<State> {
         // preallocate the memory result if there is one
         let mut result = match &self.save_method {
             SaveMethod::Memory => {
                 let n = match self.step_method {
-                    StepMethod::Fixed(dt) => ((tspan.1 - tspan.0) / dt).ceil() as usize,
+                    StepMethod::Fixed(controller) => {
+                        ((tspan.1 - tspan.0) / controller.dt).ceil() as usize
+                    }
                     StepMethod::Adaptive(controller) => {
                         if let Some(max_dt) = &controller.max_dt {
                             ((tspan.1 - tspan.0) / max_dt).ceil() as usize
@@ -110,19 +122,47 @@ where
         match self.solver {
             Solver::DoPri45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<7>::DORMANDPRINCE45);
-                solver.solve(model, x0, tspan, self.step_method, &mut result);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
             }
             Solver::New45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<7>::NEW45);
-                solver.solve(model, x0, tspan, self.step_method, &mut result);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
             }
             Solver::Rk4 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<4>::RK4);
-                solver.solve(model, x0, tspan, self.step_method, &mut result);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
             }
             Solver::Tsit5 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<7>::TSITOURAS5);
-                solver.solve(model, x0, tspan, self.step_method, &mut result);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
             }
         }
         result.truncate();

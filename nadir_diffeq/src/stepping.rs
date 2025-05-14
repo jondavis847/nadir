@@ -1,7 +1,19 @@
 #[derive(Copy, Clone)]
 pub enum StepMethod {
-    Fixed(f64),
+    Fixed(FixedStepControl),
     Adaptive(StepPIDControl),
+}
+
+#[derive(Copy, Clone)]
+pub struct FixedStepControl {
+    pub dt: f64,
+    pub next_time: f64,
+}
+
+impl FixedStepControl {
+    pub fn new(dt: f64) -> Self {
+        Self { dt, next_time: 0.0 }
+    }
 }
 
 #[derive(Clone, Copy)]

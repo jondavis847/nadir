@@ -137,7 +137,7 @@ impl OdeModel<LorenzState> for Lorenz {
 }
 
 fn main() {
-    let mut model = Lorenz {
+    let model = Lorenz {
         sigma: 10.,
         rho: 28.,
         beta: 8. / 3.,
@@ -152,7 +152,8 @@ fn main() {
     }
 
     let mut solver = OdeProblem::new(
-        Solver::New45,
+        model,
+        Solver::DoPri45,
         StepMethod::Adaptive(StepPIDControl::default()),
         SaveMethod::File(results_dir),
     );
@@ -163,5 +164,5 @@ fn main() {
         z: 0.0,
     };
 
-    solver.solve(&mut model, &x0, (0.0, 30.0));
+    solver.solve(&x0, (0.0, 30.0));
 }
