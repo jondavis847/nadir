@@ -156,6 +156,6 @@ impl<const N: usize> Tolerance for StateArrayTolerances<N> {
 
 impl<const N: usize> Default for StateArrayTolerances<N> {
     fn default() -> Self {
-        Self([Some(Tolerances::default()); N])
+        Self([None; N])
     }
 }

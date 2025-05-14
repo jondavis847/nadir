@@ -1,4 +1,6 @@
-use nadir_diffeq::{OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, state_array::StateArray};
+use nadir_diffeq::{
+    OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, StepPIDControl, state_array::StateArray,
+};
 
 struct Newtons {
     mu: f64,
@@ -39,20 +41,15 @@ fn main() {
 
     // Create a results directory in the project folder
     let mut results_dir = std::env::current_dir().unwrap();
-    results_dir.push("results");
+    results_dir.push("results2");
     // Create the directory if it doesn't exist
     if !results_dir.exists() {
         std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
     }
 
     let mut solver = OdeProblem::new(
-        Solver::Tsit5,
-        StepMethod::Adaptive {
-            rel_tol: 1e-3,
-            abs_tol: 1e-6,
-            max_dt: None,
-            min_dt: None,
-        },
+        Solver::New45,
+        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
         SaveMethod::File(results_dir),
     );
 

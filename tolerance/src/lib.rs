@@ -35,3 +35,16 @@ pub fn compute_error(x0: f64, xf: f64, rel_tol: f64, abs_tol: f64) -> f64 {
     // Return scaled error
     abs_diff / scale
 }
+
+pub fn compute_component_error(
+    opt_tol: &Option<Tolerances>,
+    x0: f64,
+    xf: f64,
+    rel_tol: f64,
+    abs_tol: f64,
+) -> f64 {
+    match opt_tol {
+        Some(tol) => tol.compute_error(x0, xf),
+        None => compute_error(x0, xf, rel_tol, abs_tol),
+    }
+}

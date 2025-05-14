@@ -1,6 +1,8 @@
-use nadir_diffeq::{Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod};
+use nadir_diffeq::{
+    Integrable, OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, StepPIDControl,
+};
 use std::ops::{AddAssign, MulAssign};
-use tolerance::{Tolerance, Tolerances, compute_error};
+use tolerance::{Tolerance, Tolerances, compute_component_error};
 
 struct Lorenz {
     sigma: f64,
@@ -76,32 +78,10 @@ impl Tolerance for LorenzTolerances {
     fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64 {
         let mut sum_squared_errors = 0.0;
 
-        // Calculate squared error for x component
-        if let Some(tol) = self.x {
-            let err = tol.compute_error(x0.x, xf.x);
-            sum_squared_errors += err * err;
-        } else {
-            let err = compute_error(x0.x, xf.x, rel_tol, abs_tol);
-            sum_squared_errors += err * err;
-        }
-
-        // Calculate squared error for y component
-        if let Some(tol) = self.y {
-            let err = tol.compute_error(x0.y, xf.y);
-            sum_squared_errors += err * err;
-        } else {
-            let err = compute_error(x0.y, xf.y, rel_tol, abs_tol);
-            sum_squared_errors += err * err;
-        }
-
-        // Calculate squared error for z component
-        if let Some(tol) = self.z {
-            let err = tol.compute_error(x0.z, xf.z);
-            sum_squared_errors += err * err;
-        } else {
-            let err = compute_error(x0.z, xf.z, rel_tol, abs_tol);
-            sum_squared_errors += err * err;
-        }
+        // Calculate squared error for each component
+        sum_squared_errors += compute_component_error(&self.x, x0.x, xf.x, rel_tol, abs_tol);
+        sum_squared_errors += compute_component_error(&self.y, x0.y, xf.y, rel_tol, abs_tol);
+        sum_squared_errors += compute_component_error(&self.z, x0.z, xf.z, rel_tol, abs_tol);
 
         // Return RMS error
         (sum_squared_errors / 3.0).sqrt()
@@ -171,12 +151,7 @@ fn main() {
 
     let mut solver = OdeProblem::new(
         Solver::DoPri45,
-        StepMethod::Adaptive {
-            rel_tol: 1e-5,
-            abs_tol: 1e-7,
-            max_dt: None,
-            min_dt: None,
-        },
+        StepMethod::Adaptive(StepPIDControl::default()),
         SaveMethod::File(results_dir),
     );
 
