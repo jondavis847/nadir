@@ -150,7 +150,7 @@ fn main() {
     }
 
     let mut solver = OdeProblem::new(
-        Solver::DoPri45,
+        Solver::New45,
         StepMethod::Adaptive(StepPIDControl::default()),
         SaveMethod::File(results_dir),
     );

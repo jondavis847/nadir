@@ -95,7 +95,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         let mut reject_counter = 0;
         let mut function_calls = 0;
         while t < tspan.1 {
-            println!("{t} {dt}");
+            // println!("{t} {dt}");
             // Ensure we don't step past the end
             if t + dt > tspan.1 {
                 dt = tspan.1 - t;
