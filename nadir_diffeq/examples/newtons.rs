@@ -1,5 +1,6 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem, SaveMethod, Solver,
+    OdeModel, OdeProblem, Solver,
+    saving::SaveMethod,
     state_array::StateArray,
     stepping::{StepMethod, StepPIDControl},
 };

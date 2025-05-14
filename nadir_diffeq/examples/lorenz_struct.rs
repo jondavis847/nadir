@@ -1,5 +1,6 @@
 use nadir_diffeq::{
-    Integrable, OdeModel, OdeProblem, SaveMethod, Solver,
+    Integrable, OdeModel, OdeProblem, Solver,
+    saving::SaveMethod,
     stepping::{StepMethod, StepPIDControl},
 };
 use std::ops::{AddAssign, MulAssign};

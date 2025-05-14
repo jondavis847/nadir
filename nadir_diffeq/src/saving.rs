@@ -1,8 +1,14 @@
-use std::{fs::File, io::BufWriter};
+use std::{fs::File, io::BufWriter, path::PathBuf};
 
 use csv::Writer;
 
 use crate::Integrable;
+
+pub enum SaveMethod {
+    Memory,
+    File(PathBuf),
+    None, // no saving by the solver, saving should be handled by the Model
+}
 
 #[derive(Debug)]
 pub enum ResultStorage<State>

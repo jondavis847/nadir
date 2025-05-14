@@ -5,15 +5,15 @@ use std::{
     ops::{AddAssign, MulAssign},
     path::PathBuf,
 };
-pub mod result;
 pub mod rk;
+pub mod saving;
 pub mod state_array;
 pub mod stepping;
 pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use csv::Writer;
-use result::{MemoryResult, ResultStorage};
+use saving::{MemoryResult, ResultStorage, SaveMethod};
 use stepping::StepMethod;
 use tolerance::Tolerance;
 
@@ -36,12 +36,6 @@ where
     State: Integrable,
 {
     fn f(&mut self, t: f64, state: &State, derivative: &mut State::Derivative);
-}
-
-pub enum SaveMethod {
-    Memory,
-    File(PathBuf),
-    None, // no saving by the solver, saving should be handled by the Model
 }
 
 pub enum Solver {

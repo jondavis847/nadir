@@ -3,7 +3,7 @@ use std::array;
 use tolerance::Tolerance;
 
 use crate::{
-    Integrable, OdeModel, StepMethod, result::ResultStorage, stepping::StepPIDControl,
+    Integrable, OdeModel, StepMethod, saving::ResultStorage, stepping::StepPIDControl,
     tableau::ButcherTableau,
 };
 
