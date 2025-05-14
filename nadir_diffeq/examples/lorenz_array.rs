@@ -1,6 +1,6 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, result::ResultStorage,
-    state_array::StateArray,
+    OdeModel, OdeProblem, SaveMethod, Solver, result::ResultStorage, state_array::StateArray,
+    stepping::StepMethod,
 };
 
 struct Lorenz {

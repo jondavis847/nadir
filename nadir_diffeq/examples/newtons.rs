@@ -1,5 +1,7 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem, SaveMethod, Solver, StepMethod, StepPIDControl, state_array::StateArray,
+    OdeModel, OdeProblem, SaveMethod, Solver,
+    state_array::StateArray,
+    stepping::{StepMethod, StepPIDControl},
 };
 
 struct Newtons {
