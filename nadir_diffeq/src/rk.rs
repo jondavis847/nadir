@@ -4,7 +4,7 @@ use tolerance::Tolerance;
 
 use crate::{
     Integrable, OdeModel, StepMethod,
-    events::Events,
+    events::EventManager,
     saving::ResultStorage,
     stepping::{FixedStepControl, StepPIDControl},
     tableau::ButcherTableau,
@@ -53,7 +53,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         x0: &State,
         tspan: (f64, f64),
         step_method: &mut StepMethod,
-        events: &mut Vec<Events<Model, State>>,
+        events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
         match step_method {
@@ -73,31 +73,48 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         x0: &State,
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
-        events: &mut Vec<Events<Model, State>>,
+        events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
         let mut t = tspan.0;
+        // Counter to count number of function calls
         let mut function_calls = 0;
-        self.x.clone_from(x0);
-        while t < tspan.1 {
-            self.step(model, t, controller.dt, false, &mut function_calls);
-            // determine if any events occurred
-            // todo
-            result.save(t, &self.y);
-            // determine if any events will occur
-            t += controller.dt;
-            // todo
-            // for event in events {
-            //     match event {
-            //         Events::Periodic(e) => {
-            //             if t > e.next_time {
-            //                 controller.next_time = e.next_time;
-            //             }
-            //         }
-            //     }
-            // }
 
-            // initialize next loop
+        // Copy initial state
+        self.x.clone_from(x0);
+
+        // Save the true initial state before any processing
+        result.save(t, &self.x);
+
+        // Process initial events if any are scheduled at t0
+        if events.process_events(model, &mut self.x, &mut t) {
+            // If initial events changed state, save the updated state
+            result.save(t, &self.x);
+        };
+
+        while t < tspan.1 {
+            // Determine step size - standard dt or adjusted for upcoming event
+            let next_event_time = events.next_time();
+            let dt = if next_event_time > t && next_event_time < t + controller.dt {
+                // Adjust step size to land exactly on the event
+                next_event_time - t
+            } else {
+                controller.dt
+            };
+
+            // Take a step
+            self.step(model, t, dt, false, &mut function_calls);
+
+            // Update time based on dt
+            t += dt;
+
+            // Run any events - before saving in case the event changes the state
+            events.process_events(model, &mut self.y, &mut t);
+
+            // Save the result for this time step
+            result.save(t, &self.y);
+
+            // Initialize next loop
             self.x.clone_from(&self.y);
         }
     }
@@ -108,7 +125,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         x0: &State,
         tspan: (f64, f64),
         controller: &mut StepPIDControl,
-        events: &mut Vec<Events<Model, State>>,
+        events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
         let mut t = tspan.0;

@@ -13,7 +13,7 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use csv::Writer;
-use events::Events;
+use events::{EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod};
 use stepping::StepMethod;
 use tolerance::Tolerance;
@@ -55,7 +55,7 @@ where
     solver: Solver,
     step_method: StepMethod,
     save_method: SaveMethod,
-    events: Vec<Events<Model, State>>,
+    events: EventManager<Model, State>,
 }
 
 impl<Model, State> OdeProblem<Model, State>
@@ -81,12 +81,12 @@ where
             solver,
             save_method,
             step_method,
-            events: Vec::new(),
+            events: EventManager::new(),
         }
     }
 
-    pub fn with_event(mut self, event: Events<Model, State>) -> Self {
-        self.events.push(event);
+    pub fn with_event_periodic(mut self, event: PeriodicEvent<Model, State>) -> Self {
+        self.events.add_periodic(event);
         self
     }
 

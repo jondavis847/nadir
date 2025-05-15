@@ -1,5 +1,6 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
+    events::PeriodicEvent,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
     stepping::{FixedStepControl, StepMethod},
@@ -26,25 +27,32 @@ fn main() {
         beta: 8. / 3.,
     };
 
-    let mut solver = OdeProblem::new(
+    let mut problem = OdeProblem::new(
         model,
         Solver::Tsit5,
-        StepMethod::Fixed(FixedStepControl::new(0.001)),
+        StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::Memory,
-    );
+    )
+    .with_event_periodic(PeriodicEvent::new(
+        1.0,
+        0.0,
+        |_model, state: &mut StateArray<3>, _t| {
+            state[1] = 3.0;
+        },
+    ));
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
-    let result = solver.solve(&x0, (0.0, 30.0));
+    let result = problem.solve(&x0, (0.0, 10.0));
     match result {
         ResultStorage::Memory(result) => {
             for i in 0..result.t.len() {
-                if result.t[i] - result.t[i].floor() < 1e-4 {
-                    println!(
-                        "{:10.6}     {:10.6}     {:10.6}     {:10.6}", // 10 chars wide, 6 decimal places
-                        result.t[i], result.y[i][0], result.y[i][1], result.y[i][2]
-                    );
-                }
+                //if result.t[i].rem_euclid(0.3) < 1e-4 {
+                println!(
+                    "{:10.12}     {:10.12}     {:10.12}     {:10.12}", // 10 chars wide, 6 decimal places
+                    result.t[i], result.y[i][0], result.y[i][1], result.y[i][2]
+                );
+                //}
             }
         }
         _ => {}
