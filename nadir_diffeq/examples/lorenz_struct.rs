@@ -1,11 +1,12 @@
 use nadir_diffeq::{
     Integrable, OdeModel, OdeProblem, Solver,
-    saving::SaveMethod,
+    saving::{ResultStorage, SaveMethod},
     stepping::{StepMethod, StepPIDControl},
 };
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_component_error};
 
+#[derive(Debug)]
 struct Lorenz {
     sigma: f64,
     rho: f64,
@@ -143,19 +144,11 @@ fn main() {
         beta: 8. / 3.,
     };
 
-    // Create a results directory in the project folder
-    let mut results_dir = std::env::current_dir().unwrap();
-    results_dir.push("results");
-    // Create the directory if it doesn't exist
-    if !results_dir.exists() {
-        std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
-    }
-
-    let mut solver = OdeProblem::new(
+    let mut problem = OdeProblem::new(
         model,
-        Solver::DoPri45,
-        StepMethod::Adaptive(StepPIDControl::default()),
-        SaveMethod::File(results_dir),
+        Solver::Verner6,
+        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
+        SaveMethod::Memory,
     );
 
     let x0 = LorenzState {
@@ -164,5 +157,19 @@ fn main() {
         z: 0.0,
     };
 
-    solver.solve(&x0, (0.0, 30.0));
+    let result = problem.solve(&x0, (0.0, 10.0));
+
+    match result {
+        ResultStorage::Memory(result) => {
+            for i in 0..result.t.len() {
+                if result.t[i].rem_euclid(1.0) < 1e-3 {
+                    println!(
+                        "{:10.6}     {:10.6} {:10.6} {:10.6}",
+                        result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
 }

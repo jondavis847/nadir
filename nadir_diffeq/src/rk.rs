@@ -76,9 +76,10 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
-        let mut t = tspan.0;
         // Counter to count number of function calls
         let mut function_calls = 0;
+
+        let mut t = tspan.0;
 
         // Copy initial state
         self.x.clone_from(x0);
@@ -87,7 +88,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         result.save(t, &self.x);
 
         // Process initial events if any are scheduled at t0
-        if events.process_events(model, &mut self.x, &mut t) {
+        if events.process_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
             result.save(t, &self.x);
         };
@@ -95,12 +96,17 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         while t < tspan.1 {
             // Determine step size - standard dt or adjusted for upcoming event
             let next_event_time = events.next_time();
-            let dt = if next_event_time > t && next_event_time < t + controller.dt {
+            let mut dt = if next_event_time > t && next_event_time < t + controller.dt {
                 // Adjust step size to land exactly on the event
                 next_event_time - t
             } else {
                 controller.dt
             };
+
+            // Ensure we don't step past the end
+            if t + dt > tspan.1 {
+                dt = tspan.1 - t;
+            }
 
             // Take a step
             self.step(model, t, dt, false, &mut function_calls);
@@ -108,11 +114,14 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
             // Update time based on dt
             t += dt;
 
-            // Run any events - before saving in case the event changes the state
-            events.process_events(model, &mut self.y, &mut t);
-
             // Save the result for this time step
             result.save(t, &self.y);
+
+            // Run any events
+            if events.process_events(model, &mut self.y, t) {
+                // Save the result after events
+                result.save(t, &self.y);
+            };
 
             // Initialize next loop
             self.x.clone_from(&self.y);
@@ -128,15 +137,31 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
+        let mut accept_counter = 0;
+        let mut reject_counter = 0;
+        let mut function_calls = 0;
+
         let mut t = tspan.0;
         self.x.clone_from(x0);
         let mut dt = 1e-3; // initial dt
 
-        let mut accept_counter = 0;
-        let mut reject_counter = 0;
-        let mut function_calls = 0;
+        // Save the true initial state before any processing
+        result.save(t, &self.x);
+
+        // Process initial events if any are scheduled at t0
+        if events.process_events(model, &mut self.x, t) {
+            // If initial events changed state, save the updated state
+            result.save(t, &self.x);
+        };
+
         while t < tspan.1 {
-            // println!("{t} {dt}");
+            // Determine step size - standard dt or adjusted for upcoming event
+            let next_event_time = events.next_time();
+            if next_event_time > t && next_event_time < t + dt {
+                // Adjust step size to land exactly on the event
+                dt = next_event_time - t
+            };
+
             // Ensure we don't step past the end
             if t + dt > tspan.1 {
                 dt = tspan.1 - t;
@@ -153,14 +178,22 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
                 controller.abs_tol,
             );
 
+            let new_dt = 0.9 * dt * (1e-6 / error).powf(1.0 / 5.0);
+
             // Calculate new step size based on dt
-            let new_dt = controller.step(dt, error);
+            //let new_dt = controller.step(dt, error);
 
             // Check if step is accepted
             if error <= 1.0 {
                 // Step ACCEPTED: advance time, save result, and update state
                 t += dt;
+                // Save the true state before any event processing
                 result.save(t, &self.y);
+                // Process events if any occurred
+                if events.process_events(model, &mut self.y, t) {
+                    // Events changed state, save the updated state
+                    result.save(t, &self.y);
+                };
                 self.x.clone_from(&self.y);
                 dt = new_dt;
 

@@ -1,11 +1,11 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
-    events::PeriodicEvent,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
     stepping::{FixedStepControl, StepMethod},
 };
 
+#[derive(Debug)]
 struct Lorenz {
     sigma: f64,
     rho: f64,
@@ -32,14 +32,7 @@ fn main() {
         Solver::Tsit5,
         StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::Memory,
-    )
-    .with_event_periodic(PeriodicEvent::new(
-        1.0,
-        0.0,
-        |_model, state: &mut StateArray<3>, _t| {
-            state[1] = 3.0;
-        },
-    ));
+    );
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 

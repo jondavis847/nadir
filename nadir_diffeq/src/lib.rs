@@ -1,4 +1,5 @@
 use std::{
+    fmt::Debug,
     fs::File,
     io::BufWriter,
     ops::{AddAssign, MulAssign},
@@ -32,7 +33,7 @@ where
     fn save_to_writer(&self, _writer: &mut Writer<BufWriter<File>>, _t: f64) {}
 }
 
-pub trait OdeModel<State>
+pub trait OdeModel<State>: Debug
 where
     State: Integrable,
 {
@@ -44,6 +45,7 @@ pub enum Solver {
     New45,
     Rk4,
     Tsit5,
+    Verner6,
 }
 
 pub struct OdeProblem<Model, State>
@@ -155,6 +157,18 @@ where
             }
             Solver::Tsit5 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<7>::TSITOURAS5);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
+            }
+
+            Solver::Verner6 => {
+                let mut solver = RungeKutta::new(ButcherTableau::<9>::VERNER6);
                 solver.solve(
                     &mut self.model,
                     x0,

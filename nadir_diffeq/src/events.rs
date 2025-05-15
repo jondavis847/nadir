@@ -43,37 +43,67 @@ where
     }
 
     fn find_next_periodic(&mut self) {
-        for (i, event) in self.periodic_events.iter().enumerate() {
-            // reset
-            self.next_periodic.next_time = INFINITY;
+        if self.periodic_events.is_empty() {
+            return;
+        }
+        // Reset
+        self.next_periodic.next_time = INFINITY;
+        self.next_periodic.index.clear();
 
-            // search for event with lowest time
-            if event.next_time < self.next_periodic.next_time {
-                self.next_periodic.index = vec![i];
-                self.next_periodic.next_time = event.next_time;
-            }
+        // First event as initial minimum
+        let mut min_time = self.periodic_events[0].next_time;
+        self.next_periodic.index.push(0);
 
-            // add event if it's very close to the next time
-            if (event.next_time - self.next_periodic.next_time).abs() < 1e-12 {
+        // Process remaining events
+        for (i, event) in self.periodic_events.iter().enumerate().skip(1) {
+            let time_diff = event.next_time - min_time;
+
+            if time_diff.abs() < 1e-12 {
+                // Event happens at essentially the same time
                 self.next_periodic.index.push(i);
-                self.next_periodic.next_time = event.next_time;
+            } else if time_diff < 0.0 {
+                // Found a new minimum time
+                min_time = event.next_time;
+                self.next_periodic.index.clear();
+                self.next_periodic.index.push(i);
             }
         }
+
+        // Set the final minimum time
+        self.next_periodic.next_time = min_time;
     }
 
-    pub fn process_events(&mut self, model: &mut Model, state: &mut State, t: &mut f64) -> bool {
+    pub fn process_events(&mut self, model: &mut Model, state: &mut State, t: f64) -> bool {
         let mut event_occurred = false;
-        // process periodic events
-        if *t >= self.next_periodic.next_time {
-            event_occurred = true;
-            for i in &self.next_periodic.index {
-                let event = &mut self.periodic_events[*i];
-                event.perform_event(model, state, t);
+
+        // Process periodic events
+        if !self.periodic_events.is_empty() && t >= self.next_periodic.next_time {
+            // Safety check - ensure indices are valid
+            let valid_indices: Vec<usize> = self
+                .next_periodic
+                .index
+                .iter()
+                .filter(|&&i| i < self.periodic_events.len())
+                .cloned()
+                .collect();
+
+            if !valid_indices.is_empty() {
+                event_occurred = true;
+
+                // Process each scheduled event
+                for i in valid_indices {
+                    let event = &mut self.periodic_events[i];
+                    event.perform_event(model, state, t);
+                }
+
+                // Find next events after processing
+                self.find_next_periodic();
+            } else if !self.periodic_events.is_empty() {
+                // Indices were invalid but we have events - recalculate
+                self.find_next_periodic();
             }
         }
-        if event_occurred {
-            self.find_next_periodic();
-        }
+
         event_occurred
     }
 }
@@ -83,14 +113,6 @@ struct NextEvent {
     index: Vec<usize>,
 }
 
-pub enum Events<Model, State>
-where
-    Model: OdeModel<State>,
-    State: Integrable,
-{
-    Periodic(PeriodicEvent<Model, State>),
-}
-
 pub struct PeriodicEvent<Model, State>
 where
     Model: OdeModel<State>,
@@ -98,7 +120,7 @@ where
 {
     pub period: f64,
     pub next_time: f64,
-    f: Box<dyn Fn(&mut Model, &mut State, &mut f64)>, //(model,state,t)
+    f: Box<dyn FnMut(&mut Model, &mut State, f64)>, //(model,state,t)
 }
 
 impl<Model, State> PeriodicEvent<Model, State>
@@ -108,7 +130,7 @@ where
 {
     pub fn new<F>(period: f64, start_time: f64, f: F) -> Self
     where
-        F: Fn(&mut Model, &mut State, &mut f64) + 'static,
+        F: FnMut(&mut Model, &mut State, f64) + 'static,
     {
         Self {
             period,
@@ -117,8 +139,8 @@ where
         }
     }
 
-    pub fn perform_event(&mut self, model: &mut Model, state: &mut State, t: &mut f64) {
+    pub fn perform_event(&mut self, model: &mut Model, state: &mut State, t: f64) {
         (self.f)(model, state, t);
-        self.next_time = *t + self.period;
+        self.next_time = t + self.period;
     }
 }

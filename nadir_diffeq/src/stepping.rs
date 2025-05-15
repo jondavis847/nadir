@@ -37,7 +37,7 @@ impl Default for StepPIDControl {
         Self {
             rel_tol: 1e-3,
             abs_tol: 1e-6,
-            kp: 0.075,
+            kp: 0.6,
             ki: 0.01,
             kd: 0.175,
             min_dt: None,
@@ -97,7 +97,7 @@ impl StepPIDControl {
         let e2 = self.err_prevprev.max(EPS);
 
         // calculate the growth factor
-        let mut factor = e0.powf(-self.kp) * (e0 / e1).powf(-self.kd) * (e1 / e2).powf(self.ki);
+        let mut factor = e0.powf(self.kp) * (e0 / e1).powf(self.kd) * (e1 / e2).powf(self.ki);
 
         // limit the growth of the step size
         if let Some(min_growth) = self.min_growth {
