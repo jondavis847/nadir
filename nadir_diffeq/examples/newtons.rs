@@ -4,7 +4,7 @@ use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
-    stepping::{FixedStepControl, StepMethod, StepPIDControl},
+    stepping::{StepMethod, StepPIDControl},
 };
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ fn main() {
     let mut solver = OdeProblem::new(
         model,
         Solver::New45,
-        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
+        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-12, 1e-9)),
         //StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::Memory,
     );
