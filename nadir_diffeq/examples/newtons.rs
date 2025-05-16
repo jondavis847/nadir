@@ -1,8 +1,10 @@
+use std::time::Instant;
+
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
-    saving::SaveMethod,
+    saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
-    stepping::{StepMethod, StepPIDControl},
+    stepping::{FixedStepControl, StepMethod, StepPIDControl},
 };
 
 #[derive(Debug)]
@@ -45,10 +47,26 @@ fn main() {
 
     let mut solver = OdeProblem::new(
         model,
-        Solver::Tsit5,
+        Solver::New45,
         StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
+        //StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::Memory,
     );
 
-    solver.solve(&x0, (0.0, 3.0));
+    let start = Instant::now();
+    let result = solver.solve(&x0, (0.0, 10000.0));
+    let stop = Instant::now();
+    dbg!(stop.duration_since(start).as_secs_f64());
+
+    match result {
+        ResultStorage::Memory(result) => {
+            let n = result.t.len() - 1;
+            println!(
+                "{:10.6}     {:10.6} {:10.6} {:10.6}",
+                result.t[n], result.y[n][0], result.y[n][1], result.y[n][2]
+            );
+        }
+
+        _ => {}
+    }
 }

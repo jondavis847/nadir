@@ -25,6 +25,7 @@ pub struct RungeKutta<State: Integrable, const STAGES: usize> {
     tableau: ButcherTableau<STAGES>,
     tolerances: State::Tolerance,
     buffers: RKBuffers<State, STAGES>,
+    first_step: bool,
 }
 
 impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
@@ -39,6 +40,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
             y_tilde: State::default(),
             tableau,
             tolerances: State::Tolerance::default(),
+            first_step: true,
         }
     }
 
@@ -125,6 +127,12 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
 
             // Initialize next loop
             self.x.clone_from(&self.y);
+
+            if self.tableau.fsal {
+                // Reuse last stage from previous step as first stage
+                let (k0, ks) = self.buffers.stage.k.split_at_mut(1);
+                k0[0].clone_from(ks.last().unwrap());
+            }
         }
     }
 
@@ -195,10 +203,17 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
                     // Events changed state, save the updated state
                     result.save(t, &self.y);
                 };
+
                 self.x.clone_from(&self.y);
                 dt = new_dt;
 
                 accept_counter += 1;
+
+                if self.tableau.fsal {
+                    // Reuse last stage from previous step as first stage
+                    let (k0, ks) = self.buffers.stage.k.split_at_mut(1);
+                    k0[0].clone_from(ks.last().unwrap());
+                }
             } else {
                 // Step REJECTED: try again with reduced step size
                 dt = new_dt;
@@ -241,44 +256,77 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
     ) {
         let k = &mut self.buffers.stage.k;
 
-        // k0
-        model.f(t, &self.x, &mut k[0]);
-        *function_calls += 1;
+        if self.tableau.fsal {
+            // FSAL method implementation
+            if self.first_step {
+                model.f(t, &self.x, &mut k[0]);
+                *function_calls += 1;
+                self.first_step = false;
+            } // else k0 set up a function if step size was accepted
 
-        // k1 - ks
-        for s in 1..STAGES {
-            // in place calculation of intermediate points
-            self.buffers.state *= 0.0;
-            // sum previous ks with appropriate scaling from tableau
-            for i in 0..s {
-                self.buffers.derivative.clone_from(&k[i]);
-                self.buffers.derivative *= self.tableau.a[s][i];
-                self.buffers.state += &self.buffers.derivative;
-            }
-            self.buffers.state *= h;
-            self.buffers.state += &self.x;
-
-            model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
-            *function_calls += 1;
-        }
-        self.y.clone_from(&self.x);
-        for s in 0..STAGES {
-            self.buffers.derivative.clone_from(&k[s]);
-            self.buffers.derivative *= self.tableau.b[s] * h;
-            self.y += &self.buffers.derivative;
-        }
-
-        // adaptive solving logic
-        if adaptive {
-            if let Some(b_tilde) = self.tableau.b_tilde {
-                self.y_tilde *= 0.0; //reset
-                for s in 0..STAGES {
-                    self.buffers.derivative.clone_from(&k[s]);
-                    self.buffers.derivative *= b_tilde[s];
-                    self.y_tilde += &self.buffers.derivative;
+            // Compute intermediate stages k1 through k[STAGES-2]
+            for s in 1..STAGES - 1 {
+                self.buffers.state *= 0.0;
+                for i in 0..s {
+                    self.buffers.derivative.clone_from(&k[i]);
+                    self.buffers.derivative *= self.tableau.a[s][i];
+                    self.buffers.state += &self.buffers.derivative;
                 }
-                self.y_tilde *= h;
+                self.buffers.state *= h;
+                self.buffers.state += &self.x;
+
+                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
+                *function_calls += 1;
             }
+
+            // Calculate solution using stages 0 through STAGES-2
+            self.y.clone_from(&self.x);
+            for s in 0..STAGES - 1 {
+                self.buffers.derivative.clone_from(&k[s]);
+                self.buffers.derivative *= self.tableau.b[s] * h;
+                self.y += &self.buffers.derivative;
+            }
+
+            // Calculate final stage at new solution point
+            model.f(t + h, &self.y, &mut k[STAGES - 1]);
+            *function_calls += 1;
+        } else {
+            // Standard (non-FSAL) method implementation
+            model.f(t, &self.x, &mut k[0]);
+            *function_calls += 1;
+
+            for s in 1..STAGES {
+                self.buffers.state *= 0.0;
+                for i in 0..s {
+                    self.buffers.derivative.clone_from(&k[i]);
+                    self.buffers.derivative *= self.tableau.a[s][i];
+                    self.buffers.state += &self.buffers.derivative;
+                }
+                self.buffers.state *= h;
+                self.buffers.state += &self.x;
+
+                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
+                *function_calls += 1;
+            }
+
+            self.y.clone_from(&self.x);
+            for s in 0..STAGES {
+                self.buffers.derivative.clone_from(&k[s]);
+                self.buffers.derivative *= self.tableau.b[s] * h;
+                self.y += &self.buffers.derivative;
+            }
+        }
+
+        // Adaptive error estimation - same for both methods
+        if adaptive && self.tableau.b_tilde.is_some() {
+            let b_tilde = self.tableau.b_tilde.unwrap();
+            self.y_tilde *= 0.0; //reset
+            for s in 0..STAGES {
+                self.buffers.derivative.clone_from(&k[s]);
+                self.buffers.derivative *= b_tilde[s];
+                self.y_tilde += &self.buffers.derivative;
+            }
+            self.y_tilde *= h;
         }
     }
 

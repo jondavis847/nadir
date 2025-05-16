@@ -4,6 +4,7 @@ pub struct ButcherTableau<const STAGES: usize> {
     pub b_tilde: Option<[f64; STAGES]>,
     pub c: [f64; STAGES],
     pub order: usize,
+    pub fsal: bool,
 }
 
 impl ButcherTableau<4> {
@@ -19,6 +20,7 @@ impl ButcherTableau<4> {
         b_tilde: None,
         c: [0., 1.0 / 2.0, 1.0 / 2.0, 1.0],
         order: 4,
+        fsal: false,
     };
 }
 impl ButcherTableau<7> {
@@ -78,6 +80,7 @@ impl ButcherTableau<7> {
         ]),
         c: [0., 1. / 5., 3. / 10., 4. / 5., 8. / 9., 1.0, 1.0],
         order: 5,
+        fsal: true,
     };
 
     pub const TSITOURAS5: Self = Self {
@@ -146,6 +149,7 @@ impl ButcherTableau<7> {
         ]),
         c: [0.0, 0.161, 0.327, 0.9, 0.9800255409045097, 1., 1.],
         order: 5,
+        fsal: true,
     };
 
     pub const NEW45: Self = Self {
@@ -200,13 +204,13 @@ impl ButcherTableau<7> {
             0.,
         ],
         b_tilde: Some([
-            0.1011697031721691,
+            0.0011962658643411006,
             0.0,
-            0.5263726397826966,
-            0.5535457487059638,
-            -6.7256950583938850,
-            6.5396069667330555,
-            0.005,
+            -0.003971254769981725,
+            0.05377327968752876,
+            -0.4328121774805167,
+            0.3868138866986284,
+            -0.005,
         ]),
         c: [
             0.0,
@@ -218,6 +222,7 @@ impl ButcherTableau<7> {
             1.,
         ],
         order: 5,
+        fsal: true,
     };
 }
 
@@ -328,5 +333,6 @@ impl ButcherTableau<9> {
             1.0,
         ],
         order: 6,
+        fsal: true,
     };
 }

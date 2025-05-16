@@ -44,7 +44,7 @@ impl AddAssign<&LorenzDerivative> for LorenzState {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct LorenzDerivative {
     x: f64,
     y: f64,
@@ -156,7 +156,7 @@ fn main() {
 
     let mut problem = OdeProblem::new(
         model,
-        Solver::Tsit5,
+        Solver::DoPri45,
         StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
         SaveMethod::Memory,
     );
@@ -167,7 +167,7 @@ fn main() {
         z: 0.0,
     };
 
-    let result = problem.solve(&x0, (0.0, 10.0));
+    let result = problem.solve(&x0, (0.0, 1.0));
 
     match result {
         ResultStorage::Memory(result) => {

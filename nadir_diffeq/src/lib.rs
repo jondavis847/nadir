@@ -23,7 +23,7 @@ pub trait Integrable: Sized + Clone + Default + MulAssign<f64> + Debug
 where
     for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
 {
-    type Derivative: Clone + MulAssign<f64> + Sized + Default;
+    type Derivative: Clone + MulAssign<f64> + Sized + Default + Debug;
     type Tolerance: Tolerance<State = Self>;
 
     fn initialize_writer(_path: &PathBuf) -> Option<Writer<BufWriter<File>>> {
