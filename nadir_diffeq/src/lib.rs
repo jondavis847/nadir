@@ -19,7 +19,7 @@ use saving::{MemoryResult, ResultStorage, SaveMethod};
 use stepping::StepMethod;
 use tolerance::Tolerance;
 
-pub trait Integrable: Sized + Clone + Default + MulAssign<f64>
+pub trait Integrable: Sized + Clone + Default + MulAssign<f64> + Debug
 where
     for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
 {

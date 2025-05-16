@@ -50,5 +50,5 @@ fn main() {
         SaveMethod::Memory,
     );
 
-    solver.solve(&x0, (0.0, 10.0));
+    solver.solve(&x0, (0.0, 3.0));
 }

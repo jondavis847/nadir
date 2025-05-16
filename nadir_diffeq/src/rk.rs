@@ -21,7 +21,7 @@ struct RKBuffers<State: Integrable, const STAGES: usize> {
 pub struct RungeKutta<State: Integrable, const STAGES: usize> {
     x: State,
     y: State,
-    y_star: State,
+    y_tilde: State,
     tableau: ButcherTableau<STAGES>,
     tolerances: State::Tolerance,
     buffers: RKBuffers<State, STAGES>,
@@ -36,7 +36,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
             buffers: RKBuffers::default(),
             x: State::default(),
             y: State::default(),
-            y_star: State::default(),
+            y_tilde: State::default(),
             tableau,
             tolerances: State::Tolerance::default(),
         }
@@ -173,12 +173,13 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
             // Calculate error
             let error = self.compute_error(
                 &self.y,
-                &self.y_star,
+                &self.x,
+                &self.y_tilde,
                 controller.rel_tol,
                 controller.abs_tol,
             );
 
-            let new_dt = 0.9 * dt * (1e-6 / error).powf(1.0 / 5.0);
+            let new_dt = 0.9 * dt * (1.0 / error).powf(1.0 / (self.tableau.order as f64 - 1.0));
 
             // Calculate new step size based on dt
             //let new_dt = controller.step(dt, error);
@@ -269,19 +270,28 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
 
         // adaptive solving logic
         if adaptive {
-            if let Some(b_star) = self.tableau.b_star {
-                self.y_star.clone_from(&self.x);
+            if let Some(b_tilde) = self.tableau.b_tilde {
+                self.y_tilde *= 0.0; //reset
                 for s in 0..STAGES {
                     self.buffers.derivative.clone_from(&k[s]);
-                    self.buffers.derivative *= b_star[s] * h;
-                    self.y_star += &self.buffers.derivative;
+                    self.buffers.derivative *= b_tilde[s];
+                    self.y_tilde += &self.buffers.derivative;
                 }
+                self.y_tilde *= h;
             }
         }
     }
 
-    pub fn compute_error(&self, y: &State, y_star: &State, rel_tol: f64, abs_tol: f64) -> f64 {
-        self.tolerances.compute_error(y, y_star, rel_tol, abs_tol)
+    pub fn compute_error(
+        &self,
+        y: &State,
+        y_prev: &State,
+        y_tilde: &State,
+        rel_tol: f64,
+        abs_tol: f64,
+    ) -> f64 {
+        self.tolerances
+            .compute_error(y, y_prev, y_tilde, rel_tol, abs_tol)
     }
 }
 

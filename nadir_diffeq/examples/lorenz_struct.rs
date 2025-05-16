@@ -78,13 +78,23 @@ impl Default for LorenzTolerances {
 impl Tolerance for LorenzTolerances {
     type State = LorenzState;
 
-    fn compute_error(&self, x0: &Self::State, xf: &Self::State, rel_tol: f64, abs_tol: f64) -> f64 {
+    fn compute_error(
+        &self,
+        x: &Self::State,
+        x_prev: &Self::State,
+        x_tilde: &Self::State,
+        rel_tol: f64,
+        abs_tol: f64,
+    ) -> f64 {
         let mut sum_squared_errors = 0.0;
 
         // Calculate squared error for each component
-        sum_squared_errors += compute_component_error(&self.x, x0.x, xf.x, rel_tol, abs_tol);
-        sum_squared_errors += compute_component_error(&self.y, x0.y, xf.y, rel_tol, abs_tol);
-        sum_squared_errors += compute_component_error(&self.z, x0.z, xf.z, rel_tol, abs_tol);
+        sum_squared_errors +=
+            compute_component_error(&self.x, x.x, x_prev.x, x_tilde.x, rel_tol, abs_tol).powi(2);
+        sum_squared_errors +=
+            compute_component_error(&self.y, x.y, x_prev.y, x_tilde.y, rel_tol, abs_tol).powi(2);
+        sum_squared_errors +=
+            compute_component_error(&self.z, x.z, x_prev.z, x_tilde.z, rel_tol, abs_tol).powi(2);
 
         // Return RMS error
         (sum_squared_errors / 3.0).sqrt()
@@ -146,7 +156,7 @@ fn main() {
 
     let mut problem = OdeProblem::new(
         model,
-        Solver::Verner6,
+        Solver::Tsit5,
         StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
         SaveMethod::Memory,
     );
