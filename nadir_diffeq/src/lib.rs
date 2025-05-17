@@ -46,6 +46,7 @@ pub enum Solver {
     Rk4,
     Tsit5,
     Verner6,
+    Verner9,
 }
 
 pub struct OdeProblem<Model, State>
@@ -169,6 +170,18 @@ where
 
             Solver::Verner6 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<9>::VERNER6);
+                solver.solve(
+                    &mut self.model,
+                    x0,
+                    tspan,
+                    &mut self.step_method,
+                    &mut self.events,
+                    &mut result,
+                );
+            }
+
+            Solver::Verner9 => {
+                let mut solver = RungeKutta::new(ButcherTableau::<26>::VERNER9);
                 solver.solve(
                     &mut self.model,
                     x0,
