@@ -124,7 +124,7 @@ where
 
         match self.solver {
             Solver::DoPri45 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<7>::DORMANDPRINCE45);
+                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::DORMANDPRINCE45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -135,7 +135,7 @@ where
                 );
             }
             Solver::New45 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<7>::NEW45);
+                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::NEW45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -146,7 +146,7 @@ where
                 );
             }
             Solver::Rk4 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<4>::RK4);
+                let mut solver = RungeKutta::new(ButcherTableau::<4, 4>::RK4);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -157,7 +157,7 @@ where
                 );
             }
             Solver::Tsit5 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<7>::TSITOURAS5);
+                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::TSITOURAS5);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -169,7 +169,7 @@ where
             }
 
             Solver::Verner6 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<9>::VERNER6);
+                let mut solver = RungeKutta::new(ButcherTableau::<6, 9>::VERNER6);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -181,7 +181,7 @@ where
             }
 
             Solver::Verner9 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<26>::VERNER9);
+                let mut solver = RungeKutta::new(ButcherTableau::<9, 26>::VERNER9);
                 solver.solve(
                     &mut self.model,
                     x0,

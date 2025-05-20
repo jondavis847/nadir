@@ -47,7 +47,7 @@ fn main() {
 
     let mut solver = OdeProblem::new(
         model,
-        Solver::New45,
+        Solver::Tsit5,
         StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-12, 1e-9)),
         //StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::Memory,

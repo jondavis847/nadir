@@ -16,20 +16,21 @@ struct RKBuffers<State: Integrable, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
     state: State,
     derivative: State::Derivative,
+    interpolant: State,
 }
 
-pub struct RungeKutta<State: Integrable, const STAGES: usize> {
+pub struct RungeKutta<State: Integrable, const ORDER: usize, const STAGES: usize> {
     x: State,
     y: State,
     y_tilde: State,
-    tableau: ButcherTableau<STAGES>,
+    tableau: ButcherTableau<ORDER, STAGES>,
     tolerances: State::Tolerance,
     buffers: RKBuffers<State, STAGES>,
     first_step: bool,
 }
 
-impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
-    pub fn new(tableau: ButcherTableau<STAGES>) -> Self
+impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
+    pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self
     where
         State: Integrable,
     {
@@ -187,7 +188,7 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
                 controller.abs_tol,
             );
 
-            let new_dt = 0.9 * dt * (1.0 / error).powf(1.0 / (self.tableau.order as f64 - 1.0));
+            let new_dt = 0.9 * dt * (1.0 / error).powf(1.0 / (ORDER as f64 - 1.0));
 
             // Calculate new step size based on dt
             //let new_dt = controller.step(dt, error);
@@ -340,6 +341,30 @@ impl<State: Integrable, const STAGES: usize> RungeKutta<State, STAGES> {
     ) -> f64 {
         self.tolerances
             .compute_error(y, y_prev, y_tilde, rel_tol, abs_tol)
+    }
+
+    pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
+        if let Some(bi) = &self.tableau.bi {
+            // reset buffers
+            self.buffers.derivative *= 0.0;
+
+            // calculate theta
+            let theta = (t - t0) / dt;
+
+            // calculate bi
+            let mut b = [0.0; STAGES];
+            for s in 0..STAGES {
+                for i in 0..ORDER - 1 {
+                    b[s] += bi[s][i] * theta.powi(i as i32);
+                }
+                self.buffers.derivative.clone_from(&self.buffers.stage.k[s]);
+                self.buffers.derivative *= b[s];
+                self.buffers.interpolant += &self.buffers.derivative;
+            }
+            // store answer in interpolant buffer, must be retrieved for usage outside this function
+            self.buffers.interpolant *= dt;
+            self.buffers.interpolant += &self.y;
+        }
     }
 }
 
