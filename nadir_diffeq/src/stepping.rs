@@ -1,7 +1,7 @@
 #[derive(Copy, Clone)]
 pub enum StepMethod {
     Fixed(FixedStepControl),
-    Adaptive(StepPIDControl),
+    Adaptive(AdaptiveStepControl),
 }
 
 #[derive(Copy, Clone)]
@@ -14,6 +14,61 @@ impl FixedStepControl {
     pub fn new(dt: f64) -> Self {
         Self { dt, next_time: 0.0 }
     }
+}
+
+#[derive(Clone, Copy)]
+pub struct AdaptiveStepControl {
+    method: AdaptiveStepMethods,
+    pub rel_tol: f64,
+    pub abs_tol: f64,
+    pub min_dt: Option<f64>,
+    pub max_dt: Option<f64>,
+}
+
+impl Default for AdaptiveStepControl {
+    fn default() -> Self {
+        Self {
+            method: AdaptiveStepMethods::Basic,
+            rel_tol: 1e-3,
+            abs_tol: 1e-6,
+            min_dt: None,
+            max_dt: None,
+        }
+    }
+}
+
+impl AdaptiveStepControl {
+    pub fn step(&mut self, dt: f64, error: f64, order: usize) -> f64 {
+        match &mut self.method {
+            AdaptiveStepMethods::Basic => 0.9 * dt * (1.0 / error).powf(1.0 / (order as f64 - 1.0)),
+            AdaptiveStepMethods::PID(pid) => pid.step(dt, error),
+        }
+    }
+
+    pub fn with_abs_tol(mut self, abs_tol: f64) -> Self {
+        self.abs_tol = abs_tol;
+        self
+    }
+    pub fn with_max_dt(mut self, max_dt: f64) -> Self {
+        self.max_dt = Some(max_dt);
+        self
+    }
+
+    pub fn with_min_dt(mut self, min_dt: f64) -> Self {
+        self.min_dt = Some(min_dt);
+        self
+    }
+
+    pub fn with_rel_tol(mut self, rel_tol: f64) -> Self {
+        self.rel_tol = rel_tol;
+        self
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum AdaptiveStepMethods {
+    Basic,
+    PID(StepPIDControl),
 }
 
 #[derive(Clone, Copy)]

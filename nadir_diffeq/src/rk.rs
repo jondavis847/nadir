@@ -6,7 +6,7 @@ use crate::{
     Integrable, OdeModel, StepMethod,
     events::EventManager,
     saving::ResultStorage,
-    stepping::{FixedStepControl, StepPIDControl},
+    stepping::{AdaptiveStepControl, FixedStepControl, StepPIDControl},
     tableau::ButcherTableau,
 };
 
@@ -142,7 +142,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         model: &mut Model,
         x0: &State,
         tspan: (f64, f64),
-        controller: &mut StepPIDControl,
+        controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) {
@@ -364,6 +364,8 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             // store answer in interpolant buffer, must be retrieved for usage outside this function
             self.buffers.interpolant *= dt;
             self.buffers.interpolant += &self.y;
+        } else {
+            panic!("No interpolation coefficients for solver")
         }
     }
 }

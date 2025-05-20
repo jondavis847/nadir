@@ -1,7 +1,7 @@
 use nadir_diffeq::{
     Integrable, OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
-    stepping::{StepMethod, StepPIDControl},
+    stepping::{AdaptiveStepControl, StepMethod, StepPIDControl},
 };
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_component_error};
@@ -157,7 +157,11 @@ fn main() {
     let mut problem = OdeProblem::new(
         model,
         Solver::DoPri45,
-        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-9, 1e-6)),
+        StepMethod::Adaptive(
+            AdaptiveStepControl::default()
+                .with_rel_tol(1e-9)
+                .with_abs_tol(1e-6),
+        ),
         SaveMethod::Memory,
     );
 

@@ -3,7 +3,7 @@ use nadir_diffeq::{
     events::PeriodicEvent,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
-    stepping::{StepMethod, StepPIDControl},
+    stepping::{AdaptiveStepControl, StepMethod},
 };
 
 #[derive(Debug)]
@@ -26,7 +26,11 @@ fn main() {
     let mut problem = OdeProblem::new(
         model,
         Solver::DoPri45,
-        StepMethod::Adaptive(StepPIDControl::default().with_tolerances(1e-6, 1e-9)),
+        StepMethod::Adaptive(
+            AdaptiveStepControl::default()
+                .with_rel_tol(1e-6)
+                .with_abs_tol(1e-9),
+        ),
         SaveMethod::Memory,
     )
     .with_event_periodic(PeriodicEvent::new(
