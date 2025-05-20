@@ -6,7 +6,7 @@ use crate::{
     Integrable, OdeModel, StepMethod,
     events::EventManager,
     saving::ResultStorage,
-    stepping::{AdaptiveStepControl, FixedStepControl, StepPIDControl},
+    stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
 };
 
@@ -188,10 +188,8 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 controller.abs_tol,
             );
 
-            let new_dt = 0.9 * dt * (1.0 / error).powf(1.0 / (ORDER as f64 - 1.0));
-
             // Calculate new step size based on dt
-            //let new_dt = controller.step(dt, error);
+            let new_dt = controller.step(dt, error, ORDER);
 
             // Check if step is accepted
             if error <= 1.0 {
