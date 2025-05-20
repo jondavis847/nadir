@@ -94,8 +94,8 @@ impl FunctionCompleter {
 
     /// Helper to complete variants
     fn complete_variants(&self, prefix: &str) -> Vec<String> {
-        // Split the prefix on the first "::" delimiter.
-        let (enum_name, variant_name) = match prefix.split_once("::") {
+        // Split the prefix on the last "::" delimiter.
+        let (enum_name, variant_prefix) = match prefix.split_once("::") {
             Some((e, v)) => (e, v),
             None => return Vec::new(),
         };
@@ -108,12 +108,14 @@ impl FunctionCompleter {
         };
 
         // Filter and collect matching variant names as Strings
+        // Include the enum name as part of the completion
         enum_info
             .variants
             .iter()
             .filter_map(|(name, _)| {
-                if name.starts_with(variant_name) {
-                    Some(name.to_string())
+                if name.starts_with(variant_prefix) {
+                    // Return the full path including enum name
+                    Some(format!("{}::{}", enum_name, name))
                 } else {
                     None
                 }

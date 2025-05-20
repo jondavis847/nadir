@@ -6,6 +6,7 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aerospace.workspace = true
 ansi_term.workspace = true
 bytemuck.workspace = true
 celestial.workspace = true

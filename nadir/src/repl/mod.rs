@@ -137,7 +137,7 @@ impl NadirRepl {
                             let mut pairs = NadirParser::parse(Rule::line, &line)?;
                             //dbg!(&pairs);
                             if let Some(line_pair) = pairs.next() {
-                                // dbg!(&line_pair);
+                                //dbg!(&line_pair);
                                 // get to next level, with is a silent_line or print_line
                                 let print_or_silent = line_pair.into_inner().next().unwrap();
 

@@ -1,3 +1,4 @@
+use aerospace::orbit::{KeplerianElements, OrbitErrors};
 use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
 use inquire::{MultiSelect, Select};
@@ -33,6 +34,8 @@ pub enum RegistryErrors {
     LinspaceErrors(#[from] LinspaceErrors),
     #[error("method '{1}' not found for struct '{0}'")]
     MethodNotFound(String, String),
+    #[error("{0}")]
+    OrbitErrors(#[from] OrbitErrors),
     #[error("path {0} could not canonicalize")]
     PathCouldntCanonicalize(String),
     #[error("path {0} does not exist")]
@@ -342,6 +345,96 @@ impl Registry {
         structs.insert(
             "Figure",
             Struct::new(figure_struct_methods, figure_instance_methods),
+        );
+
+        // KeplerianElements
+        let mut ke_struct_methods = HashMap::new();
+        ke_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("a", "f64"),
+                    Argument::new("e", "f64"),
+                    Argument::new("i", "f64"),
+                    Argument::new("raan", "f64"),
+                    Argument::new("argp", "f64"),
+                    Argument::new("f", "f64"),
+                    Argument::new("epoch", "Time"),
+                    Argument::new("central_body", "CelestialBodies"),
+                ],
+                |args, _pwd| {
+                    let a = args[0].as_f64()?;
+                    let e = args[1].as_f64()?;
+                    let i = args[2].as_f64()?;
+                    let o = args[3].as_f64()?;
+                    let w = args[4].as_f64()?;
+                    let f = args[5].as_f64()?;
+                    let t = args[6].as_time()?;
+                    let b = args[7].as_celestial_body()?;
+
+                    let t = *t.lock().unwrap();
+                    let ke = KeplerianElements::new(a, e, i, o, w, f, t, b);
+                    Ok(Value::KeplerianElements(ke))
+                },
+            )],
+        );
+
+        let mut ke_instance_methods = HashMap::new();
+        ke_instance_methods.insert(
+            "get_rv",
+            vec![InstanceMethod::new(vec![], |val, _args| {
+                let ke = val.as_keplerian_elements()?;
+                let (r, v) = ke.get_rv();
+                let mut vec_data = Vec::with_capacity(6);
+                vec_data.extend_from_slice(r.as_slice());
+                vec_data.extend_from_slice(v.as_slice());
+                let combined = DVector::from_vec(vec_data);
+                Ok(Value::Vector(Arc::new(Mutex::new(combined))))
+            })],
+        );
+
+        ke_instance_methods.insert(
+            "keplers_problem",
+            vec![InstanceMethod::new(
+                vec![Argument::new("t", "Time")],
+                |val, args| {
+                    let ke = val.as_keplerian_elements()?;
+                    let t = args[0].as_time()?;
+                    let t = t.lock().unwrap();
+                    Ok(Value::KeplerianElements(ke.keplers_problem(*t)?))
+                },
+            )],
+        );
+
+        structs.insert(
+            "KeplerianElements",
+            Struct::new(ke_struct_methods, ke_instance_methods),
+        );
+
+        // Linspace
+        let mut linspace_struct_methods = HashMap::new();
+        linspace_struct_methods.insert(
+            "new",
+            vec![StructMethod::new(
+                vec![
+                    Argument::new("start", "f64"),
+                    Argument::new("stop", "f64"),
+                    Argument::new("step", "f64"),
+                ],
+                |args, _pwd| {
+                    let start = args[0].as_f64()?;
+                    let stop = args[1].as_f64()?;
+                    let step = args[2].as_f64()?;
+                    let v = Linspace::new(start, stop, step)?.to_vec();
+                    Ok(Value::Vector(Arc::new(Mutex::new(v))))
+                },
+            )],
+        );
+
+        let linspace_instance_methods = HashMap::new();
+        structs.insert(
+            "Linspace",
+            Struct::new(linspace_struct_methods, linspace_instance_methods),
         );
 
         // Line

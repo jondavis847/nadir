@@ -1,7 +1,7 @@
 use nalgebra::Vector3;
 use rotations::{
-    prelude::{EulerAngles, EulerSequence},
     Rotation, RotationTrait,
+    prelude::{EulerAngles, EulerSequence},
 };
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
@@ -342,7 +342,7 @@ impl KeplerianElements {
 
         let mut new_kep = self.clone();
         new_kep.true_anomaly = new_true_anomaly;
-
+        new_kep.epoch = new_t;
         Ok(new_kep)
     }
 
@@ -416,13 +416,14 @@ impl KeplerianElements {
         Ok(h)
     }
 
-    fn anomaly_to_nu(&self, a: f64) -> f64 {
+    #[allow(non_snake_case)]
+    fn anomaly_to_nu(&self, E: f64) -> f64 {
         let e = self.eccentricity;
 
         match self.orbit_type {
             OrbitType::Circular | OrbitType::Elliptical => {
-                let c = a.cos();
-                ((c - e) / (1.0 - e * c)).acos()
+                let beta = e / (1.0 + (1.0 - e * e).sqrt());
+                E + 2.0 * (beta * E.sin()).atan2(1.0 - beta * E.cos())
             }
             OrbitType::Parabolic => {
                 // i make the choice to calculate rv here instead of storing the values in
@@ -432,8 +433,10 @@ impl KeplerianElements {
                 let rm = r.norm();
                 (self.semiparameter - rm) / rm
             }
+            // TODO: Just have acos may not support the right quadrant
+            // May need to use sin version i n
             OrbitType::Hyperbolic => {
-                let ch = a.cosh();
+                let ch = E.cosh();
                 ((ch - e) / (1.0 - e * ch)).acos()
             }
         }

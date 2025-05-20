@@ -8,9 +8,9 @@ pub struct Cuboid {
     pub name: String,
     pub rotation: Quat,
     pub position: Vec3,
-    pub x: f32, 
-    pub y: f32, 
-    pub z: f32, 
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 impl Default for Cuboid {
@@ -27,14 +27,7 @@ impl Default for Cuboid {
 }
 
 impl Cuboid {
-    pub fn new(
-        name: String,
-        x: f32,
-        y: f32,
-        z: f32,
-        rotation: Quat,
-        position: Vec3,
-    ) -> Self {
+    pub fn new(name: String, x: f32, y: f32, z: f32, rotation: Quat, position: Vec3) -> Self {
         Self {
             name,
             rotation,
@@ -56,9 +49,9 @@ impl Cuboid {
 pub struct CuboidRaw {
     transformation: Mat4,  // 16 * 4 = 64 bytes
     normal: [[f32; 4]; 3], // 3 rows of 4 floats (padded Mat3)
-    x: f32,           // 4 bytes
-    y: f32,            // 4 bytes
-    z: f32,           // 4 bytes
+    x: f32,                // 4 bytes
+    y: f32,                // 4 bytes
+    z: f32,                // 4 bytes
     _padding: [f32; 1],    // 4 bytes to ensure the struct size is a multiple of 16 bytes
 }
 

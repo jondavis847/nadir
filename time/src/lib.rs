@@ -244,6 +244,7 @@ pub fn find_leap_seconds_tai(epoch_tai: SecondsSinceJ2000) -> f64 {
 impl Add<f64> for Time {
     type Output = Self;
     fn add(self, rhs: f64) -> Self::Output {
+        // convert to the lhs system first
         Time::from_sec_j2k(self.value.0 + rhs, self.system)
     }
 }

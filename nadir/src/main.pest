@@ -48,7 +48,9 @@ assignment = { identifier ~ "=" ~ expr }
 
 identifier = @{ !command_name ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
-float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+float = @{ 
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? 
+}
 number = _{ float | integer }
 enclosed = _{ "(" ~ expr ~ ")" }
 

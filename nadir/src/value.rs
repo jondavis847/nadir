@@ -1,3 +1,4 @@
+use aerospace::orbit::KeplerianElements;
 use celestial::CelestialBodies;
 use chrono::NaiveDateTime;
 use iced::window::Id;
@@ -75,6 +76,7 @@ pub enum Value {
     CelestialBodies(CelestialBodies),
     DateTime(NaiveDateTime),
     Event(Event),
+    KeplerianElements(KeplerianElements),
     Line(Arc<Mutex<Line>>),
     Matrix(Arc<Mutex<DMatrix<f64>>>),
     MultibodySystemBuilder(Arc<Mutex<MultibodySystemBuilder>>),
@@ -162,6 +164,7 @@ impl std::fmt::Debug for Value {
                 }
                 Ok(())
             }
+            Value::KeplerianElements(ke) => writeln!(f, "{:#?}", ke),
             Value::Line(line) => {
                 let line = line.lock().unwrap();
                 writeln!(f, "{}", label("Line"))?;
@@ -366,6 +369,7 @@ impl Value {
             Value::DateTime(_) => "DateTime".into(),
             Value::Event(_) => "Event".into(),
             Value::CelestialBodies(_) => "CelestialBodies".into(),
+            Value::KeplerianElements(_) => "KeplerianElements".into(),
             Value::Line(_) => "Line".into(),
             Value::Map(_) => "Map".into(),
             Value::MultibodySystemBuilder(_) => "MultibodySystemBuilder".into(),
@@ -459,6 +463,16 @@ impl Value {
         }
     }
 
+    pub fn as_celestial_body(&self) -> Result<CelestialBodies, ValueErrors> {
+        match self {
+            Value::CelestialBodies(v) => Ok(*v),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "CelestialBodies".to_string(),
+            )),
+        }
+    }
+
     pub fn as_f64(&self) -> Result<f64, ValueErrors> {
         match self {
             Value::f64(v) => Ok(*v),
@@ -492,6 +506,16 @@ impl Value {
             Value::VectorBool(v) => Ok(IndexStyle::VecBool(v.lock().unwrap().clone())),
             Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(v.lock().unwrap().clone())),
             _ => Err(ValueErrors::NonIndexType(self.to_string())),
+        }
+    }
+
+    pub fn as_keplerian_elements(&self) -> Result<KeplerianElements, ValueErrors> {
+        match self {
+            Value::KeplerianElements(v) => Ok(v.clone()),
+            _ => Err(ValueErrors::CannotConvert(
+                self.to_string(),
+                "KeplerianElements".to_string(),
+            )),
         }
     }
 
