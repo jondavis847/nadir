@@ -3209,7 +3209,10 @@ dependencies = [
 name = "nadir_diffeq"
 version = "0.0.1"
 dependencies = [
+ "aerospace",
+ "celestial",
  "csv",
+ "time 0.0.1",
  "tolerance",
 ]
 

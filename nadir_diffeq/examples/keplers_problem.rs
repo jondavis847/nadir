@@ -1,11 +1,14 @@
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 
+use aerospace::orbit::KeplerianElements;
+use celestial::CelestialBodies;
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
+use time::{Time, TimeSystem};
 
 #[derive(Debug)]
 struct Newtons {
@@ -35,33 +38,44 @@ impl OdeModel<StateArray<6>> for Newtons {
 
 fn main() {
     let model = Newtons { mu: 3.986004415e14 };
-    // Initial conditions polar spacecraft
-    // let x0 = StateArray::new([
-    //     -1821886.532,
-    //     -5428723.719,
-    //     4114923.555,
-    //     -2636.498864,
-    //     -3681.587186,
-    //     -6004.153232,
-    // ]);
+    // Initial conditions highly elliptic
+    let orbit = KeplerianElements::new(
+        7e6,
+        0.96,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        Time::from_sec_j2k(0.0, TimeSystem::UTC),
+        CelestialBodies::Earth,
+    );
+    let (r, v) = orbit.get_rv();
+    let x0 = StateArray::new([r[0], r[1], r[2], v[0], v[1], v[2]]);
 
-    // Initial conditions hiehgly elliptic
-    let x0 = StateArray::new([350000.0, 0.0, 0.0, 0.0, 47125.08767479528, 0.0]);
+    let result_path = std::env::current_dir().unwrap().join("results");
 
     let mut solver = OdeProblem::new(
         model,
-        Solver::Verner6,
+        Solver::Tsit5,
         StepMethod::Adaptive(
             AdaptiveStepControl::default()
                 .with_rel_tol(1e-14)
                 .with_abs_tol(1e-14),
         ),
         //StepMethod::Fixed(FixedStepControl::new(0.1)),
-        SaveMethod::Memory,
+        //        SaveMethod::Memory,
+        SaveMethod::File(result_path),
     );
 
+    let new_orbit = orbit
+        .keplers_problem(Time::from_sec_j2k(1472092.8448219472, TimeSystem::UTC))
+        .unwrap();
+    let (r, v) = new_orbit.get_rv();
+    dbg!(r);
+    dbg!(v);
+
     let start = Instant::now();
-    let result = solver.solve(&x0, (0.0, 86400.0 * 25.0));
+    let result = solver.solve(&x0, (0.0, 1472092.8448219472));
     let stop = Instant::now();
     dbg!(stop.duration_since(start).as_secs_f64());
 

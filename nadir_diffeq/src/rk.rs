@@ -163,6 +163,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             result.save(t, &self.x);
         };
 
+        let mut test = false;
         while t < tspan.1 {
             // Determine step size - standard dt or adjusted for upcoming event
             let next_event_time = events.next_time();
@@ -194,6 +195,17 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             // Check if step is accepted
             if error <= 1.0 {
                 // Step ACCEPTED: advance time, save result, and update state
+
+                let test_value = 1372092.8448219472 + 5.0; // was 13 seconds in between
+                if t + dt > test_value && !test {
+                    self.interpolate(t, dt, test_value);
+                    dbg!(t);
+                    dbg!(t + dt);
+                    dbg!(test_value);
+                    dbg!(&self.buffers.interpolant);
+                    test = true;
+                }
+
                 t += dt;
                 // Save the true state before any event processing
                 result.save(t, &self.y);
@@ -343,22 +355,32 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
 
     pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
         if let Some(bi) = &self.tableau.bi {
+            if t < t0 || t > t0 + dt {
+                panic!("t out of range for interpolation - todo extrapolation?")
+            }
+
             // reset buffers
-            self.buffers.derivative *= 0.0;
+            self.buffers.interpolant *= 0.0;
 
             // calculate theta
             let theta = (t - t0) / dt;
 
-            // calculate bi
+            // calculate bi using Horner's method
             let mut b = [0.0; STAGES];
             for s in 0..STAGES {
-                for i in 0..ORDER - 1 {
-                    b[s] += bi[s][i] * theta.powi(i as i32);
+                // Initialize with highest coefficient
+                let mut b_s = bi[s][ORDER - 2];
+
+                // Apply Horner's method going backward through coefficients
+                for i in (0..ORDER - 2).rev() {
+                    b_s = b_s * theta + bi[s][i];
                 }
+
                 self.buffers.derivative.clone_from(&self.buffers.stage.k[s]);
                 self.buffers.derivative *= b[s];
                 self.buffers.interpolant += &self.buffers.derivative;
             }
+
             // store answer in interpolant buffer, must be retrieved for usage outside this function
             self.buffers.interpolant *= dt;
             self.buffers.interpolant += &self.y;
@@ -367,7 +389,6 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         }
     }
 }
-
 pub struct StageBuffer<State, const STAGES: usize>
 where
     State: Integrable,
