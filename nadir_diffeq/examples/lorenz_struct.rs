@@ -1,7 +1,7 @@
 use nadir_diffeq::{
     Integrable, OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
-    stepping::{AdaptiveStepControl, StepMethod, StepPIDControl},
+    stepping::{AdaptiveStepControl, StepMethod},
 };
 use std::ops::{AddAssign, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_component_error};
