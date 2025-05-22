@@ -345,31 +345,36 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
     pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
         if let Some(bi) = &self.tableau.bi {
             if t < t0 || t > t0 + dt {
-                panic!("t out of range for interpolation - todo extrapolation?")
+                panic!("t out of range for interpolation - todo extrapolation?");
             }
 
-            // reset buffers
+            // Reset interpolant buffer
             self.buffers.interpolant *= 0.0;
 
-            // calculate theta
+            // Calculate theta
             let theta = (t - t0) / dt;
 
             for s in 0..STAGES {
-                let mut b = 0.0;
-                for i in 0..ORDER - 1 {
-                    b += bi[s][i] * theta.powi(i as i32 + 1);
+                // Evaluate polynomial using Horner's method
+                let mut b = bi[s][ORDER - 2]; // highest degree coefficient
+                for i in (0..ORDER - 2).rev() {
+                    b = b * theta + bi[s][i];
                 }
 
+                // Apply theta multiplier
+                b *= theta;
+
+                // Scale and accumulate interpolant
                 self.buffers.derivative.clone_from(&self.buffers.stage.k[s]);
                 self.buffers.derivative *= b;
                 self.buffers.interpolant += &self.buffers.derivative;
             }
 
-            // store answer in interpolant buffer, must be retrieved for usage outside this function
+            // Final interpolated value: x + dt * sum(b_s * k_s)
             self.buffers.interpolant *= dt;
             self.buffers.interpolant += &self.x;
         } else {
-            panic!("No interpolation coefficients for solver")
+            panic!("No interpolation coefficients for solver");
         }
     }
 }

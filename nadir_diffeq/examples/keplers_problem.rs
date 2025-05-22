@@ -8,11 +8,11 @@ use nadir_diffeq::{
 };
 
 #[derive(Debug)]
-struct Newtons {
+struct KeplerianOrbit {
     mu: f64,
 }
 
-impl OdeModel<StateArray<6>> for Newtons {
+impl OdeModel<StateArray<6>> for KeplerianOrbit {
     fn f(&mut self, _t: f64, y: &StateArray<6>, dy: &mut StateArray<6>) {
         let r = [y[0], y[1], y[2]];
         let v = [y[3], y[4], y[5]];
@@ -34,13 +34,13 @@ impl OdeModel<StateArray<6>> for Newtons {
 }
 
 fn main() {
-    let model = Newtons { mu: 3.986004415e14 };
+    let model = KeplerianOrbit { mu: 3.986004415e14 };
 
     let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
     let mut solver = OdeProblem::new(
         model,
-        Solver::Tsit5,
+        Solver::Verner9,
         StepMethod::Adaptive(
             AdaptiveStepControl::default()
                 .with_rel_tol(1e-14)
