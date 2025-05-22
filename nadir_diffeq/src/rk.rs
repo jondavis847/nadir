@@ -510,7 +510,6 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 break;
             }
         }
-        dbg!((output, iter));
         (true, output)
     }
 }
