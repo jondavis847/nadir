@@ -1,14 +1,11 @@
 use std::time::Instant;
 
-use aerospace::orbit::KeplerianElements;
-use celestial::CelestialBodies;
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
     state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
-use time::{Time, TimeSystem};
 
 #[derive(Debug)]
 struct Newtons {
@@ -38,21 +35,8 @@ impl OdeModel<StateArray<6>> for Newtons {
 
 fn main() {
     let model = Newtons { mu: 3.986004415e14 };
-    // Initial conditions highly elliptic
-    let orbit = KeplerianElements::new(
-        7e6,
-        0.96,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        Time::from_sec_j2k(0.0, TimeSystem::UTC),
-        CelestialBodies::Earth,
-    );
-    let (r, v) = orbit.get_rv();
-    let x0 = StateArray::new([r[0], r[1], r[2], v[0], v[1], v[2]]);
 
-    let result_path = std::env::current_dir().unwrap().join("results");
+    let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
     let mut solver = OdeProblem::new(
         model,
@@ -62,17 +46,8 @@ fn main() {
                 .with_rel_tol(1e-14)
                 .with_abs_tol(1e-14),
         ),
-        //StepMethod::Fixed(FixedStepControl::new(0.1)),
-        //        SaveMethod::Memory,
-        SaveMethod::File(result_path),
+        SaveMethod::Memory,
     );
-
-    let new_orbit = orbit
-        .keplers_problem(Time::from_sec_j2k(1472092.8448219472, TimeSystem::UTC))
-        .unwrap();
-    let (r, v) = new_orbit.get_rv();
-    dbg!(r);
-    dbg!(v);
 
     let start = Instant::now();
     let result = solver.solve(&x0, (0.0, 1472092.8448219472));
