@@ -1,10 +1,10 @@
-use std::array;
+use std::{array, f64::INFINITY, mem::swap};
 
 use tolerance::Tolerance;
 
 use crate::{
     Integrable, OdeModel, StepMethod,
-    events::EventManager,
+    events::{ContinuousEvent, EventManager},
     saving::ResultStorage,
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
@@ -91,7 +91,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         result.save(t, &self.x);
 
         // Process initial events if any are scheduled at t0
-        if events.process_events(model, &mut self.x, t) {
+        if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
             result.save(t, &self.x);
         };
@@ -121,7 +121,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             result.save(t, &self.y);
 
             // Run any events
-            if events.process_events(model, &mut self.y, t) {
+            if events.process_periodic_events(model, &mut self.y, t) {
                 // Save the result after events
                 result.save(t, &self.y);
             };
@@ -158,7 +158,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         result.save(t, &self.x);
 
         // Process initial events if any are scheduled at t0
-        if events.process_events(model, &mut self.x, t) {
+        if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
             result.save(t, &self.x);
         };
@@ -195,11 +195,46 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             if error <= 1.0 {
                 // Step ACCEPTED: advance time, save result, and update state
 
+                // First determine if any continuous events occurred that require us to step back in time
+                let mut continuous_event_occurred = false;
+                let mut continuous_event_time = INFINITY;
+                let mut event_indeces = Vec::new();
+                for (i, event) in events.continuous_events.iter_mut().enumerate() {
+                    let (event_occurred, event_time) = self.continuous_event_occurred(t, dt, event);
+                    if event_occurred {
+                        continuous_event_occurred = true;
+                        if event_time < continuous_event_time {
+                            continuous_event_time = event_time;
+                            event_indeces.clear();
+                            event_indeces.push(i);
+                        }
+                    }
+                }
+                if continuous_event_occurred {
+                    self.interpolate(t, dt, continuous_event_time);
+                    // save the result prior to the event action
+                    result.save(continuous_event_time, &self.buffers.interpolant);
+                    // perform the event actions
+                    for i in event_indeces {
+                        (events.continuous_events[i].action)(
+                            model,
+                            &mut self.buffers.interpolant,
+                            continuous_event_time,
+                        );
+                        // save after each action
+                        result.save(continuous_event_time, &self.buffers.interpolant);
+                    }
+                    // update dt for the continuous event time
+                    dt = continuous_event_time - t;
+                    // update state for the interpolated state after all events have occurred
+                    self.y.clone_from(&self.buffers.interpolant);
+                }
+
                 t += dt;
                 // Save the true state before any event processing
                 result.save(t, &self.y);
-                // Process events if any occurred
-                if events.process_events(model, &mut self.y, t) {
+                // Process periodic events if any occurred
+                if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
                     result.save(t, &self.y);
                 };
@@ -376,6 +411,107 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         } else {
             panic!("No interpolation coefficients for solver");
         }
+    }
+
+    // uses brents method to find exact time of continuous events
+    fn continuous_event_occurred<Model: OdeModel<State>>(
+        &mut self,
+        t0: f64, // time at beginning of step
+        dt: f64, // time at end of step
+        event: &mut ContinuousEvent<Model, State>,
+    ) -> (bool, f64) {
+        if event.first_pass {
+            // need to calculate original value
+            event.last_check = (event.condition)(&self.x, t0);
+            event.first_pass = false;
+        }
+
+        let mut fb = (event.condition)(&self.y, t0 + dt);
+        if event.last_check * fb > 0.0 {
+            // event did not occur
+            event.last_check = fb;
+            return (false, t0 + dt);
+        }
+        // other wise event occurred, use brent's method to determine exactly when
+        let mut a = t0;
+        let mut b = t0 + dt;
+
+        let mut fa = event.last_check;
+        if fa.abs() < fb.abs() {
+            swap(&mut a, &mut b);
+            swap(&mut fa, &mut fb);
+        }
+
+        let mut c = a;
+        let mut mflag = true;
+        let mut fs = INFINITY;
+        let mut d = a;
+        let mut output = b;
+        let max_iters = 50;
+        let mut iter = 0;
+
+        while fb.abs() > event.tol && fs.abs() > event.tol {
+            iter += 1;
+            if iter > max_iters {
+                panic!("max iters reached on brents method for continuous event interpolation")
+            }
+            self.interpolate(t0, dt, c);
+            let fc = (event.condition)(&self.buffers.interpolant, c);
+            let mut s = if fa != fc && fb != fc {
+                // inverse quadratic interpolation
+                a * fb * fc / ((fa - fb) * (fa - fc))
+                    + b * fa * fc / ((fb - fa) * (fb - fc))
+                    + c * fa * fb / ((fc - fa) * (fc - fb))
+            } else {
+                //secant method
+                b - fb * (b - a) / (fb - fa)
+            };
+
+            if (s < (3.0 * a + b) / 4.0 && s > b)
+                || (s < b && s > (3.0 * a + b) / 4.0)
+                || (mflag && (s - b).abs() >= (b - c).abs() / 2.0)
+                || (!mflag && (s - b).abs() >= (c - d) / 2.0)
+                || (mflag && (b - c).abs() < event.tol)
+                || (!mflag && (c - d).abs() < event.tol)
+            {
+                // bisection method
+                s = (a + b) / 2.0;
+                mflag = true;
+            } else {
+                mflag = false;
+            }
+            self.interpolate(t0, dt, s);
+
+            fs = (event.condition)(&self.buffers.interpolant, s);
+            d = c;
+            c = b;
+            if fa * fs < 0.0 {
+                b = s;
+                // already interped with s above
+                fb = (event.condition)(&self.buffers.interpolant, b);
+            } else {
+                a = s;
+                // already interped with s above
+                fa = (event.condition)(&self.buffers.interpolant, a);
+            }
+
+            if fa.abs() < fb.abs() {
+                swap(&mut a, &mut b);
+                swap(&mut fa, &mut fb);
+            }
+
+            if fb.abs() < event.tol {
+                output = b;
+                break;
+            }
+
+            if fs.abs() < event.tol {
+                output = s;
+                break;
+            }
+        }
+        dbg!((output, iter));
+        (true, output)
     }
 }
 

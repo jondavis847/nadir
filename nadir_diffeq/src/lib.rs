@@ -14,7 +14,7 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use csv::Writer;
-use events::{EventManager, PeriodicEvent};
+use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod};
 use stepping::StepMethod;
 use tolerance::Tolerance;
@@ -93,6 +93,10 @@ where
         self
     }
 
+    pub fn with_event_continuous(mut self, event: ContinuousEvent<Model, State>) -> Self {
+        self.events.add_continuous(event);
+        self
+    }
     pub fn solve(&mut self, x0: &State, tspan: (f64, f64)) -> ResultStorage<State> {
         // preallocate the memory result if there is one
         let mut result = match &self.save_method {

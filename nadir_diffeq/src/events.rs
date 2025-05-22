@@ -7,6 +7,7 @@ where
     Model: OdeModel<State>,
     State: Integrable,
 {
+    pub continuous_events: Vec<ContinuousEvent<Model, State>>,
     periodic_events: Vec<PeriodicEvent<Model, State>>,
     next_periodic: NextEvent,
     next_discrete: NextEvent,
@@ -19,6 +20,7 @@ where
 {
     pub fn new() -> Self {
         Self {
+            continuous_events: Vec::new(),
             periodic_events: Vec::new(),
             next_periodic: NextEvent {
                 next_time: INFINITY,
@@ -29,6 +31,10 @@ where
                 index: Vec::new(),
             },
         }
+    }
+
+    pub fn add_continuous(&mut self, event: ContinuousEvent<Model, State>) {
+        self.continuous_events.push(event);
     }
 
     pub fn add_periodic(&mut self, event: PeriodicEvent<Model, State>) {
@@ -73,38 +79,29 @@ where
         self.next_periodic.next_time = min_time;
     }
 
-    pub fn process_events(&mut self, model: &mut Model, state: &mut State, t: f64) -> bool {
-        let mut event_occurred = false;
+    pub fn process_periodic_events(
+        &mut self,
+        model: &mut Model,
+        state: &mut State,
+        t: f64,
+    ) -> bool {
+        let mut periodic_event_occurred = false;
 
         // Process periodic events
         if !self.periodic_events.is_empty() && t >= self.next_periodic.next_time {
-            // Safety check - ensure indices are valid
-            let valid_indices: Vec<usize> = self
-                .next_periodic
-                .index
-                .iter()
-                .filter(|&&i| i < self.periodic_events.len())
-                .cloned()
-                .collect();
+            periodic_event_occurred = true;
 
-            if !valid_indices.is_empty() {
-                event_occurred = true;
-
-                // Process each scheduled event
-                for i in valid_indices {
-                    let event = &mut self.periodic_events[i];
-                    event.perform_event(model, state, t);
-                }
-
-                // Find next events after processing
-                self.find_next_periodic();
-            } else if !self.periodic_events.is_empty() {
-                // Indices were invalid but we have events - recalculate
-                self.find_next_periodic();
+            // Process each scheduled event
+            for i in &self.next_periodic.index {
+                let event = &mut self.periodic_events[*i];
+                event.perform_event(model, state, t);
             }
+
+            // Find next events after processing
+            self.find_next_periodic();
         }
 
-        event_occurred
+        periodic_event_occurred
     }
 }
 
@@ -142,5 +139,41 @@ where
     pub fn perform_event(&mut self, model: &mut Model, state: &mut State, t: f64) {
         (self.f)(model, state, t);
         self.next_time = t + self.period;
+    }
+}
+pub struct ContinuousEvent<Model, State>
+where
+    Model: OdeModel<State>,
+    State: Integrable,
+{
+    pub last_check: f64,
+    pub first_pass: bool,
+    pub condition: Box<dyn Fn(&State, f64) -> f64>,
+    pub action: Box<dyn FnMut(&mut Model, &mut State, f64)>,
+    pub tol: f64,
+}
+
+impl<Model, State> ContinuousEvent<Model, State>
+where
+    Model: OdeModel<State>,
+    State: Integrable,
+{
+    pub fn new<C, A>(condition: C, action: A) -> Self
+    where
+        C: Fn(&State, f64) -> f64 + 'static,
+        A: FnMut(&mut Model, &mut State, f64) + 'static,
+    {
+        Self {
+            last_check: 1.0,
+            first_pass: true,
+            condition: Box::new(condition),
+            action: Box::new(action),
+            tol: 1e-6,
+        }
+    }
+
+    pub fn with_tol(mut self, tol: f64) -> Self {
+        self.tol = tol;
+        self
     }
 }
