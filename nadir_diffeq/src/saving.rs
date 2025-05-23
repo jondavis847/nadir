@@ -1,43 +1,47 @@
-use std::{fs::File, io::BufWriter, path::PathBuf};
+use std::error::Error;
 
-use csv::Writer;
+use crate::state::{Integrable, StateWriter, StateWriterBuilder};
 
-use crate::Integrable;
-
-pub enum SaveMethod {
+pub enum SaveMethod<State>
+where
+    State: Integrable + 'static,
+{
     Memory,
-    File(PathBuf),
+    File(StateWriterBuilder<State>),
     None, // no saving by the solver, saving should be handled by the Model
 }
 
 #[derive(Debug)]
 pub enum ResultStorage<State>
 where
-    State: Integrable,
+    State: Integrable + 'static,
 {
     Memory(MemoryResult<State>),
-    File(Writer<BufWriter<File>>),
+    File(StateWriter<State>),
     None,
 }
 
 impl<State: Integrable> ResultStorage<State> {
-    pub fn save(&mut self, t: f64, y: &State) {
+    pub fn save(&mut self, t: f64, y: &State) -> Result<(), Box<dyn Error>> {
         match self {
             ResultStorage::Memory(result) => {
                 result.insert(t, y);
+                Ok(())
             }
-            ResultStorage::File(writer) => y.save_to_writer(writer, t),
-            _ => {}
+            ResultStorage::File(writer) => writer.write(t, y),
+            _ => Ok(()),
         }
     }
 
-    pub fn truncate(&mut self) {
+    pub fn truncate(&mut self) -> Result<(), Box<dyn Error>> {
         match self {
             ResultStorage::Memory(result) => {
                 result.truncate();
             }
+            ResultStorage::File(writer) => writer.flush()?,
             _ => {}
         }
+        Ok(())
     }
 }
 

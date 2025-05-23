@@ -7,12 +7,12 @@ use crate::{
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
     software::{Software, SoftwareSim},
-    solver::{SimStates, rk4::solve_fixed_rk4},
 };
 
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use indicatif::MultiProgress;
+use nadir_diffeq::OdeModel;
 use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -26,6 +26,7 @@ use spatial_algebra::SpatialTransform;
 use std::{
     cell::RefCell,
     collections::HashMap,
+    error::Error,
     fmt::{Display, Formatter},
     fs::File,
     io::{Read, Write},
@@ -597,110 +598,6 @@ impl MultibodySystem {
         results
     }
 
-    pub fn run(
-        &mut self,
-        dx: &mut SimStates,
-        x: &SimStates,
-        t: f64,
-    ) -> Result<(), MultibodyErrors> {
-        self.update_state(x); // write the integrated states back in to the joints
-        self.update_base(t); // update epoch based celestial states based on new time
-        self.update_joints(); // update joint state based quantities like transforms
-        self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-        self.update_actuators()?; // update the actuators before updating forces on the bodies
-        self.update_environments(); //update the environmental forces before updating forcces on the bodies
-        self.update_forces(); // update body forces
-
-        match self.algorithm {
-            MultibodyAlgorithm::ArticulatedBody => {
-                // First Pass
-                for jointref in &mut self.joints {
-                    let mut joint = jointref.borrow_mut();
-                    joint.aba_first_pass();
-                }
-
-                // Second Pass
-                for joint in self.joints.iter().rev() {
-                    joint.borrow_mut().aba_second_pass();
-                }
-
-                // Third Pass
-                for joint in &self.joints {
-                    joint.borrow_mut().aba_third_pass();
-                }
-            }
-            MultibodyAlgorithm::CompositeRigidBody => {
-                // let n: usize = self.joints.len();
-
-                // // Run the Recursive Newton Euler algorithm to calculate C.
-                // let c = &mut self.crb_cache.as_mut().unwrap().c;
-
-                // // first pass
-                // for i in 0..n {
-                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
-                //         (
-                //             *self.joints[parent_index].cache.a,
-                //             *self.joints[parent_index].cache.v,
-                //         )
-                //     } else {
-                //         (Acceleration::zeros(), Velocity::zeros())
-                //     };
-
-                //     let joint = &mut self.joints[i];
-                //     joint.rne_first_pass(a_ij, v_ij, false);
-                // }
-
-                // // Second Pass
-                // for i in (0..n).rev() {
-                //     let joint = &mut self.joints[i];
-                //     joint.rne_set_tau();
-
-                //     // set C values
-                //     joint.set_c(c);
-
-                //     if let Some(parent_index) = self.parent_indeces[i] {
-                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
-                //         let parent_force = ij_jof_from_jof * joint.rne_get_force();
-
-                //         let parent = &mut self.joints[parent_index];
-                //         parent.rne_add_force(parent_force);
-                //     }
-                // }
-
-                // // Solve for H with CRB
-                // let h = &mut self.crb_cache.as_mut().unwrap().h;
-                // h.fill(0.0);
-
-                // // first pass
-                // self.joints.iter_mut().for_each(|joint| joint.reset_ic());
-
-                // // second pass
-                // for i in 0..n {
-                //     let joint = &mut self.joints[i];
-                //     joint.set_h(h);
-
-                //     if let Some(parent_index) = self.parent_indeces[i] {
-                //         let joint_ic = joint.get_ic();
-                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
-                //         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
-
-                //         let parent = &mut self.joints[parent_index];
-                //         parent.add_ic(joint_ic_in_parent);
-
-                //         // just commented out until we finish the crb
-                //         //let j = i;
-                //         //while let Some(parent_index) = self.parent_indeces[j] {}
-                //     };
-                // }
-            }
-        }
-        self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
-        //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
-        self.write_derivative(dx);
-
-        Ok(())
-    }
-
     pub fn update_software(&mut self) -> Result<(), MultibodyErrors> {
         for software in &mut self.software {
             software.step(&self.sensors, &mut self.actuators)?;
@@ -893,6 +790,113 @@ impl MultibodySystem {
         }
     }
 }
+
+impl<MultibodyState> OdeModel<MultibodyState> for MultibodySystem {
+    fn f(
+        &mut self,
+        t: f64,
+        x: &MultibodyState,
+        dx: &mut MultibodyState::Derivative,
+    ) -> Result<(), Box<dyn Error>> {
+        self.update_state(x); // write the integrated states back in to the joints
+        self.update_base(t); // update epoch based celestial states based on new time
+        self.update_joints(); // update joint state based quantities like transforms
+        self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
+        self.update_actuators()?; // update the actuators before updating forces on the bodies
+        self.update_environments(); //update the environmental forces before updating forcces on the bodies
+        self.update_forces(); // update body forces
+
+        match self.algorithm {
+            MultibodyAlgorithm::ArticulatedBody => {
+                // First Pass
+                for jointref in &mut self.joints {
+                    let mut joint = jointref.borrow_mut();
+                    joint.aba_first_pass();
+                }
+
+                // Second Pass
+                for joint in self.joints.iter().rev() {
+                    joint.borrow_mut().aba_second_pass();
+                }
+
+                // Third Pass
+                for joint in &self.joints {
+                    joint.borrow_mut().aba_third_pass();
+                }
+            }
+            MultibodyAlgorithm::CompositeRigidBody => {
+                // let n: usize = self.joints.len();
+
+                // // Run the Recursive Newton Euler algorithm to calculate C.
+                // let c = &mut self.crb_cache.as_mut().unwrap().c;
+
+                // // first pass
+                // for i in 0..n {
+                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
+                //         (
+                //             *self.joints[parent_index].cache.a,
+                //             *self.joints[parent_index].cache.v,
+                //         )
+                //     } else {
+                //         (Acceleration::zeros(), Velocity::zeros())
+                //     };
+
+                //     let joint = &mut self.joints[i];
+                //     joint.rne_first_pass(a_ij, v_ij, false);
+                // }
+
+                // // Second Pass
+                // for i in (0..n).rev() {
+                //     let joint = &mut self.joints[i];
+                //     joint.rne_set_tau();
+
+                //     // set C values
+                //     joint.set_c(c);
+
+                //     if let Some(parent_index) = self.parent_indeces[i] {
+                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                //         let parent_force = ij_jof_from_jof * joint.rne_get_force();
+
+                //         let parent = &mut self.joints[parent_index];
+                //         parent.rne_add_force(parent_force);
+                //     }
+                // }
+
+                // // Solve for H with CRB
+                // let h = &mut self.crb_cache.as_mut().unwrap().h;
+                // h.fill(0.0);
+
+                // // first pass
+                // self.joints.iter_mut().for_each(|joint| joint.reset_ic());
+
+                // // second pass
+                // for i in 0..n {
+                //     let joint = &mut self.joints[i];
+                //     joint.set_h(h);
+
+                //     if let Some(parent_index) = self.parent_indeces[i] {
+                //         let joint_ic = joint.get_ic();
+                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                //         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
+
+                //         let parent = &mut self.joints[parent_index];
+                //         parent.add_ic(joint_ic_in_parent);
+
+                //         // just commented out until we finish the crb
+                //         //let j = i;
+                //         //while let Some(parent_index) = self.parent_indeces[j] {}
+                //     };
+                // }
+            }
+        }
+        self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
+        //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
+        self.write_derivative(dx);
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Identifier {
     current_id: usize,

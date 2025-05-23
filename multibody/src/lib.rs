@@ -6,13 +6,12 @@ pub mod joint;
 pub mod mechanism;
 pub mod sensor;
 pub mod software;
-pub mod solver;
 pub mod system;
 
 use actuator::ActuatorErrors;
 use base::BaseErrors;
 use body::BodyErrors;
-use bytemuck::{bytes_of, checked::from_bytes, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable, bytes_of, checked::from_bytes};
 use celestial::CelestialErrors;
 
 use joint::JointErrors;

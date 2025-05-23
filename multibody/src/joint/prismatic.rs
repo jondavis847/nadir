@@ -2,10 +2,9 @@ use crate::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm, recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters},
-    solver::SimStateVector,
+    joint::{JointParameters, joint_transforms::JointTransforms},
 };
-use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};

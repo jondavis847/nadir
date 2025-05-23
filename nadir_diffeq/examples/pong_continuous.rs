@@ -1,10 +1,10 @@
-use std::time::Instant;
+use std::{error::Error, time::Instant};
 
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     events::ContinuousEvent,
     saving::{ResultStorage, SaveMethod},
-    state_array::StateArray,
+    state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
 
@@ -14,12 +14,18 @@ struct Pong {
 }
 
 impl OdeModel<StateArray<1>> for Pong {
-    fn f(&mut self, _t: f64, _y: &StateArray<1>, dy: &mut StateArray<1>) {
+    fn f(
+        &mut self,
+        _t: f64,
+        _y: &StateArray<1>,
+        dy: &mut StateArray<1>,
+    ) -> Result<(), Box<dyn Error>> {
         dy[0] = self.speed;
+        Ok(())
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let model = Pong { speed: 1.0 };
 
     // Initial conditions for elliptical orbit
@@ -42,7 +48,7 @@ fn main() {
         },
     ));
     let start = Instant::now();
-    let result = problem.solve(&x0, (0.0, 10.0));
+    let result = problem.solve(&x0, (0.0, 10.0))?;
     let stop = Instant::now();
     dbg!(stop.duration_since(start).as_secs_f64());
 
@@ -54,4 +60,5 @@ fn main() {
         }
         _ => {}
     }
+    Ok(())
 }

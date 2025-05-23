@@ -1,7 +1,6 @@
 use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    joint::{joint_transforms::JointTransforms, JointModel, JointParameters},
-    solver::SimStateVector,
+    joint::{JointModel, JointParameters, joint_transforms::JointTransforms},
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
@@ -9,8 +8,8 @@ use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
-    euler_angles::{EulerAngles, EulerSequence},
     Rotation,
+    euler_angles::{EulerAngles, EulerSequence},
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};

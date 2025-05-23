@@ -1,9 +1,13 @@
 use nadir_diffeq::{
-    Integrable, OdeModel, OdeProblem, Solver,
+    OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
+    state::Integrable,
     stepping::{AdaptiveStepControl, StepMethod},
 };
-use std::ops::{AddAssign, MulAssign};
+use std::{
+    error::Error,
+    ops::{AddAssign, MulAssign},
+};
 use tolerance::{Tolerance, Tolerances, compute_component_error};
 
 #[derive(Debug)]
@@ -104,50 +108,23 @@ impl Tolerance for LorenzTolerances {
 impl Integrable for LorenzState {
     type Derivative = LorenzDerivative;
     type Tolerance = LorenzTolerances;
-
-    fn initialize_writer(
-        path: &std::path::PathBuf,
-    ) -> Option<csv::Writer<std::io::BufWriter<std::fs::File>>> {
-        // Create a new path by joining the directory path with the filename
-        let file_path = path.join("result.csv");
-
-        // Ensure the directory exists
-        if let Some(parent) = file_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).unwrap();
-            }
-        }
-        let file = std::fs::File::create(&file_path).unwrap();
-        let mut writer = csv::Writer::from_writer(std::io::BufWriter::new(file));
-        // Create header vector
-        let headers = ["t", "x", "y", "z"];
-        // Write headers
-        writer.write_record(&headers).unwrap();
-        // Flush to ensure headers are written
-        writer.flush().unwrap();
-        Some(writer)
-    }
-
-    fn save_to_writer(&self, writer: &mut csv::Writer<std::io::BufWriter<std::fs::File>>, t: f64) {
-        // Using the serializer approach avoids string conversions
-        let record = [t, self.x, self.y, self.z];
-
-        // Serialize and write the record
-        if let Err(err) = writer.serialize(&record) {
-            eprintln!("Failed to serialize record at t={}: {}", t, err);
-        }
-    }
 }
 
 impl OdeModel<LorenzState> for Lorenz {
-    fn f(&mut self, _t: f64, x: &LorenzState, dx: &mut LorenzDerivative) {
+    fn f(
+        &mut self,
+        _t: f64,
+        x: &LorenzState,
+        dx: &mut LorenzDerivative,
+    ) -> Result<(), Box<dyn Error>> {
         dx.x = self.sigma * (x.y - x.x);
         dx.y = x.x * (self.rho - x.z) - x.y;
         dx.z = x.x * x.y - self.beta * x.z;
+        Ok(())
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let model = Lorenz {
         sigma: 10.,
         rho: 28.,
@@ -171,7 +148,7 @@ fn main() {
         z: 0.0,
     };
 
-    let result = problem.solve(&x0, (0.0, 1.0));
+    let result = problem.solve(&x0, (0.0, 1.0))?;
 
     match result {
         ResultStorage::Memory(result) => {
@@ -186,4 +163,5 @@ fn main() {
         }
         _ => {}
     }
+    Ok(())
 }

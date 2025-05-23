@@ -1,43 +1,27 @@
-use std::{
-    fmt::Debug,
-    fs::File,
-    io::BufWriter,
-    ops::{AddAssign, MulAssign},
-    path::PathBuf,
-};
+use std::{error::Error, fmt::Debug};
 pub mod events;
 pub mod rk;
 pub mod saving;
-pub mod state_array;
+pub mod state;
 pub mod stepping;
 pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
-use csv::Writer;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod};
+use state::Integrable;
 use stepping::StepMethod;
-use tolerance::Tolerance;
-
-pub trait Integrable: Sized + Clone + Default + MulAssign<f64> + Debug
-where
-    for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
-{
-    type Derivative: Clone + MulAssign<f64> + Sized + Default + Debug;
-    type Tolerance: Tolerance<State = Self>;
-
-    fn initialize_writer(_path: &PathBuf) -> Option<Writer<BufWriter<File>>> {
-        None
-    }
-
-    fn save_to_writer(&self, _writer: &mut Writer<BufWriter<File>>, _t: f64) {}
-}
 
 pub trait OdeModel<State>: Debug
 where
     State: Integrable,
 {
-    fn f(&mut self, t: f64, state: &State, derivative: &mut State::Derivative);
+    fn f(
+        &mut self,
+        t: f64,
+        state: &State,
+        derivative: &mut State::Derivative,
+    ) -> Result<(), Box<dyn Error>>;
 }
 
 pub enum Solver {
@@ -52,12 +36,12 @@ pub enum Solver {
 pub struct OdeProblem<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: Integrable + 'static,
 {
     model: Model,
     solver: Solver,
     step_method: StepMethod,
-    save_method: SaveMethod,
+    save_method: SaveMethod<State>,
     events: EventManager<Model, State>,
 }
 
@@ -70,7 +54,7 @@ where
         model: Model,
         solver: Solver,
         step_method: StepMethod,
-        save_method: SaveMethod,
+        save_method: SaveMethod<State>,
     ) -> Self {
         match (&solver, &step_method) {
             (Solver::Rk4, StepMethod::Adaptive(_)) => {
@@ -97,7 +81,11 @@ where
         self.events.add_continuous(event);
         self
     }
-    pub fn solve(&mut self, x0: &State, tspan: (f64, f64)) -> ResultStorage<State> {
+    pub fn solve(
+        &mut self,
+        x0: &State,
+        tspan: (f64, f64),
+    ) -> Result<ResultStorage<State>, Box<dyn Error>> {
         // preallocate the memory result if there is one
         let mut result = match &self.save_method {
             SaveMethod::Memory => {
@@ -116,13 +104,7 @@ where
                 };
                 ResultStorage::Memory(MemoryResult::<State>::new(n))
             }
-            SaveMethod::File(path) => {
-                if let Some(writer) = State::initialize_writer(path) {
-                    ResultStorage::File(writer)
-                } else {
-                    ResultStorage::None
-                }
-            }
+            SaveMethod::File(builder) => ResultStorage::File(builder.to_writer()?),
             _ => ResultStorage::None,
         };
 
@@ -196,7 +178,7 @@ where
                 );
             }
         }
-        result.truncate();
-        result
+        result.truncate()?;
+        Ok(result)
     }
 }

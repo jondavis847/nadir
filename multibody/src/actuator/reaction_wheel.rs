@@ -1,12 +1,10 @@
-use crate::{
-    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, HardwareBuffer,
-};
+use crate::{HardwareBuffer, actuator::ActuatorModel, body::BodyConnection};
 use bytemuck::{Pod, Zeroable};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
-    prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
     RotationTrait,
+    prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;

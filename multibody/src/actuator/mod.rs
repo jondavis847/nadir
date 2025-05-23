@@ -9,10 +9,9 @@ use transforms::Transform;
 use uncertainty::Uncertainty;
 
 use crate::{
-    body::{BodyConnection, BodyConnectionBuilder},
-    solver::{SimStateVector, SimStates},
-    system::Id,
     BufferError, HardwareBuffer,
+    body::{BodyConnection, BodyConnectionBuilder},
+    system::Id,
 };
 
 pub mod reaction_wheel;

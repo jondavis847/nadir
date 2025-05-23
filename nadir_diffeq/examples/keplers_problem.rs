@@ -1,9 +1,9 @@
-use std::time::Instant;
+use std::{error::Error, time::Instant};
 
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
-    state_array::StateArray,
+    state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
 
@@ -13,7 +13,12 @@ struct KeplerianOrbit {
 }
 
 impl OdeModel<StateArray<6>> for KeplerianOrbit {
-    fn f(&mut self, _t: f64, y: &StateArray<6>, dy: &mut StateArray<6>) {
+    fn f(
+        &mut self,
+        _t: f64,
+        y: &StateArray<6>,
+        dy: &mut StateArray<6>,
+    ) -> Result<(), Box<dyn Error>> {
         let r = [y[0], y[1], y[2]];
         let v = [y[3], y[4], y[5]];
         let rmag = (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]).sqrt();
@@ -30,6 +35,7 @@ impl OdeModel<StateArray<6>> for KeplerianOrbit {
         dy[3] = a[0];
         dy[4] = a[1];
         dy[5] = a[2];
+        Ok(())
     }
 }
 
@@ -50,7 +56,7 @@ fn main() {
     );
 
     let start = Instant::now();
-    let result = solver.solve(&x0, (0.0, 1472092.8448219472));
+    let result = solver.solve(&x0, (0.0, 1472092.8448219472)).unwrap();
     let stop = Instant::now();
     dbg!(stop.duration_since(start).as_secs_f64());
 

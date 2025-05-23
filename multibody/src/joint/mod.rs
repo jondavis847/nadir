@@ -6,7 +6,6 @@ pub mod revolute;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
-    solver::{SimStateVector, SimStates},
     system::Id,
 };
 use floating::{Floating, FloatingBuilder, FloatingErrors};
