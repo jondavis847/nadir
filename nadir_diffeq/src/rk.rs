@@ -10,7 +10,10 @@ use crate::{
     tableau::ButcherTableau,
 };
 
-// preallocated buffers for intermediate calculations
+/// A reusable buffer holding all intermediate data required for a Runge-Kutta integration step.
+///
+/// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
+/// and an interpolated state used for dense output or event location.
 #[derive(Default)]
 struct RKBuffers<State: Integrable, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
@@ -19,6 +22,15 @@ struct RKBuffers<State: Integrable, const STAGES: usize> {
     interpolant: State,
 }
 
+/// A generic Runge-Kutta solver capable of fixed or adaptive integration with support for:
+/// - Embedded error estimation
+/// - First-same-as-last (FSAL) optimizations
+/// - Dense output via interpolation
+/// - Periodic and continuous event handling
+///
+/// # Type Parameters
+/// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
+/// - `STAGES`: Number of stages in the Butcher tableau
 pub struct RungeKutta<State: Integrable, const ORDER: usize, const STAGES: usize> {
     x: State,
     y: State,
@@ -30,6 +42,8 @@ pub struct RungeKutta<State: Integrable, const ORDER: usize, const STAGES: usize
 }
 
 impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
+    /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
+
     pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self
     where
         State: Integrable,
@@ -44,11 +58,13 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             first_step: true,
         }
     }
+    /// Overrides the default tolerance object used for adaptive error control.
 
     pub fn with_tolerances(mut self, tol: State::Tolerance) -> Self {
         self.tolerances = tol;
         self
     }
+    /// Solves the ODE system using either fixed or adaptive step size depending on `step_method`.
 
     pub fn solve<Model: OdeModel<State>>(
         &mut self,
@@ -69,8 +85,9 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             }
         }
     }
+    /// Solves the system using fixed step size control, handling periodic events.
 
-    pub fn solve_fixed<Model: OdeModel<State>>(
+    fn solve_fixed<Model: OdeModel<State>>(
         &mut self,
         model: &mut Model,
         x0: &State,
@@ -137,7 +154,11 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         }
     }
 
-    pub fn solve_adaptive<Model: OdeModel<State>>(
+    /// Solves the system using adaptive step size control with event detection.
+    ///
+    /// Supports both periodic and continuous events, and performs root-finding
+    /// to locate the time of continuous events using Brent's method.
+    fn solve_adaptive<Model: OdeModel<State>>(
         &mut self,
         model: &mut Model,
         x0: &State,
@@ -280,7 +301,9 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             accept_counter, reject_counter, function_calls
         );
     }
-
+    /// Performs a single integration step using the configured Butcher tableau.
+    ///
+    /// Supports FSAL and dense output (when `adaptive` is true).
     pub fn step<Model: OdeModel<State>>(
         &mut self,
         model: &mut Model,
@@ -364,6 +387,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             self.y_tilde *= h;
         }
     }
+    /// Computes the normalized RMS error between two states, used in adaptive control.
 
     pub fn compute_error(
         &self,
@@ -377,6 +401,11 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             .compute_error(y, y_prev, y_tilde, rel_tol, abs_tol)
     }
 
+    /// Computes the interpolated state at time `t` using dense output coefficients.
+    ///
+    /// # Panics
+    ///
+    /// Panics if interpolation coefficients are not available or if `t` is outside `[t0, t0+dt]`.
     pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
         if let Some(bi) = &self.tableau.bi {
             if t < t0 || t > t0 + dt {
@@ -413,7 +442,11 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         }
     }
 
-    // uses brents method to find exact time of continuous events
+    /// Determines whether a continuous event condition crosses zero during the last step.
+    ///
+    /// Uses Brent's method for robust root finding. Returns a tuple:
+    /// - `bool`: Whether the event occurred.
+    /// - `f64`: The estimated time of the zero crossing.
     fn continuous_event_occurred<Model: OdeModel<State>>(
         &mut self,
         t0: f64, // time at beginning of step
@@ -513,7 +546,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         (true, output)
     }
 }
-
+/// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
 pub struct StageBuffer<State, const STAGES: usize>
 where
