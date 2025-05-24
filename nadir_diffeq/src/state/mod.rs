@@ -1,3 +1,7 @@
+//! A generic CSV state writer for types implementing the `Integrable` trait.
+//! This module allows defining how a state is formatted into a CSV-compatible
+//! row and then writing it out incrementally.
+
 use std::{
     error::Error,
     fmt::{self, Debug},
@@ -13,23 +17,33 @@ use tolerance::Tolerance;
 
 pub mod state_array;
 pub mod state_vector;
-pub mod state_vectors;
 
+/// Trait representing an integrable state for use in ODE solvers.
+///
+/// Types implementing this trait must support arithmetic operations,
+/// cloning, and formatting for debugging. The associated `Derivative`
+/// type represents the derivative of the state, and `Tolerance` is used
+/// for controlling adaptive solver behavior.
 pub trait Integrable: Sized + Clone + Default + MulAssign<f64> + Debug
 where
     for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
 {
+    /// The derivative of the state, used in ODE computation.
     type Derivative: Clone + MulAssign<f64> + Sized + Default + Debug;
+
+    /// The tolerance model associated with the state, used for error estimation.
     type Tolerance: Tolerance<State = Self>;
 
+    /// Create a `StateWriterBuilder` for writing this type of state to a file.
     fn writer(path: PathBuf) -> StateWriterBuilder<Self>;
 }
 
+/// Builder for a `StateWriter`, allowing the configuration of output path,
+/// headers, and formatting behavior for a state type implementing `Integrable`.
 pub struct StateWriterBuilder<State>
 where
     State: Integrable,
 {
-    ncols: usize,
     path: PathBuf,
     headers: Vec<String>,
     formatter: Box<dyn StateFormatter<State>>,
@@ -40,12 +54,17 @@ impl<State> StateWriterBuilder<State>
 where
     State: Integrable + 'static,
 {
-    pub fn new<F>(path: PathBuf, ncols: usize, formatter: F) -> Self
+    /// Create a new `StateWriterBuilder` with the given file path and state formatter.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the output CSV file.
+    /// * `formatter` - A formatter that determines how states are written.
+    pub fn new<F>(path: PathBuf, formatter: F) -> Self
     where
         F: StateFormatter<State> + 'static,
     {
         Self {
-            ncols,
             path,
             headers: Vec::new(),
             formatter: Box::new(formatter),
@@ -53,20 +72,23 @@ where
         }
     }
 
+    /// Optionally add CSV column headers.
+    ///
+    /// # Arguments
+    ///
+    /// * `headers` - An array of string slices to use as the CSV headers.
     pub fn with_headers<const N: usize>(
         mut self,
         headers: [&str; N],
     ) -> Result<Self, Box<dyn Error>> {
-        if self.ncols != N {
-            return Err(
-                format!("size of headers({N}) does not match ncols({})", self.ncols).into(),
-            );
-        }
         let headers: Vec<String> = headers.iter().map(|h| h.to_string()).collect();
         self.headers = headers;
         Ok(self)
     }
 
+    /// Create the actual `StateWriter` from the builder.
+    ///
+    /// Opens the output file and writes headers if provided.
     pub fn to_writer(&self) -> Result<StateWriter<State>, Box<dyn Error>> {
         let file = File::create(&self.path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
@@ -76,12 +98,13 @@ where
             writer.flush()?;
         }
 
-        let writer = StateWriter::new(writer, self.ncols, self.formatter.box_clone());
+        let writer = StateWriter::new(writer, self.formatter.box_clone());
 
         Ok(writer)
     }
 }
 
+/// A CSV writer for logging state over time using a custom formatter.
 pub struct StateWriter<State>
 where
     State: Integrable + 'static,
@@ -96,12 +119,14 @@ impl<State> StateWriter<State>
 where
     State: Integrable,
 {
-    pub fn new(
-        writer: Writer<BufWriter<File>>,
-        ncols: usize,
-        formatter: Box<dyn StateFormatter<State>>,
-    ) -> Self {
-        let string_buffer = vec![String::new(); ncols];
+    /// Constructs a new `StateWriter`.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - A CSV writer.
+    /// * `formatter` - The formatter to convert state data into CSV rows.
+    pub fn new(writer: Writer<BufWriter<File>>, formatter: Box<dyn StateFormatter<State>>) -> Self {
+        let string_buffer = vec![];
         Self {
             writer,
             formatter,
@@ -109,13 +134,19 @@ where
             _phantom_data: PhantomData,
         }
     }
-    // Write using a formatter function that reuses the string buffer
+
+    /// Write a single state and timestamp to the CSV output.
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - The current simulation time.
+    /// * `state` - The state at time `t`.
     pub fn write(&mut self, t: f64, state: &State) -> Result<(), Box<dyn Error>> {
-        // Clear each string in the buffer (without deallocating)
+        // Clear previous entries from the string buffer
         for s in &mut self.string_buffer {
             s.clear();
         }
-        // Let the formatter populate our buffer
+        // Format the new row
         self.formatter.format(t, state, &mut self.string_buffer)?;
         // Write to CSV
         self.writer.write_record(&self.string_buffer)?;
@@ -123,6 +154,7 @@ where
         Ok(())
     }
 
+    /// Flush the underlying writer to ensure all data is written to disk.
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         self.writer.flush()?;
 
@@ -143,12 +175,20 @@ where
     }
 }
 
-/// Trait for formatting states into string representations
+/// Trait for converting state and time values into a string-based format suitable for CSV.
+///
+/// This trait enables custom formatting of state variables, useful for generic logging.
 pub trait StateFormatter<State>
 where
     State: Integrable + 'static,
 {
-    /// Format a state at a given time into the provided string buffer
+    /// Format the given state and time into a vector of strings for CSV writing.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - Current time.
+    /// * `state` - Reference to the current state.
+    /// * `buffer` - Mutable buffer to fill with CSV string entries.
     fn format(
         &self,
         time: f64,
@@ -156,9 +196,10 @@ where
         buffer: &mut Vec<String>,
     ) -> Result<(), Box<dyn Error>>;
 
-    /// Provide a way to clone boxed trait objects
+    /// Clone this formatter as a boxed trait object.
     fn box_clone(&self) -> Box<dyn StateFormatter<State> + 'static>;
 }
+
 impl<F, State> StateFormatter<State> for F
 where
     State: Integrable + 'static,
@@ -170,7 +211,6 @@ where
         state: &State,
         buffer: &mut Vec<String>,
     ) -> Result<(), Box<dyn Error>> {
-        // Call the closure
         self(time, state, buffer)
     }
 

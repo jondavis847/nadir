@@ -1,11 +1,10 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::SaveMethod,
-    state::{StateWriterBuilder, state_array::StateArray},
+    state::{Integrable, state_array::StateArray},
     stepping::{FixedStepControl, StepMethod},
 };
 use std::error::Error;
-use std::fmt::Write;
 
 #[derive(Debug)]
 struct Lorenz {
