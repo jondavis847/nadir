@@ -1,31 +1,31 @@
 use std::f64::INFINITY;
 
-use crate::{Integrable, OdeModel};
+use crate::{OdeModel, state::State};
 
 /// Manages time-based events during ODE integration.
 ///
 /// Supports both:
 /// - **Periodic events** that occur at fixed intervals.
 /// - **Continuous events** that trigger when a condition crosses zero.
-pub struct EventManager<Model, State>
+pub struct EventManager<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// List of continuous events checked every step.
-    pub continuous_events: Vec<ContinuousEvent<Model, State>>,
+    pub continuous_events: Vec<ContinuousEvent<M, S>>,
     /// List of periodic events occurring at fixed time intervals.
-    periodic_events: Vec<PeriodicEvent<Model, State>>,
+    periodic_events: Vec<PeriodicEvent<M, S>>,
     /// Next scheduled periodic event time and its indices.
     next_periodic: NextEvent,
     /// Placeholder for future discrete events (not yet implemented).
     next_discrete: NextEvent,
 }
 
-impl<Model, State> EventManager<Model, State>
+impl<M, S> EventManager<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// Constructs a new `EventManager` with no registered events.
     pub fn new() -> Self {
@@ -44,12 +44,12 @@ where
     }
 
     /// Add a new continuous event that is evaluated every step.
-    pub fn add_continuous(&mut self, event: ContinuousEvent<Model, State>) {
+    pub fn add_continuous(&mut self, event: ContinuousEvent<M, S>) {
         self.continuous_events.push(event);
     }
 
     /// Add a periodic event and update the internal schedule.
-    pub fn add_periodic(&mut self, event: PeriodicEvent<Model, State>) {
+    pub fn add_periodic(&mut self, event: PeriodicEvent<M, S>) {
         self.periodic_events.push(event);
         self.find_next_periodic();
     }
@@ -91,12 +91,7 @@ where
     /// Executes any periodic events that are scheduled to occur at or before time `t`.
     ///
     /// Returns `true` if any event was triggered.
-    pub fn process_periodic_events(
-        &mut self,
-        model: &mut Model,
-        state: &mut State,
-        t: f64,
-    ) -> bool {
+    pub fn process_periodic_events(&mut self, model: &mut M, state: &mut S, t: f64) -> bool {
         let mut periodic_event_occurred = false;
 
         if !self.periodic_events.is_empty() && t >= self.next_periodic.next_time {
@@ -121,23 +116,23 @@ struct NextEvent {
 }
 
 /// Represents a user-defined action to perform periodically at fixed time intervals.
-pub struct PeriodicEvent<Model, State>
+pub struct PeriodicEvent<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// Period between event triggers.
     pub period: f64,
     /// Time at which the event is next scheduled to run.
     pub next_time: f64,
     /// The function to call when the event is triggered.
-    f: Box<dyn FnMut(&mut Model, &mut State, f64)>,
+    f: Box<dyn FnMut(&mut M, &mut S, f64)>,
 }
 
-impl<Model, State> PeriodicEvent<Model, State>
+impl<M, S> PeriodicEvent<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// Creates a new `PeriodicEvent`.
     ///
@@ -147,7 +142,7 @@ where
     /// * `f` - Function to call at each trigger.
     pub fn new<F>(period: f64, start_time: f64, f: F) -> Self
     where
-        F: FnMut(&mut Model, &mut State, f64) + 'static,
+        F: FnMut(&mut M, &mut S, f64) + 'static,
     {
         Self {
             period,
@@ -157,7 +152,7 @@ where
     }
 
     /// Triggers the event and schedules the next one based on its period.
-    pub fn perform_event(&mut self, model: &mut Model, state: &mut State, t: f64) {
+    pub fn perform_event(&mut self, model: &mut M, state: &mut S, t: f64) {
         (self.f)(model, state, t);
         self.next_time = t + self.period;
     }
@@ -166,27 +161,27 @@ where
 /// Represents an event that triggers when a user-defined condition crosses zero.
 ///
 /// Used for root-finding in continuous simulation contexts.
-pub struct ContinuousEvent<Model, State>
+pub struct ContinuousEvent<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// The last time the condition was evaluated.
     pub last_check: f64,
     /// Flag to indicate if this is the first check (for setup).
     pub first_pass: bool,
     /// A function representing the condition. Should return a signed value.
-    pub condition: Box<dyn Fn(&State, f64) -> f64>,
+    pub condition: Box<dyn Fn(&S, f64) -> f64>,
     /// Action to perform when the zero-crossing is detected.
-    pub action: Box<dyn FnMut(&mut Model, &mut State, f64)>,
+    pub action: Box<dyn FnMut(&mut M, &mut S, f64)>,
     /// Tolerance used to detect zero-crossing.
     pub tol: f64,
 }
 
-impl<Model, State> ContinuousEvent<Model, State>
+impl<M, S> ContinuousEvent<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// Creates a new continuous event.
     ///
@@ -195,8 +190,8 @@ where
     /// * `action` - The action to take when the event is triggered.
     pub fn new<C, A>(condition: C, action: A) -> Self
     where
-        C: Fn(&State, f64) -> f64 + 'static,
-        A: FnMut(&mut Model, &mut State, f64) + 'static,
+        C: Fn(&S, f64) -> f64 + 'static,
+        A: FnMut(&mut M, &mut S, f64) + 'static,
     {
         Self {
             last_check: 1.0,

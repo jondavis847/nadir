@@ -1,13 +1,14 @@
 use std::{
+    error::Error,
     fmt::Write,
     ops::{AddAssign, Deref, DerefMut, MulAssign},
-    path::PathBuf,
 };
 
 use tolerance::{Tolerance, Tolerances, compute_error};
 
-use super::StateWriterBuilder;
-use crate::Integrable;
+use crate::{Integrable, saving::WritableState};
+
+use super::State;
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
 ///
@@ -59,26 +60,26 @@ impl<const N: usize> Integrable for StateArray<N> {
 
     /// Per-component tolerances for error control.
     type Tolerance = StateArrayTolerances<N>;
+}
 
-    /// Returns a `StateWriterBuilder` that outputs time and state values to CSV.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the output CSV file.
-    fn writer(path: PathBuf) -> Vec<StateWriterBuilder<Self>> {
-        vec![StateWriterBuilder::<Self>::new(
-            path,
-            |t: f64, x: &Self, buffer: &mut Vec<String>| {
-                buffer[0].clear();
-                write!(buffer[0], "{}", t).unwrap();
-                for i in 0..N {
-                    write!(buffer[i + 1], "{}", x[i]).unwrap();
-                }
-                Ok(())
-            },
-        )]
+impl<const N: usize> WritableState for StateArray<N> {
+    fn write_headers(&self, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        write!(buffer[0], "t")?;
+        for i in 0..N {
+            write!(buffer[i + 1], "x[{}]", self[i])?;
+        }
+        Ok(())
+    }
+    fn write_record(&self, t: f64, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        write!(buffer[0], "{}", t)?;
+        for i in 0..N {
+            write!(buffer[i + 1], "{}", self[i])?;
+        }
+        Ok(())
     }
 }
+
+impl<const N: usize> State for StateArray<N> {}
 
 impl<const N: usize> Deref for StateArray<N> {
     type Target = [f64; N];

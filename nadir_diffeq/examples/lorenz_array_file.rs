@@ -1,6 +1,6 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
-    saving::{SaveMethod, WriterManager},
+    saving::{SaveMethod, WriterId, WriterManager},
     state::{Integrable, state_array::StateArray},
     stepping::{FixedStepControl, StepMethod},
 };
@@ -11,6 +11,7 @@ struct Lorenz {
     sigma: f64,
     rho: f64,
     beta: f64,
+    writers: [WriterId; 3],
 }
 
 impl OdeModel<StateArray<3>> for Lorenz {
@@ -28,11 +29,20 @@ impl OdeModel<StateArray<3>> for Lorenz {
 }
 
 impl WritableModel for Lorenz {
+    fn init_writers(&mut self, manager: &mut WriterManager) -> Result<(), Box<dyn Error>> {
+        for i in 0..3 {
+            let file_name = format!("x{i}.csv");
+            let id = manager.add_writer(manager.dir_path().join(file_name))?;
+            self.writers[i] = id;
+        }
+        Ok(())
+    }
+
     fn write_record(&self, t: f64, x: &StateArray<3>, manager: &mut WriterManager) {
-        if let Some(buffer) = manager.get_buffer(self.writer_id) {
-            write!(buffer[0], x[0]);
-            write!(buffer[1], x[1]);
-            write!(buffer[2], x[2]);
+        for i in 0..3 {
+            if let Some(buffer) = manager.get_buffer(&self.writers[i]) {
+                write!(buffer[0], x[i]);
+            }
         }
     }
 }
@@ -42,6 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         sigma: 10.,
         rho: 28.,
         beta: 8. / 3.,
+        writers: [WriterId::default(); 3],
     };
 
     let path = std::env::current_dir().unwrap().join("results.csv");

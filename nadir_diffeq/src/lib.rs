@@ -11,24 +11,22 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod};
-use state::Integrable;
+use saving::{MemoryResult, ResultStorage, SaveMethod, WriterManager};
+use state::{Integrable, State};
 use stepping::StepMethod;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
 ///
 /// Types implementing this trait must define how to compute the derivative (or RHS function)
 /// of the ODE at a given time and state.
-pub trait OdeModel<State>: Debug
-where
-    State: Integrable,
-{
+pub trait OdeModel: Debug {
+    type State: State;
     /// Compute the derivative at time `t` and state `state`, storing the result in `derivative`.
     fn f(
         &mut self,
         t: f64,
-        state: &State,
-        derivative: &mut State::Derivative,
+        state: &Self::State,
+        derivative: &mut <Self::State as Integrable>::Derivative,
     ) -> Result<(), Box<dyn Error>>;
 }
 
@@ -50,34 +48,29 @@ pub enum Solver {
 
 /// Container for a complete ODE simulation problem, including model, solver configuration,
 /// step size control, result saving strategy, and event handling.
-pub struct OdeProblem<Model, State>
+pub struct OdeProblem<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable + 'static,
+    M: OdeModel<State = S>,
+    S: State,
 {
-    model: Model,
+    model: M,
     solver: Solver,
     step_method: StepMethod,
     save_method: SaveMethod,
-    events: EventManager<Model, State>,
+    events: EventManager<M, S>,
 }
 
-impl<Model, State> OdeProblem<Model, State>
+impl<M, S> OdeProblem<M, S>
 where
-    Model: OdeModel<State>,
-    State: Integrable,
+    M: OdeModel<State = S>,
+    S: State,
 {
     /// Creates a new `OdeProblem` instance with the specified configuration.
     ///
     /// # Panics
     ///
     /// Panics if an adaptive step method is used with `Rk4`, which does not support adaptivity.
-    pub fn new(
-        model: Model,
-        solver: Solver,
-        step_method: StepMethod,
-        save_method: SaveMethod,
-    ) -> Self {
+    pub fn new(model: M, solver: Solver, step_method: StepMethod, save_method: SaveMethod) -> Self {
         match (&solver, &step_method) {
             (Solver::Rk4, StepMethod::Adaptive(_)) => {
                 panic!("Rk4 solver does not support adaptive step size")
@@ -95,13 +88,13 @@ where
     }
 
     /// Adds a periodic event to the simulation.
-    pub fn with_event_periodic(mut self, event: PeriodicEvent<Model, State>) -> Self {
+    pub fn with_event_periodic(mut self, event: PeriodicEvent<M, S>) -> Self {
         self.events.add_periodic(event);
         self
     }
 
     /// Adds a continuous event to the simulation.
-    pub fn with_event_continuous(mut self, event: ContinuousEvent<Model, State>) -> Self {
+    pub fn with_event_continuous(mut self, event: ContinuousEvent<M, S>) -> Self {
         self.events.add_continuous(event);
         self
     }
@@ -119,11 +112,7 @@ where
     /// # Returns
     ///
     /// A result containing the populated `ResultStorage` (either in memory or to file).
-    pub fn solve(
-        &mut self,
-        x0: &State,
-        tspan: (f64, f64),
-    ) -> Result<ResultStorage<State>, Box<dyn Error>> {
+    pub fn solve(&mut self, x0: &S, tspan: (f64, f64)) -> Result<ResultStorage<S>, Box<dyn Error>> {
         // Preallocate memory for result storage if needed
         let mut result = match &self.save_method {
             SaveMethod::Memory => {
@@ -140,15 +129,9 @@ where
                         }
                     }
                 };
-                ResultStorage::Memory(MemoryResult::<State>::new(n))
+                ResultStorage::Memory(MemoryResult::<S>::new(n))
             }
-            SaveMethod::File(builders) => {
-                let writers = builders
-                    .iter()
-                    .map(|builder| builder.to_writer())
-                    .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
-                ResultStorage::File(writers)
-            }
+            SaveMethod::File(manager) => ResultStorage::File(WriterManager::try_from(manager)?),
             _ => ResultStorage::None,
         };
 
@@ -163,7 +146,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
             Solver::New45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::NEW45);
@@ -174,7 +157,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
             Solver::Rk4 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<4, 4>::RK4);
@@ -185,7 +168,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
             Solver::Tsit5 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::TSITOURAS5);
@@ -196,7 +179,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
             Solver::Verner6 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<6, 9>::VERNER6);
@@ -207,7 +190,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
             Solver::Verner9 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<9, 26>::VERNER9);
@@ -218,7 +201,7 @@ where
                     &mut self.step_method,
                     &mut self.events,
                     &mut result,
-                );
+                )?;
             }
         }
 

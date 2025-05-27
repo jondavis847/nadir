@@ -1,6 +1,13 @@
+use csv::Writer;
+use std::collections::HashMap;
 use std::{error::Error, path::PathBuf};
 
-use crate::state::{Integrable, StateWriter, StateWriterBuilders, StateWriters};
+use std::fmt::Debug;
+use std::fs::File;
+use std::io::BufWriter;
+
+use crate::OdeModel;
+use crate::state::State;
 
 /// Specifies the saving strategy to be used by the solver.
 ///
@@ -23,32 +30,38 @@ pub enum SaveMethod {
 /// - `File`: Writes each step to a file.
 /// - `None`: Performs no saving.
 #[derive(Debug)]
-pub enum ResultStorage<State>
+pub enum ResultStorage<S>
 where
-    State: Integrable + 'static,
+    S: State,
 {
     /// In-memory vector storage of `(time, state)` tuples.
-    Memory(MemoryResult<State>),
+    Memory(MemoryResult<S>),
     /// File writer to stream output incrementally.
     File(WriterManager),
     /// No output storage.
     None,
 }
 
-impl<State: Integrable> ResultStorage<State> {
+impl<S> ResultStorage<S>
+where
+    S: State,
+{
     /// Save a `(time, state)` pair to the result store.
     ///
     /// No-op if storage is `None`.
-    pub fn save(&mut self, t: f64, y: &State) -> Result<(), Box<dyn Error>> {
+    pub fn save<Model: OdeModel<State = S>>(
+        &mut self,
+        model: &Model,
+        t: f64,
+        y: &S,
+    ) -> Result<(), Box<dyn Error>> {
         match self {
             ResultStorage::Memory(result) => {
                 result.insert(t, y);
                 Ok(())
             }
-            ResultStorage::File(writers) => {
-                for writer in writers {
-                    writer.write(t, y)?;
-                }
+            ResultStorage::File(manager) => {
+                model.write_record(t, y, manager);
                 Ok(())
             }
             _ => Ok(()),
@@ -64,11 +77,7 @@ impl<State: Integrable> ResultStorage<State> {
             ResultStorage::Memory(result) => {
                 result.truncate();
             }
-            ResultStorage::File(writers) => {
-                for writer in writers {
-                    writer.flush()?;
-                }
-            }
+            ResultStorage::File(manager) => manager.flush()?,
             _ => {}
         }
         Ok(())
@@ -80,7 +89,7 @@ impl<State: Integrable> ResultStorage<State> {
 #[derive(Debug)]
 pub struct MemoryResult<State>
 where
-    State: Integrable,
+    State: Default,
 {
     /// Recorded times.
     pub t: Vec<f64>,
@@ -90,7 +99,10 @@ where
     i: usize,
 }
 
-impl<State: Integrable> MemoryResult<State> {
+impl<State> MemoryResult<State>
+where
+    State: WritableState,
+{
     /// Constructs a new memory result buffer with an initial capacity `n`.
     pub fn new(n: usize) -> Self {
         Self {
@@ -129,23 +141,115 @@ impl<State: Integrable> MemoryResult<State> {
 }
 
 #[derive(Debug)]
-pub struct WriterManagerBuilder {
-    folder_path: PathBuf,
-    builders: Vec<Box<dyn StateWriterBuilders>>,
+pub struct StateWriterBuilder {
+    file_path: PathBuf,
 }
 
-impl WriterManagerBuilder {
-    pub fn to_manager(&self) -> WriterManager {
-        let mut writers = Vec::new();
-        for builder in &self.builders {
-            writers.push(Box::new(builder.to_writer()?));
-        }
-        WriterManager { writers }
+impl StateWriterBuilder {
+    pub fn new(file_path: PathBuf) -> Self {
+        Self { file_path }
     }
 }
 
 #[derive(Debug)]
-pub struct WriterManager {
-    writers: Vec<Box<dyn StateWriters>>,
+pub struct StateWriter {
+    buffer: Vec<String>,
+    writer: Writer<BufWriter<File>>,
 }
-impl WriterManager {}
+
+impl TryFrom<&StateWriterBuilder> for StateWriter {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: &StateWriterBuilder) -> Result<Self, Self::Error> {
+        let file = File::create(&value.file_path)?;
+        let writer = Writer::from_writer(BufWriter::new(file));
+        Ok(Self {
+            buffer: Vec::new(),
+            writer,
+        })
+    }
+}
+
+impl StateWriter {
+    pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+        self.writer.flush()?;
+        Ok(())
+    }
+}
+pub trait WritableState: Default + Clone {
+    fn write_headers(&self, _manager: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+    fn write_record(&self, _t: f64, _manager: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+}
+
+pub trait WritableModel {
+    type State: State;
+    fn init_writers(&mut self, _manager: &mut WriterManager) -> Result<(), Box<dyn Error>>;
+    fn write_record(&self, _t: f64, _state: &Self::State, _manager: &mut WriterManager);
+}
+
+#[derive(Debug)]
+pub struct WriterManagerBuilder {
+    dir_path: PathBuf,
+    counter: u32,
+    writers: HashMap<WriterId, StateWriterBuilder>,
+}
+
+impl WriterManagerBuilder {
+    pub fn add_writer(&mut self, file_path: PathBuf) -> Result<WriterId, Box<dyn Error>> {
+        self.counter += 1;
+        let id = WriterId(self.counter);
+        let writer = StateWriterBuilder::new(self.dir_path.join(file_path));
+        self.writers.insert(id, writer);
+        Ok(id)
+    }
+
+    pub fn new(dir_path: PathBuf) -> Self {
+        Self {
+            dir_path,
+            counter: 0,
+            writers: HashMap::new(),
+        }
+    }
+}
+
+// Manager for multiple writers
+#[derive(Debug)]
+pub struct WriterManager {
+    writers: HashMap<WriterId, StateWriter>,
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct WriterId(u32);
+
+impl WriterManager {
+    pub fn get_buffer(&mut self, id: &WriterId) -> Option<&mut Vec<String>> {
+        if let Some(writer) = self.writers.get_mut(id) {
+            Some(&mut writer.buffer)
+        } else {
+            None
+        }
+    }
+
+    // Flush all writers
+    pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+        for (_, writer) in &mut self.writers {
+            writer.flush()?;
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<&WriterManagerBuilder> for WriterManager {
+    type Error = Box<dyn Error>;
+    fn try_from(value: &WriterManagerBuilder) -> Result<Self, Self::Error> {
+        let mut writers = HashMap::new();
+        for (id, builder) in &value.writers {
+            writers.insert(*id, StateWriter::try_from(builder)?);
+        }
+        Ok(Self { writers })
+    }
+}

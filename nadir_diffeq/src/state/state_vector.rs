@@ -1,9 +1,11 @@
+use crate::Integrable;
+use crate::saving::WritableState;
+use std::error::Error;
 use std::fmt::Write;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
-use super::StateWriterBuilder;
-use crate::Integrable;
+use super::State;
 
 /// A dynamic-sized vector type for use in ODE solvers.
 ///
@@ -59,28 +61,26 @@ impl Integrable for StateVector {
 
     /// Tolerances per vector component.
     type Tolerance = StateVectorTolerances;
+}
 
-    /// Returns a `StateWriterBuilder` for logging state data to a CSV file.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the output file.
-    fn writer(path: std::path::PathBuf) -> Vec<StateWriterBuilder<Self>> {
-        vec![StateWriterBuilder::new(
-            path,
-            |t, x: &Self, buffer: &mut Vec<String>| {
-                if buffer.len() != x.n {
-                    buffer.resize(x.n + 1, String::new());
-                }
-                write!(buffer[0], "{}", t)?;
-                for i in 0..x.len() {
-                    write!(buffer[i + 1], "{}", x[i])?;
-                }
-                Ok(())
-            },
-        )]
+impl WritableState for StateVector {
+    fn write_headers(&self, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        write!(buffer[0], "t")?;
+        for i in 0..self.n {
+            write!(buffer[i + 1], "x[{}]", self[i])?;
+        }
+        Ok(())
+    }
+    fn write_record(&self, t: f64, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+        write!(buffer[0], "{}", t)?;
+        for i in 0..self.n {
+            write!(buffer[i + 1], "{}", self[i])?;
+        }
+        Ok(())
     }
 }
+
+impl State for StateVector {}
 
 impl Deref for StateVector {
     type Target = Vec<f64>;
