@@ -58,7 +58,7 @@ where
     model: Model,
     solver: Solver,
     step_method: StepMethod,
-    save_method: SaveMethod<State>,
+    save_method: SaveMethod,
     events: EventManager<Model, State>,
 }
 
@@ -76,7 +76,7 @@ where
         model: Model,
         solver: Solver,
         step_method: StepMethod,
-        save_method: SaveMethod<State>,
+        save_method: SaveMethod,
     ) -> Self {
         match (&solver, &step_method) {
             (Solver::Rk4, StepMethod::Adaptive(_)) => {
@@ -142,7 +142,13 @@ where
                 };
                 ResultStorage::Memory(MemoryResult::<State>::new(n))
             }
-            SaveMethod::File(builder) => ResultStorage::File(builder.to_writer()?),
+            SaveMethod::File(builders) => {
+                let writers = builders
+                    .iter()
+                    .map(|builder| builder.to_writer())
+                    .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+                ResultStorage::File(writers)
+            }
             _ => ResultStorage::None,
         };
 

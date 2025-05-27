@@ -1,20 +1,18 @@
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
-use crate::state::{Integrable, StateWriter, StateWriterBuilder};
+use crate::state::{Integrable, StateWriter, StateWriterBuilders, StateWriters};
 
 /// Specifies the saving strategy to be used by the solver.
 ///
 /// - `Memory`: Save all state data in memory for postprocessing.
 /// - `File`: Write state data incrementally to a file via a `StateWriterBuilder`.
 /// - `None`: Disables solver-side saving (user handles it via the model).
-pub enum SaveMethod<State>
-where
-    State: Integrable + 'static,
-{
+pub enum SaveMethod {
     /// Save state data in memory using `MemoryResult`.
     Memory,
     /// Save state data to disk using a configured `StateWriterBuilder`.
-    File(StateWriterBuilder<State>),
+    /// Each element of the vector is a separate file.
+    File(WriterManagerBuilder),
     /// Do not save solver output — user is responsible for all output handling.
     None,
 }
@@ -32,7 +30,7 @@ where
     /// In-memory vector storage of `(time, state)` tuples.
     Memory(MemoryResult<State>),
     /// File writer to stream output incrementally.
-    File(StateWriter<State>),
+    File(WriterManager),
     /// No output storage.
     None,
 }
@@ -47,7 +45,12 @@ impl<State: Integrable> ResultStorage<State> {
                 result.insert(t, y);
                 Ok(())
             }
-            ResultStorage::File(writer) => writer.write(t, y),
+            ResultStorage::File(writers) => {
+                for writer in writers {
+                    writer.write(t, y)?;
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -61,7 +64,11 @@ impl<State: Integrable> ResultStorage<State> {
             ResultStorage::Memory(result) => {
                 result.truncate();
             }
-            ResultStorage::File(writer) => writer.flush()?,
+            ResultStorage::File(writers) => {
+                for writer in writers {
+                    writer.flush()?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -120,3 +127,25 @@ impl<State: Integrable> MemoryResult<State> {
         self.y.truncate(self.i);
     }
 }
+
+#[derive(Debug)]
+pub struct WriterManagerBuilder {
+    folder_path: PathBuf,
+    builders: Vec<Box<dyn StateWriterBuilders>>,
+}
+
+impl WriterManagerBuilder {
+    pub fn to_manager(&self) -> WriterManager {
+        let mut writers = Vec::new();
+        for builder in &self.builders {
+            writers.push(Box::new(builder.to_writer()?));
+        }
+        WriterManager { writers }
+    }
+}
+
+#[derive(Debug)]
+pub struct WriterManager {
+    writers: Vec<Box<dyn StateWriters>>,
+}
+impl WriterManager {}

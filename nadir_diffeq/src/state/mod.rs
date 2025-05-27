@@ -15,6 +15,8 @@ use std::{
 use csv::Writer;
 use tolerance::Tolerance;
 
+use crate::saving::WriterManager;
+
 pub mod state_array;
 pub mod state_vector;
 
@@ -35,11 +37,12 @@ where
     type Tolerance: Tolerance<State = Self>;
 
     /// Create a `StateWriterBuilder` for writing this type of state to a file.
-    fn writer(path: PathBuf) -> StateWriterBuilder<Self>;
+    fn writer(path: PathBuf);
 }
 
 /// Builder for a `StateWriter`, allowing the configuration of output path,
 /// headers, and formatting behavior for a state type implementing `Integrable`.
+#[derive(Debug)]
 pub struct StateWriterBuilder<State>
 where
     State: Integrable,
@@ -104,6 +107,8 @@ where
     }
 }
 
+impl<State> StateWriterBuilders for StateWriterBuilder<State> where State: Integrable + 'static {}
+
 /// A CSV writer for logging state over time using a custom formatter.
 pub struct StateWriter<State>
 where
@@ -162,6 +167,8 @@ where
     }
 }
 
+impl<State> StateWriters for StateWriter<State> where State: Integrable + 'static {}
+
 impl<State> fmt::Debug for StateWriter<State>
 where
     State: Integrable + 'static,
@@ -217,4 +224,12 @@ where
     fn box_clone(&self) -> Box<dyn StateFormatter<State> + 'static> {
         Box::new(self.clone())
     }
+}
+
+// just a wrapper so we can store heterogenerous trait objects
+pub trait StateWriters: Debug {}
+pub trait StateWriterBuilders: Debug + Sized {
+    fn new<F>(file_path: PathBuf, formatter: F) -> Box<dyn StateWriterBuilders>;
+    fn with_headers<const N: usize>(self, headers: [&str; N]) -> Result<Self, Box<dyn Error>>;
+    fn to_writer(&self) -> Result<Box<dyn StateWriters>, Box<dyn Error>>;
 }

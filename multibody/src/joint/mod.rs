@@ -11,6 +11,7 @@ use crate::{
 use floating::{Floating, FloatingBuilder, FloatingErrors};
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::{NadirResult, ResultManager};
 use nalgebra::Vector6;
 use prismatic::{Prismatic, PrismaticBuilder, PrismaticErrors};
@@ -163,11 +164,11 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
     /// Used to populate elements in the mass matrix and state arrays        
     fn ndof(&self) -> u32;
     /// Populates derivative with the appropriate values for the joint state derivative
-    fn state_derivative(&self, derivative: &mut SimStateVector, transforms: &JointTransforms);
+    fn state_derivative(&self, derivative: &mut StateVector, transforms: &JointTransforms);
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector;
+    fn state_vector_init(&self) -> StateVector;
     /// Reads a state vector into the joint state
-    fn state_vector_read(&mut self, state: &SimStateVector);
+    fn state_vector_read(&mut self, state: &StateVector);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
     fn update_transforms(
@@ -245,7 +246,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut StateVector, transforms: &JointTransforms) {
         match self {
             JointModels::Floating(model) => model.state_derivative(derivative, transforms),
             JointModels::Prismatic(model) => model.state_derivative(derivative, transforms),
@@ -253,7 +254,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         match self {
             JointModels::Floating(model) => model.state_vector_init(),
             JointModels::Prismatic(model) => model.state_vector_init(),
@@ -261,7 +262,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &StateVector) {
         match self {
             JointModels::Floating(model) => model.state_vector_read(state),
             JointModels::Prismatic(model) => model.state_vector_read(state),

@@ -65,17 +65,20 @@ impl Integrable for StateVector {
     /// # Arguments
     ///
     /// * `path` - Path to the output file.
-    fn writer(path: std::path::PathBuf) -> StateWriterBuilder<Self> {
-        StateWriterBuilder::new(path, |t, x: &Self, buffer: &mut Vec<String>| {
-            if buffer.len() != x.n {
-                buffer.resize(x.n + 1, String::new());
-            }
-            write!(buffer[0], "{}", t)?;
-            for i in 0..x.len() {
-                write!(buffer[i + 1], "{}", x[i])?;
-            }
-            Ok(())
-        })
+    fn writer(path: std::path::PathBuf) -> Vec<StateWriterBuilder<Self>> {
+        vec![StateWriterBuilder::new(
+            path,
+            |t, x: &Self, buffer: &mut Vec<String>| {
+                if buffer.len() != x.n {
+                    buffer.resize(x.n + 1, String::new());
+                }
+                write!(buffer[0], "{}", t)?;
+                for i in 0..x.len() {
+                    write!(buffer[i + 1], "{}", x[i])?;
+                }
+                Ok(())
+            },
+        )]
     }
 }
 

@@ -113,8 +113,8 @@ impl Integrable for LorenzState {
 
     fn writer(path: PathBuf) -> StateWriterBuilder<Self> {
         StateWriterBuilder::new(path, |t, x: &Self, buffer: &mut Vec<String>| {
-            if buffer.len() != 3 {
-                buffer.resize(3, String::new());
+            if buffer.len() != 4 {
+                buffer.resize(4, String::new());
             }
             write!(buffer[0], "{}", t)?;
             write!(buffer[1], "{}", x.x)?;
