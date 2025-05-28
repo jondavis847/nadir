@@ -62,12 +62,12 @@ impl<const N: usize> Integrable for StateArray<N> {
 }
 
 impl<const N: usize> State for StateArray<N> {
-    fn write_headers(&self, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+    fn headers(_ncols: usize) -> Vec<String> {
         let mut headers = vec!["t".to_string()];
         for i in 0..N {
-            headers.push(format!("x[{}]", self[i]));
+            headers.push(format!("x[{}]", i));
         }
-        writer.write_headers(headers)
+        headers
     }
     fn write_record(&self, t: f64, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
         writer.write_column(0, t)?;

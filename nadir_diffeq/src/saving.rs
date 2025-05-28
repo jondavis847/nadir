@@ -149,12 +149,25 @@ where
 #[derive(Debug)]
 pub struct StateWriterBuilder {
     file_path: PathBuf,
+    headers: Vec<String>,
     ncols: usize,
 }
 
 impl StateWriterBuilder {
-    pub fn new(file_path: PathBuf, ncols: usize) -> Self {
-        Self { file_path, ncols }
+    pub fn new<S: State>(file_path: PathBuf, ncols: usize) -> Self {
+        let headers = S::headers(ncols);
+        if headers.len() != ncols {
+            panic!(
+                "length of headers ({}) doesn't match writer ncols ({})",
+                headers.len(),
+                ncols
+            );
+        }
+        Self {
+            file_path,
+            headers,
+            ncols,
+        }
     }
 }
 
@@ -170,8 +183,11 @@ impl TryFrom<&StateWriterBuilder> for StateWriter {
 
     fn try_from(value: &StateWriterBuilder) -> Result<Self, Self::Error> {
         let file = File::create(&value.file_path)?;
-        let writer = Writer::from_writer(BufWriter::new(file));
+        let mut writer = Writer::from_writer(BufWriter::new(file));
         let buffer = vec![String::new(); value.ncols];
+        if !value.headers.is_empty() {
+            writer.write_record(&value.headers)?;
+        }
         Ok(Self {
             buffer,
             writer,
@@ -186,6 +202,7 @@ impl StateWriter {
         Ok(())
     }
 
+    /// Helper function to write f64 data to a column
     pub fn write_column(&mut self, column: usize, value: f64) -> Result<(), Box<dyn Error>> {
         if column >= self.ncols {
             panic!("Column index out of bounds: {} >= {}", column, self.ncols);
@@ -194,26 +211,12 @@ impl StateWriter {
         Ok(())
     }
 
+    /// Writes the column data stored in the string buffers to the csv record
     pub fn write_record(&mut self) -> Result<(), Box<dyn Error>> {
         self.writer.write_record(&self.buffer)?;
         for i in 0..self.ncols {
             self.buffer[i].clear(); // Clear the buffer for the next record
         }
-        Ok(())
-    }
-
-    pub fn write_headers(&mut self, headers: Vec<String>) -> Result<(), Box<dyn Error>> {
-        if headers.len() >= self.ncols {
-            panic!(
-                "Header length ({}) did not match specified row length ({}).",
-                headers.len(),
-                self.ncols
-            );
-        }
-        for i in 0..self.ncols {
-            write!(self.buffer[i], "{}", headers[i])?;
-        }
-
         Ok(())
     }
 }
@@ -226,14 +229,14 @@ pub struct WriterManagerBuilder {
 }
 
 impl WriterManagerBuilder {
-    pub fn add_writer(
+    pub fn add_writer<S: State>(
         &mut self,
         file_path: PathBuf,
         ncols: usize,
     ) -> Result<WriterId, Box<dyn Error>> {
         self.counter += 1;
         let id = WriterId(self.counter);
-        let writer = StateWriterBuilder::new(self.dir_path.join(file_path), ncols);
+        let writer = StateWriterBuilder::new::<S>(self.dir_path.join(file_path), ncols);
         self.writers.insert(id, writer);
         Ok(id)
     }

@@ -63,12 +63,12 @@ impl Integrable for StateVector {
 }
 
 impl State for StateVector {
-    fn write_headers(&self, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+    fn headers(ncols: usize) -> Vec<String> {
         let mut headers = vec!["t".to_string()];
-        for i in 0..self.n {
-            headers.push(format!("x[{}]", self[i]));
+        for i in 0..ncols - 1 {
+            headers.push(format!("x[{}]", i));
         }
-        writer.write_headers(headers)
+        headers
     }
     fn write_record(&self, t: f64, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
         writer.write_column(0, t)?;

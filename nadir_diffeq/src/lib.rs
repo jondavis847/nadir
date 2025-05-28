@@ -11,7 +11,7 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod, WriterManager, WriterManagerBuilder};
+use saving::{MemoryResult, ResultStorage, SaveMethod, WriterManager};
 use state::{Integrable, State};
 use stepping::StepMethod;
 
@@ -28,12 +28,6 @@ pub trait OdeModel: Debug {
         state: &Self::State,
         derivative: &mut <Self::State as Integrable>::Derivative,
     ) -> Result<(), Box<dyn Error>>;
-
-    fn init_writers(&mut self, _manager: &mut WriterManagerBuilder) -> Result<(), Box<dyn Error>> {
-        panic!(
-            "Writing not implemented for this model. Implement 'init_writers' and 'write_record' methods to enable writing."
-        );
-    }
 
     fn write_record(
         &self,

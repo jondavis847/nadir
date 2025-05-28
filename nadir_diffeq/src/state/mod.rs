@@ -15,10 +15,8 @@ pub mod state_array;
 pub mod state_vector;
 
 pub trait State: Integrable + Default + Clone + Sized + 'static {
-    fn write_headers(&self, _writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
-        panic!(
-            "Writing not implemented for this state. Implement 'write_headers' and 'write_record' methods to enable writing."
-        );
+    fn headers(_ncols: usize) -> Vec<String> {
+        Vec::new()
     }
     fn write_record(&self, _t: f64, _writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
         panic!(
