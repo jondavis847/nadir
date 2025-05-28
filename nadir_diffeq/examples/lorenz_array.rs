@@ -1,7 +1,7 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
-    saving::{SaveMethod, WriterManager},
-    state::{Integrable, state_array::StateArray},
+    saving::SaveMethod,
+    state::state_array::StateArray,
     stepping::{FixedStepControl, StepMethod},
 };
 use std::error::Error;
@@ -13,7 +13,9 @@ struct Lorenz {
     beta: f64,
 }
 
-impl OdeModel<StateArray<3>> for Lorenz {
+impl OdeModel for Lorenz {
+    type State = StateArray<3>;
+
     fn f(
         &mut self,
         _t: f64,
@@ -27,16 +29,6 @@ impl OdeModel<StateArray<3>> for Lorenz {
     }
 }
 
-impl WritableModel for Lorenz {
-    fn write_record(&self, t: f64, x: &StateArray<3>, manager: &mut WriterManager) {
-        if let Some(buffer) = manager.get_buffer(self.writer_id) {
-            write!(buffer[0], x[0]);
-            write!(buffer[1], x[1]);
-            write!(buffer[2], x[2]);
-        }
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let model = Lorenz {
         sigma: 10.,
@@ -44,13 +36,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         beta: 8. / 3.,
     };
 
-    let path = std::env::current_dir().unwrap().join("results.csv");
-
     let mut problem = OdeProblem::new(
         model,
         Solver::Tsit5,
         StepMethod::Fixed(FixedStepControl::new(0.1)),
-        SaveMethod::File(StateArray::<3>::writer(path).with_headers(["t", "x", "y", "z"])?),
+        SaveMethod::Memory,
     );
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{

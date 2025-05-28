@@ -2,7 +2,7 @@ use csv::Writer;
 use std::collections::HashMap;
 use std::{error::Error, path::PathBuf};
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Write};
 use std::fs::File;
 use std::io::BufWriter;
 
@@ -49,9 +49,9 @@ where
     /// Save a `(time, state)` pair to the result store.
     ///
     /// No-op if storage is `None`.
-    pub fn save<Model: OdeModel<State = S>>(
+    pub fn save<M: OdeModel<State = S>>(
         &mut self,
-        model: &Model,
+        model: &M,
         t: f64,
         y: &S,
     ) -> Result<(), Box<dyn Error>> {
@@ -61,7 +61,13 @@ where
                 Ok(())
             }
             ResultStorage::File(manager) => {
-                model.write_record(t, y, manager);
+                // model just populates the string buffers
+                model.write_record(t, y, manager)?;
+
+                // now write the buffers to the files
+                for writer in manager.writers.values_mut() {
+                    writer.write_record()?;
+                }
                 Ok(())
             }
             _ => Ok(()),
@@ -87,33 +93,33 @@ where
 /// A preallocated and growable result container used for in-memory storage
 /// of ODE solver outputs. Each entry stores the time and state value at that time.
 #[derive(Debug)]
-pub struct MemoryResult<State>
+pub struct MemoryResult<S>
 where
-    State: Default,
+    S: State,
 {
     /// Recorded times.
     pub t: Vec<f64>,
     /// Recorded states.
-    pub y: Vec<State>,
+    pub y: Vec<S>,
     /// Current insert index.
     i: usize,
 }
 
-impl<State> MemoryResult<State>
+impl<S> MemoryResult<S>
 where
-    State: WritableState,
+    S: State,
 {
     /// Constructs a new memory result buffer with an initial capacity `n`.
     pub fn new(n: usize) -> Self {
         Self {
             t: vec![0.0; n],
-            y: vec![State::default(); n],
+            y: vec![S::default(); n],
             i: 0,
         }
     }
 
     /// Inserts a new result `(t, x)` into the buffer. Automatically grows if full.
-    fn insert(&mut self, t: f64, x: &State) {
+    fn insert(&mut self, t: f64, x: &S) {
         if self.i == self.t.len() - 1 {
             self.extend();
         }
@@ -130,7 +136,7 @@ where
     /// Doubles the size of the buffer to accommodate more entries.
     fn extend(&mut self) {
         self.t.extend(vec![0.0; self.len()]);
-        self.y.extend(vec![State::default(); self.len()]);
+        self.y.extend(vec![S::default(); self.len()]);
     }
 
     /// Truncates the buffer to contain only the filled entries.
@@ -143,16 +149,18 @@ where
 #[derive(Debug)]
 pub struct StateWriterBuilder {
     file_path: PathBuf,
+    ncols: usize,
 }
 
 impl StateWriterBuilder {
-    pub fn new(file_path: PathBuf) -> Self {
-        Self { file_path }
+    pub fn new(file_path: PathBuf, ncols: usize) -> Self {
+        Self { file_path, ncols }
     }
 }
 
 #[derive(Debug)]
 pub struct StateWriter {
+    ncols: usize,
     buffer: Vec<String>,
     writer: Writer<BufWriter<File>>,
 }
@@ -163,9 +171,11 @@ impl TryFrom<&StateWriterBuilder> for StateWriter {
     fn try_from(value: &StateWriterBuilder) -> Result<Self, Self::Error> {
         let file = File::create(&value.file_path)?;
         let writer = Writer::from_writer(BufWriter::new(file));
+        let buffer = vec![String::new(); value.ncols];
         Ok(Self {
-            buffer: Vec::new(),
+            buffer,
             writer,
+            ncols: value.ncols,
         })
     }
 }
@@ -175,34 +185,55 @@ impl StateWriter {
         self.writer.flush()?;
         Ok(())
     }
-}
-pub trait WritableState: Default + Clone {
-    fn write_headers(&self, _manager: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-    fn write_record(&self, _t: f64, _manager: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-}
 
-pub trait WritableModel {
-    type State: State;
-    fn init_writers(&mut self, _manager: &mut WriterManager) -> Result<(), Box<dyn Error>>;
-    fn write_record(&self, _t: f64, _state: &Self::State, _manager: &mut WriterManager);
+    pub fn write_column(&mut self, column: usize, value: f64) -> Result<(), Box<dyn Error>> {
+        if column >= self.ncols {
+            panic!("Column index out of bounds: {} >= {}", column, self.ncols);
+        }
+        write!(self.buffer[column], "{},", value)?;
+        Ok(())
+    }
+
+    pub fn write_record(&mut self) -> Result<(), Box<dyn Error>> {
+        self.writer.write_record(&self.buffer)?;
+        for i in 0..self.ncols {
+            self.buffer[i].clear(); // Clear the buffer for the next record
+        }
+        Ok(())
+    }
+
+    pub fn write_headers(&mut self, headers: Vec<String>) -> Result<(), Box<dyn Error>> {
+        if headers.len() >= self.ncols {
+            panic!(
+                "Header length ({}) did not match specified row length ({}).",
+                headers.len(),
+                self.ncols
+            );
+        }
+        for i in 0..self.ncols {
+            write!(self.buffer[i], "{}", headers[i])?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
 pub struct WriterManagerBuilder {
-    dir_path: PathBuf,
+    pub dir_path: PathBuf,
     counter: u32,
     writers: HashMap<WriterId, StateWriterBuilder>,
 }
 
 impl WriterManagerBuilder {
-    pub fn add_writer(&mut self, file_path: PathBuf) -> Result<WriterId, Box<dyn Error>> {
+    pub fn add_writer(
+        &mut self,
+        file_path: PathBuf,
+        ncols: usize,
+    ) -> Result<WriterId, Box<dyn Error>> {
         self.counter += 1;
         let id = WriterId(self.counter);
-        let writer = StateWriterBuilder::new(self.dir_path.join(file_path));
+        let writer = StateWriterBuilder::new(self.dir_path.join(file_path), ncols);
         self.writers.insert(id, writer);
         Ok(id)
     }
@@ -222,15 +253,15 @@ pub struct WriterManager {
     writers: HashMap<WriterId, StateWriter>,
 }
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 pub struct WriterId(u32);
 
 impl WriterManager {
-    pub fn get_buffer(&mut self, id: &WriterId) -> Option<&mut Vec<String>> {
+    pub fn get_writer(&mut self, id: &WriterId) -> &mut StateWriter {
         if let Some(writer) = self.writers.get_mut(id) {
-            Some(&mut writer.buffer)
+            writer
         } else {
-            None
+            panic!("Writer with ID {:?} not found", id);
         }
     }
 
@@ -247,6 +278,7 @@ impl TryFrom<&WriterManagerBuilder> for WriterManager {
     type Error = Box<dyn Error>;
     fn try_from(value: &WriterManagerBuilder) -> Result<Self, Self::Error> {
         let mut writers = HashMap::new();
+        std::fs::create_dir_all(&value.dir_path)?;
         for (id, builder) in &value.writers {
             writers.insert(*id, StateWriter::try_from(builder)?);
         }

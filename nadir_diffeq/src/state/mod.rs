@@ -3,17 +3,29 @@
 //! row and then writing it out incrementally.
 
 use std::{
+    error::Error,
     fmt::Debug,
     ops::{AddAssign, MulAssign},
 };
 use tolerance::Tolerance;
 
-use crate::saving::WritableState;
+use crate::saving::StateWriter;
 
 pub mod state_array;
 pub mod state_vector;
 
-pub trait State: Integrable + WritableState + Default + Clone + Sized + 'static {}
+pub trait State: Integrable + Default + Clone + Sized + 'static {
+    fn write_headers(&self, _writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        panic!(
+            "Writing not implemented for this state. Implement 'write_headers' and 'write_record' methods to enable writing."
+        );
+    }
+    fn write_record(&self, _t: f64, _writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        panic!(
+            "Writing not implemented for this state. Implement 'write_headers' and 'write_record' methods to enable writing."
+        );
+    }
+}
 
 /// Trait representing an integrable state for use in ODE solvers.
 ///

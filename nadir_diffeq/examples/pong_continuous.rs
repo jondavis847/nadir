@@ -13,7 +13,9 @@ struct Pong {
     speed: f64,
 }
 
-impl OdeModel<StateArray<1>> for Pong {
+impl OdeModel for Pong {
+    type State = StateArray<1>;
+
     fn f(
         &mut self,
         _t: f64,

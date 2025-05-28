@@ -12,7 +12,9 @@ struct KeplerianOrbit {
     mu: f64,
 }
 
-impl OdeModel<StateArray<6>> for KeplerianOrbit {
+impl OdeModel for KeplerianOrbit {
+    type State = StateArray<6>;
+
     fn f(
         &mut self,
         _t: f64,

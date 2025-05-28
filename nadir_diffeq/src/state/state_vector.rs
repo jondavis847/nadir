@@ -1,7 +1,6 @@
 use crate::Integrable;
-use crate::saving::WritableState;
+use crate::saving::StateWriter;
 use std::error::Error;
-use std::fmt::Write;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
@@ -63,24 +62,22 @@ impl Integrable for StateVector {
     type Tolerance = StateVectorTolerances;
 }
 
-impl WritableState for StateVector {
-    fn write_headers(&self, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        write!(buffer[0], "t")?;
+impl State for StateVector {
+    fn write_headers(&self, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        let mut headers = vec!["t".to_string()];
         for i in 0..self.n {
-            write!(buffer[i + 1], "x[{}]", self[i])?;
+            headers.push(format!("x[{}]", self[i]));
         }
-        Ok(())
+        writer.write_headers(headers)
     }
-    fn write_record(&self, t: f64, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        write!(buffer[0], "{}", t)?;
+    fn write_record(&self, t: f64, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        writer.write_column(0, t)?;
         for i in 0..self.n {
-            write!(buffer[i + 1], "{}", self[i])?;
+            writer.write_column(i + 1, self[i])?;
         }
         Ok(())
     }
 }
-
-impl State for StateVector {}
 
 impl Deref for StateVector {
     type Target = Vec<f64>;

@@ -1,14 +1,12 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
-    state::{Integrable, StateWriterBuilder},
+    state::{Integrable, State},
     stepping::{AdaptiveStepControl, StepMethod},
 };
 use std::{
     error::Error,
-    fmt::Write,
     ops::{AddAssign, MulAssign},
-    path::PathBuf,
 };
 use tolerance::{Tolerance, Tolerances, compute_component_error};
 
@@ -110,22 +108,13 @@ impl Tolerance for LorenzTolerances {
 impl Integrable for LorenzState {
     type Derivative = LorenzDerivative;
     type Tolerance = LorenzTolerances;
-
-    fn writer(path: PathBuf) -> StateWriterBuilder<Self> {
-        StateWriterBuilder::new(path, |t, x: &Self, buffer: &mut Vec<String>| {
-            if buffer.len() != 4 {
-                buffer.resize(4, String::new());
-            }
-            write!(buffer[0], "{}", t)?;
-            write!(buffer[1], "{}", x.x)?;
-            write!(buffer[2], "{}", x.y)?;
-            write!(buffer[3], "{}", x.z)?;
-            Ok(())
-        })
-    }
 }
 
-impl OdeModel<LorenzState> for Lorenz {
+impl State for LorenzState {}
+
+impl OdeModel for Lorenz {
+    type State = LorenzState;
+
     fn f(
         &mut self,
         _t: f64,

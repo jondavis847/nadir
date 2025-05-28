@@ -1,12 +1,11 @@
 use std::{
     error::Error,
-    fmt::Write,
     ops::{AddAssign, Deref, DerefMut, MulAssign},
 };
 
 use tolerance::{Tolerance, Tolerances, compute_error};
 
-use crate::{Integrable, saving::WritableState};
+use crate::{Integrable, saving::StateWriter};
 
 use super::State;
 
@@ -62,24 +61,23 @@ impl<const N: usize> Integrable for StateArray<N> {
     type Tolerance = StateArrayTolerances<N>;
 }
 
-impl<const N: usize> WritableState for StateArray<N> {
-    fn write_headers(&self, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        write!(buffer[0], "t")?;
+impl<const N: usize> State for StateArray<N> {
+    fn write_headers(&self, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        let mut headers = vec!["t".to_string()];
         for i in 0..N {
-            write!(buffer[i + 1], "x[{}]", self[i])?;
+            headers.push(format!("x[{}]", self[i]));
         }
-        Ok(())
+        writer.write_headers(headers)
     }
-    fn write_record(&self, t: f64, buffer: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
-        write!(buffer[0], "{}", t)?;
+    fn write_record(&self, t: f64, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
+        writer.write_column(0, t)?;
+
         for i in 0..N {
-            write!(buffer[i + 1], "{}", self[i])?;
+            writer.write_column(i + 1, self[i])?;
         }
         Ok(())
     }
 }
-
-impl<const N: usize> State for StateArray<N> {}
 
 impl<const N: usize> Deref for StateArray<N> {
     type Target = [f64; N];
