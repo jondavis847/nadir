@@ -11,8 +11,8 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod, WriterManager};
-use state::{Integrable, State};
+use saving::{MemoryResult, ResultStorage, SaveMethod};
+use state::State;
 use stepping::StepMethod;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
@@ -26,19 +26,8 @@ pub trait OdeModel: Debug {
         &mut self,
         t: f64,
         state: &Self::State,
-        derivative: &mut <Self::State as Integrable>::Derivative,
+        derivative: &mut <Self::State as State>::Derivative,
     ) -> Result<(), Box<dyn Error>>;
-
-    fn write_record(
-        &self,
-        _t: f64,
-        _state: &Self::State,
-        _manager: &mut WriterManager,
-    ) -> Result<(), Box<dyn Error>> {
-        panic!(
-            "Writing not implemented for this model. Implement 'init_writers' and 'write_record' methods to enable writing."
-        );
-    }
 }
 
 /// Enum representing the available solvers supported by the framework.

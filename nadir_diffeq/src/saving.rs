@@ -8,6 +8,7 @@ use std::io::BufWriter;
 
 use crate::OdeModel;
 use crate::state::State;
+use crate::state::state_vector::StateVector;
 
 /// Specifies the saving strategy to be used by the solver.
 ///
@@ -19,7 +20,7 @@ pub enum SaveMethod {
     Memory,
     /// Save state data to disk using a configured `StateWriterBuilder`.
     /// Each element of the vector is a separate file.
-    File(WriterManagerBuilder),
+    File { root_folder: PathBuf },
     /// Do not save solver output — user is responsible for all output handling.
     None,
 }
@@ -37,7 +38,7 @@ where
     /// In-memory vector storage of `(time, state)` tuples.
     Memory(MemoryResult<S>),
     /// File writer to stream output incrementally.
-    File(WriterManager),
+    File { root_folder: PathBuf },
     /// No output storage.
     None,
 }
@@ -146,145 +147,110 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StateWriterBuilder {
-    file_path: PathBuf,
-    headers: Vec<String>,
+    headers: Option<Vec<String>>,
     ncols: usize,
+    relative_file_path: PathBuf,
+    // specify specific indices of the StateVector write
+    indeces: Option<Vec<usize>>,
 }
 
 impl StateWriterBuilder {
-    pub fn new<S: State>(file_path: PathBuf, ncols: usize) -> Self {
-        let headers = S::headers(ncols);
-        if headers.len() != ncols {
-            panic!(
-                "length of headers ({}) doesn't match writer ncols ({})",
-                headers.len(),
-                ncols
-            );
-        }
+    pub fn new(ncols: usize, relative_file_path: PathBuf) -> Self {
         Self {
-            file_path,
-            headers,
+            relative_file_path,
+            headers: None,
             ncols,
+            indeces: None,
         }
+    }
+
+    pub fn with_headers(mut self, headers: &[&str]) -> Result<Self, Box<dyn Error>> {
+        if headers.len() != self.ncols {
+            return Err(format!(
+                "header length ({}) must be equal to ncols ({})",
+                headers.len(),
+                self.ncols
+            )
+            .into());
+        }
+        let headers = headers.iter().map(|header| header.to_string()).collect();
+        self.headers = Some(headers);
+        Ok(self)
+    }
+
+    pub fn with_indeces<const N: usize>(
+        mut self,
+        indeces: [usize; N],
+    ) -> Result<Self, Box<dyn Error>> {
+        if N > self.ncols {
+            return Err(format!(
+                "number of indeces ({}) must be less than or equal to ncols ({})",
+                N, self.ncols
+            )
+            .into());
+        }
+        for i in indeces {
+            if i >= self.ncols {
+                return Err(format!(
+                    "indeces must be less than or equal to ncols ({}), got ({})",
+                    i, self.ncols
+                )
+                .into());
+            }
+        }
+        self.indeces = Some(indeces.into());
+        Ok(self)
     }
 }
 
 #[derive(Debug)]
 pub struct StateWriter {
-    ncols: usize,
     buffer: Vec<String>,
     writer: Writer<BufWriter<File>>,
+    indeces: Option<Vec<usize>>,
 }
 
-impl TryFrom<&StateWriterBuilder> for StateWriter {
-    type Error = Box<dyn Error>;
-
-    fn try_from(value: &StateWriterBuilder) -> Result<Self, Self::Error> {
-        let file = File::create(&value.file_path)?;
+impl StateWriter {
+    pub fn from_builder(
+        builder: &StateWriterBuilder,
+        folder_path: &PathBuf,
+    ) -> Result<Self, Box<dyn Error>> {
+        let abs_file_path = folder_path.join(&builder.relative_file_path);
+        let file = File::create(&abs_file_path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
-        let buffer = vec![String::new(); value.ncols];
-        if !value.headers.is_empty() {
-            writer.write_record(&value.headers)?;
+        let buffer = vec![String::new(); builder.ncols];
+        if let Some(headers) = &builder.headers {
+            writer.write_record(headers)?;
         }
         Ok(Self {
             buffer,
             writer,
-            ncols: value.ncols,
+            indeces: builder.indeces.clone(),
         })
     }
-}
 
-impl StateWriter {
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         self.writer.flush()?;
         Ok(())
     }
 
-    /// Helper function to write f64 data to a column
-    pub fn write_column(&mut self, column: usize, value: f64) -> Result<(), Box<dyn Error>> {
-        if column >= self.ncols {
-            panic!("Column index out of bounds: {} >= {}", column, self.ncols);
-        }
-        write!(self.buffer[column], "{},", value)?;
-        Ok(())
-    }
-
     /// Writes the column data stored in the string buffers to the csv record
-    pub fn write_record(&mut self) -> Result<(), Box<dyn Error>> {
-        self.writer.write_record(&self.buffer)?;
-        for i in 0..self.ncols {
-            self.buffer[i].clear(); // Clear the buffer for the next record
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct WriterManagerBuilder {
-    pub dir_path: PathBuf,
-    counter: u32,
-    writers: HashMap<WriterId, StateWriterBuilder>,
-}
-
-impl WriterManagerBuilder {
-    pub fn add_writer<S: State>(
-        &mut self,
-        file_path: PathBuf,
-        ncols: usize,
-    ) -> Result<WriterId, Box<dyn Error>> {
-        self.counter += 1;
-        let id = WriterId(self.counter);
-        let writer = StateWriterBuilder::new::<S>(self.dir_path.join(file_path), ncols);
-        self.writers.insert(id, writer);
-        Ok(id)
-    }
-
-    pub fn new(dir_path: PathBuf) -> Self {
-        Self {
-            dir_path,
-            counter: 0,
-            writers: HashMap::new(),
-        }
-    }
-}
-
-// Manager for multiple writers
-#[derive(Debug)]
-pub struct WriterManager {
-    writers: HashMap<WriterId, StateWriter>,
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
-pub struct WriterId(u32);
-
-impl WriterManager {
-    pub fn get_writer(&mut self, id: &WriterId) -> &mut StateWriter {
-        if let Some(writer) = self.writers.get_mut(id) {
-            writer
+    pub fn write_record(&mut self, state: &StateVector) -> Result<(), Box<dyn Error>> {
+        if let Some(indeces) = &self.indeces {
+            // write only the indeces we specified
+            for (i, index) in indeces.iter().enumerate() {
+                write!(self.buffer[i], "{}", state[*index].to_string());
+            }
         } else {
-            panic!("Writer with ID {:?} not found", id);
+            // write the whole statevector
+            for i in 0..state.len() {
+                write!(self.buffer[i], "{}", state[i].to_string());
+            }
         }
-    }
-
-    // Flush all writers
-    pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-        for (_, writer) in &mut self.writers {
-            writer.flush()?;
-        }
+        self.writer.write_record(&self.buffer)?;
+        self.buffer.iter_mut().for_each(|e| e.clear());
         Ok(())
-    }
-}
-
-impl TryFrom<&WriterManagerBuilder> for WriterManager {
-    type Error = Box<dyn Error>;
-    fn try_from(value: &WriterManagerBuilder) -> Result<Self, Self::Error> {
-        let mut writers = HashMap::new();
-        std::fs::create_dir_all(&value.dir_path)?;
-        for (id, builder) in &value.writers {
-            writers.insert(*id, StateWriter::try_from(builder)?);
-        }
-        Ok(Self { writers })
     }
 }

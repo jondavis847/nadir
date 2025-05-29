@@ -62,21 +62,7 @@ impl<const N: usize> Integrable for StateArray<N> {
 }
 
 impl<const N: usize> State for StateArray<N> {
-    fn headers(_ncols: usize) -> Vec<String> {
-        let mut headers = vec!["t".to_string()];
-        for i in 0..N {
-            headers.push(format!("x[{}]", i));
-        }
-        headers
-    }
-    fn write_record(&self, t: f64, writer: &mut StateWriter) -> Result<(), Box<dyn Error>> {
-        writer.write_column(0, t)?;
-
-        for i in 0..N {
-            writer.write_column(i + 1, self[i])?;
-        }
-        Ok(())
-    }
+    type Derivative = Self;
 }
 
 impl<const N: usize> Deref for StateArray<N> {

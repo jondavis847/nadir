@@ -4,6 +4,7 @@ use crate::{
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
@@ -570,18 +571,18 @@ impl JointModel for Revolute {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
-        derivative.0[0] = self.state.angular_rate;
-        derivative.0[1] = self.cache.q_ddot;
+    fn state_derivative(&self, derivative: &mut StateVector, _transforms: &JointTransforms) {
+        derivative[0] = self.state.angular_rate;
+        derivative[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.angle, self.state.angular_rate])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.angle, self.state.angular_rate])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.angle = state.0[0];
-        self.state.angular_rate = state.0[1];
+    fn state_vector_read(&mut self, state: &StateVector) {
+        self.state.angle = state[0];
+        self.state.angular_rate = state[1];
     }
 
     fn update_transforms(

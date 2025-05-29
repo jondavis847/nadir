@@ -12,7 +12,7 @@ use crate::{
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use indicatif::MultiProgress;
-use nadir_diffeq::OdeModel;
+use nadir_diffeq::{OdeModel, state::state_vectors::StateVectors};
 use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -791,13 +791,9 @@ impl MultibodySystem {
     }
 }
 
-impl<MultibodyState> OdeModel<MultibodyState> for MultibodySystem {
-    fn f(
-        &mut self,
-        t: f64,
-        x: &MultibodyState,
-        dx: &mut MultibodyState::Derivative,
-    ) -> Result<(), Box<dyn Error>> {
+impl OdeModel for MultibodySystem {
+    type State = StateVectors;
+    fn f(&mut self, t: f64, x: &StateVectors, dx: &mut StateVectors) -> Result<(), Box<dyn Error>> {
         self.update_state(x); // write the integrated states back in to the joints
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms

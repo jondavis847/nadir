@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tolerances {
     abs_tol: f64,
     rel_tol: f64,

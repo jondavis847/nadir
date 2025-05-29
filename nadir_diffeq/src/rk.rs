@@ -3,10 +3,13 @@ use std::{array, error::Error, f64::INFINITY, mem::swap};
 use tolerance::Tolerance;
 
 use crate::{
-    Integrable, OdeModel, StepMethod,
+    OdeModel, StepMethod,
     events::{ContinuousEvent, EventManager},
     saving::ResultStorage,
-    state::State,
+    state::{
+        State, StateConfig,
+        state_vector::{StateVector, StateVectorTolerances},
+    },
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
 };
@@ -15,12 +18,22 @@ use crate::{
 ///
 /// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
 /// and an interpolated state used for dense output or event location.
-#[derive(Default)]
-struct RKBuffers<S: State, const STAGES: usize> {
-    stage: StageBuffer<S, STAGES>,
-    state: S,
-    derivative: S::Derivative,
-    interpolant: S,
+struct RKBuffers<const STAGES: usize> {
+    stage: StageBuffer<STAGES>,
+    state: StateVector,
+    derivative: StateVector,
+    interpolant: StateVector,
+}
+
+impl<const STAGES: usize> RKBuffers<STAGES> {
+    fn new(config: &StateConfig) -> Self {
+        Self {
+            stage: StageBuffer::new(config),
+            state: StateVector::with_capacity(config.n),
+            derivative: StateVector::with_capacity(config.n),
+            interpolant: StateVector::with_capacity(config.n),
+        }
+    }
 }
 
 /// A generic Runge-Kutta solver capable of fixed or adaptive integration with support for:
@@ -32,42 +45,32 @@ struct RKBuffers<S: State, const STAGES: usize> {
 /// # Type Parameters
 /// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
 /// - `STAGES`: Number of stages in the Butcher tableau
-pub struct RungeKutta<S: State, const ORDER: usize, const STAGES: usize> {
-    x: S,
-    y: S,
-    y_tilde: S,
+pub struct RungeKutta<const ORDER: usize, const STAGES: usize> {
+    x: StateVector,
+    y: StateVector,
+    y_tilde: StateVector,
     tableau: ButcherTableau<ORDER, STAGES>,
-    tolerances: S::Tolerance,
-    buffers: RKBuffers<S, STAGES>,
+    buffers: RKBuffers<STAGES>,
     first_step: bool,
 }
 
-impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STAGES> {
+impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
     /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
 
-    pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self
-    where
-        S: State,
-    {
+    pub fn new(config: &StateConfig, tableau: ButcherTableau<ORDER, STAGES>) -> Self {
         Self {
-            buffers: RKBuffers::default(),
-            x: S::default(),
-            y: S::default(),
-            y_tilde: S::default(),
+            buffers: RKBuffers::new(config),
+            x: StateVector::with_capacity(config.n),
+            y: StateVector::with_capacity(config.n),
+            y_tilde: StateVector::with_capacity(config.n),
             tableau,
-            tolerances: S::Tolerance::default(),
             first_step: true,
         }
     }
-    /// Overrides the default tolerance object used for adaptive error control.
 
-    pub fn with_tolerances(mut self, tol: S::Tolerance) -> Self {
-        self.tolerances = tol;
-        self
-    }
     /// Solves the ODE system using either fixed or adaptive step size depending on `step_method`.
 
-    pub fn solve<M: OdeModel<State = S>>(
+    pub fn solve<M: OdeModel<State = S>, S: State>(
         &mut self,
         model: &mut M,
         x0: &S,
@@ -82,13 +85,18 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
                 self.solve_fixed(model, x0, tspan, controller, events, result)
             }
             StepMethod::Adaptive(controller) => {
+                let tolerances = StateVectorTolerances::from_config(
+                    config,
+                    controller.abs_tol,
+                    controller.rel_tol,
+                );
                 self.solve_adaptive(model, x0, tspan, controller, events, result)
             }
         }
     }
     /// Solves the system using fixed step size control, handling periodic events.
 
-    fn solve_fixed<M: OdeModel<State = S>>(
+    fn solve_fixed<M: OdeModel<State = S>, S: State>(
         &mut self,
         model: &mut M,
         x0: &S,
@@ -545,20 +553,14 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
 }
 /// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
-pub struct StageBuffer<State, const STAGES: usize>
-where
-    State: Integrable,
-{
-    pub k: [State::Derivative; STAGES],
+pub struct StageBuffer<const STAGES: usize> {
+    pub k: [StateVector; STAGES],
 }
 
-impl<State, const STAGES: usize> Default for StageBuffer<State, STAGES>
-where
-    State: Integrable,
-{
-    fn default() -> Self {
+impl<const STAGES: usize> StageBuffer<STAGES> {
+    fn new(config: &StateConfig) -> Self {
         Self {
-            k: array::from_fn(|_| State::Derivative::default()),
+            k: array::from_fn(|_| StateVector::with_capacity(config.n)),
         }
     }
 }

@@ -4,14 +4,13 @@ use nadir_diffeq::{
     state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
-use std::error::Error;
+use std::{env::current_dir, error::Error};
 
 #[derive(Debug)]
 struct Lorenz {
     sigma: f64,
     rho: f64,
     beta: f64,
-    writer_id: WriterId,
 }
 
 impl OdeModel for Lorenz {
@@ -28,35 +27,14 @@ impl OdeModel for Lorenz {
         dx[2] = x[0] * x[1] - self.beta * x[2];
         Ok(())
     }
-
-    fn write_record(
-        &self,
-        t: f64,
-        x: &StateArray<3>,
-        manager: &mut WriterManager,
-    ) -> Result<(), Box<dyn Error>> {
-        let writer = manager.get_writer(&self.writer_id);
-        writer.write_column(0, t)?;
-        for i in 0..3 {
-            writer.write_column(i + 1, x[i])?;
-        }
-        Ok(())
-    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Create the file writers for the model
-    let mut writer_manager =
-        WriterManagerBuilder::new(std::env::current_dir()?.join("lorenz_results"));
-    let writer_id = writer_manager
-        .add_writer::<StateArray<3>>(writer_manager.dir_path.join("results.csv"), 4)?;
-
     // Create the model
     let model = Lorenz {
         sigma: 10.,
         rho: 28.,
         beta: 8. / 3.,
-        writer_id,
     };
 
     // Create the ode problem
@@ -64,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         model,
         Solver::Tsit5,
         StepMethod::Adaptive(AdaptiveStepControl::default()),
-        SaveMethod::File(writer_manager),
+        SaveMethod::File(current_dir().join("lorenz_example_results")),
     );
 
     // Solve the problem with some initial condition and tspan
