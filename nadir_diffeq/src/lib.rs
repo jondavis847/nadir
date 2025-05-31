@@ -1,43 +1,28 @@
-use std::{
-    fmt::Debug,
-    fs::File,
-    io::BufWriter,
-    ops::{AddAssign, MulAssign},
-    path::PathBuf,
-};
+use std::fmt::Debug;
 pub mod events;
 pub mod rk;
 pub mod saving;
+pub mod state;
 pub mod state_array;
 pub mod stepping;
 pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
-use csv::Writer;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod};
+use state::{OdeState, StateValue};
 use stepping::StepMethod;
-use tolerance::Tolerance;
-
-pub trait Integrable: Sized + Clone + Default + MulAssign<f64> + Debug
-where
-    for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
-{
-    type Derivative: Clone + MulAssign<f64> + Sized + Default + Debug;
-    type Tolerance: Tolerance<State = Self>;
-
-    fn initialize_writer(_path: &PathBuf) -> Option<Writer<BufWriter<File>>> {
-        None
-    }
-
-    fn save_to_writer(&self, _writer: &mut Writer<BufWriter<File>>, _t: f64) {}
-}
 
 pub trait OdeModel<State>: Debug
 where
-    State: Integrable,
+    State: OdeState,
 {
-    fn f(&mut self, t: f64, state: &State, derivative: &mut State::Derivative);
+    fn f(
+        &mut self,
+        t: f64,
+        state: &State,
+        derivative: &mut <<State as OdeState>::Value as StateValue>::Derivative,
+    );
 }
 
 pub enum Solver {
@@ -52,7 +37,7 @@ pub enum Solver {
 pub struct OdeProblem<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     model: Model,
     solver: Solver,
@@ -64,7 +49,7 @@ where
 impl<Model, State> OdeProblem<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub fn new(
         model: Model,

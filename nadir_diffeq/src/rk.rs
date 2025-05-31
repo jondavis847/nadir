@@ -3,7 +3,7 @@ use std::{array, f64::INFINITY, mem::swap};
 use tolerance::Tolerance;
 
 use crate::{
-    Integrable, OdeModel, StepMethod,
+    OdeModel, OdeState, StepMethod,
     events::{ContinuousEvent, EventManager},
     saving::ResultStorage,
     stepping::{AdaptiveStepControl, FixedStepControl},
@@ -12,33 +12,25 @@ use crate::{
 
 // preallocated buffers for intermediate calculations
 #[derive(Default)]
-struct RKBuffers<State: Integrable, const STAGES: usize> {
+struct RKBuffers<State: OdeState, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
     state: State,
     derivative: State::Derivative,
     interpolant: State,
 }
 
-pub struct RungeKutta<State: Integrable, const ORDER: usize, const STAGES: usize> {
-    x: State,
-    y: State,
-    y_tilde: State,
+pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> {
     tableau: ButcherTableau<ORDER, STAGES>,
     tolerances: State::Tolerance,
-    buffers: RKBuffers<State, STAGES>,
     first_step: bool,
 }
 
-impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
+impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
     pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self
     where
-        State: Integrable,
+        State: OdeState,
     {
         Self {
-            buffers: RKBuffers::default(),
-            x: State::default(),
-            y: State::default(),
-            y_tilde: State::default(),
             tableau,
             tolerances: State::Tolerance::default(),
             first_step: true,
@@ -73,7 +65,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
     pub fn solve_fixed<Model: OdeModel<State>>(
         &mut self,
         model: &mut Model,
-        x0: &State,
+        x0: State,
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
@@ -84,11 +76,8 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
 
         let mut t = tspan.0;
 
-        // Copy initial state
-        self.x.clone_from(x0);
-
         // Save the true initial state before any processing
-        result.save(t, &self.x);
+        result.save(t, &x0);
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
@@ -517,14 +506,14 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
 #[derive(Debug, Clone)]
 pub struct StageBuffer<State, const STAGES: usize>
 where
-    State: Integrable,
+    State: OdeState,
 {
     pub k: [State::Derivative; STAGES],
 }
 
 impl<State, const STAGES: usize> Default for StageBuffer<State, STAGES>
 where
-    State: Integrable,
+    State: OdeState,
 {
     fn default() -> Self {
         Self {
