@@ -1,5 +1,4 @@
 use csv::Writer;
-use std::collections::HashMap;
 use std::{error::Error, path::PathBuf};
 
 use std::fmt::{Debug, Write};
@@ -38,7 +37,7 @@ where
     /// In-memory vector storage of `(time, state)` tuples.
     Memory(MemoryResult<S>),
     /// File writer to stream output incrementally.
-    File { root_folder: PathBuf },
+    File { writers: Vec<StateWriter> },
     /// No output storage.
     None,
 }
@@ -50,25 +49,19 @@ where
     /// Save a `(time, state)` pair to the result store.
     ///
     /// No-op if storage is `None`.
-    pub fn save<M: OdeModel<State = S>>(
-        &mut self,
-        model: &M,
-        t: f64,
-        y: &S,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn save<M: OdeModel<State = S>>(&mut self, t: f64, y: &S) -> Result<(), Box<dyn Error>> {
         match self {
             ResultStorage::Memory(result) => {
                 result.insert(t, y);
                 Ok(())
             }
-            ResultStorage::File(manager) => {
+            ResultStorage::File { writers } => {
                 // model just populates the string buffers
-                model.write_record(t, y, manager)?;
-
-                // now write the buffers to the files
-                for writer in manager.writers.values_mut() {
-                    writer.write_record()?;
+                for writer in writers.iter_mut() {
+                    y.write_vector(&mut writer.float_buffer);
+                    writer.write_record(t)?;
                 }
+
                 Ok(())
             }
             _ => Ok(()),
@@ -84,7 +77,11 @@ where
             ResultStorage::Memory(result) => {
                 result.truncate();
             }
-            ResultStorage::File(manager) => manager.flush()?,
+            ResultStorage::File { writers } => {
+                for writer in writers {
+                    writer.flush()?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -207,7 +204,8 @@ impl StateWriterBuilder {
 
 #[derive(Debug)]
 pub struct StateWriter {
-    buffer: Vec<String>,
+    float_buffer: StateVector,
+    string_buffer: Vec<String>,
     writer: Writer<BufWriter<File>>,
     indeces: Option<Vec<usize>>,
 }
@@ -220,12 +218,14 @@ impl StateWriter {
         let abs_file_path = folder_path.join(&builder.relative_file_path);
         let file = File::create(&abs_file_path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
-        let buffer = vec![String::new(); builder.ncols];
+        let string_buffer = vec![String::new(); builder.ncols];
+        let float_buffer = StateVector::with_capacity(builder.ncols);
         if let Some(headers) = &builder.headers {
             writer.write_record(headers)?;
         }
         Ok(Self {
-            buffer,
+            float_buffer,
+            string_buffer,
             writer,
             indeces: builder.indeces.clone(),
         })
@@ -237,20 +237,22 @@ impl StateWriter {
     }
 
     /// Writes the column data stored in the string buffers to the csv record
-    pub fn write_record(&mut self, state: &StateVector) -> Result<(), Box<dyn Error>> {
+    pub fn write_record(&mut self, t: f64) -> Result<(), Box<dyn Error>> {
+        let state = &self.float_buffer;
+        write!(self.string_buffer[0], "{}", t.to_string());
         if let Some(indeces) = &self.indeces {
             // write only the indeces we specified
             for (i, index) in indeces.iter().enumerate() {
-                write!(self.buffer[i], "{}", state[*index].to_string());
+                write!(self.string_buffer[i + 1], "{}", state[*index].to_string());
             }
         } else {
             // write the whole statevector
             for i in 0..state.len() {
-                write!(self.buffer[i], "{}", state[i].to_string());
+                write!(self.string_buffer[i], "{}", state[i].to_string());
             }
         }
-        self.writer.write_record(&self.buffer)?;
-        self.buffer.iter_mut().for_each(|e| e.clear());
+        self.writer.write_record(&self.string_buffer)?;
+        self.string_buffer.iter_mut().for_each(|e| e.clear());
         Ok(())
     }
 }

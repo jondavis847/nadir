@@ -18,20 +18,20 @@ use crate::{
 ///
 /// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
 /// and an interpolated state used for dense output or event location.
-struct RKBuffers<const STAGES: usize> {
-    stage: StageBuffer<STAGES>,
-    state: StateVector,
-    derivative: StateVector,
-    interpolant: StateVector,
+struct RKBuffers<S: State, const STAGES: usize> {
+    stage: StageBuffer<S, STAGES>,
+    state: S,
+    derivative: S::Derivative,
+    interpolant: S,
 }
 
-impl<const STAGES: usize> RKBuffers<STAGES> {
+impl<S: State, const STAGES: usize> RKBuffers<S, STAGES> {
     fn new(config: &StateConfig) -> Self {
         Self {
             stage: StageBuffer::new(config),
-            state: StateVector::with_capacity(config.n),
-            derivative: StateVector::with_capacity(config.n),
-            interpolant: StateVector::with_capacity(config.n),
+            state: S::default(),
+            derivative: S::Derivative::default(),
+            interpolant: S::default(),
         }
     }
 }
@@ -45,24 +45,24 @@ impl<const STAGES: usize> RKBuffers<STAGES> {
 /// # Type Parameters
 /// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
 /// - `STAGES`: Number of stages in the Butcher tableau
-pub struct RungeKutta<const ORDER: usize, const STAGES: usize> {
-    x: StateVector,
-    y: StateVector,
-    y_tilde: StateVector,
+pub struct RungeKutta<S: State, const ORDER: usize, const STAGES: usize> {
+    x: S,
+    y: S,
+    y_tilde: S,
     tableau: ButcherTableau<ORDER, STAGES>,
-    buffers: RKBuffers<STAGES>,
+    buffers: RKBuffers<S, STAGES>,
     first_step: bool,
 }
 
-impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
+impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STAGES> {
     /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
 
     pub fn new(config: &StateConfig, tableau: ButcherTableau<ORDER, STAGES>) -> Self {
         Self {
             buffers: RKBuffers::new(config),
-            x: StateVector::with_capacity(config.n),
-            y: StateVector::with_capacity(config.n),
-            y_tilde: StateVector::with_capacity(config.n),
+            x: S::default(),
+            y: S::default(),
+            y_tilde: S::default(),
             tableau,
             first_step: true,
         }
@@ -70,7 +70,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
 
     /// Solves the ODE system using either fixed or adaptive step size depending on `step_method`.
 
-    pub fn solve<M: OdeModel<State = S>, S: State>(
+    pub fn solve<M: OdeModel<State = S>>(
         &mut self,
         model: &mut M,
         x0: &S,
@@ -79,6 +79,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
         events: &mut EventManager<M, S>,
         result: &mut ResultStorage<S>,
     ) -> Result<(), Box<dyn Error>> {
+        let state_config = S::config();
         match step_method {
             StepMethod::Fixed(controller) => {
                 controller.next_time = tspan.0;
@@ -86,7 +87,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
             }
             StepMethod::Adaptive(controller) => {
                 let tolerances = StateVectorTolerances::from_config(
-                    config,
+                    &state_config,
                     controller.abs_tol,
                     controller.rel_tol,
                 );
@@ -96,7 +97,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
     }
     /// Solves the system using fixed step size control, handling periodic events.
 
-    fn solve_fixed<M: OdeModel<State = S>, S: State>(
+    fn solve_fixed<M: OdeModel<State = S>>(
         &mut self,
         model: &mut M,
         x0: &S,
@@ -114,12 +115,12 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
         self.x.clone_from(x0);
 
         // Save the true initial state before any processing
-        result.save(model, t, &self.x)?;
+        result.save(t, &self.x)?;
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
-            result.save(model, t, &self.x)?;
+            result.save(t, &self.x)?;
         };
 
         while t < tspan.1 {
@@ -144,12 +145,12 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
             t += dt;
 
             // Save the result for this time step
-            result.save(model, t, &self.y)?;
+            result.save(t, &self.y)?;
 
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
                 // Save the result after events
-                result.save(model, t, &self.y)?;
+                result.save(t, &self.y)?;
             };
 
             // Initialize next loop
@@ -168,7 +169,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
     ///
     /// Supports both periodic and continuous events, and performs root-finding
     /// to locate the time of continuous events using Brent's method.
-    fn solve_adaptive<M: OdeModel<State = S>>(
+    fn solve_adaptive<M>(
         &mut self,
         model: &mut M,
         x0: &S,
@@ -176,22 +177,27 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<M, S>,
         result: &mut ResultStorage<S>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error>>
+    where
+        M: OdeModel<State = S>,
+        S: State,
+    {
         let mut accept_counter = 0;
         let mut reject_counter = 0;
         let mut function_calls = 0;
 
         let mut t = tspan.0;
         self.x.clone_from(x0);
+
         let mut dt = 1e-3; // initial dt
 
         // Save the true initial state before any processing
-        result.save(model, t, &self.x)?;
+        result.save(t, &self.x)?;
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
-            result.save(model, t, &self.x)?;
+            result.save(t, &self.x)?;
         };
 
         while t < tspan.1 {
@@ -244,7 +250,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
                 if continuous_event_occurred {
                     self.interpolate(t, dt, continuous_event_time);
                     // save the result prior to the event action
-                    result.save(model, continuous_event_time, &self.buffers.interpolant)?;
+                    result.save(continuous_event_time, &self.buffers.interpolant)?;
                     // perform the event actions
                     for i in event_indeces {
                         (events.continuous_events[i].action)(
@@ -253,7 +259,7 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
                             continuous_event_time,
                         );
                         // save after each action
-                        result.save(model, continuous_event_time, &self.buffers.interpolant)?;
+                        result.save(continuous_event_time, &self.buffers.interpolant)?;
                     }
                     // update dt for the continuous event time
                     dt = continuous_event_time - t;
@@ -263,11 +269,11 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
 
                 t += dt;
                 // Save the true state before any event processing
-                result.save(model, t, &self.y)?;
+                result.save(t, &self.y)?;
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
-                    result.save(model, t, &self.y)?;
+                    result.save(t, &self.y)?;
                 };
 
                 self.x.clone_from(&self.y);
@@ -315,14 +321,18 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
     /// Performs a single integration step using the configured Butcher tableau.
     ///
     /// Supports FSAL and dense output (when `adaptive` is true).
-    pub fn step<M: OdeModel<State = S>>(
+    pub fn step<M>(
         &mut self,
         model: &mut M,
         t: f64,
         h: f64,
         adaptive: bool,
         function_calls: &mut i32,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error>>
+    where
+        M: OdeModel<State = S>,
+        S: State,
+    {
         let k = &mut self.buffers.stage.k;
 
         if self.tableau.fsal {
@@ -553,14 +563,14 @@ impl<const ORDER: usize, const STAGES: usize> RungeKutta<ORDER, STAGES> {
 }
 /// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
-pub struct StageBuffer<const STAGES: usize> {
-    pub k: [StateVector; STAGES],
+pub struct StageBuffer<S: State, const STAGES: usize> {
+    pub k: [S; STAGES],
 }
 
-impl<const STAGES: usize> StageBuffer<STAGES> {
-    fn new(config: &StateConfig) -> Self {
+impl<S: State, const STAGES: usize> StageBuffer<S, STAGES> {
+    fn new() -> Self {
         Self {
-            k: array::from_fn(|_| StateVector::with_capacity(config.n)),
+            k: array::from_fn(|_| S::default()),
         }
     }
 }

@@ -3,14 +3,10 @@
 //! row and then writing it out incrementally.
 
 use state_vector::StateVector;
-use std::{
-    error::Error,
-    fmt::Debug,
-    ops::{AddAssign, MulAssign},
-};
-use tolerance::{Tolerance, Tolerances};
+use std::error::Error;
+use tolerance::Tolerances;
 
-use crate::saving::{StateWriter, StateWriterBuilder};
+use crate::saving::StateWriterBuilder;
 
 //pub mod state_array;
 pub mod state_vector;
@@ -19,7 +15,7 @@ pub mod state_vector;
 pub struct StateConfig {
     pub n: usize,
     pub tolerances: Vec<Option<Tolerances>>,
-    writers: Vec<StateWriterBuilder>,
+    pub writers: Vec<StateWriterBuilder>,
 }
 
 impl StateConfig {
@@ -76,8 +72,10 @@ pub trait State: Clone + Default + Clone + Sized + 'static {
     type Derivative: Clone + Default + Clone + Sized + 'static;
 
     fn config() -> StateConfig;
-    /// Read in the values from a StateVector to your custom State
-    fn read_state(&mut self, x: StateVector);
-    /// Write values from your custom State derivative into the integration buffer
-    fn write_derivative(&self, dx: &mut StateVector);
+    /// Read values from a StateVector to your custom State
+    fn read_vector(&mut self, x: StateVector);
+    /// Write values of custom state to a StateVector
+    fn write_vector(&self, dx: &mut StateVector);
+    /// Create a new state from a StateVector
+    fn from_vector(x: &StateVector) -> &Self;
 }

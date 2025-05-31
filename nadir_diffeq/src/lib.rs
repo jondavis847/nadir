@@ -11,7 +11,7 @@ pub mod tableau;
 use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod};
+use saving::{MemoryResult, ResultStorage, SaveMethod, StateWriter};
 use state::State;
 use stepping::StepMethod;
 
@@ -113,6 +113,7 @@ where
     ///
     /// A result containing the populated `ResultStorage` (either in memory or to file).
     pub fn solve(&mut self, x0: &S, tspan: (f64, f64)) -> Result<ResultStorage<S>, Box<dyn Error>> {
+        let state_config = S::config();
         // Preallocate memory for result storage if needed
         let mut result = match &self.save_method {
             SaveMethod::Memory => {
@@ -131,14 +132,22 @@ where
                 };
                 ResultStorage::Memory(MemoryResult::<S>::new(n))
             }
-            SaveMethod::File(manager) => ResultStorage::File(WriterManager::try_from(manager)?),
+            SaveMethod::File { root_folder } => {
+                let mut writers = Vec::new();
+                for builder in &state_config.writers {
+                    writers.push(StateWriter::from_builder(builder, root_folder)?);
+                }
+
+                ResultStorage::File { writers }
+            }
             _ => ResultStorage::None,
         };
 
         // Dispatch to the appropriate solver
         match self.solver {
             Solver::DoPri45 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::DORMANDPRINCE45);
+                let mut solver =
+                    RungeKutta::new(&state_config, ButcherTableau::<5, 7>::DORMANDPRINCE45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -149,7 +158,7 @@ where
                 )?;
             }
             Solver::New45 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::NEW45);
+                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<5, 7>::NEW45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -160,7 +169,7 @@ where
                 )?;
             }
             Solver::Rk4 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<4, 4>::RK4);
+                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<4, 4>::RK4);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -171,7 +180,7 @@ where
                 )?;
             }
             Solver::Tsit5 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::TSITOURAS5);
+                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<5, 7>::TSITOURAS5);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -182,7 +191,7 @@ where
                 )?;
             }
             Solver::Verner6 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<6, 9>::VERNER6);
+                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<6, 9>::VERNER6);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -193,7 +202,7 @@ where
                 )?;
             }
             Solver::Verner9 => {
-                let mut solver = RungeKutta::new(ButcherTableau::<9, 26>::VERNER9);
+                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<9, 26>::VERNER9);
                 solver.solve(
                     &mut self.model,
                     x0,
