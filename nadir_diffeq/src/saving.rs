@@ -2,7 +2,7 @@ use csv::Writer;
 use std::{error::Error, path::PathBuf};
 
 use std::fmt::{Debug, Write};
-use std::fs::File;
+use std::fs::{File, create_dir_all};
 use std::io::BufWriter;
 
 use crate::state::OdeState;
@@ -215,6 +215,9 @@ impl StateWriter {
         folder_path: &PathBuf,
     ) -> Result<Self, Box<dyn Error>> {
         let abs_file_path = folder_path.join(&builder.relative_file_path);
+        if let Some(parent) = abs_file_path.parent() {
+            create_dir_all(parent)?;
+        }
         let file = File::create(&abs_file_path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
         let string_buffer = vec![String::new(); builder.ncols];

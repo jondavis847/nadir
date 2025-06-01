@@ -1,5 +1,7 @@
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 
+use crate::saving::StateWriterBuilder;
+
 use super::{OdeState, StateConfig, state_vector::StateVector};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
@@ -66,7 +68,7 @@ impl<const N: usize> OdeState for StateArray<N> {
         Ok(StateConfig {
             n: N,
             tolerances: vec![None; N],
-            writers: vec![],
+            writers: vec![StateWriterBuilder::new(N + 1, "results.csv".into())],
         })
     }
 
@@ -81,7 +83,7 @@ impl<const N: usize> OdeState for StateArray<N> {
 
     fn write_vector(&self, x: &mut StateVector) {
         if x.len() != N {
-            panic!("StateVector length does not match StateArray size");
+            x.resize(N, 0.0);
         }
         for i in 0..N {
             x[i] = self.0[i];
