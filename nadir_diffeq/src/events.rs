@@ -1,11 +1,11 @@
 use std::f64::INFINITY;
 
-use crate::{Integrable, OdeModel};
+use crate::{OdeModel, state::OdeState};
 
 pub struct EventManager<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub continuous_events: Vec<ContinuousEvent<Model, State>>,
     periodic_events: Vec<PeriodicEvent<Model, State>>,
@@ -16,7 +16,7 @@ where
 impl<Model, State> EventManager<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub fn new() -> Self {
         Self {
@@ -113,7 +113,7 @@ struct NextEvent {
 pub struct PeriodicEvent<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub period: f64,
     pub next_time: f64,
@@ -123,7 +123,7 @@ where
 impl<Model, State> PeriodicEvent<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub fn new<F>(period: f64, start_time: f64, f: F) -> Self
     where
@@ -144,7 +144,7 @@ where
 pub struct ContinuousEvent<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub last_check: f64,
     pub first_pass: bool,
@@ -156,7 +156,7 @@ where
 impl<Model, State> ContinuousEvent<Model, State>
 where
     Model: OdeModel<State>,
-    State: Integrable,
+    State: OdeState,
 {
     pub fn new<C, A>(condition: C, action: A) -> Self
     where

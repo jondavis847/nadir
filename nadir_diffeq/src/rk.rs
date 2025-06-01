@@ -10,15 +10,6 @@ use crate::{
     tableau::ButcherTableau,
 };
 
-// preallocated buffers for intermediate calculations
-#[derive(Default)]
-struct RKBuffers<State: OdeState, const STAGES: usize> {
-    stage: StageBuffer<State, STAGES>,
-    state: State,
-    derivative: State::Derivative,
-    interpolant: State,
-}
-
 pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> {
     tableau: ButcherTableau<ORDER, STAGES>,
     tolerances: State::Tolerance,
@@ -500,24 +491,5 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
         }
         (true, output)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct StageBuffer<State, const STAGES: usize>
-where
-    State: OdeState,
-{
-    pub k: [State::Derivative; STAGES],
-}
-
-impl<State, const STAGES: usize> Default for StageBuffer<State, STAGES>
-where
-    State: OdeState,
-{
-    fn default() -> Self {
-        Self {
-            k: array::from_fn(|_| State::Derivative::default()),
-        }
     }
 }

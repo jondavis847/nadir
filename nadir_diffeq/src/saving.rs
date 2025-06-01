@@ -2,7 +2,7 @@ use std::{fs::File, io::BufWriter, path::PathBuf};
 
 use csv::Writer;
 
-use crate::Integrable;
+use crate::state::OdeState;
 
 pub enum SaveMethod {
     Memory,
@@ -13,14 +13,14 @@ pub enum SaveMethod {
 #[derive(Debug)]
 pub enum ResultStorage<State>
 where
-    State: Integrable,
+    State: OdeState,
 {
     Memory(MemoryResult<State>),
     File(Writer<BufWriter<File>>),
     None,
 }
 
-impl<State: Integrable> ResultStorage<State> {
+impl<State: OdeState> ResultStorage<State> {
     pub fn save(&mut self, t: f64, y: &State) {
         match self {
             ResultStorage::Memory(result) => {
@@ -44,14 +44,14 @@ impl<State: Integrable> ResultStorage<State> {
 #[derive(Debug)]
 pub struct MemoryResult<State>
 where
-    State: Integrable,
+    State: OdeState,
 {
     pub t: Vec<f64>,
     pub y: Vec<State>,
     i: usize, // current index
 }
 
-impl<State: Integrable> MemoryResult<State> {
+impl<State: OdeState> MemoryResult<State> {
     pub fn new(n: usize) -> Self {
         Self {
             t: vec![0.0; n],
