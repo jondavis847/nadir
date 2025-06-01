@@ -4,11 +4,12 @@
 
 use state_vector::StateVector;
 use std::error::Error;
+use std::ops::{AddAssign, MulAssign, SubAssign};
 use tolerance::Tolerances;
 
 use crate::saving::StateWriterBuilder;
 
-//pub mod state_array;
+pub mod state_array;
 pub mod state_vector;
 //pub mod state_vectors;
 
@@ -68,9 +69,11 @@ impl StateConfig {
     }
 }
 
-pub trait State: Clone + Default + Clone + Sized + 'static {
-    type Derivative: Clone + Default + Clone + Sized + 'static;
-
+pub trait OdeState: Clone + Default + Clone + Sized + MulAssign<f64> + 'static
+where
+    for<'a> Self: SubAssign<&'a Self> + AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
+{
+    type Derivative: Clone + Default + Clone + Sized + MulAssign<f64> + 'static;
     fn config() -> StateConfig;
     /// Read values from a StateVector to your custom State
     fn read_vector(&mut self, x: StateVector);

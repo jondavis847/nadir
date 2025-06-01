@@ -1,5 +1,5 @@
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
-use tolerance::{Tolerance, Tolerances};
+use tolerance::Tolerances;
 
 use super::StateConfig;
 
@@ -83,7 +83,7 @@ impl DerefMut for StateVector {
 ///
 /// If an entry is `None`, default relative and absolute tolerances are used for that component.
 #[derive(Default)]
-pub struct StateVectorTolerances(Vec<Tolerances>);
+pub struct StateVectorTolerances(pub Vec<Tolerances>);
 
 impl StateVectorTolerances {
     /// Computes the root-mean-square error between estimated and actual states.

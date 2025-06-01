@@ -1,13 +1,10 @@
 use std::{
     error::Error,
-    ops::{AddAssign, Deref, DerefMut, MulAssign},
+    ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign},
 };
 
+use super::OdeState;
 use tolerance::{Tolerance, Tolerances, compute_error};
-
-use crate::{Integrable, saving::StateWriter};
-
-use super::State;
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
 ///
@@ -44,6 +41,17 @@ impl<const N: usize> AddAssign<&Self> for StateArray<N> {
     }
 }
 
+impl<const N: usize> SubAssign<&Self> for StateArray<N> {
+    /// Subtracts each element from the right-hand side into `self` in-place.
+    ///
+    /// This operation is element-wise.
+    fn sub_assign(&mut self, rhs: &Self) {
+        for i in 0..N {
+            self.0[i] -= rhs.0[i];
+        }
+    }
+}
+
 impl<const N: usize> MulAssign<f64> for StateArray<N> {
     /// Multiplies each element of the array in-place by the given scalar.
     fn mul_assign(&mut self, rhs: f64) {
@@ -53,16 +61,25 @@ impl<const N: usize> MulAssign<f64> for StateArray<N> {
     }
 }
 
-impl<const N: usize> Integrable for StateArray<N> {
+impl<const N: usize> OdeState for StateArray<N> {
     /// The derivative is represented by the same type as the state.
     type Derivative = Self;
 
-    /// Per-component tolerances for error control.
-    type Tolerance = StateArrayTolerances<N>;
-}
+    fn config() -> super::StateConfig {
+        super::StateConfig {
+            n: N,
+            tolerances: vec![None; N],
+            writers: vec![],
+        }
+    }
 
-impl<const N: usize> State for StateArray<N> {
-    type Derivative = Self;
+    fn from_vector(x: &super::state_vector::StateVector) -> &Self {
+        let mut array = [0.0; N];
+        for i in 0..N {
+            array[i] = x[i];
+        }
+        &StateArray::new(array)
+    }
 }
 
 impl<const N: usize> Deref for StateArray<N> {

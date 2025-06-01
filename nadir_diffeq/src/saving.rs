@@ -5,8 +5,7 @@ use std::fmt::{Debug, Write};
 use std::fs::File;
 use std::io::BufWriter;
 
-use crate::OdeModel;
-use crate::state::State;
+use crate::state::OdeState;
 use crate::state::state_vector::StateVector;
 
 /// Specifies the saving strategy to be used by the solver.
@@ -30,26 +29,26 @@ pub enum SaveMethod {
 /// - `File`: Writes each step to a file.
 /// - `None`: Performs no saving.
 #[derive(Debug)]
-pub enum ResultStorage<S>
+pub enum ResultStorage<State>
 where
-    S: State,
+    State: OdeState,
 {
     /// In-memory vector storage of `(time, state)` tuples.
-    Memory(MemoryResult<S>),
+    Memory(MemoryResult<State>),
     /// File writer to stream output incrementally.
     File { writers: Vec<StateWriter> },
     /// No output storage.
     None,
 }
 
-impl<S> ResultStorage<S>
+impl<State> ResultStorage<State>
 where
-    S: State,
+    State: OdeState,
 {
     /// Save a `(time, state)` pair to the result store.
     ///
     /// No-op if storage is `None`.
-    pub fn save<M: OdeModel<State = S>>(&mut self, t: f64, y: &S) -> Result<(), Box<dyn Error>> {
+    pub fn save(&mut self, t: f64, y: &State) -> Result<(), Box<dyn Error>> {
         match self {
             ResultStorage::Memory(result) => {
                 result.insert(t, y);
@@ -91,33 +90,33 @@ where
 /// A preallocated and growable result container used for in-memory storage
 /// of ODE solver outputs. Each entry stores the time and state value at that time.
 #[derive(Debug)]
-pub struct MemoryResult<S>
+pub struct MemoryResult<State>
 where
-    S: State,
+    State: OdeState,
 {
     /// Recorded times.
     pub t: Vec<f64>,
     /// Recorded states.
-    pub y: Vec<S>,
+    pub y: Vec<State>,
     /// Current insert index.
     i: usize,
 }
 
-impl<S> MemoryResult<S>
+impl<State> MemoryResult<State>
 where
-    S: State,
+    State: OdeState,
 {
     /// Constructs a new memory result buffer with an initial capacity `n`.
     pub fn new(n: usize) -> Self {
         Self {
             t: vec![0.0; n],
-            y: vec![S::default(); n],
+            y: vec![State::default(); n],
             i: 0,
         }
     }
 
     /// Inserts a new result `(t, x)` into the buffer. Automatically grows if full.
-    fn insert(&mut self, t: f64, x: &S) {
+    fn insert(&mut self, t: f64, x: &State) {
         if self.i == self.t.len() - 1 {
             self.extend();
         }
@@ -134,7 +133,7 @@ where
     /// Doubles the size of the buffer to accommodate more entries.
     fn extend(&mut self) {
         self.t.extend(vec![0.0; self.len()]);
-        self.y.extend(vec![S::default(); self.len()]);
+        self.y.extend(vec![State::default(); self.len()]);
     }
 
     /// Truncates the buffer to contain only the filled entries.
@@ -239,16 +238,16 @@ impl StateWriter {
     /// Writes the column data stored in the string buffers to the csv record
     pub fn write_record(&mut self, t: f64) -> Result<(), Box<dyn Error>> {
         let state = &self.float_buffer;
-        write!(self.string_buffer[0], "{}", t.to_string());
+        write!(self.string_buffer[0], "{}", t.to_string())?;
         if let Some(indeces) = &self.indeces {
             // write only the indeces we specified
             for (i, index) in indeces.iter().enumerate() {
-                write!(self.string_buffer[i + 1], "{}", state[*index].to_string());
+                write!(self.string_buffer[i + 1], "{}", state[*index].to_string())?;
             }
         } else {
             // write the whole statevector
             for i in 0..state.len() {
-                write!(self.string_buffer[i], "{}", state[i].to_string());
+                write!(self.string_buffer[i], "{}", state[i].to_string())?;
             }
         }
         self.writer.write_record(&self.string_buffer)?;

@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Copy)]
 pub struct Tolerances {
-    abs_tol: f64,
-    rel_tol: f64,
+    pub abs_tol: f64,
+    pub rel_tol: f64,
 }
 
 impl Default for Tolerances {

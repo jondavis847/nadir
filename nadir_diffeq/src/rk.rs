@@ -1,13 +1,13 @@
 use std::{array, error::Error, f64::INFINITY, mem::swap};
 
-use tolerance::Tolerance;
+use tolerance::compute_error;
 
 use crate::{
     OdeModel, StepMethod,
     events::{ContinuousEvent, EventManager},
     saving::ResultStorage,
     state::{
-        State, StateConfig,
+        OdeState,
         state_vector::{StateVector, StateVectorTolerances},
     },
     stepping::{AdaptiveStepControl, FixedStepControl},
@@ -18,24 +18,41 @@ use crate::{
 ///
 /// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
 /// and an interpolated state used for dense output or event location.
-struct RKBuffers<S: State, const STAGES: usize> {
-    stage: StageBuffer<S, STAGES>,
-    state: S,
-    derivative: S::Derivative,
-    interpolant: S,
+struct RKBuffers<State: OdeState, const STAGES: usize> {
+    stage: StageBuffer<State, STAGES>,
+    state: State,
+    derivative: State::Derivative,
+    interpolant: State,
+    tolerance: ToleranceBuffers,
 }
 
-impl<S: State, const STAGES: usize> RKBuffers<S, STAGES> {
-    fn new(config: &StateConfig) -> Self {
+impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
+    fn new(n: usize) -> Self {
         Self {
-            stage: StageBuffer::new(config),
-            state: S::default(),
-            derivative: S::Derivative::default(),
-            interpolant: S::default(),
+            stage: StageBuffer::new(),
+            state: State::default(),
+            derivative: State::Derivative::default(),
+            interpolant: State::default(),
+            tolerance: ToleranceBuffers::new(n),
         }
     }
 }
 
+pub struct ToleranceBuffers {
+    y: StateVector,
+    y_prev: StateVector,
+    y_tilde: StateVector,
+}
+
+impl ToleranceBuffers {
+    pub fn new(n: usize) -> Self {
+        Self {
+            y: StateVector::with_capacity(n),
+            y_prev: StateVector::with_capacity(n),
+            y_tilde: StateVector::with_capacity(n),
+        }
+    }
+}
 /// A generic Runge-Kutta solver capable of fixed or adaptive integration with support for:
 /// - Embedded error estimation
 /// - First-same-as-last (FSAL) optimizations
@@ -45,24 +62,24 @@ impl<S: State, const STAGES: usize> RKBuffers<S, STAGES> {
 /// # Type Parameters
 /// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
 /// - `STAGES`: Number of stages in the Butcher tableau
-pub struct RungeKutta<S: State, const ORDER: usize, const STAGES: usize> {
-    x: S,
-    y: S,
-    y_tilde: S,
+pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> {
+    x: State,
+    y: State,
+    y_tilde: State,
     tableau: ButcherTableau<ORDER, STAGES>,
-    buffers: RKBuffers<S, STAGES>,
+    buffers: RKBuffers<State, STAGES>,
     first_step: bool,
 }
 
-impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STAGES> {
+impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
     /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
 
-    pub fn new(config: &StateConfig, tableau: ButcherTableau<ORDER, STAGES>) -> Self {
+    pub fn new(n: usize, tableau: ButcherTableau<ORDER, STAGES>) -> Self {
         Self {
-            buffers: RKBuffers::new(config),
-            x: S::default(),
-            y: S::default(),
-            y_tilde: S::default(),
+            buffers: RKBuffers::new(n),
+            x: State::default(),
+            y: State::default(),
+            y_tilde: State::default(),
             tableau,
             first_step: true,
         }
@@ -70,16 +87,16 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
 
     /// Solves the ODE system using either fixed or adaptive step size depending on `step_method`.
 
-    pub fn solve<M: OdeModel<State = S>>(
+    pub fn solve<Model: OdeModel<State = State>>(
         &mut self,
-        model: &mut M,
-        x0: &S,
+        model: &mut Model,
+        x0: &State,
         tspan: (f64, f64),
         step_method: &mut StepMethod,
-        events: &mut EventManager<M, S>,
-        result: &mut ResultStorage<S>,
+        events: &mut EventManager<Model, State>,
+        result: &mut ResultStorage<State>,
     ) -> Result<(), Box<dyn Error>> {
-        let state_config = S::config();
+        let state_config = State::config();
         match step_method {
             StepMethod::Fixed(controller) => {
                 controller.next_time = tspan.0;
@@ -91,20 +108,20 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
                     controller.abs_tol,
                     controller.rel_tol,
                 );
-                self.solve_adaptive(model, x0, tspan, controller, events, result)
+                self.solve_adaptive(model, x0, tspan, controller, tolerances, events, result)
             }
         }
     }
     /// Solves the system using fixed step size control, handling periodic events.
 
-    fn solve_fixed<M: OdeModel<State = S>>(
+    fn solve_fixed<Model: OdeModel<State = State>>(
         &mut self,
-        model: &mut M,
-        x0: &S,
+        model: &mut Model,
+        x0: &State,
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
-        events: &mut EventManager<M, S>,
-        result: &mut ResultStorage<S>,
+        events: &mut EventManager<Model, State>,
+        result: &mut ResultStorage<State>,
     ) -> Result<(), Box<dyn Error>> {
         // Counter to count number of function calls
         let mut function_calls = 0;
@@ -169,18 +186,19 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
     ///
     /// Supports both periodic and continuous events, and performs root-finding
     /// to locate the time of continuous events using Brent's method.
-    fn solve_adaptive<M>(
+    fn solve_adaptive<Model>(
         &mut self,
-        model: &mut M,
-        x0: &S,
+        model: &mut Model,
+        x0: &State,
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
-        events: &mut EventManager<M, S>,
-        result: &mut ResultStorage<S>,
+        tolerances: StateVectorTolerances,
+        events: &mut EventManager<Model, State>,
+        result: &mut ResultStorage<State>,
     ) -> Result<(), Box<dyn Error>>
     where
-        M: OdeModel<State = S>,
-        S: State,
+        Model: OdeModel<State = State>,
+        State: OdeState,
     {
         let mut accept_counter = 0;
         let mut reject_counter = 0;
@@ -217,13 +235,11 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
             self.step(model, t, dt, true, &mut function_calls)?;
 
             // Calculate error
-            let error = self.compute_error(
-                &self.y,
-                &self.x,
-                &self.y_tilde,
-                controller.rel_tol,
-                controller.abs_tol,
-            );
+            let tol_buffer = &mut self.buffers.tolerance;
+            self.y.write_vector(&mut tol_buffer.y);
+            self.x.write_vector(&mut tol_buffer.y_prev);
+            self.y_tilde.write_vector(&mut tol_buffer.y_tilde);
+            let error = self.compute_error(&tolerances);
 
             // Calculate new step size based on dt
             let new_dt = controller.step(dt, error, ORDER);
@@ -321,17 +337,17 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
     /// Performs a single integration step using the configured Butcher tableau.
     ///
     /// Supports FSAL and dense output (when `adaptive` is true).
-    pub fn step<M>(
+    pub fn step<Model>(
         &mut self,
-        model: &mut M,
+        model: &mut Model,
         t: f64,
         h: f64,
         adaptive: bool,
         function_calls: &mut i32,
     ) -> Result<(), Box<dyn Error>>
     where
-        M: OdeModel<State = S>,
-        S: State,
+        Model: OdeModel<State = State>,
+        State: OdeState,
     {
         let k = &mut self.buffers.stage.k;
 
@@ -411,9 +427,22 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
     }
     /// Computes the normalized RMS error between two states, used in adaptive control.
 
-    pub fn compute_error(&self, y: &S, y_prev: &S, y_tilde: &S, rel_tol: f64, abs_tol: f64) -> f64 {
-        self.tolerances
-            .compute_error(y, y_prev, y_tilde, rel_tol, abs_tol)
+    pub fn compute_error(&self, tolerances: &StateVectorTolerances) -> f64 {
+        let tol_buffer = &self.buffers.tolerance;
+        let n = tol_buffer.y.len();
+        let mut total_error = 0.0;
+        for i in 0..tol_buffer.y.len() {
+            let error = compute_error(
+                tol_buffer.y[i],
+                tol_buffer.y_prev[i],
+                tol_buffer.y_tilde[i],
+                tolerances.0[i].rel_tol,
+                tolerances.0[i].abs_tol,
+            );
+
+            total_error += error * error; // accumulate squared errors
+        }
+        (total_error / n as f64).sqrt()
     }
 
     /// Computes the interpolated state at time `t` using dense output coefficients.
@@ -462,11 +491,11 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
     /// Uses Brent's method for robust root finding. Returns a tuple:
     /// - `bool`: Whether the event occurred.
     /// - `f64`: The estimated time of the zero crossing.
-    fn continuous_event_occurred<M: OdeModel<State = S>>(
+    fn continuous_event_occurred<Model: OdeModel<State = State>>(
         &mut self,
         t0: f64, // time at beginning of step
         dt: f64, // time at end of step
-        event: &mut ContinuousEvent<M, S>,
+        event: &mut ContinuousEvent<Model, State>,
     ) -> (bool, f64) {
         if event.first_pass {
             // need to calculate original value
@@ -563,14 +592,14 @@ impl<S: State, const ORDER: usize, const STAGES: usize> RungeKutta<S, ORDER, STA
 }
 /// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
-pub struct StageBuffer<S: State, const STAGES: usize> {
-    pub k: [S; STAGES],
+pub struct StageBuffer<State: OdeState, const STAGES: usize> {
+    pub k: [State::Derivative; STAGES],
 }
 
-impl<S: State, const STAGES: usize> StageBuffer<S, STAGES> {
+impl<State: OdeState, const STAGES: usize> StageBuffer<State, STAGES> {
     fn new() -> Self {
         Self {
-            k: array::from_fn(|_| S::default()),
+            k: array::from_fn(|_| State::Derivative::default()),
         }
     }
 }

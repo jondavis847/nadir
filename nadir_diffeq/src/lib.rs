@@ -12,7 +12,7 @@ use crate::rk::RungeKutta;
 use crate::tableau::ButcherTableau;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod, StateWriter};
-use state::State;
+use state::OdeState;
 use stepping::StepMethod;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
@@ -20,13 +20,13 @@ use stepping::StepMethod;
 /// Types implementing this trait must define how to compute the derivative (or RHS function)
 /// of the ODE at a given time and state.
 pub trait OdeModel: Debug {
-    type State: State;
+    type State: OdeState;
     /// Compute the derivative at time `t` and state `state`, storing the result in `derivative`.
     fn f(
         &mut self,
         t: f64,
         state: &Self::State,
-        derivative: &mut <Self::State as State>::Derivative,
+        derivative: &mut <Self::State as OdeState>::Derivative,
     ) -> Result<(), Box<dyn Error>>;
 }
 
@@ -48,29 +48,34 @@ pub enum Solver {
 
 /// Container for a complete ODE simulation problem, including model, solver configuration,
 /// step size control, result saving strategy, and event handling.
-pub struct OdeProblem<M, S>
+pub struct OdeProblem<Model, State>
 where
-    M: OdeModel<State = S>,
-    S: State,
+    Model: OdeModel<State = State>,
+    State: OdeState,
 {
-    model: M,
+    model: Model,
     solver: Solver,
     step_method: StepMethod,
     save_method: SaveMethod,
-    events: EventManager<M, S>,
+    events: EventManager<Model, State>,
 }
 
-impl<M, S> OdeProblem<M, S>
+impl<Model, State> OdeProblem<Model, State>
 where
-    M: OdeModel<State = S>,
-    S: State,
+    Model: OdeModel<State = State>,
+    State: OdeState,
 {
     /// Creates a new `OdeProblem` instance with the specified configuration.
     ///
     /// # Panics
     ///
     /// Panics if an adaptive step method is used with `Rk4`, which does not support adaptivity.
-    pub fn new(model: M, solver: Solver, step_method: StepMethod, save_method: SaveMethod) -> Self {
+    pub fn new(
+        model: Model,
+        solver: Solver,
+        step_method: StepMethod,
+        save_method: SaveMethod,
+    ) -> Self {
         match (&solver, &step_method) {
             (Solver::Rk4, StepMethod::Adaptive(_)) => {
                 panic!("Rk4 solver does not support adaptive step size")
@@ -88,13 +93,13 @@ where
     }
 
     /// Adds a periodic event to the simulation.
-    pub fn with_event_periodic(mut self, event: PeriodicEvent<M, S>) -> Self {
+    pub fn with_event_periodic(mut self, event: PeriodicEvent<Model, State>) -> Self {
         self.events.add_periodic(event);
         self
     }
 
     /// Adds a continuous event to the simulation.
-    pub fn with_event_continuous(mut self, event: ContinuousEvent<M, S>) -> Self {
+    pub fn with_event_continuous(mut self, event: ContinuousEvent<Model, State>) -> Self {
         self.events.add_continuous(event);
         self
     }
@@ -112,8 +117,12 @@ where
     /// # Returns
     ///
     /// A result containing the populated `ResultStorage` (either in memory or to file).
-    pub fn solve(&mut self, x0: &S, tspan: (f64, f64)) -> Result<ResultStorage<S>, Box<dyn Error>> {
-        let state_config = S::config();
+    pub fn solve(
+        &mut self,
+        x0: &State,
+        tspan: (f64, f64),
+    ) -> Result<ResultStorage<State>, Box<dyn Error>> {
+        let state_config = State::config();
         // Preallocate memory for result storage if needed
         let mut result = match &self.save_method {
             SaveMethod::Memory => {
@@ -130,7 +139,7 @@ where
                         }
                     }
                 };
-                ResultStorage::Memory(MemoryResult::<S>::new(n))
+                ResultStorage::Memory(MemoryResult::<State>::new(n))
             }
             SaveMethod::File { root_folder } => {
                 let mut writers = Vec::new();
@@ -147,7 +156,7 @@ where
         match self.solver {
             Solver::DoPri45 => {
                 let mut solver =
-                    RungeKutta::new(&state_config, ButcherTableau::<5, 7>::DORMANDPRINCE45);
+                    RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::DORMANDPRINCE45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -158,7 +167,7 @@ where
                 )?;
             }
             Solver::New45 => {
-                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<5, 7>::NEW45);
+                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::NEW45);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -169,7 +178,7 @@ where
                 )?;
             }
             Solver::Rk4 => {
-                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<4, 4>::RK4);
+                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<4, 4>::RK4);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -180,7 +189,8 @@ where
                 )?;
             }
             Solver::Tsit5 => {
-                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<5, 7>::TSITOURAS5);
+                let mut solver =
+                    RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::TSITOURAS5);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -191,7 +201,7 @@ where
                 )?;
             }
             Solver::Verner6 => {
-                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<6, 9>::VERNER6);
+                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<6, 9>::VERNER6);
                 solver.solve(
                     &mut self.model,
                     x0,
@@ -202,7 +212,7 @@ where
                 )?;
             }
             Solver::Verner9 => {
-                let mut solver = RungeKutta::new(&state_config, ButcherTableau::<9, 26>::VERNER9);
+                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<9, 26>::VERNER9);
                 solver.solve(
                     &mut self.model,
                     x0,
