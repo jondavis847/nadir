@@ -1,12 +1,12 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
     saving::{ResultStorage, SaveMethod},
-    state::{Integrable, State},
+    state::{OdeState, StateConfig, state_vector::StateVector},
     stepping::{AdaptiveStepControl, StepMethod},
 };
 use std::{
     error::Error,
-    ops::{AddAssign, MulAssign},
+    ops::{AddAssign, MulAssign, SubAssign},
 };
 use tolerance::{Tolerance, Tolerances, compute_component_error};
 
@@ -45,6 +45,14 @@ impl AddAssign<&LorenzDerivative> for LorenzState {
         self.x += rhs.x;
         self.y += rhs.y;
         self.z += rhs.z;
+    }
+}
+
+impl SubAssign<&LorenzDerivative> for LorenzState {
+    fn sub_assign(&mut self, rhs: &LorenzDerivative) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+        self.z -= rhs.z;
     }
 }
 
@@ -105,12 +113,29 @@ impl Tolerance for LorenzTolerances {
     }
 }
 
-impl Integrable for LorenzState {
+impl OdeState for LorenzState {
     type Derivative = LorenzDerivative;
-    type Tolerance = LorenzTolerances;
-}
+    fn config() -> Result<StateConfig, Box<dyn Error>> {
+        Ok(StateConfig::new(3))
+    }
+    fn read_vector(&mut self, x: &StateVector) {
+        if x.len() != 3 {
+            panic!("LorenzState must be initialized with a StateVector of length 3");
+        }
+        self.x = x[0];
+        self.y = x[1];
+        self.z = x[2];
+    }
 
-impl State for LorenzState {}
+    fn write_vector(&self, x: &mut StateVector) {
+        if x.len() != 3 {
+            panic!("LorenzState must be written to a StateVector of length 3");
+        }
+        x[0] = self.x;
+        x[1] = self.y;
+        x[2] = self.z;
+    }
+}
 
 impl OdeModel for Lorenz {
     type State = LorenzState;

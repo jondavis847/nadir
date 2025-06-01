@@ -1,6 +1,6 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem, Solver,
-    saving::{SaveMethod, WriterId, WriterManager, WriterManagerBuilder},
+    saving::SaveMethod,
     state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
@@ -42,7 +42,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         model,
         Solver::Tsit5,
         StepMethod::Adaptive(AdaptiveStepControl::default()),
-        SaveMethod::File(current_dir().join("lorenz_example_results")),
+        SaveMethod::File {
+            root_folder: current_dir()?.join("lorenz_example_results"),
+        },
     );
 
     // Solve the problem with some initial condition and tspan

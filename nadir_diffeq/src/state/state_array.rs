@@ -1,9 +1,6 @@
-use std::{
-    error::Error,
-    ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign},
-};
+use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 
-use super::OdeState;
+use super::{OdeState, StateConfig, state_vector::StateVector};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
@@ -65,21 +62,39 @@ impl<const N: usize> OdeState for StateArray<N> {
     /// The derivative is represented by the same type as the state.
     type Derivative = Self;
 
-    fn config() -> super::StateConfig {
-        super::StateConfig {
+    fn config() -> Result<StateConfig, Box<dyn std::error::Error>> {
+        Ok(StateConfig {
             n: N,
             tolerances: vec![None; N],
             writers: vec![],
+        })
+    }
+
+    fn read_vector(&mut self, x: &StateVector) {
+        if x.len() != N {
+            panic!("StateVector length does not match StateArray size");
+        }
+        for i in 0..N {
+            self.0[i] = x[i];
         }
     }
 
-    fn from_vector(x: &super::state_vector::StateVector) -> &Self {
-        let mut array = [0.0; N];
-        for i in 0..N {
-            array[i] = x[i];
+    fn write_vector(&self, x: &mut StateVector) {
+        if x.len() != N {
+            panic!("StateVector length does not match StateArray size");
         }
-        &StateArray::new(array)
+        for i in 0..N {
+            x[i] = self.0[i];
+        }
     }
+
+    // fn from_vector(x: &super::state_vector::StateVector) -> &Self {
+    //     let mut array = [0.0; N];
+    //     for i in 0..N {
+    //         array[i] = x[i];
+    //     }
+    //     &StateArray::new(array)
+    // }
 }
 
 impl<const N: usize> Deref for StateArray<N> {

@@ -122,7 +122,7 @@ where
         x0: &State,
         tspan: (f64, f64),
     ) -> Result<ResultStorage<State>, Box<dyn Error>> {
-        let state_config = State::config();
+        let state_config = State::config()?;
         // Preallocate memory for result storage if needed
         let mut result = match &self.save_method {
             SaveMethod::Memory => {

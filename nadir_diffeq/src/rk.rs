@@ -96,7 +96,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) -> Result<(), Box<dyn Error>> {
-        let state_config = State::config();
+        let state_config = State::config()?;
         match step_method {
             StepMethod::Fixed(controller) => {
                 controller.next_time = tspan.0;
