@@ -56,16 +56,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j1);
     sys.add_joint(j2);
 
-    let sys = sys.sample(&mut sys);
+    let mut sys = sys.nominal()?;
+    let x0 = sys.initial_state();
+
     // run the simulation
-    let problem = OdeProblem::new(
-        sys.build()?,
+    let mut problem = OdeProblem::new(
+        sys,
         Solver::Rk4,
         StepMethod::Fixed(FixedStepControl::new(0.1)),
         SaveMethod::File {
-            root_folder: current_dir().join("results").unwrap(),
+            root_folder: current_dir()?.join("results"),
         },
     );
+
+    problem.solve(&x0, (0.0, 10.0))?;
 
     Ok(())
 }

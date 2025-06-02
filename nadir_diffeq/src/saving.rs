@@ -258,19 +258,3 @@ impl StateWriter {
         Ok(())
     }
 }
-
-struct StateMemory<'a> {
-    data: &'a [u8],
-}
-
-impl<'a> MemoryRegion<'a> {
-    fn new(data: &'a [u8]) -> Self {
-        Self { data }
-    }
-
-    fn write_to_file(&self, file_path: &str) -> std::io::Result<()> {
-        let mut file = File::create(file_path)?;
-        file.write_all(self.data)?;
-        Ok(())
-    }
-}

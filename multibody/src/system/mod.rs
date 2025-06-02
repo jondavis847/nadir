@@ -1,6 +1,6 @@
 use crate::{
     MultibodyErrors,
-    actuator::{Actuator, ActuatorBuilder},
+    actuator::{self, Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems, BaseSystemsBuilder},
     body::{BodyBuilder, BodyConnection, BodyRef},
@@ -320,11 +320,23 @@ impl MultibodySystemBuilder {
         (results_path, sim_name)
     }
 
-    fn sample(
+    pub fn nominal(&self) -> Result<MultibodySystem, MultibodyErrors> {
+        self.to_system(None, true, None)
+    }
+
+    pub fn sample(
+        &self,
+        run_id: usize,
+        rng: &mut SmallRng,
+    ) -> Result<MultibodySystem, MultibodyErrors> {
+        self.to_system(Some(run_id), false, Some(rng))
+    }
+
+    fn to_system(
         &self,
         run_id: Option<usize>,
         nominal: bool,
-        rng: &mut SmallRng,
+        rng: Option<&mut SmallRng>,
     ) -> Result<MultibodySystem, MultibodyErrors> {
         // ensure builder can produce a valid MultibodySystem
         self.validate()?;
@@ -336,8 +348,15 @@ impl MultibodySystemBuilder {
         let mut sensors = Vec::new();
         let mut software = Vec::new();
 
-        let seed = rng.random::<u64>();
-        let mut sys_rng = SmallRng::seed_from_u64(seed);
+        // this is unnecessary but we're doing it to get it done for now. need make rng optional for multibody
+        let mut sys_rng = if let Some(rng) = rng {
+            let seed = rng.random::<u64>();
+            SmallRng::seed_from_u64(seed)
+        } else {
+            // wasnt provided because this is nominal, create anyways for now since function arguments require one
+            //TODO: it wont be used, need better structure
+            SmallRng::from_os_rng()
+        };
 
         let baseref = Rc::new(RefCell::new(Base::from(&self.base)));
 
@@ -561,6 +580,17 @@ pub struct MultibodySystem {
 }
 
 impl MultibodySystem {
+    pub fn initial_state(&mut self) -> StateVector {
+        let mut x0 = StateVector::new(Vec::new());
+        for joint in &self.joints {
+            joint.borrow_mut().state_vector_init(&mut x0);
+        }
+        for actuator in &mut self.actuators {
+            actuator.state_vector_init(&mut x0);
+        }
+        x0
+    }
+
     fn initialize_writers(&mut self, results_path: &PathBuf) -> ResultManager {
         let mut results = ResultManager::new(results_path.clone());
         let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
