@@ -56,7 +56,10 @@ impl AddAssign<&Self> for StateVector {
     /// Panics if the vectors have different lengths.
     fn add_assign(&mut self, rhs: &Self) {
         if self.n != rhs.n {
-            panic!("state vectors do not have same length")
+            panic!(
+                "length of rhs ({}) does not match length of self ({})",
+                rhs.n, self.n
+            )
         }
         for i in 0..self.len() {
             self.value[i] += rhs.value[i];
