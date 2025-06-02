@@ -4,7 +4,7 @@
 
 use state_vector::StateVector;
 use std::error::Error;
-use std::ops::{AddAssign, MulAssign, SubAssign};
+use std::ops::{AddAssign, MulAssign};
 use tolerance::Tolerances;
 
 use crate::saving::StateWriterBuilder;

@@ -1,8 +1,18 @@
+use std::env::current_dir;
+
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
-use multibody::{joint::revolute::RevoluteBuilder, system::MultibodySystemBuilder};
+use multibody::{
+    joint::revolute::RevoluteBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem, Solver,
+    saving::SaveMethod,
+    stepping::{FixedStepControl, StepMethod},
+};
 use rotations::Rotation;
-use transforms::{prelude::Cartesian, Transform};
+use transforms::{Transform, prelude::Cartesian};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new system
@@ -46,8 +56,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j1);
     sys.add_joint(j2);
 
+    let sys = MultibodySystem::from(&mut sys);
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, None)?;
+    let problem = OdeProblem::new(
+        sys.build()?,
+        Solver::Rk4,
+        StepMethod::Fixed(FixedStepControl::new(0.1)),
+        SaveMethod::File {
+            root_folder: current_dir().join("results").unwrap(),
+        },
+    );
 
     Ok(())
 }

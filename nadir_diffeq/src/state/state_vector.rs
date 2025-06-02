@@ -1,7 +1,7 @@
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 use tolerance::Tolerances;
 
-use super::StateConfig;
+use super::{OdeState, StateConfig};
 
 /// A dynamic-sized vector type for use in ODE solvers.
 ///
@@ -23,6 +23,16 @@ impl StateVector {
     pub fn new(value: Vec<f64>) -> Self {
         let n = value.len();
         Self { value, n }
+    }
+
+    /// Extends a `StateVector` with the content of another.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - usize for the number of elements.
+    pub fn extend(&mut self, other: &Self) {
+        self.value.extend_from_slice(&other.value);
+        self.n = self.value.len();
     }
 
     /// Constructs a new `StateVector` with preallocated capcity.
@@ -76,6 +86,36 @@ impl DerefMut for StateVector {
     /// Provides mutable access to the underlying `Vec<f64>`.
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.value
+    }
+}
+
+impl OdeState for StateVector {
+    /// The derivative type is the same as the state type.
+    type Derivative = Self;
+
+    /// Returns a default configuration for the `StateVector`.
+    fn config() -> Result<StateConfig, Box<dyn std::error::Error>> {
+        Ok(StateConfig {
+            n: 0,
+            tolerances: Vec::new(),
+            writers: Vec::new(),
+        })
+    }
+
+    /// Reads values from a `StateVector` into this state.
+    fn read_vector(&mut self, x: &StateVector) {
+        if self.n != x.len() {
+            panic!("StateVector length does not match StateVector size");
+        }
+        self.value.clone_from(&x.value);
+    }
+
+    /// Writes values from this state into a `StateVector`.
+    fn write_vector(&self, x: &mut StateVector) {
+        if self.n != x.len() {
+            x.resize(self.n, 0.0);
+        }
+        x.value.clone_from(&self.value);
     }
 }
 

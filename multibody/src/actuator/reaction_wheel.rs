@@ -1,5 +1,6 @@
 use crate::{HardwareBuffer, actuator::ActuatorModel, body::BodyConnection};
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::state::state_vector::StateVector;
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
@@ -562,16 +563,16 @@ impl ActuatorModel for ReactionWheel {
         ]
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector) {
-        derivative.0[0] = self.state.acceleration;
+    fn state_derivative(&self, derivative: &mut [f64]) {
+        derivative[0] = self.state.acceleration;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.velocity])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.velocity])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.velocity = state.0[0];
+    fn state_vector_read(&mut self, state: &[f64]) {
+        self.state.velocity = state[0];
         self.state.momentum = self.state.velocity * self.parameters.inertia;
     }
 

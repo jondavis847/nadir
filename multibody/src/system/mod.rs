@@ -12,7 +12,7 @@ use crate::{
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use indicatif::MultiProgress;
-use nadir_diffeq::{OdeModel, state::state_vectors::StateVectors};
+use nadir_diffeq::{OdeModel, OdeProblem, state::state_vector::StateVector};
 use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -205,57 +205,57 @@ impl MultibodySystemBuilder {
         Ok(())
     }
 
-    pub fn simulate(
-        &mut self,
-        sim_name: &str,
-        tstart: f64,
-        tstop: f64,
-        dt: f64,
-        nruns: Option<usize>,
-    ) -> Result<(), MultibodyErrors> {
-        let (result_path, sim_name) = self.get_result_path_meta(sim_name);
+    // pub fn simulate(
+    //     &mut self,
+    //     sim_name: &str,
+    //     tstart: f64,
+    //     tstop: f64,
+    //     dt: f64,
+    //     nruns: Option<usize>,
+    // ) -> Result<(), MultibodyErrors> {
+    //     let (result_path, sim_name) = self.get_result_path_meta(sim_name);
 
-        let options = SimOptions {
-            tstart,
-            tstop,
-            dt,
-            sim_name,
-            nruns,
-        };
+    //     let options = SimOptions {
+    //         tstart,
+    //         tstop,
+    //         dt,
+    //         sim_name,
+    //         nruns,
+    //     };
 
-        let mut rng = SmallRng::seed_from_u64(self.seed);
+    //     let mut rng = SmallRng::seed_from_u64(self.seed);
 
-        // run the monte carlo if present
-        if let Some(nruns) = nruns {
-            // create progress bars
-            let progress_bars = Arc::new(MultiProgress::new());
-            // run the nominal
-            let nominal_path = result_path.join("nominal");
-            let mut sys = self.sample(None, true, &mut rng)?;
-            sys.simulate(&options, &nominal_path, None)?;
-            // parallel Monte Carlo runs
-            // create a vec of seeds for the local thread rngs
-            let seeds: Vec<u64> = (0..nruns).map(|_| rng.random::<u64>()).collect();
+    //     // run the monte carlo if present
+    //     if let Some(nruns) = nruns {
+    //         // create progress bars
+    //         let progress_bars = Arc::new(MultiProgress::new());
+    //         // run the nominal
+    //         let nominal_path = result_path.join("nominal");
+    //         let mut sys = self.sample(None, true, &mut rng)?;
+    //         sys.simulate(&options, &nominal_path, None)?;
+    //         // parallel Monte Carlo runs
+    //         // create a vec of seeds for the local thread rngs
+    //         let seeds: Vec<u64> = (0..nruns).map(|_| rng.random::<u64>()).collect();
 
-            (1..=nruns)
-                .into_par_iter()
-                .try_for_each(|run| -> Result<(), MultibodyErrors> {
-                    let progress_bars = Arc::clone(&progress_bars);
-                    let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
-                    let mut sys = self.sample(Some(run), false, &mut local_rng)?;
-                    let run_path = result_path.join(format!("run{run}"));
-                    sys.simulate(&options, &run_path, Some(progress_bars))?;
-                    Ok(())
-                })?;
-        } else {
-            // just run the nominal
-            // this is separated logic so we can send the nominal folder as a result  path for monte carlo
-            // where as this is just stored at the sim level
-            let mut sys = self.sample(None, true, &mut rng)?;
-            sys.simulate(&options, &result_path, None)?;
-        }
-        Ok(())
-    }
+    //         (1..=nruns)
+    //             .into_par_iter()
+    //             .try_for_each(|run| -> Result<(), MultibodyErrors> {
+    //                 let progress_bars = Arc::clone(&progress_bars);
+    //                 let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
+    //                 let mut sys = self.sample(Some(run), false, &mut local_rng)?;
+    //                 let run_path = result_path.join(format!("run{run}"));
+    //                 sys.simulate(&options, &run_path, Some(progress_bars))?;
+    //                 Ok(())
+    //             })?;
+    //     } else {
+    //         // just run the nominal
+    //         // this is separated logic so we can send the nominal folder as a result  path for monte carlo
+    //         // where as this is just stored at the sim level
+    //         let mut sys = self.sample(None, true, &mut rng)?;
+    //         sys.simulate(&options, &result_path, None)?;
+    //     }
+    //     Ok(())
+    // }
 
     fn get_result_path_meta(&self, sim_name: &str) -> (PathBuf, String) {
         // Sim results will be written to the results folder in the current directory
@@ -605,7 +605,7 @@ impl MultibodySystem {
         Ok(())
     }
 
-    fn update_state(&mut self, states: &SimStates) {
+    fn update_state(&mut self, states: &StateVector) {
         for joint in &self.joints {
             joint.borrow_mut().state_vector_read(states);
         }
@@ -614,59 +614,62 @@ impl MultibodySystem {
         }
     }
 
-    pub fn simulate(
-        &mut self,
-        options: &SimOptions,
-        result_path: &PathBuf,
-        progress_bars: Option<Arc<MultiProgress>>,
-    ) -> Result<(), MultibodyErrors> {
-        let start_time = Instant::now();
-        let mut results = self.initialize_writers(result_path);
+    // pub fn simulate(
+    //     &mut self,
+    //     options: &SimOptions,
+    //     result_path: &PathBuf,
+    //     progress_bars: Option<Arc<MultiProgress>>,
+    // ) -> Result<(), MultibodyErrors> {
+    //     let start_time = Instant::now();
+    //     let mut results = self.initialize_writers(result_path);
 
-        // initialize the components initial conditions and secondary states
-        for jointref in &self.joints {
-            let mut joint = jointref.borrow_mut();
-            joint.update_transforms();
-            joint.calculate_joint_inertia();
-            joint.calculate_vj();
-            joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
-        }
+    //     // initialize the components initial conditions and secondary states
+    //     for jointref in &self.joints {
+    //         let mut joint = jointref.borrow_mut();
+    //         joint.update_transforms();
+    //         joint.calculate_joint_inertia();
+    //         joint.calculate_vj();
+    //         joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
+    //     }
 
-        self.update_body_states();
-        self.update_sensors();
+    //     self.update_body_states();
+    //     self.update_sensors();
 
-        // solve the multibody system
-        solve_fixed_rk4(
-            self,
-            options.tstart,
-            options.tstop,
-            options.dt,
-            &mut results,
-            progress_bars,
-        )?;
+    //     let prob = OdeProblem::new(
 
-        // save the body meshes to the result
-        let mut meshes = HashMap::new();
-        for body in &self.bodies {
-            let body = body.borrow();
-            if let Some(mesh) = &body.mesh {
-                meshes.insert(body.name.clone(), mesh.clone());
-            }
-        }
+    //     );
+    //     // solve the multibody system
+    //     solve_fixed_rk4(
+    //         self,
+    //         options.tstart,
+    //         options.tstop,
+    //         options.dt,
+    //         &mut results,
+    //         progress_bars,
+    //     )?;
 
-        let sim_duration = start_time.elapsed();
-        let sim_duration_str = utilities::format_duration(sim_duration);
+    //     // save the body meshes to the result
+    //     let mut meshes = HashMap::new();
+    //     for body in &self.bodies {
+    //         let body = body.borrow();
+    //         if let Some(mesh) = &body.mesh {
+    //             meshes.insert(body.name.clone(), mesh.clone());
+    //         }
+    //     }
 
-        // only print sim  time info if not a monte carlo, otherwise it gets ugly
-        if self.run_id.is_none() {
-            println!(
-                "Simulation '{}' completed in {sim_duration_str}.",
-                options.sim_name
-            );
-        }
+    //     let sim_duration = start_time.elapsed();
+    //     let sim_duration_str = utilities::format_duration(sim_duration);
 
-        Ok(())
-    }
+    //     // only print sim  time info if not a monte carlo, otherwise it gets ugly
+    //     if self.run_id.is_none() {
+    //         println!(
+    //             "Simulation '{}' completed in {sim_duration_str}.",
+    //             options.sim_name
+    //         );
+    //     }
+
+    //     Ok(())
+    // }
 
     fn update_actuators(&mut self) -> Result<(), MultibodyErrors> {
         self.actuators
@@ -780,7 +783,7 @@ impl MultibodySystem {
         }
     }
 
-    fn write_derivative(&self, dx: &mut SimStates) {
+    fn write_derivative(&self, dx: &mut StateVector) {
         for joint in &self.joints {
             joint.borrow().state_derivative(dx);
         }
@@ -792,8 +795,8 @@ impl MultibodySystem {
 }
 
 impl OdeModel for MultibodySystem {
-    type State = StateVectors;
-    fn f(&mut self, t: f64, x: &StateVectors, dx: &mut StateVectors) -> Result<(), Box<dyn Error>> {
+    type State = StateVector;
+    fn f(&mut self, t: f64, x: &StateVector, dx: &mut StateVector) -> Result<(), Box<dyn Error>> {
         self.update_state(x); // write the integrated states back in to the joints
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms

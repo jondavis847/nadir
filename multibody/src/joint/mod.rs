@@ -143,7 +143,8 @@ impl JointBuilder {
             model,
             connections,
             result_id: None,
-            state_id: None,
+            state_start: 0,
+            state_end: 0,
             cache: JointCache::default(),
             inner_joint: None,
         })
@@ -164,11 +165,11 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
     /// Used to populate elements in the mass matrix and state arrays        
     fn ndof(&self) -> u32;
     /// Populates derivative with the appropriate values for the joint state derivative
-    fn state_derivative(&self, derivative: &mut StateVector, transforms: &JointTransforms);
+    fn state_derivative(&self, derivative: &mut [f64], transforms: &JointTransforms);
     /// Initializes a vector of f64 values representing state vector for the ODE integration
     fn state_vector_init(&self) -> StateVector;
     /// Reads a state vector into the joint state
-    fn state_vector_read(&mut self, state: &StateVector);
+    fn state_vector_read(&mut self, state: &[f64]);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
     fn update_transforms(
@@ -246,7 +247,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_derivative(&self, derivative: &mut StateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut [f64], transforms: &JointTransforms) {
         match self {
             JointModels::Floating(model) => model.state_derivative(derivative, transforms),
             JointModels::Prismatic(model) => model.state_derivative(derivative, transforms),
@@ -262,7 +263,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_vector_read(&mut self, state: &StateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         match self {
             JointModels::Floating(model) => model.state_vector_read(state),
             JointModels::Prismatic(model) => model.state_vector_read(state),
@@ -306,7 +307,8 @@ pub struct Joint {
     pub model: JointModels,
     pub connections: JointConnection,
     result_id: Option<u32>,
-    state_id: Option<usize>,
+    state_start: usize,
+    state_end: usize,
     pub cache: JointCache,
     pub inner_joint: Option<JointRef>,
 }
@@ -384,12 +386,10 @@ impl Joint {
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
-    pub fn state_derivative(&self, derivatives: &mut SimStates) {
-        if let Some(id) = self.state_id {
-            let derivative = &mut derivatives.0[id];
-            self.model
-                .state_derivative(derivative, &self.cache.transforms);
-        }
+    pub fn state_derivative(&self, derivatives: &mut StateVector) {
+        let derivative = &mut derivatives[self.state_start..self.state_end];
+        self.model
+            .state_derivative(derivative, &self.cache.transforms);
     }
 
     pub fn update_transforms(&mut self) {
@@ -402,15 +402,16 @@ impl Joint {
         self
     }
 
-    pub fn state_vector_init(&mut self, x0: &mut SimStates) {
-        self.state_id = Some(x0.0.len());
-        x0.0.push(self.model.state_vector_init());
+    pub fn state_vector_init(&mut self, x0: &mut StateVector) {
+        self.state_start = x0.len();
+        let state = self.model.state_vector_init();
+        self.state_end = self.state_start + state.len();
+        x0.extend(&self.model.state_vector_init());
     }
 
-    pub fn state_vector_read(&mut self, x0: &SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_vector_read(&x0.0[id]);
-        }
+    pub fn state_vector_read(&mut self, x0: &StateVector) {
+        let state = &x0[self.state_start..self.state_end];
+        self.model.state_vector_read(state);
     }
 }
 

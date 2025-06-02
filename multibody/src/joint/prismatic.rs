@@ -6,6 +6,7 @@ use crate::{
 };
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
@@ -493,18 +494,18 @@ impl JointModel for Prismatic {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
-        derivative.0[0] = self.state.velocity;
-        derivative.0[1] = self.cache.q_ddot;
+    fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
+        derivative[0] = self.state.velocity;
+        derivative[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.position, self.state.velocity])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.position, self.state.velocity])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.position = state.0[0];
-        self.state.velocity = state.0[1];
+    fn state_vector_read(&mut self, state: &[f64]) {
+        self.state.position = state[0];
+        self.state.velocity = state[1];
     }
 
     fn update_transforms(

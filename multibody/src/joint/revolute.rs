@@ -571,7 +571,7 @@ impl JointModel for Revolute {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut StateVector, _transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
         derivative[0] = self.state.angular_rate;
         derivative[1] = self.cache.q_ddot;
     }
@@ -580,7 +580,7 @@ impl JointModel for Revolute {
         StateVector::new(vec![self.state.angle, self.state.angular_rate])
     }
 
-    fn state_vector_read(&mut self, state: &StateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         self.state.angle = state[0];
         self.state.angular_rate = state[1];
     }

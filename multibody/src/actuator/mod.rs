@@ -1,3 +1,4 @@
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::{NadirResult, ResultManager};
 use rand::rngs::SmallRng;
 use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
@@ -48,7 +49,8 @@ impl ActuatorBuilder {
             model,
             connection,
             result_id: None,
-            state_id: None,
+            state_start: 0,
+            state_end: 0,
         })
     }
 }
@@ -72,13 +74,13 @@ pub trait ActuatorModel {
     fn result_headers(&self) -> &[&str];
     fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
-    fn state_derivative(&self, _derivative: &mut SimStateVector) {}
+    fn state_derivative(&self, _derivative: &mut [f64]) {}
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![])
     }
     /// Reads a state vector into the sim state
-    fn state_vector_read(&mut self, state: &SimStateVector);
+    fn state_vector_read(&mut self, state: &[f64]);
     fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors>;
 }
 
@@ -89,8 +91,8 @@ pub struct Actuator {
     pub connection: BodyConnection,
     /// Id of the result writer in sys.writers
     result_id: Option<u32>,
-    /// Id of state index in SimStateVector
-    state_id: Option<usize>,
+    state_start: usize,
+    state_end: usize,
 }
 
 impl Actuator {
@@ -98,21 +100,20 @@ impl Actuator {
         self.model.update(&self.connection)
     }
 
-    pub fn state_vector_init(&mut self, x0: &mut SimStates) {
-        self.state_id = Some(x0.0.len());
-        x0.0.push(self.model.state_vector_init());
+    pub fn state_vector_init(&mut self, x0: &mut StateVector) {
+        self.state_start = x0.len();
+        x0.extend(&self.model.state_vector_init());
+        self.state_end = x0.len();
     }
 
-    pub fn state_vector_read(&mut self, x0: &SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_vector_read(&x0.0[id as usize]);
-        }
+    pub fn state_vector_read(&mut self, x0: &StateVector) {
+        let state = &x0[self.state_start..self.state_end];
+        self.model.state_vector_read(state);
     }
 
-    pub fn state_derivative(&self, x0: &mut SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_derivative(&mut x0.0[id as usize]);
-        }
+    pub fn state_derivative(&self, x0: &mut StateVector) {
+        let derivative = &mut x0[self.state_start..self.state_end];
+        self.model.state_derivative(derivative);
     }
 
     pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
@@ -203,21 +204,21 @@ impl ActuatorModel for ActuatorModels {
         }
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector) {
+    fn state_derivative(&self, derivative: &mut [f64]) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
             ActuatorModels::Thruster(act) => act.state_derivative(derivative),
         }
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
             ActuatorModels::Thruster(act) => act.state_vector_init(),
         }
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
             ActuatorModels::Thruster(act) => act.state_vector_read(state),

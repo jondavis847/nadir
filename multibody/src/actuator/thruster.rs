@@ -228,7 +228,7 @@ impl ActuatorModel for Thruster {
         ]
     }
 
-    fn state_vector_read(&mut self, _state: &SimStateVector) {}
+    fn state_vector_read(&mut self, _state: &[f64]) {}
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
         self.state.command = cmd.read::<ThrusterCommand>()?;

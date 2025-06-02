@@ -1284,6 +1284,7 @@ dependencies = [
  "mass_properties",
  "multibody",
  "nadir_3d",
+ "nadir_diffeq",
  "nalgebra",
  "ron",
  "rotations",

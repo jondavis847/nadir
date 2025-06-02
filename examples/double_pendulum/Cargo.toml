@@ -12,6 +12,7 @@ gravity.workspace = true
 mass_properties.workspace = true
 multibody.workspace = true
 nadir_3d.workspace = true
+nadir_diffeq.workspace = true
 nalgebra.workspace = true
 rotations.workspace = true 
 ron.workspace = true

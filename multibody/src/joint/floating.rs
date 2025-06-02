@@ -8,6 +8,7 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rand::rngs::SmallRng;
@@ -293,7 +294,7 @@ impl JointModel for Floating {
         6
     }
 
-    fn state_derivative(&self, dx: &mut SimStateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, dx: &mut [f64], transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
         // due to quaternion kinematic equations
         let q = self.state.q;
@@ -318,22 +319,22 @@ impl JointModel for Floating {
         let v_jof = self.state.v;
         let v_jif = jif_from_jof.transform(&v_jof);
 
-        dx.0[0] = dq.x;
-        dx.0[1] = dq.y;
-        dx.0[2] = dq.z;
-        dx.0[3] = dq.w;
-        dx.0[4] = v_jif[0];
-        dx.0[5] = v_jif[1];
-        dx.0[6] = v_jif[2];
-        dx.0[7] = self.cache.q_ddot[0];
-        dx.0[8] = self.cache.q_ddot[1];
-        dx.0[9] = self.cache.q_ddot[2];
-        dx.0[10] = self.cache.q_ddot[3];
-        dx.0[11] = self.cache.q_ddot[4];
-        dx.0[12] = self.cache.q_ddot[5];
+        dx[0] = dq.x;
+        dx[1] = dq.y;
+        dx[2] = dq.z;
+        dx[3] = dq.w;
+        dx[4] = v_jif[0];
+        dx[5] = v_jif[1];
+        dx[6] = v_jif[2];
+        dx[7] = self.cache.q_ddot[0];
+        dx[8] = self.cache.q_ddot[1];
+        dx[9] = self.cache.q_ddot[2];
+        dx[10] = self.cache.q_ddot[3];
+        dx[11] = self.cache.q_ddot[4];
+        dx[12] = self.cache.q_ddot[5];
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         let state = vec![
             self.state.q.x,
             self.state.q.y,
@@ -349,24 +350,24 @@ impl JointModel for Floating {
             self.state.v[1],
             self.state.v[2],
         ];
-        SimStateVector(state)
+        StateVector::new(state)
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         // need to normalize the integrated quaternion
-        let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3])
+        let q = Quaternion::new(state[0], state[1], state[2], state[3])
             .normalize()
             .unwrap();
         self.state.q = q;
-        self.state.r[0] = state.0[4];
-        self.state.r[1] = state.0[5];
-        self.state.r[2] = state.0[6];
-        self.state.w[0] = state.0[7];
-        self.state.w[1] = state.0[8];
-        self.state.w[2] = state.0[9];
-        self.state.v[0] = state.0[10];
-        self.state.v[1] = state.0[11];
-        self.state.v[2] = state.0[12];
+        self.state.r[0] = state[4];
+        self.state.r[1] = state[5];
+        self.state.r[2] = state[6];
+        self.state.w[0] = state[7];
+        self.state.w[1] = state[8];
+        self.state.w[2] = state[9];
+        self.state.v[0] = state[10];
+        self.state.v[1] = state[11];
+        self.state.v[2] = state[12];
     }
 
     fn update_transforms(
