@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j1);
     sys.add_joint(j2);
 
-    let sys = MultibodySystem::from(&mut sys);
+    let sys = sys.sample(&mut sys);
     // run the simulation
     let problem = OdeProblem::new(
         sys.build()?,
