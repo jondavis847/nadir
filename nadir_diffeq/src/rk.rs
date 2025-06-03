@@ -3,8 +3,8 @@ use std::{array, error::Error, f64::INFINITY, mem::swap};
 use crate::{
     OdeModel,
     events::{ContinuousEvent, EventManager},
-    saving::ResultStorage,
-    state::{Adaptive, OdeState, state_vector::StateVector},
+    saving::{ResultStorage, WriterManager},
+    state::{Adaptive, OdeState},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
 };
@@ -29,23 +29,17 @@ impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
             interpolant: State::default(),
         }
     }
-}
 
-pub struct ToleranceBuffers {
-    y: StateVector,
-    y_prev: StateVector,
-    y_tilde: StateVector,
-}
-
-impl ToleranceBuffers {
-    pub fn new(n: usize) -> Self {
-        Self {
-            y: StateVector::with_capacity(n),
-            y_prev: StateVector::with_capacity(n),
-            y_tilde: StateVector::with_capacity(n),
+    pub fn init(&mut self, x0: &State) {
+        self.state.clone_from(x0);
+        self.derivative.clone_from(x0);
+        self.interpolant.clone_from(x0);
+        for buffer in &mut self.stage.k {
+            buffer.clone_from(x0);
         }
     }
 }
+
 /// A generic Runge-Kutta solver capable of fixed or adaptive integration with support for:
 /// - Embedded error estimation
 /// - First-same-as-last (FSAL) optimizations
@@ -87,17 +81,27 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
+        writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>> {
         // Counter to count number of function calls
         let mut function_calls = 0;
-
         let mut t = tspan.0;
 
         // Copy initial state
         self.x.clone_from(x0);
 
+        // Copy state to buffers to make sure length matches initial size of dynamically sized State
+        self.buffers.init(x0);
+
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, x0, tspan.0, manager);
+                }
+            }
+        }
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
@@ -128,6 +132,13 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
             // Save the result for this time step
             result.save(t, &self.y)?;
+            if let Some(manager) = writer_manager {
+                for event in &mut events.save_events {
+                    if event.options.every_step {
+                        (event.save_fn)(model, x0, tspan.0, manager);
+                    }
+                }
+            }
 
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
@@ -159,6 +170,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
+        writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -175,6 +187,13 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, x0, tspan.0, manager);
+                }
+            }
+        }
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
@@ -251,6 +270,13 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 t += dt;
                 // Save the true state before any event processing
                 result.save(t, &self.y)?;
+                if let Some(manager) = writer_manager {
+                    for event in &mut events.save_events {
+                        if event.options.every_step {
+                            (event.save_fn)(model, &self.y, t, manager);
+                        }
+                    }
+                }
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state

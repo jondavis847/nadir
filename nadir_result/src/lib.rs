@@ -4,6 +4,7 @@ use ambassador::delegatable_trait;
 use csv::Writer;
 
 pub type ResultWriter = Writer<BufWriter<File>>;
+
 pub struct ResultManager {
     writers: HashMap<u32, ResultWriter>,
     pub result_path: PathBuf,

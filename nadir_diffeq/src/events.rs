@@ -1,6 +1,6 @@
 use std::f64::INFINITY;
 
-use crate::{OdeModel, state::OdeState};
+use crate::{OdeModel, saving::WriterManager, state::OdeState};
 
 /// Manages time-based events during ODE integration.
 ///
@@ -15,7 +15,9 @@ where
     /// List of continuous events checked every step.
     pub continuous_events: Vec<ContinuousEvent<Model, State>>,
     /// List of periodic events occurring at fixed time intervals.
-    periodic_events: Vec<PeriodicEvent<Model, State>>,
+    pub periodic_events: Vec<PeriodicEvent<Model, State>>,
+    /// List of save events occurring at some frequency.
+    pub save_events: Vec<SaveEvent<Model, State>>,
     /// Next scheduled periodic event time and its indices.
     next_periodic: NextEvent,
     /// Placeholder for future discrete events (not yet implemented).
@@ -32,6 +34,7 @@ where
         Self {
             continuous_events: Vec::new(),
             periodic_events: Vec::new(),
+            save_events: Vec::new(),
             next_periodic: NextEvent {
                 next_time: INFINITY,
                 index: Vec::new(),
@@ -52,6 +55,11 @@ where
     pub fn add_periodic(&mut self, event: PeriodicEvent<Model, State>) {
         self.periodic_events.push(event);
         self.find_next_periodic();
+    }
+
+    /// Add a new continuous event that is evaluated every step.
+    pub fn add_save(&mut self, event: SaveEvent<Model, State>) {
+        self.save_events.push(event);
     }
 
     /// Returns the time of the next scheduled event (periodic or discrete).
@@ -210,6 +218,48 @@ where
     /// Sets the tolerance used to detect condition crossings.
     pub fn with_tol(mut self, tol: f64) -> Self {
         self.tol = tol;
+        self
+    }
+}
+
+pub struct SaveEventOptions {
+    pub every_step: bool,
+    pub every_event: bool,
+    pub periodic: Option<f64>,
+}
+
+impl Default for SaveEventOptions {
+    fn default() -> Self {
+        Self {
+            every_step: true,
+            every_event: true,
+            periodic: None,
+        }
+    }
+}
+
+/// SaveEvents will interpolate in between adaptive steps, even when set to periodic
+pub struct SaveEvent<Model, State> {
+    pub options: SaveEventOptions,
+    pub init_fn: Box<dyn Fn(&mut Model, &State, &mut WriterManager)>,
+    pub save_fn: Box<dyn FnMut(&Model, &State, f64, &mut WriterManager)>,
+}
+
+impl<Model, State> SaveEvent<Model, State> {
+    pub fn new<I, S>(init_fn: I, save_fn: S) -> Self
+    where
+        I: Fn(&mut Model, &State, &mut WriterManager) + 'static,
+        S: FnMut(&Model, &State, f64, &mut WriterManager) + 'static,
+    {
+        Self {
+            options: SaveEventOptions::default(),
+            init_fn: Box::new(init_fn),
+            save_fn: Box::new(save_fn),
+        }
+    }
+
+    pub fn with_options(mut self, options: SaveEventOptions) -> Self {
+        self.options = options;
         self
     }
 }

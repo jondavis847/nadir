@@ -511,37 +511,3 @@ pub struct JointCache {
 }
 
 pub type JointRef = Rc<RefCell<Joint>>;
-
-pub struct JointStates {
-    floating: Vec<FloatingState>,
-    prismatic: Vec<PrismaticState>,
-    revolute: Vec<RevoluteState>,
-}
-
-impl AddAssign<&Self> for JointStates {
-    fn add_assign(&mut self, rhs: &Self) {
-        for (mut lhs, rhs) in self.floating.iter_mut().zip(rhs) {
-            lhs += rhs;
-        }
-        for (mut lhs, rhs) in self.prismatic.iter_mut().zip(rhs) {
-            lhs += rhs;
-        }
-        for (mut lhs, rhs) in self.revolute.iter_mut().zip(rhs) {
-            lhs += rhs;
-        }
-    }
-}
-
-impl MulAssign<f64> for JointStates {
-    fn mul_assign(&mut self, rhs: &Self) {
-        for x in &mut self.floating {
-            x *= rhs;
-        }
-        for x in &mut self.prismatic {
-            x *= rhs;
-        }
-        for x in &mut self.revolute {
-            x *= rhs;
-        }
-    }
-}

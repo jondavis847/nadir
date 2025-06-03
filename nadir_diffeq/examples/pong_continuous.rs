@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Initial conditions for elliptical orbit
     let x0 = StateArray::new([0.0]);
 
-    let mut problem = OdeProblem::new(model).with_event_continuous(ContinuousEvent::new(
+    let mut problem = OdeProblem::new(model).with_continuous_event(ContinuousEvent::new(
         |x: &StateArray<1>, _t| x[0].abs() - 1.0,
         |model: &mut Pong, _state, _t| {
             model.speed *= -1.0;

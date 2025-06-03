@@ -4,7 +4,7 @@ use crate::{
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
-use nadir_diffeq::state::{OdeState, StateConfig, state_vector::StateVector};
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
@@ -60,21 +60,6 @@ impl MulAssign<f64> for RevoluteState {
     fn mul_assign(&mut self, rhs: f64) {
         self.angle *= rhs;
         self.angular_rate *= rhs;
-    }
-}
-
-impl OdeState for RevoluteState {
-    fn config() -> Result<StateConfig, Box<dyn std::error::Error>> {
-        Ok(StateConfig::new(2))
-    }
-    fn read_vector(&mut self, x: &StateVector) {
-        self.angle = x[0];
-        self.angular_rate = x[1];
-    }
-
-    fn write_vector(&self, x: &mut StateVector) {
-        x[0] = self.angle;
-        x[1] = self.angular_rate;
     }
 }
 

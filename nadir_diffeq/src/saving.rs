@@ -1,4 +1,5 @@
 use csv::Writer;
+use std::collections::HashMap;
 use std::{error::Error, path::PathBuf};
 
 use std::fmt::{Debug, Write};
@@ -174,7 +175,7 @@ impl StateWriterBuilder {
 
 #[derive(Debug)]
 pub struct StateWriter {
-    float_buffer: Vec<f64>,
+    pub float_buffer: Vec<f64>,
     string_buffer: Vec<String>,
     writer: Writer<BufWriter<File>>,
 }
@@ -191,7 +192,7 @@ impl StateWriter {
         let file = File::create(&abs_file_path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
         let string_buffer = vec![String::new(); builder.ncols];
-        let float_buffer = Vec::with_capacity(builder.ncols);
+        let float_buffer = vec![0.0; builder.ncols];
         if let Some(headers) = &builder.headers {
             writer.write_record(headers)?;
         }
@@ -208,9 +209,9 @@ impl StateWriter {
     }
 
     /// Writes the column data stored in the string buffers to the csv record
-    pub fn write_record(&mut self, t: f64) -> Result<(), Box<dyn Error>> {
+    pub fn write_record(&mut self) -> Result<(), Box<dyn Error>> {
+        self.string_buffer.iter_mut().for_each(|e| e.clear());
         let state = &self.float_buffer;
-        write!(self.string_buffer[0], "{}", t.to_string())?;
 
         // write the whole statevector
         for i in 0..state.len() {
@@ -218,7 +219,39 @@ impl StateWriter {
         }
 
         self.writer.write_record(&self.string_buffer)?;
-        self.string_buffer.iter_mut().for_each(|e| e.clear());
         Ok(())
     }
 }
+
+pub struct WriterManager {
+    id_ctr: u32,
+    builders: HashMap<WriterId, StateWriterBuilder>,
+    pub writers: HashMap<WriterId, StateWriter>,
+}
+
+impl WriterManager {
+    pub fn new() -> Self {
+        Self {
+            id_ctr: 0,
+            builders: HashMap::new(),
+            writers: HashMap::new(),
+        }
+    }
+
+    pub fn add_writer(&mut self, writer: StateWriterBuilder) -> WriterId {
+        self.id_ctr += 1;
+        self.builders.insert(WriterId(self.id_ctr), writer);
+        WriterId(self.id_ctr)
+    }
+
+    pub fn initialize(&mut self, root_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        for (id, builder) in &self.builders {
+            let writer = StateWriter::from_builder(builder, root_path)?;
+            self.writers.insert(*id, writer);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+pub struct WriterId(u32);

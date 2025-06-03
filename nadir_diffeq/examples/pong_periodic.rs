@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Initial conditions for elliptical orbit
     let x0 = StateArray::new([0.0]);
 
-    let mut problem = OdeProblem::new(model).with_event_periodic(PeriodicEvent::new(
+    let mut problem = OdeProblem::new(model).with_periodic_event(PeriodicEvent::new(
         1.0,
         0.0,
         |model: &mut Pong, _state, _t| {

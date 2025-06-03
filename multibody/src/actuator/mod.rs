@@ -11,6 +11,7 @@ use uncertainty::Uncertainty;
 
 use crate::{
     BufferError, HardwareBuffer,
+    actuator::{reaction_wheel::ReactionWheelState, thruster::ThrusterState},
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
@@ -238,4 +239,9 @@ impl ActuatorModel for ActuatorModels {
             ActuatorModels::Thruster(act) => act.read_command(cmd),
         }
     }
+}
+
+pub struct ActuatorStates {
+    reaction_wheels: Vec<ReactionWheelState>,
+    thrusters: Vec<ThrusterState>,
 }

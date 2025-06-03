@@ -4,7 +4,7 @@ use crate::{
     OdeModel,
     events::EventManager,
     rk::RungeKutta,
-    saving::ResultStorage,
+    saving::{ResultStorage, WriterManager},
     state::{Adaptive, OdeState},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
@@ -35,6 +35,7 @@ impl Solver {
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
+        writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -43,27 +44,27 @@ impl Solver {
         match self {
             Solver::DoPri45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::DORMANDPRINCE45);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::New45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::NEW45);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Rk4 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<4, 4>::RK4);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Tsit5 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::TSITOURAS5);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Verner6 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<6, 9>::VERNER6);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Verner9 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<9, 26>::VERNER9);
-                solver.solve_adaptive(model, x0, tspan, controller, events, result)
+                solver.solve_adaptive(model, x0, tspan, controller, events, result, writer_manager)
             }
         }
     }
@@ -76,6 +77,7 @@ impl Solver {
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
+        writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -84,27 +86,27 @@ impl Solver {
         match self {
             Solver::DoPri45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::DORMANDPRINCE45);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::New45 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::NEW45);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Rk4 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<4, 4>::RK4);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Tsit5 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<5, 7>::TSITOURAS5);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Verner6 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<6, 9>::VERNER6);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
             Solver::Verner9 => {
                 let mut solver = RungeKutta::new(ButcherTableau::<9, 26>::VERNER9);
-                solver.solve_fixed(model, x0, tspan, controller, events, result)
+                solver.solve_fixed(model, x0, tspan, controller, events, result, writer_manager)
             }
         }
     }

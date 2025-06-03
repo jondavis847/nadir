@@ -30,6 +30,7 @@ use std::{
     fmt::{Display, Formatter},
     fs::File,
     io::{Read, Write},
+    ops::AddAssign,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -1141,9 +1142,4 @@ fn traverse_body(
         )?;
     }
     Ok(())
-}
-
-pub struct MultibodyState {
-    joints: JointStates,
-    actuators: ActuatorStates,
 }

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{error::Error, fmt::Debug};
 
 /// Submodules for core ODE system components.
@@ -9,6 +10,8 @@ pub mod state;
 pub mod stepping;
 pub mod tableau;
 
+use crate::events::SaveEvent;
+use crate::saving::WriterManager;
 use crate::solvers::Solver;
 use crate::state::Adaptive;
 use crate::stepping::AdaptiveStepControl;
@@ -41,6 +44,7 @@ where
 {
     model: Model,
     events: EventManager<Model, State>,
+    save_folder: Option<PathBuf>,
 }
 
 impl<Model, State> OdeProblem<Model, State>
@@ -57,19 +61,35 @@ where
         Self {
             model,
             events: EventManager::new(),
+            save_folder: None,
         }
     }
 
     /// Adds a periodic event to the simulation.
-    pub fn with_event_periodic(mut self, event: PeriodicEvent<Model, State>) -> Self {
+    pub fn with_periodic_event(mut self, event: PeriodicEvent<Model, State>) -> Self {
         self.events.add_periodic(event);
         self
     }
 
     /// Adds a continuous event to the simulation.
-    pub fn with_event_continuous(mut self, event: ContinuousEvent<Model, State>) -> Self {
+    pub fn with_continuous_event(mut self, event: ContinuousEvent<Model, State>) -> Self {
         self.events.add_continuous(event);
         self
+    }
+
+    pub fn with_saving(mut self, save_folder: PathBuf) -> Self {
+        self.save_folder = Some(save_folder);
+        self
+    }
+
+    /// Adds a continuous event to the simulation.
+    pub fn with_save_event(mut self, event: SaveEvent<Model, State>) -> Self {
+        if self.save_folder.is_some() {
+            self.events.add_save(event);
+            self
+        } else {
+            panic!("need to call with_saving() before with_save_event() to enable saving")
+        }
     }
 
     pub fn solve_adaptive(
@@ -83,6 +103,20 @@ where
     where
         State: Adaptive,
     {
+        // Initialize the manager for writing results to a file
+        let mut writer_manager = if let Some(save_folder) = &self.save_folder {
+            let mut writer_manager = WriterManager::new();
+            // Initialize the manager with the user provided builders
+            for event in &mut self.events.save_events {
+                (event.init_fn)(&mut self.model, x0, &mut writer_manager);
+            }
+            // Initialize the writers from the builders
+            writer_manager.initialize(save_folder)?;
+            Some(writer_manager)
+        } else {
+            None
+        };
+
         // Preallocate memory for result storage if needed
         let mut result = match save_method {
             SaveMethod::Memory => {
@@ -105,6 +139,7 @@ where
             &mut step_control,
             &mut self.events,
             &mut result,
+            &mut writer_manager,
         )?;
 
         // Finalize and return the results
@@ -134,6 +169,20 @@ where
         solver: Solver,
         save_method: SaveMethod,
     ) -> Result<ResultStorage<State>, Box<dyn Error>> {
+        // Initialize the manager for writing results to a file
+        let mut writer_manager = if let Some(save_folder) = &self.save_folder {
+            let mut writer_manager = WriterManager::new();
+            // Initialize the manager with the user provided builders
+            for event in &mut self.events.save_events {
+                (event.init_fn)(&mut self.model, x0, &mut writer_manager);
+            }
+            // Initialize the writers from the builders
+            writer_manager.initialize(save_folder)?;
+            Some(writer_manager)
+        } else {
+            None
+        };
+
         // Preallocate memory for result storage if needed
         let mut result = match save_method {
             SaveMethod::Memory => {
@@ -152,6 +201,7 @@ where
             &mut controller,
             &mut self.events,
             &mut result,
+            &mut writer_manager,
         )?;
 
         // Finalize and return the results

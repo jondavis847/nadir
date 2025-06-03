@@ -1,8 +1,9 @@
-use std::{error::Error, time::Instant};
+use std::{env::current_dir, error::Error, time::Instant};
 
 use nadir_diffeq::{
     OdeModel, OdeProblem,
-    saving::{ResultStorage, SaveMethod},
+    events::SaveEvent,
+    saving::{ResultStorage, SaveMethod, StateWriter, StateWriterBuilder, WriterManager},
     solvers::Solver,
     state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
@@ -42,37 +43,42 @@ impl OdeModel for KeplerianOrbit {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let model = KeplerianOrbit { mu: 3.986004415e14 };
 
     let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
-    let mut solver = OdeProblem::new(model);
+    let mut problem = OdeProblem::new(model)
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(init_fn, save_fn));
 
-    let start = Instant::now();
-    let result = solver
-        .solve_adaptive(
-            &x0,
-            (0.0, 1472092.8448219472),
-            AdaptiveStepControl::default()
-                .with_abs_tol(1e-14)
-                .with_rel_tol(1e-14),
-            Solver::Verner9,
-            SaveMethod::Memory,
-        )
-        .unwrap();
-    let stop = Instant::now();
-    dbg!(stop.duration_since(start).as_secs_f64());
+    problem.solve_adaptive(
+        &x0,
+        (0.0, 1472092.8448219472),
+        AdaptiveStepControl::default()
+            .with_abs_tol(1e-14)
+            .with_rel_tol(1e-14),
+        Solver::Verner9,
+        SaveMethod::Memory,
+    )?;
 
-    match result {
-        ResultStorage::Memory(result) => {
-            let n = result.t.len() - 1;
-            println!(
-                "{:10.6}     {:10.6} {:10.6} {:10.6}",
-                result.t[n], result.y[n][0], result.y[n][1], result.y[n][2]
-            );
+    Ok(())
+}
+
+fn init_fn(_model: &mut KeplerianOrbit, _state: &StateArray<6>, manager: &mut WriterManager) {
+    manager.add_writer(
+        StateWriterBuilder::new(7, "results.csv".into())
+            .with_headers(&["t", "rx", "ry", "rz", "vx", "vy", "vz"])
+            .unwrap(),
+    );
+}
+
+fn save_fn(_model: &KeplerianOrbit, state: &StateArray<6>, t: f64, manager: &mut WriterManager) {
+    if let Some((_, writer)) = manager.writers.iter_mut().next() {
+        writer.float_buffer[0] = t;
+        for i in 0..6 {
+            writer.float_buffer[i + 1] = state[i];
         }
-
-        _ => {}
+        writer.write_record().unwrap();
     }
 }

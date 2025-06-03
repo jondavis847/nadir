@@ -1,15 +1,10 @@
-use std::env::current_dir;
-
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
-use multibody::{
-    joint::revolute::RevoluteBuilder,
-    system::{MultibodySystem, MultibodySystemBuilder},
-};
+use multibody::{joint::revolute::RevoluteBuilder, system::MultibodySystemBuilder};
 use nadir_diffeq::{
-    OdeProblem, Solver,
-    saving::SaveMethod,
-    stepping::{FixedStepControl, StepMethod},
+    OdeProblem,
+    saving::{ResultStorage, SaveMethod},
+    solvers::Solver,
 };
 use rotations::Rotation;
 use transforms::{Transform, prelude::Cartesian};
@@ -60,16 +55,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let x0 = sys.initial_state();
 
     // run the simulation
-    let mut problem = OdeProblem::new(
-        sys,
-        Solver::Rk4,
-        StepMethod::Fixed(FixedStepControl::new(0.1)),
-        SaveMethod::File {
-            root_folder: current_dir()?.join("results"),
-        },
-    );
+    let mut problem = OdeProblem::new(sys);
 
-    problem.solve(&x0, (0.0, 10.0))?;
+    match problem.solve_fixed(&x0, (0.0, 10.0), 0.1, Solver::Tsit5, SaveMethod::Memory)? {
+        ResultStorage::Memory(result) => {
+            let n = result.t.len() - 1;
+            println!(
+                "{:10.6}     {:10.6} {:10.6} {:10.6}",
+                result.t[n], result.y[n][0], result.y[n][1], result.y[n][2]
+            );
+        }
+        _ => {}
+    }
 
     Ok(())
 }

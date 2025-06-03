@@ -8,7 +8,7 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_diffeq::state::{OdeState, StateConfig, state_vector::StateVector};
+use nadir_diffeq::state::state_vector::StateVector;
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rand::rngs::SmallRng;
@@ -142,8 +142,6 @@ impl MulAssign<f64> for FloatingState {
         self.v *= rhs;
     }
 }
-
-impl OdeState for FloatingState {}
 
 /// Builder for a 6-DOF Floating joint
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
