@@ -6,7 +6,6 @@ use std::fs::{File, create_dir_all};
 use std::io::BufWriter;
 
 use crate::state::OdeState;
-use crate::state::state_vector::StateVector;
 
 /// Specifies the saving strategy to be used by the solver.
 ///
@@ -18,7 +17,6 @@ pub enum SaveMethod {
     Memory,
     /// Save state data to disk using a configured `StateWriterBuilder`.
     /// Each element of the vector is a separate file.
-    File { root_folder: PathBuf },
     /// Do not save solver output — user is responsible for all output handling.
     None,
 }
@@ -54,15 +52,15 @@ where
                 result.insert(t, y);
                 Ok(())
             }
-            ResultStorage::File { writers } => {
-                // model just populates the string buffers
-                for writer in writers.iter_mut() {
-                    y.write_vector(&mut writer.float_buffer);
-                    writer.write_record(t)?;
-                }
+            // ResultStorage::File { writers } => {
+            //     // model just populates the string buffers
+            //     for writer in writers.iter_mut() {
+            //         y.write_vector(&mut writer.float_buffer);
+            //         writer.write_record(t)?;
+            //     }
 
-                Ok(())
-            }
+            //     Ok(())
+            // }
             _ => Ok(()),
         }
     }
@@ -148,8 +146,6 @@ pub struct StateWriterBuilder {
     headers: Option<Vec<String>>,
     ncols: usize,
     relative_file_path: PathBuf,
-    // specify specific indices of the StateVector write
-    indeces: Option<Vec<usize>>,
 }
 
 impl StateWriterBuilder {
@@ -158,7 +154,6 @@ impl StateWriterBuilder {
             relative_file_path,
             headers: None,
             ncols,
-            indeces: None,
         }
     }
 
@@ -175,38 +170,13 @@ impl StateWriterBuilder {
         self.headers = Some(headers);
         Ok(self)
     }
-
-    pub fn with_indeces<const N: usize>(
-        mut self,
-        indeces: [usize; N],
-    ) -> Result<Self, Box<dyn Error>> {
-        if N > self.ncols {
-            return Err(format!(
-                "number of indeces ({}) must be less than or equal to ncols ({})",
-                N, self.ncols
-            )
-            .into());
-        }
-        for i in indeces {
-            if i >= self.ncols {
-                return Err(format!(
-                    "indeces must be less than or equal to ncols ({}), got ({})",
-                    i, self.ncols
-                )
-                .into());
-            }
-        }
-        self.indeces = Some(indeces.into());
-        Ok(self)
-    }
 }
 
 #[derive(Debug)]
 pub struct StateWriter {
-    float_buffer: StateVector,
+    float_buffer: Vec<f64>,
     string_buffer: Vec<String>,
     writer: Writer<BufWriter<File>>,
-    indeces: Option<Vec<usize>>,
 }
 
 impl StateWriter {
@@ -221,7 +191,7 @@ impl StateWriter {
         let file = File::create(&abs_file_path)?;
         let mut writer = Writer::from_writer(BufWriter::new(file));
         let string_buffer = vec![String::new(); builder.ncols];
-        let float_buffer = StateVector::with_capacity(builder.ncols);
+        let float_buffer = Vec::with_capacity(builder.ncols);
         if let Some(headers) = &builder.headers {
             writer.write_record(headers)?;
         }
@@ -229,7 +199,6 @@ impl StateWriter {
             float_buffer,
             string_buffer,
             writer,
-            indeces: builder.indeces.clone(),
         })
     }
 
@@ -242,17 +211,12 @@ impl StateWriter {
     pub fn write_record(&mut self, t: f64) -> Result<(), Box<dyn Error>> {
         let state = &self.float_buffer;
         write!(self.string_buffer[0], "{}", t.to_string())?;
-        if let Some(indeces) = &self.indeces {
-            // write only the indeces we specified
-            for (i, index) in indeces.iter().enumerate() {
-                write!(self.string_buffer[i + 1], "{}", state[*index].to_string())?;
-            }
-        } else {
-            // write the whole statevector
-            for i in 0..state.len() {
-                write!(self.string_buffer[i], "{}", state[i].to_string())?;
-            }
+
+        // write the whole statevector
+        for i in 0..state.len() {
+            write!(self.string_buffer[i], "{}", state[i].to_string())?;
         }
+
         self.writer.write_record(&self.string_buffer)?;
         self.string_buffer.iter_mut().for_each(|e| e.clear());
         Ok(())

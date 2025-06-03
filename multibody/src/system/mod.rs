@@ -1142,3 +1142,8 @@ fn traverse_body(
     }
     Ok(())
 }
+
+pub struct MultibodyState {
+    joints: JointStates,
+    actuators: ActuatorStates,
+}

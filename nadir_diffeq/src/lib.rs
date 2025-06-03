@@ -4,16 +4,18 @@ use std::{error::Error, fmt::Debug};
 pub mod events;
 pub mod rk;
 pub mod saving;
+pub mod solvers;
 pub mod state;
 pub mod stepping;
 pub mod tableau;
 
-use crate::rk::RungeKutta;
-use crate::tableau::ButcherTableau;
+use crate::solvers::Solver;
+use crate::state::Adaptive;
+use crate::stepping::AdaptiveStepControl;
+use crate::stepping::FixedStepControl;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod, StateWriter};
+use saving::{MemoryResult, ResultStorage, SaveMethod};
 use state::OdeState;
-use stepping::StepMethod;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
 ///
@@ -26,24 +28,8 @@ pub trait OdeModel: Debug {
         &mut self,
         t: f64,
         state: &Self::State,
-        derivative: &mut <Self::State as OdeState>::Derivative,
+        derivative: &mut Self::State,
     ) -> Result<(), Box<dyn Error>>;
-}
-
-/// Enum representing the available solvers supported by the framework.
-pub enum Solver {
-    /// Dormand-Prince 4(5) method.
-    DoPri45,
-    /// Tsitouras new 4(5) method variant.
-    New45,
-    /// Classical Runge-Kutta 4th-order method.
-    Rk4,
-    /// Tsitouras 5(4) method.
-    Tsit5,
-    /// Verner’s 6th-order embedded method.
-    Verner6,
-    /// Verner’s 9th-order embedded method.
-    Verner9,
 }
 
 /// Container for a complete ODE simulation problem, including model, solver configuration,
@@ -54,9 +40,6 @@ where
     State: OdeState,
 {
     model: Model,
-    solver: Solver,
-    step_method: StepMethod,
-    save_method: SaveMethod,
     events: EventManager<Model, State>,
 }
 
@@ -70,24 +53,9 @@ where
     /// # Panics
     ///
     /// Panics if an adaptive step method is used with `Rk4`, which does not support adaptivity.
-    pub fn new(
-        model: Model,
-        solver: Solver,
-        step_method: StepMethod,
-        save_method: SaveMethod,
-    ) -> Self {
-        match (&solver, &step_method) {
-            (Solver::Rk4, StepMethod::Adaptive(_)) => {
-                panic!("Rk4 solver does not support adaptive step size")
-            }
-            _ => {}
-        }
-
+    pub fn new(model: Model) -> Self {
         Self {
             model,
-            solver,
-            save_method,
-            step_method,
             events: EventManager::new(),
         }
     }
@@ -104,6 +72,46 @@ where
         self
     }
 
+    pub fn solve_adaptive(
+        &mut self,
+        x0: &State,
+        tspan: (f64, f64),
+        mut step_control: AdaptiveStepControl,
+        solver: Solver,
+        save_method: SaveMethod,
+    ) -> Result<ResultStorage<State>, Box<dyn Error>>
+    where
+        State: Adaptive,
+    {
+        // Preallocate memory for result storage if needed
+        let mut result = match save_method {
+            SaveMethod::Memory => {
+                let n = if let Some(max_dt) = &step_control.max_dt {
+                    ((tspan.1 - tspan.0) / max_dt).ceil() as usize
+                } else {
+                    // Default conservative allocation: 1 save per second
+                    (tspan.1 - tspan.0).ceil() as usize
+                };
+                ResultStorage::Memory(MemoryResult::new(n))
+            }
+            _ => ResultStorage::None,
+        };
+
+        // Dispatch to the appropriate solver
+        solver.solve_adaptive(
+            &mut self.model,
+            x0,
+            tspan,
+            &mut step_control,
+            &mut self.events,
+            &mut result,
+        )?;
+
+        // Finalize and return the results
+        result.truncate()?;
+        Ok(result)
+    }
+
     /// Solves the ODE problem over the specified time span.
     ///
     /// This method internally selects the appropriate solver implementation based on the
@@ -117,112 +125,34 @@ where
     /// # Returns
     ///
     /// A result containing the populated `ResultStorage` (either in memory or to file).
-    pub fn solve(
+
+    pub fn solve_fixed(
         &mut self,
         x0: &State,
         tspan: (f64, f64),
+        dt: f64,
+        solver: Solver,
+        save_method: SaveMethod,
     ) -> Result<ResultStorage<State>, Box<dyn Error>> {
-        let state_config = State::config()?;
         // Preallocate memory for result storage if needed
-        let mut result = match &self.save_method {
+        let mut result = match save_method {
             SaveMethod::Memory => {
-                let n = match self.step_method {
-                    StepMethod::Fixed(controller) => {
-                        ((tspan.1 - tspan.0) / controller.dt).ceil() as usize
-                    }
-                    StepMethod::Adaptive(controller) => {
-                        if let Some(max_dt) = &controller.max_dt {
-                            ((tspan.1 - tspan.0) / max_dt).ceil() as usize
-                        } else {
-                            // Default conservative allocation: 1 save per second
-                            (tspan.1 - tspan.0).ceil() as usize
-                        }
-                    }
-                };
-                ResultStorage::Memory(MemoryResult::<State>::new(n))
-            }
-            SaveMethod::File { root_folder } => {
-                let mut writers = Vec::new();
-                for builder in &state_config.writers {
-                    writers.push(StateWriter::from_builder(builder, root_folder)?);
-                }
-
-                ResultStorage::File { writers }
+                let n = ((tspan.1 - tspan.0) / dt).ceil() as usize;
+                ResultStorage::Memory(MemoryResult::new(n))
             }
             _ => ResultStorage::None,
         };
 
-        // Dispatch to the appropriate solver
-        match self.solver {
-            Solver::DoPri45 => {
-                let mut solver =
-                    RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::DORMANDPRINCE45);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-            Solver::New45 => {
-                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::NEW45);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-            Solver::Rk4 => {
-                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<4, 4>::RK4);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-            Solver::Tsit5 => {
-                let mut solver =
-                    RungeKutta::new(state_config.n, ButcherTableau::<5, 7>::TSITOURAS5);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-            Solver::Verner6 => {
-                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<6, 9>::VERNER6);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-            Solver::Verner9 => {
-                let mut solver = RungeKutta::new(state_config.n, ButcherTableau::<9, 26>::VERNER9);
-                solver.solve(
-                    &mut self.model,
-                    x0,
-                    tspan,
-                    &mut self.step_method,
-                    &mut self.events,
-                    &mut result,
-                )?;
-            }
-        }
+        let mut controller = FixedStepControl::new(dt);
+
+        solver.solve_fixed(
+            &mut self.model,
+            x0,
+            tspan,
+            &mut controller,
+            &mut self.events,
+            &mut result,
+        )?;
 
         // Finalize and return the results
         result.truncate()?;

@@ -1,8 +1,6 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem, Solver,
-    saving::SaveMethod,
-    state::state_array::StateArray,
-    stepping::{FixedStepControl, StepMethod},
+    OdeModel, OdeProblem, saving::SaveMethod, solvers::Solver, state::state_array::StateArray,
+    stepping::AdaptiveStepControl,
 };
 use std::error::Error;
 
@@ -36,16 +34,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         beta: 8. / 3.,
     };
 
-    let mut problem = OdeProblem::new(
-        model,
-        Solver::Tsit5,
-        StepMethod::Fixed(FixedStepControl::new(0.1)),
-        SaveMethod::Memory,
-    );
+    let mut problem = OdeProblem::new(model);
 
     let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
 
-    problem.solve(&x0, (0.0, 10.0))?;
+    problem.solve_adaptive(
+        &x0,
+        (0.0, 10.0),
+        AdaptiveStepControl::default(),
+        Solver::Tsit5,
+        SaveMethod::Memory,
+    )?;
 
     Ok(())
 }

@@ -1,5 +1,7 @@
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
-use tolerance::Tolerances;
+use tolerance::{Tolerances, compute_error};
+
+use crate::state::Adaptive;
 
 use super::{OdeState, StateConfig};
 
@@ -92,33 +94,14 @@ impl DerefMut for StateVector {
     }
 }
 
-impl OdeState for StateVector {
-    /// The derivative type is the same as the state type.
-    type Derivative = Self;
-
-    /// Returns a default configuration for the `StateVector`.
-    fn config() -> Result<StateConfig, Box<dyn std::error::Error>> {
-        Ok(StateConfig {
-            n: 0,
-            tolerances: Vec::new(),
-            writers: Vec::new(),
-        })
-    }
-
-    /// Reads values from a `StateVector` into this state.
-    fn read_vector(&mut self, x: &StateVector) {
-        if self.n != x.len() {
-            panic!("StateVector length does not match StateVector size");
+impl Adaptive for StateVector {
+    fn compute_error(&self, x_prev: &Self, x_tilde: &Self, abs_tol: f64, rel_tol: f64) -> f64 {
+        let mut accum_error = 0.0;
+        for i in 0..self.len() {
+            let error = compute_error(self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol);
+            accum_error += error * error;
         }
-        self.value.clone_from(&x.value);
-    }
-
-    /// Writes values from this state into a `StateVector`.
-    fn write_vector(&self, x: &mut StateVector) {
-        if self.n != x.len() {
-            x.resize(self.n, 0.0);
-        }
-        x.value.clone_from(&self.value);
+        (accum_error / self.len() as f64).sqrt()
     }
 }
 

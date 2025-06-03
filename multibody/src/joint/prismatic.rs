@@ -6,7 +6,7 @@ use crate::{
 };
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_diffeq::state::state_vector::StateVector;
+use nadir_diffeq::state::{OdeState, StateConfig, state_vector::StateVector};
 use nadir_result::ResultManager;
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
@@ -50,8 +50,8 @@ pub struct PrismaticState {
     pub velocity: f64,
 }
 
-impl<'a> AddAssign<&'a Self> for PrismaticState {
-    fn add_assign(&mut self, rhs: &'a Self) {
+impl AddAssign<&Self> for PrismaticState {
+    fn add_assign(&mut self, rhs: &Self) {
         self.position += rhs.position;
         self.velocity += rhs.velocity;
     }
@@ -61,6 +61,20 @@ impl MulAssign<f64> for PrismaticState {
     fn mul_assign(&mut self, rhs: f64) {
         self.position *= rhs;
         self.velocity *= rhs;
+    }
+}
+
+impl OdeState for PrismaticState {
+    fn config() -> Result<nadir_diffeq::state::StateConfig, Box<dyn std::error::Error>> {
+        Ok(StateConfig::new(0))
+    }
+    fn read_vector(&mut self, x: &StateVector) {
+        self.position = x[0];
+        self.velocity = x[1];
+    }
+    fn write_vector(&self, x: &mut StateVector) {
+        x[0] = self.position;
+        x[1] = self.velocity;
     }
 }
 

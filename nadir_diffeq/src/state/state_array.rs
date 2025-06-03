@@ -1,8 +1,5 @@
+use crate::state::{Adaptive, OdeState};
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
-
-use crate::saving::StateWriterBuilder;
-
-use super::{OdeState, StateConfig, state_vector::StateVector};
 use tolerance::{Tolerance, Tolerances, compute_error};
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
@@ -60,43 +57,15 @@ impl<const N: usize> MulAssign<f64> for StateArray<N> {
     }
 }
 
-impl<const N: usize> OdeState for StateArray<N> {
-    /// The derivative is represented by the same type as the state.
-    type Derivative = Self;
-
-    fn config() -> Result<StateConfig, Box<dyn std::error::Error>> {
-        Ok(StateConfig {
-            n: N,
-            tolerances: vec![None; N],
-            writers: vec![StateWriterBuilder::new(N + 1, "results.csv".into())],
-        })
-    }
-
-    fn read_vector(&mut self, x: &StateVector) {
-        if x.len() != N {
-            panic!("StateVector length does not match StateArray size");
-        }
+impl<const N: usize> Adaptive for StateArray<N> {
+    fn compute_error(&self, x_prev: &Self, x_tilde: &Self, abs_tol: f64, rel_tol: f64) -> f64 {
+        let mut accum_error = 0.0;
         for i in 0..N {
-            self.0[i] = x[i];
+            let error = compute_error(self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol);
+            accum_error += error * error;
         }
+        (accum_error / N as f64).sqrt()
     }
-
-    fn write_vector(&self, x: &mut StateVector) {
-        if x.len() != N {
-            x.resize(N, 0.0);
-        }
-        for i in 0..N {
-            x[i] = self.0[i];
-        }
-    }
-
-    // fn from_vector(x: &super::state_vector::StateVector) -> &Self {
-    //     let mut array = [0.0; N];
-    //     for i in 0..N {
-    //         array[i] = x[i];
-    //     }
-    //     &StateArray::new(array)
-    // }
 }
 
 impl<const N: usize> Deref for StateArray<N> {

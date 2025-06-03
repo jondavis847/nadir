@@ -6,9 +6,10 @@ pub mod revolute;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
+    joint::{prismatic::PrismaticState, revolute::RevoluteState},
     system::Id,
 };
-use floating::{Floating, FloatingBuilder, FloatingErrors};
+use floating::{Floating, FloatingBuilder, FloatingErrors, FloatingState};
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
 use nadir_diffeq::state::state_vector::StateVector;
@@ -20,7 +21,12 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::{cell::RefCell, fmt::Debug, rc::Rc};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    ops::{AddAssign, MulAssign},
+    rc::Rc,
+};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -505,3 +511,37 @@ pub struct JointCache {
 }
 
 pub type JointRef = Rc<RefCell<Joint>>;
+
+pub struct JointStates {
+    floating: Vec<FloatingState>,
+    prismatic: Vec<PrismaticState>,
+    revolute: Vec<RevoluteState>,
+}
+
+impl AddAssign<&Self> for JointStates {
+    fn add_assign(&mut self, rhs: &Self) {
+        for (mut lhs, rhs) in self.floating.iter_mut().zip(rhs) {
+            lhs += rhs;
+        }
+        for (mut lhs, rhs) in self.prismatic.iter_mut().zip(rhs) {
+            lhs += rhs;
+        }
+        for (mut lhs, rhs) in self.revolute.iter_mut().zip(rhs) {
+            lhs += rhs;
+        }
+    }
+}
+
+impl MulAssign<f64> for JointStates {
+    fn mul_assign(&mut self, rhs: &Self) {
+        for x in &mut self.floating {
+            x *= rhs;
+        }
+        for x in &mut self.prismatic {
+            x *= rhs;
+        }
+        for x in &mut self.revolute {
+            x *= rhs;
+        }
+    }
+}

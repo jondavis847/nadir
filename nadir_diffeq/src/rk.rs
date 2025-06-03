@@ -1,15 +1,10 @@
 use std::{array, error::Error, f64::INFINITY, mem::swap};
 
-use tolerance::compute_error;
-
 use crate::{
-    OdeModel, StepMethod,
+    OdeModel,
     events::{ContinuousEvent, EventManager},
     saving::ResultStorage,
-    state::{
-        OdeState,
-        state_vector::{StateVector, StateVectorTolerances},
-    },
+    state::{Adaptive, OdeState, state_vector::StateVector},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
 };
@@ -21,19 +16,17 @@ use crate::{
 struct RKBuffers<State: OdeState, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
     state: State,
-    derivative: State::Derivative,
+    derivative: State,
     interpolant: State,
-    tolerance: ToleranceBuffers,
 }
 
 impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
-    fn new(n: usize) -> Self {
+    fn new() -> Self {
         Self {
             stage: StageBuffer::new(),
             state: State::default(),
-            derivative: State::Derivative::default(),
+            derivative: State::default(),
             interpolant: State::default(),
-            tolerance: ToleranceBuffers::new(n),
         }
     }
 }
@@ -74,9 +67,9 @@ pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> 
 impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
     /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
 
-    pub fn new(n: usize, tableau: ButcherTableau<ORDER, STAGES>) -> Self {
+    pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self {
         Self {
-            buffers: RKBuffers::new(n),
+            buffers: RKBuffers::new(),
             x: State::default(),
             y: State::default(),
             y_tilde: State::default(),
@@ -85,36 +78,8 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         }
     }
 
-    /// Solves the ODE system using either fixed or adaptive step size depending on `step_method`.
-
-    pub fn solve<Model: OdeModel<State = State>>(
-        &mut self,
-        model: &mut Model,
-        x0: &State,
-        tspan: (f64, f64),
-        step_method: &mut StepMethod,
-        events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
-    ) -> Result<(), Box<dyn Error>> {
-        let state_config = State::config()?;
-        match step_method {
-            StepMethod::Fixed(controller) => {
-                controller.next_time = tspan.0;
-                self.solve_fixed(model, x0, tspan, controller, events, result)
-            }
-            StepMethod::Adaptive(controller) => {
-                let tolerances = StateVectorTolerances::from_config(
-                    &state_config,
-                    controller.abs_tol,
-                    controller.rel_tol,
-                );
-                self.solve_adaptive(model, x0, tspan, controller, tolerances, events, result)
-            }
-        }
-    }
     /// Solves the system using fixed step size control, handling periodic events.
-
-    fn solve_fixed<Model: OdeModel<State = State>>(
+    pub fn solve_fixed<Model: OdeModel<State = State>>(
         &mut self,
         model: &mut Model,
         x0: &State,
@@ -186,19 +151,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
     ///
     /// Supports both periodic and continuous events, and performs root-finding
     /// to locate the time of continuous events using Brent's method.
-    fn solve_adaptive<Model>(
+    pub fn solve_adaptive<Model>(
         &mut self,
         model: &mut Model,
         x0: &State,
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
-        tolerances: StateVectorTolerances,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
-        State: OdeState,
+        State: OdeState + Adaptive,
     {
         let mut accept_counter = 0;
         let mut reject_counter = 0;
@@ -235,11 +199,12 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             self.step(model, t, dt, true, &mut function_calls)?;
 
             // Calculate error
-            let tol_buffer = &mut self.buffers.tolerance;
-            self.y.write_vector(&mut tol_buffer.y);
-            self.x.write_vector(&mut tol_buffer.y_prev);
-            self.y_tilde.write_vector(&mut tol_buffer.y_tilde);
-            let error = self.compute_error(&tolerances);
+            let error = self.y.compute_error(
+                &self.x,
+                &self.y_tilde,
+                controller.abs_tol,
+                controller.rel_tol,
+            );
 
             // Calculate new step size based on dt
             let new_dt = controller.step(dt, error, ORDER);
@@ -425,25 +390,6 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         }
         Ok(())
     }
-    /// Computes the normalized RMS error between two states, used in adaptive control.
-
-    pub fn compute_error(&self, tolerances: &StateVectorTolerances) -> f64 {
-        let tol_buffer = &self.buffers.tolerance;
-        let n = tol_buffer.y.len();
-        let mut total_error = 0.0;
-        for i in 0..tol_buffer.y.len() {
-            let error = compute_error(
-                tol_buffer.y[i],
-                tol_buffer.y_prev[i],
-                tol_buffer.y_tilde[i],
-                tolerances.0[i].rel_tol,
-                tolerances.0[i].abs_tol,
-            );
-
-            total_error += error * error; // accumulate squared errors
-        }
-        (total_error / n as f64).sqrt()
-    }
 
     /// Computes the interpolated state at time `t` using dense output coefficients.
     ///
@@ -593,13 +539,13 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 /// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
 pub struct StageBuffer<State: OdeState, const STAGES: usize> {
-    pub k: [State::Derivative; STAGES],
+    pub k: [State; STAGES],
 }
 
 impl<State: OdeState, const STAGES: usize> StageBuffer<State, STAGES> {
     fn new() -> Self {
         Self {
-            k: array::from_fn(|_| State::Derivative::default()),
+            k: array::from_fn(|_| State::default()),
         }
     }
 }

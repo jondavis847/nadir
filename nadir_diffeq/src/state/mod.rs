@@ -5,9 +5,10 @@
 use state_vector::StateVector;
 use std::error::Error;
 use std::ops::{AddAssign, MulAssign};
+use std::path::PathBuf;
 use tolerance::Tolerances;
 
-use crate::saving::StateWriterBuilder;
+use crate::saving::{StateWriter, StateWriterBuilder};
 
 pub mod state_array;
 pub mod state_vector;
@@ -67,14 +68,16 @@ impl StateConfig {
 
 pub trait OdeState: Clone + Default + Clone + Sized + MulAssign<f64> + 'static
 where
-    for<'a> Self: AddAssign<&'a Self> + AddAssign<&'a Self::Derivative>,
+    for<'a> Self: AddAssign<&'a Self>,
 {
-    type Derivative: Clone + Default + Clone + Sized + MulAssign<f64> + 'static;
-    fn config() -> Result<StateConfig, Box<dyn Error>>;
-    /// Read values from a StateVector to your custom State
-    fn read_vector(&mut self, x: &StateVector);
-    /// Write values of custom state to a StateVector
-    fn write_vector(&self, x: &mut StateVector);
-    // Create a new state from a StateVector
-    //fn from_vector(x: &StateVector) -> &Self;
+}
+
+impl<T> OdeState for T
+where
+    T: Clone + Default + Sized + MulAssign<f64> + 'static,
+    for<'a> T: AddAssign<&'a T>,
+{
+}
+pub trait Adaptive: OdeState {
+    fn compute_error(&self, _x_prev: &Self, _x_tilde: &Self, _abs_tol: f64, _rel_tol: f64) -> f64;
 }

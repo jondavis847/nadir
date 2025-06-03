@@ -1,8 +1,9 @@
 use std::{error::Error, time::Instant};
 
 use nadir_diffeq::{
-    OdeModel, OdeProblem, Solver,
+    OdeModel, OdeProblem,
     saving::{ResultStorage, SaveMethod},
+    solvers::Solver,
     state::state_array::StateArray,
     stepping::{AdaptiveStepControl, StepMethod},
 };
@@ -46,19 +47,20 @@ fn main() {
 
     let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
-    let mut solver = OdeProblem::new(
-        model,
-        Solver::Verner9,
-        StepMethod::Adaptive(
-            AdaptiveStepControl::default()
-                .with_rel_tol(1e-14)
-                .with_abs_tol(1e-14),
-        ),
-        SaveMethod::Memory,
-    );
+    let mut solver = OdeProblem::new(model);
 
     let start = Instant::now();
-    let result = solver.solve(&x0, (0.0, 1472092.8448219472)).unwrap();
+    let result = solver
+        .solve_adaptive(
+            &x0,
+            (0.0, 1472092.8448219472),
+            AdaptiveStepControl::default()
+                .with_abs_tol(1e-14)
+                .with_rel_tol(1e-14),
+            Solver::Verner9,
+            SaveMethod::Memory,
+        )
+        .unwrap();
     let stop = Instant::now();
     dbg!(stop.duration_since(start).as_secs_f64());
 

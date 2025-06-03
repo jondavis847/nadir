@@ -1,11 +1,12 @@
 use std::error::Error;
 
 use nadir_diffeq::{
-    OdeModel, OdeProblem, Solver,
+    OdeModel, OdeProblem,
     events::PeriodicEvent,
     saving::{ResultStorage, SaveMethod},
+    solvers::Solver,
     state::state_array::StateArray,
-    stepping::{AdaptiveStepControl, StepMethod},
+    stepping::AdaptiveStepControl,
 };
 
 #[derive(Debug)]
@@ -33,17 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Initial conditions for elliptical orbit
     let x0 = StateArray::new([0.0]);
 
-    let mut problem = OdeProblem::new(
-        model,
-        Solver::DoPri45,
-        StepMethod::Adaptive(
-            AdaptiveStepControl::default()
-                .with_rel_tol(1e-6)
-                .with_abs_tol(1e-9),
-        ),
-        SaveMethod::Memory,
-    )
-    .with_event_periodic(PeriodicEvent::new(
+    let mut problem = OdeProblem::new(model).with_event_periodic(PeriodicEvent::new(
         1.0,
         0.0,
         |model: &mut Pong, _state, _t| {
@@ -51,7 +42,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     ));
 
-    let result = problem.solve(&x0, (0.0, 10.0))?;
+    let result = problem.solve_adaptive(
+        &x0,
+        (0.0, 10.0),
+        AdaptiveStepControl::default(),
+        Solver::Tsit5,
+        SaveMethod::Memory,
+    )?;
 
     match result {
         ResultStorage::Memory(result) => {

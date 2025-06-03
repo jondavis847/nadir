@@ -8,7 +8,7 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_diffeq::state::state_vector::StateVector;
+use nadir_diffeq::state::{OdeState, StateConfig, state_vector::StateVector};
 use nadir_result::ResultManager;
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rand::rngs::SmallRng;
@@ -123,8 +123,8 @@ pub struct FloatingState {
     pub v: Vector3<f64>,
 }
 
-impl<'a> AddAssign<&'a Self> for FloatingState {
-    fn add_assign(&mut self, rhs: &'a Self) {
+impl AddAssign<&Self> for FloatingState {
+    fn add_assign(&mut self, rhs: &Self) {
         self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
         self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w += &rhs.w;
@@ -142,6 +142,8 @@ impl MulAssign<f64> for FloatingState {
         self.v *= rhs;
     }
 }
+
+impl OdeState for FloatingState {}
 
 /// Builder for a 6-DOF Floating joint
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
