@@ -6,8 +6,7 @@ use crate::{
 };
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_diffeq::state::state_vector::StateVector;
-use nadir_result::ResultManager;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{Rotation, RotationTrait};
@@ -522,20 +521,16 @@ impl JointModel for Prismatic {
         transforms.update(inner_joint)
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &["position", "velocity", "acceleration", "tau"]
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.position.to_string(),
-                self.state.velocity.to_string(),
-                self.cache.q_ddot.to_string(),
-                self.cache.tau.to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.position;
+        writer.float_buffer[1] = self.state.velocity;
+        writer.float_buffer[2] = self.cache.q_ddot;
+        writer.float_buffer[3] = self.cache.tau;
+        writer.write_record().unwrap();
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{HardwareBuffer, actuator::ActuatorModel, body::BodyConnection};
 use bytemuck::{Pod, Zeroable};
-use nadir_diffeq::state::state_vector::StateVector;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
@@ -528,26 +528,22 @@ impl ActuatorModel for ReactionWheel {
         Ok(())
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.acceleration.to_string(),
-                self.state.current.to_string(),
-                self.state.momentum.to_string(),
-                self.state.momentum_body[0].to_string(),
-                self.state.momentum_body[1].to_string(),
-                self.state.momentum_body[2].to_string(),
-                self.state.velocity.to_string(),
-                self.state.torque.to_string(),
-                self.state.torque_body[0].to_string(),
-                self.state.torque_body[1].to_string(),
-                self.state.torque_body[2].to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.acceleration;
+        writer.float_buffer[1] = self.state.current;
+        writer.float_buffer[2] = self.state.momentum;
+        writer.float_buffer[3] = self.state.momentum_body[0];
+        writer.float_buffer[4] = self.state.momentum_body[1];
+        writer.float_buffer[5] = self.state.momentum_body[2];
+        writer.float_buffer[6] = self.state.velocity;
+        writer.float_buffer[7] = self.state.torque;
+        writer.float_buffer[8] = self.state.torque_body[0];
+        writer.float_buffer[9] = self.state.torque_body[1];
+        writer.float_buffer[10] = self.state.torque_body[2];
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &[
             "acceleration",
             "current",

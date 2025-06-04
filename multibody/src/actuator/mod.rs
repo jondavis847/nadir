@@ -1,9 +1,11 @@
-use nadir_diffeq::state::state_vector::StateVector;
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::{
+    saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager},
+    state::state_vector::StateVector,
+};
 use rand::rngs::SmallRng;
 use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 use thiserror::Error;
 use thruster::{Thruster, ThrusterBuilder, ThrusterErrors};
 use transforms::Transform;
@@ -11,7 +13,6 @@ use uncertainty::Uncertainty;
 
 use crate::{
     BufferError, HardwareBuffer,
-    actuator::{reaction_wheel::ReactionWheelState, thruster::ThrusterState},
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
@@ -49,7 +50,7 @@ impl ActuatorBuilder {
             name: self.name.clone(),
             model,
             connection,
-            result_id: None,
+            writer_id: None,
             state_start: 0,
             state_end: 0,
         })
@@ -72,8 +73,6 @@ pub enum ActuatorErrors {
 
 pub trait ActuatorModel {
     fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors>;
-    fn result_headers(&self) -> &[&str];
-    fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
     fn state_derivative(&self, _derivative: &mut [f64]) {}
     /// Initializes a vector of f64 values representing state vector for the ODE integration
@@ -83,6 +82,8 @@ pub trait ActuatorModel {
     /// Reads a state vector into the sim state
     fn state_vector_read(&mut self, state: &[f64]);
     fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors>;
+    fn writer_headers(&self) -> &[&str];
+    fn writer_save_fn(&self, writer: &mut StateWriter);
 }
 
 #[derive(Debug)]
@@ -91,7 +92,7 @@ pub struct Actuator {
     pub model: ActuatorModels,
     pub connection: BodyConnection,
     /// Id of the result writer in sys.writers
-    result_id: Option<u32>,
+    writer_id: Option<WriterId>,
     state_start: usize,
     state_end: usize,
 }
@@ -120,31 +121,19 @@ impl Actuator {
     pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
         self.model.read_command(buffer)
     }
-}
 
-impl NadirResult for Actuator {
-    fn new_result(&mut self, results: &mut ResultManager) {
-        // Define the actuator subfolder folder path
-        let actuator_folder_path = results.result_path.join("actuators");
-
-        // Check if the folder exists, if not, create it
-        if !actuator_folder_path.exists() {
-            std::fs::create_dir_all(&actuator_folder_path)
-                .expect("Failed to create actuator folder");
-        }
-
-        // Initialize writer using the updated path
-        let id = results.new_writer(
-            &self.name,
-            &actuator_folder_path,
-            self.model.result_headers(),
-        );
-        self.result_id = Some(id);
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let rel_path = PathBuf::new().join("actuators").join(&self.name);
+        let headers = self.model.writer_headers();
+        let writer = StateWriterBuilder::new(headers.len(), rel_path);
+        self.writer_id = Some(manager.add_writer(writer));
     }
 
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            self.model.result_content(id, results);
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                self.model.writer_save_fn(writer);
+            }
         }
     }
 }
@@ -191,17 +180,17 @@ pub enum ActuatorModels {
 }
 
 impl ActuatorModel for ActuatorModels {
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.result_content(id, results),
-            ActuatorModels::Thruster(act) => act.result_content(id, results),
+            ActuatorModels::ReactionWheel(act) => act.writer_save_fn(writer),
+            ActuatorModels::Thruster(act) => act.writer_save_fn(writer),
         }
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.result_headers(),
-            ActuatorModels::Thruster(act) => act.result_headers(),
+            ActuatorModels::ReactionWheel(act) => act.writer_headers(),
+            ActuatorModels::Thruster(act) => act.writer_headers(),
         }
     }
 
@@ -239,9 +228,4 @@ impl ActuatorModel for ActuatorModels {
             ActuatorModels::Thruster(act) => act.read_command(cmd),
         }
     }
-}
-
-pub struct ActuatorStates {
-    reaction_wheels: Vec<ReactionWheelState>,
-    thrusters: Vec<ThrusterState>,
 }

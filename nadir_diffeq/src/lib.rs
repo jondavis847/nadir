@@ -10,7 +10,7 @@ pub mod state;
 pub mod stepping;
 pub mod tableau;
 
-use crate::events::SaveEvent;
+use crate::events::{PostSimEvent, SaveEvent};
 use crate::saving::WriterManager;
 use crate::solvers::Solver;
 use crate::state::Adaptive;
@@ -68,6 +68,12 @@ where
     /// Adds a periodic event to the simulation.
     pub fn with_periodic_event(mut self, event: PeriodicEvent<Model, State>) -> Self {
         self.events.add_periodic(event);
+        self
+    }
+
+    /// Adds a periodic event to the simulation.
+    pub fn with_postsim_event(mut self, event: PostSimEvent<Model>) -> Self {
+        self.events.add_postsim(event);
         self
     }
 
@@ -141,6 +147,11 @@ where
             &mut result,
             &mut writer_manager,
         )?;
+
+        // process any postsim events
+        for event in &self.events.postsim_events {
+            (event.postsim_fn)(&self.model, &writer_manager);
+        }
 
         // Finalize and return the results
         result.truncate()?;

@@ -6,14 +6,15 @@ pub mod revolute;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
-    joint::{prismatic::PrismaticState, revolute::RevoluteState},
     system::Id,
 };
-use floating::{Floating, FloatingBuilder, FloatingErrors, FloatingState};
+use floating::{Floating, FloatingBuilder, FloatingErrors};
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
-use nadir_diffeq::state::state_vector::StateVector;
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::{
+    saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager},
+    state::state_vector::StateVector,
+};
 use nalgebra::Vector6;
 use prismatic::{Prismatic, PrismaticBuilder, PrismaticErrors};
 use rand::rngs::SmallRng;
@@ -21,12 +22,7 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::{
-    cell::RefCell,
-    fmt::Debug,
-    ops::{AddAssign, MulAssign},
-    rc::Rc,
-};
+use std::{cell::RefCell, fmt::Debug, path::PathBuf, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -148,7 +144,7 @@ impl JointBuilder {
             name: self.name.clone(),
             model,
             connections,
-            result_id: None,
+            writer_id: None,
             state_start: 0,
             state_end: 0,
             cache: JointCache::default(),
@@ -183,8 +179,8 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     );
-    fn result_headers(&self) -> &[&str];
-    fn result_content(&self, id: u32, results: &mut ResultManager);
+    fn writer_headers(&self) -> &[&str];
+    fn writer_save_fn(&self, writer: &mut StateWriter);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,19 +233,19 @@ impl JointModel for JointModels {
         }
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
-            JointModels::Floating(model) => model.result_content(id, results),
-            JointModels::Prismatic(model) => model.result_content(id, results),
-            JointModels::Revolute(model) => model.result_content(id, results),
+            JointModels::Floating(model) => model.writer_save_fn(writer),
+            JointModels::Prismatic(model) => model.writer_save_fn(writer),
+            JointModels::Revolute(model) => model.writer_save_fn(writer),
         }
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         match self {
-            JointModels::Floating(model) => model.result_headers(),
-            JointModels::Prismatic(model) => model.result_headers(),
-            JointModels::Revolute(model) => model.result_headers(),
+            JointModels::Floating(model) => model.writer_headers(),
+            JointModels::Prismatic(model) => model.writer_headers(),
+            JointModels::Revolute(model) => model.writer_headers(),
         }
     }
 
@@ -312,7 +308,7 @@ pub struct Joint {
     pub name: String,
     pub model: JointModels,
     pub connections: JointConnection,
-    result_id: Option<u32>,
+    writer_id: Option<WriterId>,
     state_start: usize,
     state_end: usize,
     pub cache: JointCache,
@@ -419,26 +415,23 @@ impl Joint {
         let state = &x0[self.state_start..self.state_end];
         self.model.state_vector_read(state);
     }
-}
 
-impl NadirResult for Joint {
-    fn new_result(&mut self, results: &mut ResultManager) {
-        // Define the joints subfolder folder path
-        let joints_folder_path = results.result_path.join("joints");
-        // Check if the folder exists, if not, create it
-        if !joints_folder_path.exists() {
-            std::fs::create_dir_all(&joints_folder_path).expect("Failed to create bodies folder");
-        }
-        // Get the headers from the joint model
-        let headers = self.model.result_headers();
-        // Create the writer and assign its id
-        let id = results.new_writer(&self.name.clone(), &joints_folder_path, headers);
-        self.result_id = Some(id);
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let headers = self.model.writer_headers();
+        let rel_path = PathBuf::new()
+            .join("joints")
+            .join(format!("{}.csv", self.name));
+        let builder = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(headers)
+            .unwrap();
+        self.writer_id = Some(manager.add_writer(builder));
     }
 
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            self.model.result_content(id, results);
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                self.model.writer_save_fn(writer);
+            }
         }
     }
 }

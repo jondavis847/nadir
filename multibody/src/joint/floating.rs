@@ -8,8 +8,7 @@ use crate::{
 use aerospace::orbit::Orbit;
 use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_diffeq::state::state_vector::StateVector;
-use nadir_result::ResultManager;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rand_distr::NormalError;
@@ -384,7 +383,7 @@ impl JointModel for Floating {
         transforms.update(inner_joint);
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &[
             "acceleration[x]",
             "acceleration[y]",
@@ -414,37 +413,33 @@ impl JointModel for Floating {
         ]
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.cache.q_ddot[3].to_string(),
-                self.cache.q_ddot[4].to_string(),
-                self.cache.q_ddot[5].to_string(),
-                self.cache.q_ddot[0].to_string(),
-                self.cache.q_ddot[1].to_string(),
-                self.cache.q_ddot[2].to_string(),
-                self.state.w[0].to_string(),
-                self.state.w[1].to_string(),
-                self.state.w[2].to_string(),
-                self.state.q.x.to_string(),
-                self.state.q.y.to_string(),
-                self.state.q.z.to_string(),
-                self.state.q.w.to_string(),
-                self.state.r[0].to_string(),
-                self.state.r[1].to_string(),
-                self.state.r[2].to_string(),
-                self.cache.tau[0].to_string(),
-                self.cache.tau[1].to_string(),
-                self.cache.tau[2].to_string(),
-                self.cache.tau[3].to_string(),
-                self.cache.tau[4].to_string(),
-                self.cache.tau[5].to_string(),
-                self.state.v[0].to_string(),
-                self.state.v[1].to_string(),
-                self.state.v[2].to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.cache.q_ddot[3];
+        writer.float_buffer[1] = self.cache.q_ddot[4];
+        writer.float_buffer[2] = self.cache.q_ddot[5];
+        writer.float_buffer[3] = self.cache.q_ddot[0];
+        writer.float_buffer[4] = self.cache.q_ddot[1];
+        writer.float_buffer[5] = self.cache.q_ddot[2];
+        writer.float_buffer[6] = self.state.w[0];
+        writer.float_buffer[7] = self.state.w[1];
+        writer.float_buffer[8] = self.state.w[2];
+        writer.float_buffer[9] = self.state.q.x;
+        writer.float_buffer[10] = self.state.q.y;
+        writer.float_buffer[11] = self.state.q.z;
+        writer.float_buffer[12] = self.state.q.w;
+        writer.float_buffer[13] = self.state.r[0];
+        writer.float_buffer[14] = self.state.r[1];
+        writer.float_buffer[15] = self.state.r[2];
+        writer.float_buffer[16] = self.cache.tau[0];
+        writer.float_buffer[17] = self.cache.tau[1];
+        writer.float_buffer[18] = self.cache.tau[2];
+        writer.float_buffer[19] = self.cache.tau[3];
+        writer.float_buffer[20] = self.cache.tau[4];
+        writer.float_buffer[21] = self.cache.tau[5];
+        writer.float_buffer[22] = self.state.v[0];
+        writer.float_buffer[23] = self.state.v[1];
+        writer.float_buffer[24] = self.state.v[2];
+        writer.write_record().unwrap();
     }
 }
 

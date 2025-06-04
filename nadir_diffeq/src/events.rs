@@ -18,6 +18,8 @@ where
     pub periodic_events: Vec<PeriodicEvent<Model, State>>,
     /// List of save events occurring at some frequency.
     pub save_events: Vec<SaveEvent<Model, State>>,
+    /// List of events to run at the end of the sim.
+    pub postsim_events: Vec<PostSimEvent<Model>>,
     /// Next scheduled periodic event time and its indices.
     next_periodic: NextEvent,
     /// Placeholder for future discrete events (not yet implemented).
@@ -35,6 +37,7 @@ where
             continuous_events: Vec::new(),
             periodic_events: Vec::new(),
             save_events: Vec::new(),
+            postsim_events: Vec::new(),
             next_periodic: NextEvent {
                 next_time: INFINITY,
                 index: Vec::new(),
@@ -60,6 +63,11 @@ where
     /// Add a new continuous event that is evaluated every step.
     pub fn add_save(&mut self, event: SaveEvent<Model, State>) {
         self.save_events.push(event);
+    }
+
+    /// Add a new continuous event that is evaluated every step.
+    pub fn add_postsim(&mut self, event: PostSimEvent<Model>) {
+        self.postsim_events.push(event);
     }
 
     /// Returns the time of the next scheduled event (periodic or discrete).
@@ -261,5 +269,20 @@ impl<Model, State> SaveEvent<Model, State> {
     pub fn with_options(mut self, options: SaveEventOptions) -> Self {
         self.options = options;
         self
+    }
+}
+
+pub struct PostSimEvent<Model> {
+    pub postsim_fn: Box<dyn Fn(&Model, &Option<WriterManager>)>,
+}
+
+impl<Model> PostSimEvent<Model> {
+    pub fn new<F>(postsim_fn: F) -> Self
+    where
+        F: Fn(&Model, &Option<WriterManager>) + 'static,
+    {
+        Self {
+            postsim_fn: Box::new(postsim_fn),
+        }
     }
 }

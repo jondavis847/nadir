@@ -656,7 +656,7 @@ version = "0.0.1"
 dependencies = [
  "gravity",
  "magnetics",
- "nadir_result",
+ "nadir_diffeq",
  "nalgebra",
  "rotations",
  "serde",
@@ -3214,6 +3214,7 @@ name = "nadir_diffeq"
 version = "0.0.1"
 dependencies = [
  "csv",
+ "serde",
  "tolerance",
 ]
 

@@ -1,4 +1,5 @@
 use csv::Writer;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{error::Error, path::PathBuf};
 
@@ -224,6 +225,7 @@ impl StateWriter {
 }
 
 pub struct WriterManager {
+    pub root_dir: Option<PathBuf>, // set when we initialize
     id_ctr: u32,
     builders: HashMap<WriterId, StateWriterBuilder>,
     pub writers: HashMap<WriterId, StateWriter>,
@@ -232,6 +234,7 @@ pub struct WriterManager {
 impl WriterManager {
     pub fn new() -> Self {
         Self {
+            root_dir: None,
             id_ctr: 0,
             builders: HashMap::new(),
             writers: HashMap::new(),
@@ -245,6 +248,7 @@ impl WriterManager {
     }
 
     pub fn initialize(&mut self, root_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        self.root_dir = Some(root_path.clone());
         for (id, builder) in &self.builders {
             let writer = StateWriter::from_builder(builder, root_path)?;
             self.writers.insert(*id, writer);
@@ -253,5 +257,5 @@ impl WriterManager {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, Deserialize, Serialize)]
 pub struct WriterId(u32);

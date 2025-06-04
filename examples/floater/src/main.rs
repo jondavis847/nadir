@@ -5,7 +5,10 @@ use multibody::{
     system::{MultibodySystem, MultibodySystemBuilder},
 };
 use nadir_diffeq::{
-    OdeProblem, events::SaveEvent, saving::SaveMethod, solvers::Solver,
+    OdeProblem,
+    events::{PostSimEvent, SaveEvent},
+    saving::SaveMethod,
+    solvers::Solver,
     stepping::AdaptiveStepControl,
 };
 use std::{env::current_dir, error::Error};
@@ -32,16 +35,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_joint(j);
 
     let mut sys = sys.nominal()?;
-
+    let x0 = sys.initial_state();
     let mut problem = OdeProblem::new(sys)
         .with_saving(current_dir()?.join("results"))
         .with_save_event(SaveEvent::new(
             MultibodySystem::init_fn,
             MultibodySystem::save_fn,
-        ));
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
 
     problem.solve_adaptive(
-        &sys.initial_state(),
+        &x0,
         (0.0, 10.0),
         AdaptiveStepControl::default(),
         Solver::Tsit5,

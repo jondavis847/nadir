@@ -1,12 +1,12 @@
-use std::{env::current_dir, error::Error, time::Instant};
+use std::{env::current_dir, error::Error};
 
 use nadir_diffeq::{
     OdeModel, OdeProblem,
     events::SaveEvent,
-    saving::{ResultStorage, SaveMethod, StateWriter, StateWriterBuilder, WriterManager},
+    saving::{SaveMethod, StateWriterBuilder, WriterManager},
     solvers::Solver,
     state::state_array::StateArray,
-    stepping::{AdaptiveStepControl, StepMethod},
+    stepping::AdaptiveStepControl,
 };
 
 #[derive(Debug)]

@@ -1,18 +1,18 @@
 pub mod noise;
 use crate::{
+    HardwareBuffer,
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
-    HardwareBuffer,
 };
 
 use gps::{Gps, GpsBuilder, GpsErrors};
 use magnetometer::{Magnetometer, MagnetometerBuilder, MagnetometerErrors};
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager};
 use rand::rngs::SmallRng;
 use rate_gyro::{RateGyro, RateGyroBuilder, RateGyroErrors};
 use serde::{Deserialize, Serialize};
 use star_tracker::{StarTracker, StarTrackerBuilder, StarTrackerErrors};
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{Uncertainty, UncertaintyErrors};
@@ -42,8 +42,8 @@ pub enum SensorErrors {
 
 pub trait SensorModel {
     fn update(&mut self, connection: &BodyConnection);
-    fn result_headers(&self) -> &[&str];
-    fn result_content(&self, id: u32, results: &mut ResultManager);
+    fn writer_headers(&self) -> &[&str];
+    fn writer_save_fn(&self, writer: &mut StateWriter);
     fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors>;
 }
 
@@ -79,7 +79,7 @@ impl SensorBuilder {
             name: self.name.clone(),
             model,
             connection,
-            result_id: None,
+            writer_id: None,
             telemetry_buffer: HardwareBuffer::new(),
         })
     }
@@ -91,7 +91,7 @@ pub struct Sensor {
     pub model: SensorModels,
     pub connection: BodyConnection,
     pub telemetry_buffer: HardwareBuffer,
-    result_id: Option<u32>,
+    writer_id: Option<WriterId>,
 }
 
 impl Sensor {
@@ -100,26 +100,19 @@ impl Sensor {
         self.model.write_buffer(&mut self.telemetry_buffer)?;
         Ok(())
     }
-}
 
-impl NadirResult for Sensor {
-    fn new_result(&mut self, results: &mut ResultManager) {
-        // Define the sensor subfolder folder path
-        let sensor_folder_path = results.result_path.join("sensors");
-
-        // Check if the folder exists, if not, create it
-        if !sensor_folder_path.exists() {
-            std::fs::create_dir_all(&sensor_folder_path).expect("Failed to create sensor folder");
-        }
-
-        // Initialize writer using the updated path
-        let id = results.new_writer(&self.name, &sensor_folder_path, self.model.result_headers());
-        self.result_id = Some(id);
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let rel_path = PathBuf::new().join("sensors");
+        let headers = self.model.writer_headers();
+        let writer = StateWriterBuilder::new(headers.len(), rel_path);
+        self.writer_id = Some(manager.add_writer(writer));
     }
 
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            self.model.result_content(id, results);
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                self.model.writer_save_fn(writer);
+            }
         }
     }
 }
@@ -181,21 +174,21 @@ pub enum SensorModels {
 }
 
 impl SensorModel for SensorModels {
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
-            SensorModels::Gps(sensor) => sensor.result_content(id, results),
-            SensorModels::Magnetometer(sensor) => sensor.result_content(id, results),
-            SensorModels::RateGyro(sensor) => sensor.result_content(id, results),
-            SensorModels::StarTracker(sensor) => sensor.result_content(id, results),
+            SensorModels::Gps(sensor) => sensor.writer_save_fn(writer),
+            SensorModels::Magnetometer(sensor) => sensor.writer_save_fn(writer),
+            SensorModels::RateGyro(sensor) => sensor.writer_save_fn(writer),
+            SensorModels::StarTracker(sensor) => sensor.writer_save_fn(writer),
         }
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         match self {
-            SensorModels::Gps(sensor) => sensor.result_headers(),
-            SensorModels::Magnetometer(sensor) => sensor.result_headers(),
-            SensorModels::RateGyro(sensor) => sensor.result_headers(),
-            SensorModels::StarTracker(sensor) => sensor.result_headers(),
+            SensorModels::Gps(sensor) => sensor.writer_headers(),
+            SensorModels::Magnetometer(sensor) => sensor.writer_headers(),
+            SensorModels::RateGyro(sensor) => sensor.writer_headers(),
+            SensorModels::StarTracker(sensor) => sensor.writer_headers(),
         }
     }
 

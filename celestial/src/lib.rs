@@ -4,7 +4,7 @@ use magnetics::{
     MagneticErrors, MagneticField,
     dipole::{Dipole, DipoleErrors},
 };
-use nadir_result::ResultManager;
+use nadir_diffeq::saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager};
 use nalgebra::Vector3;
 use rotations::{
     RotationTrait,
@@ -13,7 +13,7 @@ use rotations::{
 use serde::{Deserialize, Serialize};
 use spice::{Spice, SpiceBodies, SpiceBuilder, SpiceErrors};
 
-use std::f64::consts::PI;
+use std::{f64::consts::PI, path::PathBuf};
 use thiserror::Error;
 use time::Time;
 
@@ -26,7 +26,7 @@ impl From<&CelestialEpochBuilder> for CelestialEpoch {
     fn from(builder: &CelestialEpochBuilder) -> CelestialEpoch {
         CelestialEpoch {
             time: builder.time.clone(),
-            result_id: None,
+            writer_id: None,
         }
     }
 }
@@ -34,7 +34,7 @@ impl From<&CelestialEpochBuilder> for CelestialEpoch {
 #[derive(Debug)]
 pub struct CelestialEpoch {
     time: Time,
-    result_id: Option<u32>,
+    pub writer_id: Option<WriterId>,
 }
 
 #[derive(Debug, Error)]
@@ -109,7 +109,7 @@ impl From<&CelestialSystemBuilder> for CelestialSystem {
                 orientation: UnitQuaternion::IDENTITY,
                 gravity: None,
                 magnetic_field: None,
-                result_id: None,
+                writer_id: None,
             });
         }
 
@@ -143,68 +143,6 @@ impl CelestialSystem {
             Ok(())
         } else {
             Err(CelestialErrors::SpiceNotFound)
-        }
-    }
-
-    /// returns a tuple of bufwriters, the first element is the epoch writer, the second element is a Vec of the writers for the bodies
-    pub fn initialize_writers(&mut self, result: &mut ResultManager) {
-        // Define the celestial subfolder folder path
-        let celestial_folder_path = result.result_path.join("celestial");
-
-        // Check if the folder exists, if not, create it
-        if !celestial_folder_path.exists() {
-            std::fs::create_dir_all(&celestial_folder_path)
-                .expect("Failed to create celestial folder");
-        }
-
-        for body in &mut self.bodies {
-            let headers = [
-                "position(base)[x]",
-                "position(base)[y]",
-                "position(base)[z]",
-                "attitude(base)[x]",
-                "attitude(base)[y]",
-                "attitude(base)[z]",
-                "attitude(base)[w]",
-            ];
-            let id = result.new_writer(&body.body.get_name(), &celestial_folder_path, &headers);
-            body.result_id = Some(id);
-            // note i choose the names to be the same as multibody body so i can parse them easier for animation
-            // if you change the names, animation wont work unless you change the column its looking for there
-        }
-
-        let epoch_headers = ["sec_since_j2k", "julian_date"];
-        let id = result.new_writer("epoch", &celestial_folder_path, &epoch_headers);
-        self.epoch.result_id = Some(id);
-    }
-
-    pub fn write_results(&self, results: &mut ResultManager) {
-        // update the epoch based on sim time
-        if let Some(id) = &self.epoch.result_id {
-            results.write_record(
-                *id,
-                &[
-                    self.epoch.time.get_seconds_j2k().to_string(),
-                    self.epoch.time.get_jd().to_string(),
-                ],
-            );
-        }
-
-        for body in &self.bodies {
-            if let Some(id) = &body.result_id {
-                results.write_record(
-                    *id,
-                    &[
-                        body.position[0].to_string(),
-                        body.position[1].to_string(),
-                        body.position[2].to_string(),
-                        body.orientation.0.x.to_string(),
-                        body.orientation.0.y.to_string(),
-                        body.orientation.0.z.to_string(),
-                        body.orientation.0.w.to_string(),
-                    ],
-                );
-            }
         }
     }
 
@@ -281,6 +219,38 @@ impl CelestialSystem {
         }
         b_final
     }
+
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let rel_path = PathBuf::new().join("celestial");
+        let writer = StateWriterBuilder::new(2, rel_path.join("epoch.csv"));
+        self.epoch.writer_id = Some(manager.add_writer(writer));
+
+        for body in &mut self.bodies {
+            let headers = body.writer_headers();
+            let writer = StateWriterBuilder::new(
+                headers.len(),
+                rel_path.join(format!("{}.csv", body.body.get_name())),
+            );
+            body.writer_id = Some(manager.add_writer(writer));
+        }
+    }
+
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.epoch.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                writer.float_buffer[0] = self.epoch.time.get_jd();
+                writer.float_buffer[1] = self.epoch.time.get_seconds_j2k();
+            }
+        }
+
+        for body in &self.bodies {
+            if let Some(id) = &body.writer_id {
+                if let Some(writer) = manager.writers.get_mut(id) {
+                    body.writer_save_fn(writer);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -335,7 +305,7 @@ impl From<&CelestialBodyBuilder> for CelestialBody {
             orientation: UnitQuaternion::IDENTITY,
             gravity: builder.gravity.clone(),
             magnetic_field: builder.magnetic_field.clone(),
-            result_id: None,
+            writer_id: None,
         }
     }
 }
@@ -347,7 +317,7 @@ pub struct CelestialBody {
     pub orientation: UnitQuaternion, // active in gcrf
     pub gravity: Option<Gravity>,
     pub magnetic_field: Option<MagneticField>,
-    pub result_id: Option<u32>,
+    pub writer_id: Option<WriterId>,
 }
 
 impl CelestialBody {
@@ -388,6 +358,29 @@ impl CelestialBody {
         };
 
         Ok(())
+    }
+
+    pub fn writer_headers(&self) -> &[&str] {
+        &[
+            "position(base)[x]",
+            "position(base)[y]",
+            "position(base)[z]",
+            "attitude(base)[x]",
+            "attitude(base)[y]",
+            "attitude(base)[z]",
+            "attitude(base)[w]",
+        ]
+    }
+
+    pub fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.position[0];
+        writer.float_buffer[1] = self.position[1];
+        writer.float_buffer[2] = self.position[2];
+        writer.float_buffer[3] = self.orientation.0.x;
+        writer.float_buffer[4] = self.orientation.0.y;
+        writer.float_buffer[5] = self.orientation.0.z;
+        writer.float_buffer[6] = self.orientation.0.w;
+        writer.write_record().unwrap();
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::state::{Adaptive, OdeState};
+use crate::state::Adaptive;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 

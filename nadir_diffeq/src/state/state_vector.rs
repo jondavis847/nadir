@@ -1,9 +1,6 @@
-use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
-use tolerance::{Tolerances, compute_error};
-
 use crate::state::Adaptive;
-
-use super::{OdeState, StateConfig};
+use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
+use tolerance::compute_error;
 
 /// A dynamic-sized vector type for use in ODE solvers.
 ///
@@ -105,52 +102,52 @@ impl Adaptive for StateVector {
     }
 }
 
-/// Stores optional component-wise tolerance rules for a `StateVector`.
-///
-/// If an entry is `None`, default relative and absolute tolerances are used for that component.
-#[derive(Default)]
-pub struct StateVectorTolerances(pub Vec<Tolerances>);
+// /// Stores optional component-wise tolerance rules for a `StateVector`.
+// ///
+// /// If an entry is `None`, default relative and absolute tolerances are used for that component.
+// #[derive(Default)]
+// pub struct StateVectorTolerances(pub Vec<Tolerances>);
 
-impl StateVectorTolerances {
-    /// Computes the root-mean-square error between estimated and actual states.
-    ///
-    /// Each element uses either a user-defined `Tolerances` object or falls back to the provided
-    /// relative and absolute tolerances.
-    ///
-    /// # Arguments
-    ///
-    /// * `x` - Current state vector.
-    /// * `x_prev` - Previous state vector.
-    /// * `x_tilde` - Estimated state vector.
-    /// * `rel_tol` - Default relative tolerance.
-    /// * `abs_tol` - Default absolute tolerance.
-    fn compute_error(&self, x: &StateVector, x_prev: &StateVector, x_tilde: &StateVector) -> f64 {
-        if x.len() == 0 {
-            return 0.0;
-        }
-        let mut sum_squared_errors = 0.0;
+// impl StateVectorTolerances {
+//     /// Computes the root-mean-square error between estimated and actual states.
+//     ///
+//     /// Each element uses either a user-defined `Tolerances` object or falls back to the provided
+//     /// relative and absolute tolerances.
+//     ///
+//     /// # Arguments
+//     ///
+//     /// * `x` - Current state vector.
+//     /// * `x_prev` - Previous state vector.
+//     /// * `x_tilde` - Estimated state vector.
+//     /// * `rel_tol` - Default relative tolerance.
+//     /// * `abs_tol` - Default absolute tolerance.
+//     fn compute_error(&self, x: &StateVector, x_prev: &StateVector, x_tilde: &StateVector) -> f64 {
+//         if x.len() == 0 {
+//             return 0.0;
+//         }
+//         let mut sum_squared_errors = 0.0;
 
-        for (i, tol) in self.0.iter().enumerate() {
-            let component_error = tol.compute_error(x.value[i], x_prev.value[i], x_tilde.value[i]);
-            sum_squared_errors += component_error * component_error;
-        }
+//         for (i, tol) in self.0.iter().enumerate() {
+//             let component_error = tol.compute_error(x.value[i], x_prev.value[i], x_tilde.value[i]);
+//             sum_squared_errors += component_error * component_error;
+//         }
 
-        (sum_squared_errors / x.len() as f64).sqrt()
-    }
+//         (sum_squared_errors / x.len() as f64).sqrt()
+//     }
 
-    pub fn from_config(config: &StateConfig, global_abs_tol: f64, global_rel_tol: f64) -> Self {
-        let global_tol = Tolerances::new(global_rel_tol, global_abs_tol);
-        let tolerances = config
-            .tolerances
-            .iter()
-            .map(|tol| {
-                if let Some(tol) = tol {
-                    *tol
-                } else {
-                    global_tol
-                }
-            })
-            .collect();
-        Self(tolerances)
-    }
-}
+//     pub fn from_config(config: &StateConfig, global_abs_tol: f64, global_rel_tol: f64) -> Self {
+//         let global_tol = Tolerances::new(global_rel_tol, global_abs_tol);
+//         let tolerances = config
+//             .tolerances
+//             .iter()
+//             .map(|tol| {
+//                 if let Some(tol) = tol {
+//                     *tol
+//                 } else {
+//                     global_tol
+//                 }
+//             })
+//             .collect();
+//         Self(tolerances)
+//     }
+// }

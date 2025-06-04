@@ -13,6 +13,7 @@ use crate::{
 ///
 /// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
 /// and an interpolated state used for dense output or event location.
+#[derive(Debug)]
 struct RKBuffers<State: OdeState, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
     state: State,
@@ -49,6 +50,7 @@ impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
 /// # Type Parameters
 /// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
 /// - `STAGES`: Number of stages in the Butcher tableau
+#[derive(Debug)]
 pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> {
     x: State,
     y: State,
@@ -87,10 +89,10 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         let mut function_calls = 0;
         let mut t = tspan.0;
 
-        // Copy initial state
+        // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
         self.x.clone_from(x0);
-
-        // Copy state to buffers to make sure length matches initial size of dynamically sized State
+        self.y.clone_from(x0);
+        self.y_tilde.clone_from(x0);
         self.buffers.init(x0);
 
         // Save the true initial state before any processing
@@ -181,7 +183,12 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         let mut function_calls = 0;
 
         let mut t = tspan.0;
+
+        // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
         self.x.clone_from(x0);
+        self.y.clone_from(x0);
+        self.y_tilde.clone_from(x0);
+        self.buffers.init(x0);
 
         let mut dt = 1e-3; // initial dt
 
@@ -348,7 +355,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 model.f(t, &self.x, &mut k[0])?;
                 *function_calls += 1;
                 self.first_step = false;
-            } // else k0 set up a function if step size was accepted
+            } // else k0 set up a function if step size was accepted            
 
             // Compute intermediate stages k1 through k[STAGES-2]
             for s in 1..STAGES - 1 {

@@ -1,6 +1,6 @@
 use crate::{
     MultibodyErrors,
-    actuator::{self, Actuator, ActuatorBuilder},
+    actuator::{Actuator, ActuatorBuilder},
     algorithms::MultibodyAlgorithm,
     base::{Base, BaseBuilder, BaseRef, BaseSystems, BaseSystemsBuilder},
     body::{BodyBuilder, BodyConnection, BodyRef},
@@ -11,16 +11,13 @@ use crate::{
 
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
-use indicatif::MultiProgress;
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
-    saving::{StateWriterBuilder, WriterManager},
+    OdeModel,
+    saving::{StateWriterBuilder, WriterId, WriterManager},
     state::state_vector::StateVector,
 };
-use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
-use rayon::prelude::*;
 use ron::{
     from_str,
     ser::{PrettyConfig, to_string_pretty},
@@ -34,12 +31,8 @@ use std::{
     fmt::{Display, Formatter},
     fs::File,
     io::{Read, Write},
-    ops::AddAssign,
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
-    str::FromStr,
-    sync::Arc,
-    time::Instant,
 };
 use thiserror::Error;
 
@@ -263,68 +256,68 @@ impl MultibodySystemBuilder {
     //     Ok(())
     // }
 
-    fn get_result_path_meta(&self, sim_name: &str) -> (PathBuf, String) {
-        // Sim results will be written to the results folder in the current directory
-        // Create that folder if it does not exist
-        let mut results = std::env::current_dir().unwrap();
-        results.push("results");
-        let results_dir = match std::fs::read_dir(&results) {
-            Ok(results_dir) => results_dir,
-            Err(_) => {
-                std::fs::create_dir_all(&results).expect("Failed to create directory");
-                std::fs::read_dir(&results).unwrap()
-            }
-        };
+    // fn get_result_path_meta(&self, sim_name: &str) -> (PathBuf, String) {
+    //     // Sim results will be written to the results folder in the current directory
+    //     // Create that folder if it does not exist
+    //     let mut results = std::env::current_dir().unwrap();
+    //     results.push("results");
+    //     let results_dir = match std::fs::read_dir(&results) {
+    //         Ok(results_dir) => results_dir,
+    //         Err(_) => {
+    //             std::fs::create_dir_all(&results).expect("Failed to create directory");
+    //             std::fs::read_dir(&results).unwrap()
+    //         }
+    //     };
 
-        // Read the directory entries
-        let mut tokens = Vec::new();
-        for entry in results_dir {
-            let entry = entry.unwrap();
-            let path = entry.path();
+    //     // Read the directory entries
+    //     let mut tokens = Vec::new();
+    //     for entry in results_dir {
+    //         let entry = entry.unwrap();
+    //         let path = entry.path();
 
-            // Check if the entry is a directory
-            if path.is_dir() {
-                if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
-                    // Panic if a result already exists with that name
-                    if file_name == sim_name {
-                        panic!("Result name already exists. Please pick a different one.")
-                    }
-                    // Check if the folder starts with "sim"
-                    if file_name.starts_with("sim") {
-                        // Extract the token after "sim"
-                        let token = file_name[3..].to_string();
-                        tokens.push(token);
-                    }
-                }
-            }
-        }
-        // if result name is not provided, autogenerate one
-        // errors if the sim name is already taken
-        let sim_name = if sim_name.is_empty() {
-            if !tokens.is_empty() {
-                let taken_ids: Vec<i64> = tokens
-                    .iter()
-                    .map(|string| match string.parse::<i64>() {
-                        Ok(i) => i,
-                        Err(_) => panic!(
-                            "Got a folder name of sim<token> where token is 
-                            not a numeric integer. This is not valid nadir syntax. Please 
-                            change the name of the folder to be sim<i64> or something else that doesn't start with sim."
-                        ),
-                    })
-                    .collect();
-                let new_id = *taken_ids.iter().max().unwrap() + 1;
-                format!("sim{new_id}")
-            } else {
-                "sim0".to_string()
-            }
-        } else {
-            sim_name.to_string()
-        };
+    //         // Check if the entry is a directory
+    //         if path.is_dir() {
+    //             if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+    //                 // Panic if a result already exists with that name
+    //                 if file_name == sim_name {
+    //                     panic!("Result name already exists. Please pick a different one.")
+    //                 }
+    //                 // Check if the folder starts with "sim"
+    //                 if file_name.starts_with("sim") {
+    //                     // Extract the token after "sim"
+    //                     let token = file_name[3..].to_string();
+    //                     tokens.push(token);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     // if result name is not provided, autogenerate one
+    //     // errors if the sim name is already taken
+    //     let sim_name = if sim_name.is_empty() {
+    //         if !tokens.is_empty() {
+    //             let taken_ids: Vec<i64> = tokens
+    //                 .iter()
+    //                 .map(|string| match string.parse::<i64>() {
+    //                     Ok(i) => i,
+    //                     Err(_) => panic!(
+    //                         "Got a folder name of sim<token> where token is
+    //                         not a numeric integer. This is not valid nadir syntax. Please
+    //                         change the name of the folder to be sim<i64> or something else that doesn't start with sim."
+    //                     ),
+    //                 })
+    //                 .collect();
+    //             let new_id = *taken_ids.iter().max().unwrap() + 1;
+    //             format!("sim{new_id}")
+    //         } else {
+    //             "sim0".to_string()
+    //         }
+    //     } else {
+    //         sim_name.to_string()
+    //     };
 
-        let results_path = PathBuf::new().join("results").join(&sim_name);
-        (results_path, sim_name)
-    }
+    //     let results_path = PathBuf::new().join("results").join(&sim_name);
+    //     (results_path, sim_name)
+    // }
 
     pub fn nominal(&self) -> Result<MultibodySystem, MultibodyErrors> {
         self.to_system(None, true, None)
@@ -582,7 +575,7 @@ pub struct MultibodySystem {
     pub run_id: Option<usize>, // Monte Carlo run number for progress bar
     pub sensors: Vec<Sensor>,
     pub software: Vec<SoftwareSim>,
-    pub sim_time_id: Option<u32>,
+    pub sim_time_id: Option<WriterId>,
 }
 
 impl MultibodySystem {
@@ -599,113 +592,77 @@ impl MultibodySystem {
 
     pub fn init_fn(model: &mut Self, _state: &StateVector, manager: &mut WriterManager) {
         // sim_time
-        manager.add_writer(
-            StateWriterBuilder::new(1, "sim_time.csv".into())
-                .with_headers(&["t"])
-                .unwrap(),
+        model.sim_time_id = Some(
+            manager.add_writer(
+                StateWriterBuilder::new(1, "sim_time.csv".into())
+                    .with_headers(&["t"])
+                    .unwrap(),
+            ),
         );
 
         // joints
         for joint in &model.joints {
-            let joint = joint.borrow_mut();
-            let rel_path = PathBuf::from_str("joints")
-                .unwrap()
-                .join(format!("{}.csv", joint.name).into());
-            let builder = StateWriterBuilder::new(joint.ncols(), rel_path);
-            joint.writer_id = manager.add_writer(builder);
+            joint.borrow_mut().writer_init_fn(manager);
         }
 
         // bodies
         for body in &model.bodies {
-            let body = body.borrow_mut();
-            let rel_path = PathBuf::from_str("bodies")
-                .unwrap()
-                .join(format!("{}.csv", body.name).into());
-            let builder = StateWriterBuilder::new(body.ncols(), rel_path);
-            body.writer_id = manager.add_writer(builder);
+            let mut body = body.borrow_mut();
+            body.writer_init_fn(manager);
         }
 
         // sensors
         for sensor in &mut model.sensors {
-            let rel_path = PathBuf::from_str("sensors")
-                .unwrap()
-                .join(format!("{}.csv", sensor.name).into());
-            let builder = StateWriterBuilder::new(sensor.ncols(), rel_path);
-            sensor.writer_id = manager.add_writer(builder);
+            sensor.writer_init_fn(manager);
         }
 
         // actuators
         for actuator in &mut model.actuators {
-            let rel_path = PathBuf::from_str("actuators")
-                .unwrap()
-                .join(format!("{}.csv", actuator.name).into());
-            let builder = StateWriterBuilder::new(actuator.ncols(), rel_path);
-            actuator.writer_id = manager.add_writer(builder);
+            actuator.writer_init_fn(manager);
         }
 
         // celestial
         match &mut model.base.borrow_mut().system {
-            BaseSystems::Celestial(celestial) => {
-                let rel_path = PathBuf::from_str("celestial").unwrap();
-                //epoch
-                let builder = StateWriterBuilder::new(1, rel_path.join("epoch.csv"));
-                celestial.epoch_writer_id = manager.add_writer(builder);
-                // celestial bodies
-                for body in &mut celestial.bodies {
-                    let rel_path = rel_path.join(format!("{}.csv", body.name).into());
-                    let builder = StateWriterBuilder::new(body.ncols(), rel_path);
-                    body.writer_id = manager.add_writer(builder);
-                }
-            }
+            BaseSystems::Celestial(celestial) => celestial.writer_init_fn(manager),
             _ => {}
         }
     }
 
-    pub fn save_fn(_model: &Self, state: &StateVector, t: f64, manager: &mut WriterManager) {
-        if let Some((_, writer)) = manager.writers.iter_mut().next() {
-            writer.float_buffer[0] = t;
-            for i in 0..6 {
-                writer.float_buffer[i + 1] = state[i];
-            }
-            writer.write_record().unwrap();
-        }
-    }
-
-    fn initialize_writers(&mut self, results_path: &PathBuf) -> ResultManager {
-        let mut results = ResultManager::new(results_path.clone());
-        let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
-        self.sim_time_id = Some(id);
-
-        for body in &self.bodies {
-            body.borrow_mut().new_result(&mut results);
-        }
-
-        for joint in &self.joints {
-            joint.borrow_mut().new_result(&mut results);
-        }
-
-        for sensor in &mut self.sensors {
-            sensor.new_result(&mut results);
-        }
-
-        for actuator in &mut self.actuators {
-            actuator.new_result(&mut results);
-        }
-
-        for software in &mut self.software {
-            if let Err(e) = software.initialize_results(&mut results) {
-                eprintln!(
-                    "Failed to initialize results for software component: {:?}",
-                    e
-                );
+    pub fn save_fn(model: &Self, _state: &StateVector, t: f64, manager: &mut WriterManager) {
+        // sim time
+        if let Some(id) = &model.sim_time_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                writer.float_buffer[0] = t;
+                writer.write_record().unwrap();
             }
         }
 
-        match &mut self.base.borrow_mut().system {
-            BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results),
+        // bodies
+        for body in &model.bodies {
+            body.borrow().writer_save_fn(manager);
         }
-        results
+
+        // bodies
+        for joint in &model.joints {
+            joint.borrow().writer_save_fn(manager);
+        }
+
+        // sensors
+        for sensor in &model.sensors {
+            sensor.writer_save_fn(manager);
+        }
+
+        // actuators
+        for actuator in &model.actuators {
+            actuator.writer_save_fn(manager);
+        }
+
+        match &model.base.borrow().system {
+            BaseSystems::Celestial(celestial) => {
+                celestial.writer_save_fn(manager);
+            }
+            _ => {}
+        }
     }
 
     pub fn update_software(&mut self) -> Result<(), MultibodyErrors> {
@@ -860,39 +817,6 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {
-        if let Some(id) = self.sim_time_id {
-            results.write_record(id, &[t.to_string()]);
-        }
-
-        for body in &self.bodies {
-            body.borrow().write_result(results);
-        }
-
-        for joint in &self.joints {
-            joint.borrow().write_result(results);
-        }
-
-        for actuator in &self.actuators {
-            actuator.write_result(results);
-        }
-
-        for sensor in &self.sensors {
-            sensor.write_result(results);
-        }
-
-        for software in &self.software {
-            if let Err(e) = software.write_results(results) {
-                eprintln!("Failed to write results for software component: {:?}", e);
-            }
-        }
-
-        match &self.base.borrow().system {
-            BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => celestial.write_results(results),
-        }
-    }
-
     fn write_derivative(&self, dx: &mut StateVector) {
         for joint in &self.joints {
             joint.borrow().state_derivative(dx);
@@ -900,6 +824,25 @@ impl MultibodySystem {
 
         for actuator in &self.actuators {
             actuator.state_derivative(dx);
+        }
+    }
+
+    pub fn post_sim_fn(&self, manager: &Option<WriterManager>) {
+        // also need to write the meshes for animation
+        if let Some(manager) = &manager {
+            for body in &self.bodies {
+                let body = body.borrow_mut();
+
+                if let Some(mesh) = &body.mesh {
+                    if let Some(root_dir) = &manager.root_dir {
+                        let bodies_folder = root_dir.join("bodies");
+                        let mesh_file_path = bodies_folder.join(body.name.clone() + ".mesh");
+                        let mut mesh_file = File::create(mesh_file_path).unwrap();
+                        let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
+                        mesh_file.write_all(ron_string.as_bytes()).unwrap();
+                    }
+                }
+            }
         }
     }
 }

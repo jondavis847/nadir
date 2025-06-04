@@ -39,7 +39,7 @@ impl Solver {
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
-        State: Adaptive,
+        State: OdeState + Adaptive,
     {
         match self {
             Solver::DoPri45 => {

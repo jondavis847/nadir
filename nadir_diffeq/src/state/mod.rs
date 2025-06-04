@@ -2,13 +2,13 @@
 //! This module allows defining how a state is formatted into a CSV-compatible
 //! row and then writing it out incrementally.
 
-use state_vector::StateVector;
 use std::error::Error;
+use std::fmt::Debug;
 use std::ops::{AddAssign, MulAssign};
-use std::path::PathBuf;
+
 use tolerance::Tolerances;
 
-use crate::saving::{StateWriter, StateWriterBuilder};
+use crate::saving::StateWriterBuilder;
 
 pub mod state_array;
 pub mod state_vector;
@@ -66,7 +66,7 @@ impl StateConfig {
     }
 }
 
-pub trait OdeState: Clone + Default + Clone + Sized + MulAssign<f64> + 'static
+pub trait OdeState: Debug + Clone + Default + Clone + Sized + MulAssign<f64> + 'static
 where
     for<'a> Self: AddAssign<&'a Self>,
 {
@@ -74,10 +74,10 @@ where
 
 impl<T> OdeState for T
 where
-    T: Clone + Default + Sized + MulAssign<f64> + 'static,
+    T: Debug + Clone + Default + Sized + MulAssign<f64> + 'static,
     for<'a> T: AddAssign<&'a T>,
 {
 }
-pub trait Adaptive: OdeState {
+pub trait Adaptive {
     fn compute_error(&self, _x_prev: &Self, _x_tilde: &Self, _abs_tol: f64, _rel_tol: f64) -> f64;
 }

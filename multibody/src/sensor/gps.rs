@@ -1,20 +1,21 @@
 use crate::{
+    HardwareBuffer,
     body::BodyConnection,
     sensor::{
-        noise::{Noise, NoiseBuilder},
         SensorModel,
+        noise::{Noise, NoiseBuilder},
     },
-    HardwareBuffer,
 };
 
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::saving::StateWriter;
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use time::Time;
 use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
 
-use super::{noise::NoiseErrors, SensorErrors};
+use super::{SensorErrors, noise::NoiseErrors};
 
 #[derive(Debug, Error)]
 pub enum GpsErrors {
@@ -260,59 +261,85 @@ impl SensorModel for Gps {
         self.telemetry.valid = 1u8;
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.position[0].to_string(),
-                self.state.position[1].to_string(),
-                self.state.position[2].to_string(),
-                self.state.velocity[0].to_string(),
-                self.state.velocity[1].to_string(),
-                self.state.velocity[2].to_string(),
-                self.state
-                    .position_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[0].to_string()),
-                self.state
-                    .position_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[1].to_string()),
-                self.state
-                    .position_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[2].to_string()),
-                self.state
-                    .velocity_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[0].to_string()),
-                self.state
-                    .velocity_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[1].to_string()),
-                self.state
-                    .velocity_noise
-                    .as_ref()
-                    .map_or("".to_string(), |v| v[2].to_string()),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.position[0];
+        writer.float_buffer[1] = self.state.position[1];
+        writer.float_buffer[2] = self.state.position[2];
+        writer.float_buffer[3] = self.state.velocity[0];
+        writer.float_buffer[4] = self.state.velocity[1];
+        writer.float_buffer[5] = self.state.velocity[2];
+
+        match (&self.state.position_noise, &self.state.velocity_noise) {
+            (Some(position_noise), Some(velocity_noise)) => {
+                writer.float_buffer[6] = position_noise[0];
+                writer.float_buffer[7] = position_noise[1];
+                writer.float_buffer[8] = position_noise[2];
+                writer.float_buffer[9] = velocity_noise[0];
+                writer.float_buffer[10] = velocity_noise[1];
+                writer.float_buffer[11] = velocity_noise[2];
+            }
+            (Some(position_noise), None) => {
+                writer.float_buffer[6] = position_noise[0];
+                writer.float_buffer[7] = position_noise[1];
+                writer.float_buffer[8] = position_noise[2];
+            }
+            (None, Some(velocity_noise)) => {
+                writer.float_buffer[6] = velocity_noise[0];
+                writer.float_buffer[7] = velocity_noise[1];
+                writer.float_buffer[8] = velocity_noise[2];
+            }
+            _ => {}
+        }
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
-        &[
-            "position[x]",
-            "position[y]",
-            "position[z]",
-            "velocity[x]",
-            "velocity[y]",
-            "velocity[z]",
-            "position_noise[x]",
-            "position_noise[y]",
-            "position_noise[z]",
-            "velocity_noise[x]",
-            "velocity_noise[y]",
-            "velocity_noise[z]",
-        ]
+    fn writer_headers(&self) -> &[&str] {
+        match (&self.state.position_noise, &self.state.velocity_noise) {
+            (Some(_), Some(_)) => &[
+                "position[x]",
+                "position[y]",
+                "position[z]",
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",
+                "position_noise[x]",
+                "position_noise[y]",
+                "position_noise[z]",
+                "velocity_noise[x]",
+                "velocity_noise[y]",
+                "velocity_noise[z]",
+            ],
+            (Some(_), None) => &[
+                "position[x]",
+                "position[y]",
+                "position[z]",
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",
+                "position_noise[x]",
+                "position_noise[y]",
+                "position_noise[z]",
+            ],
+            (None, Some(_)) => &[
+                "position[x]",
+                "position[y]",
+                "position[z]",
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",
+                "velocity_noise[x]",
+                "velocity_noise[y]",
+                "velocity_noise[z]",
+            ],
+            (None, None) => &[
+                "position[x]",
+                "position[y]",
+                "position[z]",
+                "velocity[x]",
+                "velocity[y]",
+                "velocity[z]",
+            ],
+        }
     }
 
     fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {

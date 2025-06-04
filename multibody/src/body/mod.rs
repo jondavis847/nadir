@@ -17,19 +17,17 @@ use nadir_3d::{
     material::Material,
     mesh::Mesh,
 };
-use nadir_diffeq::saving::{WriterId, WriterManager};
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::saving::{StateWriterBuilder, WriterId, WriterManager};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
-use ron::ser::{PrettyConfig, to_string_pretty};
 use rotations::{RotationTrait, prelude::UnitQuaternion};
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
 use std::{
     cell::RefCell,
-    fs::File,
-    io::Write,
+    path::PathBuf,
     rc::{Rc, Weak},
+    str::FromStr,
 };
 use thiserror::Error;
 use transforms::Transform;
@@ -140,7 +138,7 @@ impl BodyBuilder {
             name: self.name.clone(),
             outer_joints: Vec::new(),
             state: BodyState::default(),
-            result_id: None,
+            writer_id: None,
         };
         Ok(body)
     }
@@ -377,62 +375,66 @@ impl Body {
         //TODO: calculate potential energy
     }
 
-    pub fn ncols() -> usize {
-        Self::headers().len()
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let headers = [
+            "acceleration(base)[x]",
+            "acceleration(base)[y]",
+            "acceleration(base)[z]",
+            "acceleration(body)[x]",
+            "acceleration(body)[y]",
+            "acceleration(body)[z]",
+            "angular_accel(body)[x]",
+            "angular_accel(body)[y]",
+            "angular_accel(body)[z]",
+            "angular_rate(body)[x]",
+            "angular_rate(body)[y]",
+            "angular_rate(body)[z]",
+            "attitude(base)[x]",
+            "attitude(base)[y]",
+            "attitude(base)[z]",
+            "attitude(base)[w]",
+            "external_force(body)[x]",
+            "external_force(body)[y]",
+            "external_force(body)[z]",
+            "external_torque(body)[x]",
+            "external_torque(body)[y]",
+            "external_torque(body)[z]",
+            "position(base)[x]",
+            "position(base)[y]",
+            "position(base)[z]",
+            "velocity(base)[x]",
+            "velocity(base)[y]",
+            "velocity(base)[z]",
+            "velocity(body)[x]",
+            "velocity(body)[y]",
+            "velocity(body)[z]",
+            "actuator_torque(body)[x]",
+            "actuator_torque(body)[y]",
+            "actuator_torque(body)[z]",
+            "actuator_force(body)[x]",
+            "actuator_force(body)[y]",
+            "actuator_force(body)[z]",
+            "magnetic_field(base)[x]",
+            "magnetic_field(base)[y]",
+            "magnetic_field(base)[z]",
+            "magnetic_field(body)[x]",
+            "magnetic_field(body)[y]",
+            "magnetic_field(body)[z]",
+            "kinetic_energy",
+            "potential_energy",
+            "total_energy",
+        ];
+
+        let rel_path = PathBuf::from_str("bodies")
+            .unwrap()
+            .join(format!("{}.csv", self.name));
+        let builder = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(&headers)
+            .unwrap();
+        self.writer_id = Some(manager.add_writer(builder));
     }
 
-    pub fn headers() -> Vec<String> {
-        vec![
-            "acceleration(base)[x]".into(),
-            "acceleration(base)[y]".into(),
-            "acceleration(base)[z]".into(),
-            "acceleration(body)[x]".into(),
-            "acceleration(body)[y]".into(),
-            "acceleration(body)[z]".into(),
-            "angular_accel(body)[x]".into(),
-            "angular_accel(body)[y]".into(),
-            "angular_accel(body)[z]".into(),
-            "angular_rate(body)[x]".into(),
-            "angular_rate(body)[y]".into(),
-            "angular_rate(body)[z]".into(),
-            "attitude(base)[x]".into(),
-            "attitude(base)[y]".into(),
-            "attitude(base)[z]".into(),
-            "attitude(base)[w]".into(),
-            "external_force(body)[x]".into(),
-            "external_force(body)[y]".into(),
-            "external_force(body)[z]".into(),
-            "external_torque(body)[x]".into(),
-            "external_torque(body)[y]".into(),
-            "external_torque(body)[z]".into(),
-            "position(base)[x]".into(),
-            "position(base)[y]".into(),
-            "position(base)[z]".into(),
-            "velocity(base)[x]".into(),
-            "velocity(base)[y]".into(),
-            "velocity(base)[z]".into(),
-            "velocity(body)[x]".into(),
-            "velocity(body)[y]".into(),
-            "velocity(body)[z]".into(),
-            "actuator_torque(body)[x]".into(),
-            "actuator_torque(body)[y]".into(),
-            "actuator_torque(body)[z]".into(),
-            "actuator_force(body)[x]".into(),
-            "actuator_force(body)[y]".into(),
-            "actuator_force(body)[z]".into(),
-            "magnetic_field(base)[x]".into(),
-            "magnetic_field(base)[y]".into(),
-            "magnetic_field(base)[z]".into(),
-            "magnetic_field(body)[x]".into(),
-            "magnetic_field(body)[y]".into(),
-            "magnetic_field(body)[z]".into(),
-            "kinetic_energy".into(),
-            "potential_energy".into(),
-            "total_energy".into(),
-        ]
-    }
-
-    pub fn write_record(&self, manager: &mut WriterManager) {
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
         if let Some(id) = &self.writer_id {
             if let Some(writer) = manager.writers.get_mut(id) {
                 writer.float_buffer[0] = self.state.acceleration_base[0];
@@ -466,12 +468,14 @@ impl Body {
                 writer.float_buffer[28] = self.state.velocity_body[0];
                 writer.float_buffer[29] = self.state.velocity_body[1];
                 writer.float_buffer[30] = self.state.velocity_body[2];
-                writer.float_buffer[31] = self.state.actuator_force_body.rotation()[0];
-                writer.float_buffer[32] = self.state.actuator_force_body.rotation()[1];
-                writer.float_buffer[33] = self.state.actuator_force_body.rotation()[2];
-                writer.float_buffer[34] = self.state.actuator_force_body.translation()[0];
-                writer.float_buffer[35] = self.state.actuator_force_body.translation()[1];
-                writer.float_buffer[36] = self.state.actuator_force_body.translation()[2];
+                let act_torque = self.state.actuator_force_body.rotation();
+                let act_force = self.state.actuator_force_body.translation();
+                writer.float_buffer[31] = act_torque[0];
+                writer.float_buffer[32] = act_torque[1];
+                writer.float_buffer[33] = act_torque[2];
+                writer.float_buffer[34] = act_force[0];
+                writer.float_buffer[35] = act_force[1];
+                writer.float_buffer[36] = act_force[2];
                 writer.float_buffer[37] = self.state.magnetic_field_base[0];
                 writer.float_buffer[38] = self.state.magnetic_field_base[1];
                 writer.float_buffer[39] = self.state.magnetic_field_base[2];
@@ -481,6 +485,7 @@ impl Body {
                 writer.float_buffer[43] = self.state.kinetic_energy;
                 writer.float_buffer[44] = self.state.potential_energy;
                 writer.float_buffer[45] = self.state.total_energy;
+                writer.write_record().unwrap();
             }
         }
     }
@@ -493,61 +498,6 @@ impl Body {
     //    mesh_file.write_all(ron_string.as_bytes()).unwrap();
     // }
     // }
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            results.write_record(
-                id,
-                &[
-                    self.state.acceleration_base[0].to_string(),
-                    self.state.acceleration_base[1].to_string(),
-                    self.state.acceleration_base[2].to_string(),
-                    self.state.acceleration_body[0].to_string(),
-                    self.state.acceleration_body[1].to_string(),
-                    self.state.acceleration_body[2].to_string(),
-                    self.state.angular_accel_body[0].to_string(),
-                    self.state.angular_accel_body[1].to_string(),
-                    self.state.angular_accel_body[2].to_string(),
-                    self.state.angular_rate_body[0].to_string(),
-                    self.state.angular_rate_body[1].to_string(),
-                    self.state.angular_rate_body[2].to_string(),
-                    self.state.attitude_base.0.x.to_string(),
-                    self.state.attitude_base.0.y.to_string(),
-                    self.state.attitude_base.0.z.to_string(),
-                    self.state.attitude_base.0.w.to_string(),
-                    self.state.external_force_body[0].to_string(),
-                    self.state.external_force_body[1].to_string(),
-                    self.state.external_force_body[2].to_string(),
-                    self.state.external_torque_body[0].to_string(),
-                    self.state.external_torque_body[1].to_string(),
-                    self.state.external_torque_body[2].to_string(),
-                    self.state.position_base[0].to_string(),
-                    self.state.position_base[1].to_string(),
-                    self.state.position_base[2].to_string(),
-                    self.state.velocity_base[0].to_string(),
-                    self.state.velocity_base[1].to_string(),
-                    self.state.velocity_base[2].to_string(),
-                    self.state.velocity_body[0].to_string(),
-                    self.state.velocity_body[1].to_string(),
-                    self.state.velocity_body[2].to_string(),
-                    self.state.actuator_force_body.rotation()[0].to_string(),
-                    self.state.actuator_force_body.rotation()[1].to_string(),
-                    self.state.actuator_force_body.rotation()[2].to_string(),
-                    self.state.actuator_force_body.translation()[0].to_string(),
-                    self.state.actuator_force_body.translation()[1].to_string(),
-                    self.state.actuator_force_body.translation()[2].to_string(),
-                    self.state.magnetic_field_base[0].to_string(),
-                    self.state.magnetic_field_base[1].to_string(),
-                    self.state.magnetic_field_base[2].to_string(),
-                    self.state.magnetic_field_body[0].to_string(),
-                    self.state.magnetic_field_body[1].to_string(),
-                    self.state.magnetic_field_body[2].to_string(),
-                    self.state.kinetic_energy.to_string(),
-                    self.state.potential_energy.to_string(),
-                    self.state.total_energy.to_string(),
-                ],
-            );
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]

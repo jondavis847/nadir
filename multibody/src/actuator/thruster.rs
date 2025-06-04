@@ -1,5 +1,6 @@
 use crate::{BufferError, HardwareBuffer, actuator::ActuatorModel, body::BodyConnection};
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::saving::StateWriter;
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
@@ -199,23 +200,19 @@ impl ActuatorModel for Thruster {
         Ok(())
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.command.0.to_string(),
-                self.state.force.to_string(),
-                self.state.force_body[0].to_string(),
-                self.state.force_body[1].to_string(),
-                self.state.force_body[2].to_string(),
-                self.state.torque_body[0].to_string(),
-                self.state.torque_body[1].to_string(),
-                self.state.torque_body[2].to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.command.0 as f64;
+        writer.float_buffer[1] = self.state.force;
+        writer.float_buffer[2] = self.state.force_body[0];
+        writer.float_buffer[3] = self.state.force_body[1];
+        writer.float_buffer[4] = self.state.force_body[2];
+        writer.float_buffer[5] = self.state.torque_body[0];
+        writer.float_buffer[6] = self.state.torque_body[1];
+        writer.float_buffer[7] = self.state.torque_body[2];
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &[
             "command",
             "force(thruster)",
