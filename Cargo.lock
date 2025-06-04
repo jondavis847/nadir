@@ -1547,6 +1547,7 @@ dependencies = [
  "mass_properties",
  "multibody",
  "nadir_3d",
+ "nadir_diffeq",
  "time 0.0.1",
  "transforms",
 ]
@@ -5102,6 +5103,7 @@ dependencies = [
  "mass_properties",
  "multibody",
  "nadir_3d",
+ "nadir_diffeq",
  "nadir_result",
  "nalgebra",
  "ron",

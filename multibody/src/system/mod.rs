@@ -12,7 +12,11 @@ use crate::{
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use indicatif::MultiProgress;
-use nadir_diffeq::{OdeModel, OdeProblem, state::state_vector::StateVector};
+use nadir_diffeq::{
+    OdeModel, OdeProblem,
+    saving::{StateWriterBuilder, WriterManager},
+    state::state_vector::StateVector,
+};
 use nadir_result::{NadirResult, ResultManager};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -33,6 +37,7 @@ use std::{
     ops::AddAssign,
     path::{Path, PathBuf},
     rc::Rc,
+    str::FromStr,
     sync::Arc,
     time::Instant,
 };
@@ -590,6 +595,80 @@ impl MultibodySystem {
             actuator.state_vector_init(&mut x0);
         }
         x0
+    }
+
+    pub fn init_fn(model: &mut Self, _state: &StateVector, manager: &mut WriterManager) {
+        // sim_time
+        manager.add_writer(
+            StateWriterBuilder::new(1, "sim_time.csv".into())
+                .with_headers(&["t"])
+                .unwrap(),
+        );
+
+        // joints
+        for joint in &model.joints {
+            let joint = joint.borrow_mut();
+            let rel_path = PathBuf::from_str("joints")
+                .unwrap()
+                .join(format!("{}.csv", joint.name).into());
+            let builder = StateWriterBuilder::new(joint.ncols(), rel_path);
+            joint.writer_id = manager.add_writer(builder);
+        }
+
+        // bodies
+        for body in &model.bodies {
+            let body = body.borrow_mut();
+            let rel_path = PathBuf::from_str("bodies")
+                .unwrap()
+                .join(format!("{}.csv", body.name).into());
+            let builder = StateWriterBuilder::new(body.ncols(), rel_path);
+            body.writer_id = manager.add_writer(builder);
+        }
+
+        // sensors
+        for sensor in &mut model.sensors {
+            let rel_path = PathBuf::from_str("sensors")
+                .unwrap()
+                .join(format!("{}.csv", sensor.name).into());
+            let builder = StateWriterBuilder::new(sensor.ncols(), rel_path);
+            sensor.writer_id = manager.add_writer(builder);
+        }
+
+        // actuators
+        for actuator in &mut model.actuators {
+            let rel_path = PathBuf::from_str("actuators")
+                .unwrap()
+                .join(format!("{}.csv", actuator.name).into());
+            let builder = StateWriterBuilder::new(actuator.ncols(), rel_path);
+            actuator.writer_id = manager.add_writer(builder);
+        }
+
+        // celestial
+        match &mut model.base.borrow_mut().system {
+            BaseSystems::Celestial(celestial) => {
+                let rel_path = PathBuf::from_str("celestial").unwrap();
+                //epoch
+                let builder = StateWriterBuilder::new(1, rel_path.join("epoch.csv"));
+                celestial.epoch_writer_id = manager.add_writer(builder);
+                // celestial bodies
+                for body in &mut celestial.bodies {
+                    let rel_path = rel_path.join(format!("{}.csv", body.name).into());
+                    let builder = StateWriterBuilder::new(body.ncols(), rel_path);
+                    body.writer_id = manager.add_writer(builder);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn save_fn(_model: &Self, state: &StateVector, t: f64, manager: &mut WriterManager) {
+        if let Some((_, writer)) = manager.writers.iter_mut().next() {
+            writer.float_buffer[0] = t;
+            for i in 0..6 {
+                writer.float_buffer[i + 1] = state[i];
+            }
+            writer.write_record().unwrap();
+        }
     }
 
     fn initialize_writers(&mut self, results_path: &PathBuf) -> ResultManager {

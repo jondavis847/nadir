@@ -1,7 +1,14 @@
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
-use multibody::{joint::floating::FloatingBuilder, system::MultibodySystemBuilder};
-use std::error::Error;
+use multibody::{
+    joint::floating::FloatingBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem, events::SaveEvent, saving::SaveMethod, solvers::Solver,
+    stepping::AdaptiveStepControl,
+};
+use std::{env::current_dir, error::Error};
 use transforms::Transform;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -24,7 +31,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     sys.add_body(b);
     sys.add_joint(j);
 
+    let mut sys = sys.nominal()?;
+
+    let mut problem = OdeProblem::new(sys)
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ));
+
+    problem.solve_adaptive(
+        &sys.initial_state(),
+        (0.0, 10.0),
+        AdaptiveStepControl::default(),
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
+
     // Run the simulation
-    sys.simulate("", 0.0, 10.0, 0.1, None)?;
     Ok(())
 }

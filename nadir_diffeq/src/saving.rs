@@ -253,5 +253,5 @@ impl WriterManager {
     }
 }
 
-#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct WriterId(u32);
