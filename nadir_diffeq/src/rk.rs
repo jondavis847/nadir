@@ -137,7 +137,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             if let Some(manager) = writer_manager {
                 for event in &mut events.save_events {
                     if event.options.every_step {
-                        (event.save_fn)(model, x0, tspan.0, manager);
+                        (event.save_fn)(model, &self.y, t, manager);
                     }
                 }
             }
@@ -202,11 +202,11 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
         }
 
-        // Process initial events if any are scheduled at t0
-        if events.process_periodic_events(model, &mut self.x, t) {
-            // If initial events changed state, save the updated state
-            result.save(t, &self.x)?;
-        };
+        // // Process initial events if any are scheduled at t0
+        // if events.process_periodic_events(model, &mut self.x, t) {
+        //     // If initial events changed state, save the updated state
+        //     result.save(t, &self.x)?;
+        // };
 
         while t < tspan.1 {
             // Determine step size - standard dt or adjusted for upcoming event
@@ -242,15 +242,15 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 // First determine if any continuous events occurred that require us to step back in time
                 let mut continuous_event_occurred = false;
                 let mut continuous_event_time = INFINITY;
-                let mut event_indeces = Vec::new();
+                let mut event_indices = Vec::new();
                 for (i, event) in events.continuous_events.iter_mut().enumerate() {
                     let (event_occurred, event_time) = self.continuous_event_occurred(t, dt, event);
                     if event_occurred {
                         continuous_event_occurred = true;
                         if event_time < continuous_event_time {
                             continuous_event_time = event_time;
-                            event_indeces.clear();
-                            event_indeces.push(i);
+                            event_indices.clear();
+                            event_indices.push(i);
                         }
                     }
                 }
@@ -259,7 +259,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     // save the result prior to the event action
                     result.save(continuous_event_time, &self.buffers.interpolant)?;
                     // perform the event actions
-                    for i in event_indeces {
+                    for i in event_indices {
                         (events.continuous_events[i].action)(
                             model,
                             &mut self.buffers.interpolant,

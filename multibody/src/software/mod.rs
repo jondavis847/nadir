@@ -71,7 +71,6 @@ pub type CleanupFnC = unsafe extern "C" fn(software_state: *mut std::ffi::c_void
 
 #[derive(Debug)]
 pub struct SoftwareSim {
-    init_fn: InitFnC,
     step_fn: StepFnC,
     init_results_fn: InitResultsFn,
     write_results_fn: WriteResultsFn,
@@ -167,7 +166,6 @@ impl SoftwareSim {
         let actuator_command_cache = vec![HardwareBuffer::new(); actuator_indices.len()];
 
         Ok(Self {
-            init_fn: *init_fn,
             step_fn: *step_fn,
             init_results_fn: *init_results_fn,
             write_results_fn: *write_results_fn,
@@ -220,22 +218,6 @@ impl SoftwareSim {
             if actuator_idx < actuators.len() {
                 actuators[actuator_idx].read_command(&self.actuator_command_cache[cache_idx])?;
             }
-        }
-
-        Ok(())
-    }
-
-    // Optional: Add methods to interact with the persistent state
-    pub fn reset(&mut self) -> Result<(), SoftwareErrors> {
-        // Clean up existing state
-        if !self.software_state.is_null() {
-            unsafe { (self.cleanup_fn)(self.software_state) };
-        }
-
-        // Reinitialize
-        self.software_state = unsafe { (self.init_fn)() };
-        if self.software_state.is_null() {
-            return Err(SoftwareErrors::NullStatePointer);
         }
 
         Ok(())

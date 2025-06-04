@@ -15,13 +15,21 @@ use multibody::{
         rate_gyro::RateGyroBuilder, star_tracker::StarTrackerBuilder,
     },
     software::Software,
-    system::MultibodySystemBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem,
+    events::{PeriodicEvent, PostSimEvent, SaveEvent},
+    saving::SaveMethod,
+    solvers::Solver,
+    state::state_vector::StateVector,
+    stepping::AdaptiveStepControl,
 };
 use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
-use std::{error::Error, f64::consts::PI, path::Path};
+use std::{env::current_dir, error::Error, f64::consts::PI, path::Path};
 use time::Time;
 use transforms::{
     Transform,
@@ -269,10 +277,32 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
-    //let pwd = std::env::current_dir()?;
-    //sys.save(&pwd);
-    // Run the simulation
-    sys.simulate("", 0.0, 4000.0, 0.1, None)?;
+    let mut sys = sys.nominal()?;
+    let x0 = sys.initial_state();
+    let mut problem = OdeProblem::new(sys)
+        .with_periodic_event(PeriodicEvent::new(
+            1.0,
+            0.0,
+            |sys: &mut MultibodySystem, _x: &mut StateVector, _t| {
+                sys.software[0]
+                    .step(&sys.sensors, &mut sys.actuators)
+                    .unwrap();
+            },
+        ))
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+
+    problem.solve_adaptive(
+        &x0,
+        (0.0, 10.0),
+        AdaptiveStepControl::default(),
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
 
     Ok(())
 }

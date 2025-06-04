@@ -215,6 +215,11 @@ where
             &mut writer_manager,
         )?;
 
+        // process any postsim events
+        for event in &self.events.postsim_events {
+            (event.postsim_fn)(&self.model, &writer_manager);
+        }
+
         // Finalize and return the results
         result.truncate()?;
         Ok(result)

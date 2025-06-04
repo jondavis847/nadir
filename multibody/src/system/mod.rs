@@ -665,13 +665,6 @@ impl MultibodySystem {
         }
     }
 
-    pub fn update_software(&mut self) -> Result<(), MultibodyErrors> {
-        for software in &mut self.software {
-            software.step(&self.sensors, &mut self.actuators)?;
-        }
-        Ok(())
-    }
-
     fn update_state(&mut self, states: &StateVector) {
         for joint in &self.joints {
             joint.borrow_mut().state_vector_read(states);
@@ -884,7 +877,7 @@ impl OdeModel for MultibodySystem {
 
                 // // first pass
                 // for i in 0..n {
-                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
+                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indices[i] {
                 //         (
                 //             *self.joints[parent_index].cache.a,
                 //             *self.joints[parent_index].cache.v,
@@ -905,7 +898,7 @@ impl OdeModel for MultibodySystem {
                 //     // set C values
                 //     joint.set_c(c);
 
-                //     if let Some(parent_index) = self.parent_indeces[i] {
+                //     if let Some(parent_index) = self.parent_indices[i] {
                 //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
                 //         let parent_force = ij_jof_from_jof * joint.rne_get_force();
 
@@ -926,7 +919,7 @@ impl OdeModel for MultibodySystem {
                 //     let joint = &mut self.joints[i];
                 //     joint.set_h(h);
 
-                //     if let Some(parent_index) = self.parent_indeces[i] {
+                //     if let Some(parent_index) = self.parent_indices[i] {
                 //         let joint_ic = joint.get_ic();
                 //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
                 //         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
@@ -936,7 +929,7 @@ impl OdeModel for MultibodySystem {
 
                 //         // just commented out until we finish the crb
                 //         //let j = i;
-                //         //while let Some(parent_index) = self.parent_indeces[j] {}
+                //         //while let Some(parent_index) = self.parent_indices[j] {}
                 //     };
                 // }
             }

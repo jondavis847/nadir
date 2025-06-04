@@ -1,8 +1,14 @@
+use std::env::current_dir;
+
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
-use multibody::{joint::revolute::RevoluteBuilder, system::MultibodySystemBuilder};
+use multibody::{
+    joint::revolute::RevoluteBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
 use nadir_diffeq::{
     OdeProblem,
+    events::{PostSimEvent, SaveEvent},
     saving::{ResultStorage, SaveMethod},
     solvers::Solver,
 };
@@ -55,18 +61,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let x0 = sys.initial_state();
 
     // run the simulation
-    let mut problem = OdeProblem::new(sys);
+    let mut problem = OdeProblem::new(sys)
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
 
-    match problem.solve_fixed(&x0, (0.0, 10.0), 0.1, Solver::Tsit5, SaveMethod::Memory)? {
-        ResultStorage::Memory(result) => {
-            let n = result.t.len() - 1;
-            println!(
-                "{:10.6}     {:10.6} {:10.6} {:10.6}",
-                result.t[n], result.y[n][0], result.y[n][1], result.y[n][2]
-            );
-        }
-        _ => {}
-    }
+    problem.solve_fixed(&x0, (0.0, 10.0), 0.1, Solver::Tsit5, SaveMethod::None)?;
 
     Ok(())
 }

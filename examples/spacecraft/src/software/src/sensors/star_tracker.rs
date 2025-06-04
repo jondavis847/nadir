@@ -33,6 +33,7 @@ pub struct StarTrackerTelemetry {
 
 impl StarTrackerFsw {
     pub fn run(&mut self) {
+        dbg!(&self.telemetry);
         self.state.q_st = UnitQuaternion::new(
             self.telemetry.q_st[0],
             self.telemetry.q_st[1],
