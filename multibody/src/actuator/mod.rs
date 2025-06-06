@@ -29,11 +29,7 @@ pub struct ActuatorBuilder {
 
 impl ActuatorBuilder {
     pub fn new(name: &str, model: ActuatorModelBuilders) -> Self {
-        Self {
-            name: name.to_string(),
-            model,
-            connection: None,
-        }
+        Self { name: name.to_string(), model, connection: None }
     }
     pub fn connect_body(&mut self, body: Id, transform: Transform) {
         self.connection = Some(BodyConnectionBuilder::new(body, transform));
@@ -123,9 +119,13 @@ impl Actuator {
     }
 
     pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
-        let rel_path = PathBuf::new().join("actuators").join(&self.name);
+        let rel_path = PathBuf::new()
+            .join("actuators")
+            .join(format!("{}.csv", &self.name));
         let headers = self.model.writer_headers();
-        let writer = StateWriterBuilder::new(headers.len(), rel_path);
+        let writer = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(headers)
+            .unwrap();
         self.writer_id = Some(manager.add_writer(writer));
     }
 
@@ -151,12 +151,12 @@ impl ActuatorModelBuilders {
         rng: &mut SmallRng,
     ) -> Result<ActuatorModels, ActuatorErrors> {
         match self {
-            ActuatorModelBuilders::ReactionWheel(builder) => {
-                Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
-            }
-            ActuatorModelBuilders::Thruster(builder) => {
-                Ok(ActuatorModels::Thruster(builder.sample(nominal, rng)?))
-            }
+            ActuatorModelBuilders::ReactionWheel(builder) => Ok(ActuatorModels::ReactionWheel(
+                builder.sample(nominal, rng)?,
+            )),
+            ActuatorModelBuilders::Thruster(builder) => Ok(ActuatorModels::Thruster(
+                builder.sample(nominal, rng)?,
+            )),
         }
     }
 }

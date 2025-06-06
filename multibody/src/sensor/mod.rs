@@ -56,16 +56,15 @@ pub struct SensorBuilder {
 
 impl SensorBuilder {
     pub fn connect_body(&mut self, body: Id, transform: Transform) -> Result<(), SensorErrors> {
-        self.connection = Some(BodyConnectionBuilder::new(body.clone(), transform));
+        self.connection = Some(BodyConnectionBuilder::new(
+            body.clone(),
+            transform,
+        ));
         Ok(())
     }
 
     pub fn new(name: &str, model: SensorModelBuilders) -> Self {
-        Self {
-            name: name.to_string(),
-            model,
-            connection: None,
-        }
+        Self { name: name.to_string(), model, connection: None }
     }
 
     pub fn sample(
@@ -97,7 +96,8 @@ pub struct Sensor {
 impl Sensor {
     pub fn update(&mut self) -> Result<(), SensorErrors> {
         self.model.update(&self.connection);
-        self.model.write_buffer(&mut self.telemetry_buffer)?;
+        self.model
+            .write_buffer(&mut self.telemetry_buffer)?;
         Ok(())
     }
 
@@ -106,7 +106,9 @@ impl Sensor {
             .join("sensors")
             .join(format!("{}.csv", self.name));
         let headers = self.model.writer_headers();
-        let writer = StateWriterBuilder::new(headers.len(), rel_path);
+        let writer = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(headers)
+            .unwrap();
         self.writer_id = Some(manager.add_writer(writer));
     }
 
@@ -133,15 +135,15 @@ impl SensorModelBuilders {
             SensorModelBuilders::Gps(builder) => {
                 Ok(SensorModels::Gps(builder.sample(nominal, rng)?))
             }
-            SensorModelBuilders::Magnetometer(builder) => {
-                Ok(SensorModels::Magnetometer(builder.sample(nominal, rng)?))
-            }
-            SensorModelBuilders::RateGyro(builder) => {
-                Ok(SensorModels::RateGyro(builder.sample(nominal, rng)?))
-            }
-            SensorModelBuilders::StarTracker(builder) => {
-                Ok(SensorModels::StarTracker(builder.sample(nominal, rng)?))
-            }
+            SensorModelBuilders::Magnetometer(builder) => Ok(SensorModels::Magnetometer(
+                builder.sample(nominal, rng)?,
+            )),
+            SensorModelBuilders::RateGyro(builder) => Ok(SensorModels::RateGyro(
+                builder.sample(nominal, rng)?,
+            )),
+            SensorModelBuilders::StarTracker(builder) => Ok(SensorModels::StarTracker(
+                builder.sample(nominal, rng)?,
+            )),
         }
     }
 }
