@@ -27,7 +27,7 @@ use scene::Scene;
 
 use thiserror::Error;
 
-use crate::window_manager::Message;
+use crate::{animation::celestial_animation::CelestialAnimation, window_manager::Message};
 
 #[derive(Debug, Error)]
 pub enum AnimationErrors {
@@ -234,12 +234,12 @@ impl AnimationProgram {
         }
 
         if !animation_result.celestial_meshes.is_empty() {
+            let mut celestial = CelestialAnimation::default();
             for result in &animation_result.celestial_meshes {
-                scene.celestial.add_body(result.body);
-                scene
-                    .celestial
-                    .update_body(result.body, result.position[0], result.attitude[0]);
+                celestial.add_body(result.body);
+                celestial.update_body(result.body, result.position[0], result.attitude[0]);
             }
+            scene.celestial = Some(celestial);
             scene.set_celestial();
         }
 
@@ -296,12 +296,17 @@ impl AnimationProgram {
                 let (q, r) = result.get_state_at_time_interp(t, time);
                 mesh.update(r, q);
             });
-
-        self.result.celestial_meshes.iter().for_each(|result| {
-            let (q, r) = result.get_state_at_time_interp(t, time);
-            // celestial position is in km, convert to m;
-            self.scene.celestial.update_body(result.body, 1e3 * r, q);
-        });
+        if let Some(celestial) = &mut self.scene.celestial {
+            self.result.celestial_meshes.iter().for_each(|result| {
+                let (q, r) = result.get_state_at_time_interp(t, time);
+                // celestial position is in km, convert to m;
+                celestial.update_body(result.body, 1e3 * r, q);
+                // set the light pos if this is the sun
+                if result.body == CelestialBodies::Sun {
+                    self.scene.light_pos = [r[0], r[1], r[2]];
+                }
+            });
+        }
 
         // adjust mesh positions so target is at origin and all other meshes are relative to it
         if let Some(index) = self.scene.world_target {
@@ -309,8 +314,10 @@ impl AnimationProgram {
             for mesh in &mut self.scene.body_meshes {
                 mesh.set_position_from_target(camera_target);
             }
-            for (_, mesh) in &mut self.scene.celestial.meshes {
-                mesh.set_position_from_target(camera_target);
+            if let Some(celestial) = &mut self.scene.celestial {
+                for (_, mesh) in &mut celestial.meshes {
+                    mesh.set_position_from_target(camera_target);
+                }
             }
         }
     }

@@ -102,7 +102,9 @@ impl Sensor {
     }
 
     pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
-        let rel_path = PathBuf::new().join("sensors");
+        let rel_path = PathBuf::new()
+            .join("sensors")
+            .join(format!("{}.csv", self.name));
         let headers = self.model.writer_headers();
         let writer = StateWriterBuilder::new(headers.len(), rel_path);
         self.writer_id = Some(manager.add_writer(writer));

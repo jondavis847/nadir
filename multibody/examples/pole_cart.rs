@@ -1,15 +1,23 @@
+use std::env::current_dir;
+
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
 use multibody::{
-    actuator::{thruster::ThrusterBuilder, ActuatorBuilder},
+    actuator::{ActuatorBuilder, thruster::ThrusterBuilder},
     joint::{prismatic::PrismaticBuilder, revolute::RevoluteBuilder},
-    system::MultibodySystemBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem,
+    events::{PostSimEvent, SaveEvent},
+    saving::SaveMethod,
+    solvers::Solver,
 };
 use rotations::{
-    prelude::{AlignedAxes, Axis, AxisPair},
     Rotation,
+    prelude::{AlignedAxes, Axis, AxisPair},
 };
-use transforms::{prelude::Cartesian, Transform};
+use transforms::{Transform, prelude::Cartesian};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new system
@@ -29,29 +37,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     pole.set_material_phong(Color::BLUE, 32.0);
 
     // Create the joints
-    let mut hinge = sys.new_joint("hinge", RevoluteBuilder::new().with_angle(0.05).into())?;
+    let mut hinge = sys.new_joint(
+        "hinge",
+        RevoluteBuilder::new().with_angle(0.05).into(),
+    )?;
     let mut prismatic = sys.new_joint("prismatic", PrismaticBuilder::new().into())?;
 
     // Create the actuators
     let mut left_thruster =
         ActuatorBuilder::new("left_thruster", ThrusterBuilder::new(1.0)?.into());
-    let mut right_thruster =
-        ActuatorBuilder::new("right_thruster", ThrusterBuilder::new(1.0)?.into());
+    let mut right_thruster = ActuatorBuilder::new(
+        "right_thruster",
+        ThrusterBuilder::new(1.0)?.into(),
+    );
 
     // connect the system
     sys.base
         .connect_outer_joint(&mut prismatic, Transform::IDENTITY)?;
     cart.connect_inner_joint(
         &mut prismatic,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, -0.5).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 0.0, -0.5).into(),
+        ),
     )?;
     cart.connect_outer_joint(
         &mut hinge,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, 0.5).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 0.0, 0.5).into(),
+        ),
     )?;
     pole.connect_inner_joint(
         &mut hinge,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, -1.0).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 0.0, -1.0).into(),
+        ),
     )?;
 
     left_thruster.connect_body(
@@ -84,7 +106,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_actuator(right_thruster);
 
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, None)?;
+    let mut sys = sys.nominal()?;
+    let x0 = sys.initial_state();
+
+    // run the simulation
+    let mut problem = OdeProblem::new(sys)
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+
+    problem.solve_fixed(
+        &x0,
+        (0.0, 10.0),
+        0.1,
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
 
     Ok(())
 }

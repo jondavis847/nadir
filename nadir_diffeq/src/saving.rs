@@ -146,7 +146,7 @@ where
 #[derive(Debug, Clone)]
 pub struct StateWriterBuilder {
     headers: Option<Vec<String>>,
-    ncols: usize,
+    pub ncols: usize,
     relative_file_path: PathBuf,
 }
 

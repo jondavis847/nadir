@@ -294,7 +294,10 @@ impl SensorModel for Gps {
     }
 
     fn writer_headers(&self) -> &[&str] {
-        match (&self.state.position_noise, &self.state.velocity_noise) {
+        match (
+            &self.parameters.position_noise,
+            &self.parameters.velocity_noise,
+        ) {
             (Some(_), Some(_)) => &[
                 "position[x]",
                 "position[y]",

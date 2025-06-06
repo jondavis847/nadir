@@ -9,7 +9,7 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PostSimEvent, SaveEvent},
-    saving::{ResultStorage, SaveMethod},
+    saving::SaveMethod,
     solvers::Solver,
 };
 use rotations::Rotation;
@@ -44,10 +44,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // connect the system
     // we need transforms to place the joint frames (hinges) at the right place in the bodies
-    let top = Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, 0.5).into());
-    let bottom = Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, -0.5).into());
+    let top = Transform::new(
+        Rotation::IDENTITY,
+        Cartesian::new(0.0, 0.0, 0.5).into(),
+    );
+    let bottom = Transform::new(
+        Rotation::IDENTITY,
+        Cartesian::new(0.0, 0.0, -0.5).into(),
+    );
 
-    sys.base.connect_outer_joint(&mut j1, Transform::IDENTITY)?;
+    sys.base
+        .connect_outer_joint(&mut j1, Transform::IDENTITY)?;
     b1.connect_inner_joint(&mut j1, top)?;
     b1.connect_outer_joint(&mut j2, bottom)?;
     b2.connect_inner_joint(&mut j2, top)?;
@@ -69,7 +76,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
 
-    problem.solve_fixed(&x0, (0.0, 10.0), 0.1, Solver::Tsit5, SaveMethod::None)?;
+    problem.solve_fixed(
+        &x0,
+        (0.0, 0.1),
+        0.1,
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
 
     Ok(())
 }

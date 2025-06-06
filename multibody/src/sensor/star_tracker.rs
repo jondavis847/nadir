@@ -158,8 +158,6 @@ impl SensorModel for StarTracker {
         self.telemetry.q[2] = self.state.measurement.0.z;
         self.telemetry.q[3] = self.state.measurement.0.w;
         self.telemetry.valid = 1u8;
-
-        dbg!(&self.telemetry);
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {

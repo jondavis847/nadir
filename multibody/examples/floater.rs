@@ -16,6 +16,7 @@ use transforms::Transform;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut sys = MultibodySystemBuilder::new();
+    sys.set_gravity_constant(0.0, 0.0, -1.0)?;
 
     // create a floating joint
     let f = FloatingBuilder::new()
@@ -28,7 +29,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     b.set_geometry_cuboid(1.0, 1.0, 1.0)?;
     b.set_material_phong(Color::RED, 32.0);
 
-    sys.base.connect_outer_joint(&mut j, Transform::IDENTITY)?;
+    sys.base
+        .connect_outer_joint(&mut j, Transform::IDENTITY)?;
     b.connect_inner_joint(&mut j, Transform::IDENTITY)?;
 
     sys.add_body(b);

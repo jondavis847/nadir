@@ -208,16 +208,10 @@ impl BodyBuilder {
 
     pub fn set_material_phong(&mut self, color: Color, specular_power: f32) {
         if let Some(mesh) = &mut self.mesh {
-            mesh.material = Material::Phong {
-                color,
-                specular_power,
-            };
+            mesh.material = Material::Phong { color, specular_power };
         } else {
             let mut mesh = Mesh::new(&self.name);
-            mesh.material = Material::Phong {
-                color,
-                specular_power,
-            };
+            mesh.material = Material::Phong { color, specular_power };
             self.mesh = Some(mesh);
         }
     }
@@ -248,8 +242,9 @@ impl Body {
             .expect("validation should catch this");
         let inner_joint = inner_joint.borrow();
         let body_from_base = &inner_joint.cache.transforms.ob_from_base;
-        let g_vec = gravity.calculate(&self.state.position_base).unwrap();
-
+        let g_vec = gravity
+            .calculate(&self.state.position_base)
+            .unwrap();
         // convert g_vec to a force by multiplying by mass
         // note that we just calculate gravity as translation of the cm
         // any torque applied via gravity and it's joints is handled by
@@ -302,7 +297,10 @@ impl Body {
             + self.state.environments_force_body;
 
         // write values for reporting
-        self.state.external_force_body = *self.state.external_spatial_force_body.translation();
+        self.state.external_force_body = *self
+            .state
+            .external_spatial_force_body
+            .translation();
         self.state.external_torque_body = *self.state.external_spatial_force_body.rotation();
     }
 
@@ -351,7 +349,10 @@ impl Body {
         // r is technically 0 since the body is coincident with its own frame
         // there would be a non-zero r if we were looking for motion of body frame w.r.t jof, but that motion
         // is already accounted for in the spatial algebra when converting from jof to body.
-        let body_v_in_base_translation = base_from_body.0.rotation.transform(body_v.translation());
+        let body_v_in_base_translation = base_from_body
+            .0
+            .rotation
+            .transform(body_v.translation());
         self.state.velocity_body = *body_v.translation();
         self.state.velocity_base = body_v_in_base_translation;
         self.state.angular_rate_body = *body_v.rotation();
@@ -366,7 +367,10 @@ impl Body {
 
         self.state.kinetic_energy = 0.5
             * self.mass_properties.mass
-            * self.state.velocity_base.dot(&self.state.velocity_base)
+            * self
+                .state
+                .velocity_base
+                .dot(&self.state.velocity_base)
             + 0.5
                 * (self.state.angular_rate_body.transpose()
                     * self.mass_properties.inertia()

@@ -230,7 +230,9 @@ impl CelestialSystem {
             let writer = StateWriterBuilder::new(
                 headers.len(),
                 rel_path.join(format!("{}.csv", body.body.get_name())),
-            );
+            )
+            .with_headers(headers)
+            .unwrap();
             body.writer_id = Some(manager.add_writer(writer));
         }
     }
@@ -240,6 +242,7 @@ impl CelestialSystem {
             if let Some(writer) = manager.writers.get_mut(id) {
                 writer.float_buffer[0] = self.epoch.time.get_jd();
                 writer.float_buffer[1] = self.epoch.time.get_seconds_j2k();
+                writer.write_record().unwrap();
             }
         }
 

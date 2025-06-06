@@ -50,10 +50,10 @@ use super::{
 pub struct Scene {
     window_id: Option<Id>,
     pub camera: Camera,
-    light_color: Color,
-    light_pos: [f64; 3],
+    pub light_color: Color,
+    pub light_pos: [f64; 3],
     pub body_meshes: Vec<Mesh>,
-    pub celestial: CelestialAnimation,
+    pub celestial: Option<CelestialAnimation>,
     pub world_target: Option<usize>, // Some(index into meshes), None is the origin
     pub sample_count: u32,
 }
@@ -66,7 +66,7 @@ impl Scene {
             light_color: Color::WHITE,
             light_pos: [0.0, 10.0, 0.0],
             body_meshes: Vec::new(),
-            celestial: CelestialAnimation::default(),
+            celestial: None,
             world_target: None,
             sample_count: 1,
         }
@@ -88,18 +88,31 @@ impl Scene {
             .iter_mut()
             .for_each(|mesh| mesh.set_position_from_target(world_target));
 
-        for (_, mesh) in &mut self.celestial.meshes {
-            mesh.set_position_from_target(world_target);
+        if let Some(celestial) = &mut self.celestial {
+            for (_, mesh) in &mut celestial.meshes {
+                mesh.set_position_from_target(world_target);
+            }
         }
 
         // sun must be here for celestial system, so unwrap makes sense. need panic if it's not there
-        let sun = self.celestial.meshes.get(&CelestialMeshes::Sun).unwrap();
+        let sun = self
+            .celestial
+            .as_ref()
+            .unwrap()
+            .meshes
+            .get(&CelestialMeshes::Sun)
+            .unwrap();
         let sun_position = sun.state.position;
 
         self.light_pos = sun_position.into();
         self.light_color = Color::new(1.0, 1.0, 1.0, 1.0);
 
-        let unit = world_target.normalize();
+        let unit = if world_target.length() < std::f64::EPSILON {
+            DVec3::new(1.0, 0.0, 0.0) // default to x-axis if target is at origin
+        } else {
+            world_target.normalize()
+        };
+
         let camera_position = Vec3::new(
             10.0 * unit[0] as f32,
             10.0 * unit[1] as f32,
@@ -160,7 +173,7 @@ struct PipelineLayout(wgpu::PipelineLayout);
 #[derive(Debug)]
 pub struct ScenePrimitive {
     meshes: Vec<MeshPrimitive>,
-    celestial: CelestialPrimitives,
+    celestial: Option<CelestialPrimitives>,
     uniforms: Uniforms,
     sample_count: u32,
 }
@@ -173,7 +186,12 @@ impl ScenePrimitive {
             .iter()
             .for_each(|mesh| meshes.push(MeshPrimitive::from(mesh)));
 
-        let celestial = CelestialPrimitives::from(&scene.celestial);
+        let celestial = if let Some(celestial) = &scene.celestial {
+            Some(CelestialPrimitives::from(celestial))
+        } else {
+            None
+        };
+
         let uniforms = Uniforms::new(scene, bounds);
 
         Self {
@@ -315,302 +333,319 @@ impl Primitive for ScenePrimitive {
             });
             storage.store(PipelineLayout(layout));
         }
-
-        if let Some(atmosphere) = self.celestial.meshes.get(&CelestialMeshes::EarthAtmosphere) {
-            // atmosphere
-            if !storage.has::<AtmospherePipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(AtmospherePipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    &[atmosphere.mesh_gpu],
-                    Ellipsoid64::vertices(),
-                    self.sample_count,
-                ));
-            } else {
-                if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
-                    atmosphere_pipeline.update(queue, &[atmosphere.mesh_gpu]);
+        if let Some(celestial) = &self.celestial {
+            if let Some(atmosphere) = celestial.meshes.get(&CelestialMeshes::EarthAtmosphere) {
+                // atmosphere
+                if !storage.has::<AtmospherePipeline>() {
+                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    storage.store(AtmospherePipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        &[atmosphere.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(atmosphere_pipeline) = storage.get_mut::<AtmospherePipeline>() {
+                        atmosphere_pipeline.update(queue, &[atmosphere.mesh_gpu]);
+                    }
                 }
             }
-        }
 
-        //earth
-        if let Some(earth) = self.celestial.meshes.get(&CelestialMeshes::Earth) {
-            if !storage.has::<EarthPipeline>() {
-                const EARTH_COLOR: &[u8] = include_bytes!("../../../resources/earth_color_8K.tif");
-                const EARTH_NIGHT: &[u8] =
-                    include_bytes!("../../../resources/earth_nightlights_10K.tif");
-                const EARTH_CLOUDS: &[u8] =
-                    include_bytes!("../../../resources/earth_clouds_8K.tif");
-                const EARTH_SPEC: &[u8] = include_bytes!("../../../resources/earth_spec_8k.tif");
-                // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
+            //earth
+            if let Some(earth) = celestial.meshes.get(&CelestialMeshes::Earth) {
+                if !storage.has::<EarthPipeline>() {
+                    const EARTH_COLOR: &[u8] =
+                        include_bytes!("../../../resources/earth_color_8K.tif");
+                    const EARTH_NIGHT: &[u8] =
+                        include_bytes!("../../../resources/earth_nightlights_10K.tif");
+                    const EARTH_CLOUDS: &[u8] =
+                        include_bytes!("../../../resources/earth_clouds_8K.tif");
+                    const EARTH_SPEC: &[u8] =
+                        include_bytes!("../../../resources/earth_spec_8k.tif");
+                    // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
-                let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
-                let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
-                let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
-                let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
-                // let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
+                    let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
+                    let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
+                    let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
+                    let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
+                    // let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
 
-                let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-                    address_mode_u: wgpu::AddressMode::Repeat,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
-                    mag_filter: wgpu::FilterMode::Linear,
-                    min_filter: wgpu::FilterMode::Linear,
-                    mipmap_filter: wgpu::FilterMode::Linear,
-                    anisotropy_clamp: 2,
-                    ..Default::default()
-                });
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        address_mode_u: wgpu::AddressMode::Repeat,
+                        address_mode_v: wgpu::AddressMode::ClampToEdge,
+                        address_mode_w: wgpu::AddressMode::ClampToEdge,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        min_filter: wgpu::FilterMode::Linear,
+                        mipmap_filter: wgpu::FilterMode::Linear,
+                        anisotropy_clamp: 2,
+                        ..Default::default()
+                    });
 
-                let earth_bind_group_layout =
-                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        label: Some("earth bind group layout"),
+                    let earth_bind_group_layout =
+                        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                            label: Some("earth bind group layout"),
+                            entries: &[
+                                // sampler
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Sampler(
+                                        wgpu::SamplerBindingType::Filtering,
+                                    ),
+                                    count: None,
+                                },
+                                //earth color
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 1,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                                //earth night
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 2,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                                //earth specular
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 3,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                                //earth clouds
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 4,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                                //earth topography
+                                // wgpu::BindGroupLayoutEntry {
+                                //     binding: 5,
+                                //     visibility: wgpu::ShaderStages::FRAGMENT,
+                                //     ty: wgpu::BindingType::Texture {
+                                //         sample_type: wgpu::TextureSampleType::Float {
+                                //             filterable: true,
+                                //         },
+                                //         view_dimension: wgpu::TextureViewDimension::D2,
+                                //         multisampled: false,
+                                //     },
+                                //     count: None,
+                                // },
+                            ],
+                        });
+
+                    let earth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("earth.bind.group"),
+                        layout: &earth_bind_group_layout,
                         entries: &[
-                            // sampler
-                            wgpu::BindGroupLayoutEntry {
+                            wgpu::BindGroupEntry {
                                 binding: 0,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
                             },
-                            //earth color
-                            wgpu::BindGroupLayoutEntry {
+                            wgpu::BindGroupEntry {
                                 binding: 1,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
+                                resource: wgpu::BindingResource::TextureView(&earth_day),
                             },
-                            //earth night
-                            wgpu::BindGroupLayoutEntry {
+                            wgpu::BindGroupEntry {
                                 binding: 2,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
+                                resource: wgpu::BindingResource::TextureView(&earth_night),
                             },
-                            //earth specular
-                            wgpu::BindGroupLayoutEntry {
+                            wgpu::BindGroupEntry {
                                 binding: 3,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
+                                resource: wgpu::BindingResource::TextureView(&earth_spec),
                             },
-                            //earth clouds
-                            wgpu::BindGroupLayoutEntry {
+                            wgpu::BindGroupEntry {
                                 binding: 4,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
+                                resource: wgpu::BindingResource::TextureView(&earth_clouds),
                             },
-                            //earth topography
-                            // wgpu::BindGroupLayoutEntry {
+                            // wgpu::BindGroupEntry {
                             //     binding: 5,
-                            //     visibility: wgpu::ShaderStages::FRAGMENT,
-                            //     ty: wgpu::BindingType::Texture {
-                            //         sample_type: wgpu::TextureSampleType::Float {
-                            //             filterable: true,
-                            //         },
-                            //         view_dimension: wgpu::TextureViewDimension::D2,
-                            //         multisampled: false,
-                            //     },
-                            //     count: None,
+                            //     resource: wgpu::BindingResource::TextureView(&earth_topography),
                             // },
                         ],
                     });
 
-                let earth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("earth.bind.group"),
-                    layout: &earth_bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Sampler(&sampler),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&earth_day),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: wgpu::BindingResource::TextureView(&earth_night),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 3,
-                            resource: wgpu::BindingResource::TextureView(&earth_spec),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 4,
-                            resource: wgpu::BindingResource::TextureView(&earth_clouds),
-                        },
-                        // wgpu::BindGroupEntry {
-                        //     binding: 5,
-                        //     resource: wgpu::BindingResource::TextureView(&earth_topography),
-                        // },
-                    ],
-                });
+                    storage.store(EarthBindGroup(earth_bind_group));
 
-                storage.store(EarthBindGroup(earth_bind_group));
+                    let uniform_bind_group_layout =
+                        &storage.get::<UniformBindGroupLayout>().unwrap().0;
+                    let earth_layout =
+                        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                            label: Some("earth.pipeline.layout"),
+                            bind_group_layouts: &[
+                                &uniform_bind_group_layout,
+                                &earth_bind_group_layout,
+                            ],
+                            push_constant_ranges: &[],
+                        });
 
-                let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
-                let earth_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("earth.pipeline.layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout, &earth_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
-
-                storage.store(EarthPipeline::new(
-                    device,
-                    format,
-                    &earth_layout,
-                    &[earth.mesh_gpu],
-                    Ellipsoid64::vertices(),
-                    self.sample_count,
-                ));
-            } else {
-                if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
-                    earth_pipeline.update(queue, &[earth.mesh_gpu]);
+                    storage.store(EarthPipeline::new(
+                        device,
+                        format,
+                        &earth_layout,
+                        &[earth.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(earth_pipeline) = storage.get_mut::<EarthPipeline>() {
+                        earth_pipeline.update(queue, &[earth.mesh_gpu]);
+                    }
                 }
             }
-        }
 
-        if let Some(sun) = self.celestial.meshes.get(&CelestialMeshes::Sun) {
-            if !storage.has::<SunPipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(SunPipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    &[sun.mesh_gpu],
-                    Ellipsoid64::vertices(),
-                    self.sample_count,
-                ));
-            } else {
-                if let Some(sun_pipeline) = storage.get_mut::<SunPipeline>() {
-                    sun_pipeline.update(queue, &[sun.mesh_gpu]);
+            if let Some(sun) = celestial.meshes.get(&CelestialMeshes::Sun) {
+                if !storage.has::<SunPipeline>() {
+                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    storage.store(SunPipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        &[sun.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(sun_pipeline) = storage.get_mut::<SunPipeline>() {
+                        sun_pipeline.update(queue, &[sun.mesh_gpu]);
+                    }
                 }
             }
-        }
 
-        if let Some(corona) = self.celestial.meshes.get(&CelestialMeshes::SunCorona) {
-            if !storage.has::<CoronaPipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(CoronaPipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    &[corona.mesh_gpu],
-                    Ellipsoid64::vertices(),
-                    self.sample_count,
-                ));
-            } else {
-                if let Some(corona_pipeline) = storage.get_mut::<CoronaPipeline>() {
-                    corona_pipeline.update(queue, &[corona.mesh_gpu]);
+            if let Some(corona) = celestial.meshes.get(&CelestialMeshes::SunCorona) {
+                if !storage.has::<CoronaPipeline>() {
+                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    storage.store(CoronaPipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        &[corona.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(corona_pipeline) = storage.get_mut::<CoronaPipeline>() {
+                        corona_pipeline.update(queue, &[corona.mesh_gpu]);
+                    }
                 }
             }
-        }
 
-        if let Some(moon) = self.celestial.meshes.get(&CelestialMeshes::Moon) {
-            if !storage.has::<MoonPipeline>() {
-                const MOON_COLOR: &[u8] = include_bytes!("../../../resources/moon_4k.tif");
+            if let Some(moon) = celestial.meshes.get(&CelestialMeshes::Moon) {
+                if !storage.has::<MoonPipeline>() {
+                    const MOON_COLOR: &[u8] = include_bytes!("../../../resources/moon_4k.tif");
 
-                let moon_color = load_texture(device, queue, MOON_COLOR, "moon_color");
+                    let moon_color = load_texture(device, queue, MOON_COLOR, "moon_color");
 
-                let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-                    address_mode_u: wgpu::AddressMode::ClampToEdge,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
-                    mag_filter: wgpu::FilterMode::Linear,
-                    min_filter: wgpu::FilterMode::Linear,
-                    mipmap_filter: wgpu::FilterMode::Linear,
-                    ..Default::default()
-                });
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        address_mode_u: wgpu::AddressMode::ClampToEdge,
+                        address_mode_v: wgpu::AddressMode::ClampToEdge,
+                        address_mode_w: wgpu::AddressMode::ClampToEdge,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        min_filter: wgpu::FilterMode::Linear,
+                        mipmap_filter: wgpu::FilterMode::Linear,
+                        ..Default::default()
+                    });
 
-                let moon_bind_group_layout =
-                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        label: Some("moon bind group layout"),
-                        entries: &[
-                            // sampler
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
-                            },
-                            //moon color
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 1,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
+                    let moon_bind_group_layout =
+                        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                            label: Some("moon bind group layout"),
+                            entries: &[
+                                // sampler
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Sampler(
+                                        wgpu::SamplerBindingType::Filtering,
+                                    ),
+                                    count: None,
                                 },
-                                count: None,
+                                //moon color
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 1,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                            ],
+                        });
+
+                    let moon_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("moon.bind.group"),
+                        layout: &moon_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(&moon_color),
                             },
                         ],
                     });
 
-                let moon_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("moon.bind.group"),
-                    layout: &moon_bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Sampler(&sampler),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&moon_color),
-                        },
-                    ],
-                });
+                    storage.store(MoonBindGroup(moon_bind_group));
 
-                storage.store(MoonBindGroup(moon_bind_group));
+                    let uniform_bind_group_layout =
+                        &storage.get::<UniformBindGroupLayout>().unwrap().0;
+                    let moon_layout =
+                        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                            label: Some("moon.pipeline.layout"),
+                            bind_group_layouts: &[
+                                &uniform_bind_group_layout,
+                                &moon_bind_group_layout,
+                            ],
+                            push_constant_ranges: &[],
+                        });
 
-                let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
-                let moon_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("moon.pipeline.layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout, &moon_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
-
-                storage.store(MoonPipeline::new(
-                    device,
-                    format,
-                    &moon_layout,
-                    &[moon.mesh_gpu],
-                    Ellipsoid64::vertices(),
-                    self.sample_count,
-                ));
-            } else {
-                if let Some(moon_pipeline) = storage.get_mut::<MoonPipeline>() {
-                    moon_pipeline.update(queue, &[moon.mesh_gpu]);
+                    storage.store(MoonPipeline::new(
+                        device,
+                        format,
+                        &moon_layout,
+                        &[moon.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(moon_pipeline) = storage.get_mut::<MoonPipeline>() {
+                        moon_pipeline.update(queue, &[moon.mesh_gpu]);
+                    }
                 }
             }
         }
