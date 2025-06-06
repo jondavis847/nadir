@@ -17,7 +17,7 @@ impl Default for Camera {
     fn default() -> Self {
         let mut camera = Self {
             eye: vec3(5.0, 0.0, 0.0),
-            target: Vec3::ZERO,
+            target: vec3(0.0, 0.0, 0.0),
             up: Vec3::Z,
             rotation: Quat::IDENTITY,
             fov_y: 45.0,
@@ -27,7 +27,7 @@ impl Default for Camera {
         };
 
         //update rotation to not be identity
-        camera.update_rotation();
+        //camera.update_rotation();
         camera
     }
 }
@@ -41,7 +41,6 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 
 impl Camera {
     pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> glam::Mat4 {
-        //TODO looks distorted without padding; base on surface texture size instead?
         let aspect_ratio = bounds.width / bounds.height;
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = glam::Mat4::perspective_rh(
@@ -108,11 +107,19 @@ impl Camera {
     pub fn update_position_from_scroll_delta(&mut self, scroll_delta: ScrollDelta) {
         let delta = match scroll_delta {
             ScrollDelta::Lines { x, y } => {
-                if x.abs() > y.abs() { x } else { y }
+                if x.abs() > y.abs() {
+                    x
+                } else {
+                    y
+                }
                 //TODO: Play with scale of the mag
             }
             ScrollDelta::Pixels { x, y } => {
-                if x.abs() > y.abs() { x } else { y }
+                if x.abs() > y.abs() {
+                    x
+                } else {
+                    y
+                }
                 //TODO: Play with scale of the mag
             }
         };
@@ -132,7 +139,8 @@ impl Camera {
     fn update_rotation(&mut self) {
         let forward = (self.target - self.eye).normalize();
         let right = forward.cross(self.up).normalize();
-        let rotation_matrix = Mat3::from_cols(right, self.up, forward);
+        //let rotation_matrix = Mat3::from_cols(right, self.up, forward);
+        let rotation_matrix = Mat3::from_cols(-forward, right, self.up);
         self.rotation = Quat::from_mat3(&rotation_matrix);
     }
 }

@@ -56,7 +56,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit = KeplerianElements::new(9e6, 0.0, 0.0, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit = KeplerianElements::new(
+        9e6,
+        0.0,
+        3.14,
+        0.0,
+        0.0,
+        0.0,
+        epoch,
+        CelestialBodies::Earth,
+    );
     let f = FloatingBuilder::new()
         .with_attitude(UnitQuaternion::new(
             -0.3607597432795579,
@@ -167,10 +176,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     // Create the reaction wheels
-    let mut rw1 = ActuatorBuilder::new("rw1", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw2 = ActuatorBuilder::new("rw2", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw3 = ActuatorBuilder::new("rw3", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw4 = ActuatorBuilder::new("rw4", ReactionWheelBuilder::new(0.25, 0.5)?.into());
+    let mut rw1 = ActuatorBuilder::new(
+        "rw1",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw2 = ActuatorBuilder::new(
+        "rw2",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw3 = ActuatorBuilder::new(
+        "rw3",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw4 = ActuatorBuilder::new(
+        "rw4",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
 
     // Connect the components together.
     let rw1_transform = Transform::new(
@@ -198,34 +219,53 @@ fn main() -> Result<(), Box<dyn Error>> {
     rw4.connect_body(bus.id, rw4_transform);
 
     // TODO: These connections are not the ideal interface and will be improved in the future
-    sys.base.connect_outer_joint(&mut j, Transform::IDENTITY)?;
+    sys.base
+        .connect_outer_joint(&mut j, Transform::IDENTITY)?;
     bus.connect_inner_joint(&mut j, Transform::IDENTITY)?;
     bus.connect_outer_joint(
         &mut h1,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -1.0).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, -1.0).into(),
+        ),
     )?;
     sa1.connect_inner_joint(
         &mut h1,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, 0.05).into(),
+        ),
     )?;
     sa1.connect_outer_joint(
         &mut h2,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, -0.05).into(),
+        ),
     )?;
 
     sa2.connect_inner_joint(
         &mut h2,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, -0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, -0.05).into(),
+        ),
     )?;
 
     sa2.connect_outer_joint(
         &mut h3,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, 0.05).into(),
+        ),
     )?;
 
     sa3.connect_inner_joint(
         &mut h3,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, 0.05).into(),
+        ),
     )?;
 
     gps.connect_body(bus.id, Transform::IDENTITY)?;

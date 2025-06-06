@@ -17,7 +17,7 @@ use iced::{
 use nadir_3d::{
     geometry::{
         Geometry,
-        cuboid::Cuboid,
+        cuboid::{self, Cuboid},
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
     },
     mesh::{Mesh, MeshGpu, MeshPrimitive},
@@ -334,7 +334,10 @@ impl Primitive for ScenePrimitive {
             storage.store(PipelineLayout(layout));
         }
         if let Some(celestial) = &self.celestial {
-            if let Some(atmosphere) = celestial.meshes.get(&CelestialMeshes::EarthAtmosphere) {
+            if let Some(atmosphere) = celestial
+                .meshes
+                .get(&CelestialMeshes::EarthAtmosphere)
+            {
                 // atmosphere
                 if !storage.has::<AtmospherePipeline>() {
                     let layout = &storage.get::<PipelineLayout>().unwrap().0;
@@ -1022,7 +1025,12 @@ impl Primitive for ScenePrimitive {
             occlusion_query_set: None,
         });
 
-        pass.set_scissor_rect(viewport.x, viewport.y, viewport.width, viewport.height);
+        pass.set_scissor_rect(
+            viewport.x,
+            viewport.y,
+            viewport.width,
+            viewport.height,
+        );
         pass.set_bind_group(0, uniform_bind_group, &[]);
 
         if let Some(corona_pipeline) = storage.get::<CoronaPipeline>() {
@@ -1041,7 +1049,10 @@ impl Primitive for ScenePrimitive {
             pass.set_pipeline(pipeline);
             pass.set_vertex_buffer(0, sun_pipeline.vertex_buffer.slice(..));
             pass.set_vertex_buffer(1, sun_pipeline.instance_buffer.slice(..));
-            pass.draw(0..sun_pipeline.n_vertices, 0..sun_pipeline.n_instances);
+            pass.draw(
+                0..sun_pipeline.n_vertices,
+                0..sun_pipeline.n_instances,
+            );
         }
 
         // render atmosphere first so its always covered
@@ -1201,18 +1212,26 @@ impl Program<Message> for Scene {
                             let delta = canvas_cursor_position - last_position;
                             (
                                 Status::Captured,
-                                Some(Message::AnimationMessage(AnimationMessage::CameraRotation(
-                                    self.window_id.unwrap(),
-                                    delta,
-                                ))),
+                                Some(Message::AnimationMessage(
+                                    AnimationMessage::CameraRotation(
+                                        self.window_id.unwrap(),
+                                        delta,
+                                    ),
+                                )),
                             )
                         } else {
-                            (Status::Captured, Some(Message::CursorMoved(position)))
+                            (
+                                Status::Captured,
+                                Some(Message::CursorMoved(position)),
+                            )
                         }
                     }
                     mouse::Event::WheelScrolled { delta } => (
                         Status::Captured,
-                        Some(Message::WheelScrolled(canvas_cursor_position, delta)),
+                        Some(Message::WheelScrolled(
+                            canvas_cursor_position,
+                            delta,
+                        )),
                     ),
                     _ => (Status::Captured, None),
                 },

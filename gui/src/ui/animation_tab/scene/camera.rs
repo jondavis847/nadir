@@ -18,7 +18,7 @@ impl Default for Camera {
         Self {
             eye: vec3(5.0, 0.0, 0.0),
             target: Vec3::ZERO,
-            up: Vec3::Z,
+            up: -Vec3::Z,
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
@@ -73,9 +73,7 @@ impl Camera {
         // Calculate the new camera position
         let new_camera_pos = self.target + new_forward * target_to_camera.length();
 
-        
         // Update the camera position
         self.eye = new_camera_pos;
     }
-
 }

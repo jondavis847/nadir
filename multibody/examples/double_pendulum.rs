@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     problem.solve_fixed(
         &x0,
-        (0.0, 0.1),
+        (0.0, 10.0),
         0.1,
         Solver::Tsit5,
         SaveMethod::None,

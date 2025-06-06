@@ -16,7 +16,6 @@ use transforms::Transform;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut sys = MultibodySystemBuilder::new();
-    sys.set_gravity_constant(0.0, 0.0, -1.0)?;
 
     // create a floating joint
     let f = FloatingBuilder::new()
