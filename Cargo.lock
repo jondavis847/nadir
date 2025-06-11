@@ -1808,9 +1808,9 @@ checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 
 [[package]]
 name = "glam"
-version = "0.30.2"
+version = "0.30.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e9b6647e9b41d3a5ef02964c6be01311a7f2472fea40595c635c6d046c259e"
+checksum = "6b46b9ca4690308844c644e7c634d68792467260e051c8543e0c7871662b3ba7"
 dependencies = [
  "bytemuck",
  "serde",
@@ -3143,7 +3143,7 @@ dependencies = [
  "color",
  "csv",
  "dirs 6.0.0",
- "glam 0.30.2",
+ "glam 0.30.3",
  "iced",
  "image 0.25.6",
  "inquire",
@@ -3171,7 +3171,7 @@ version = "0.0.1"
 dependencies = [
  "bytemuck",
  "color",
- "glam 0.30.2",
+ "glam 0.30.3",
  "iced",
  "serde",
  "thiserror 2.0.12",

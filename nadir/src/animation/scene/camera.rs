@@ -1,4 +1,4 @@
-use glam::{Mat3, Quat, Vec3, mat4, vec3, vec4};
+use glam::{Mat3, Mat4, Quat, Vec3, mat4, vec3, vec4};
 use iced::{Rectangle, Vector, mouse::ScrollDelta};
 
 #[derive(Copy, Clone, Debug)]
@@ -27,30 +27,23 @@ impl Default for Camera {
         };
 
         //update rotation to not be identity
-        //camera.update_rotation();
+        camera.update_rotation();
         camera
     }
 }
 
-pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
-    vec4(1.0, 0.0, 0.0, 0.0),
-    vec4(0.0, 1.0, 0.0, 0.0),
-    vec4(0.0, 0.0, 0.5, 0.0),
-    vec4(0.0, 0.0, 0.5, 1.0),
-);
-
 impl Camera {
-    pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> glam::Mat4 {
+    pub fn build_view_proj_matrix(&self, bounds: Rectangle) -> Mat4 {
         let aspect_ratio = bounds.width / bounds.height;
-        let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = glam::Mat4::perspective_rh(
+        let view = Mat4::look_at_rh(self.eye, self.target, self.up);
+        let proj = Mat4::perspective_rh(
             self.fov_y * std::f32::consts::PI / 180.0,
             aspect_ratio,
             self.near,
             self.far,
         );
 
-        OPENGL_TO_WGPU_MATRIX * proj * view
+        proj * view
     }
 
     pub fn position(&self) -> glam::Vec4 {
@@ -88,7 +81,7 @@ impl Camera {
 
         // Convert mouse delta to yaw and pitch
         let yaw = Quat::from_axis_angle(self.up, -mouse_delta.x * self.sensitivity);
-        let pitch = Quat::from_axis_angle(right, mouse_delta.y * self.sensitivity);
+        let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
 
         // Combine yaw and pitch into a single rotation quaternion and update camera rotation
         let incremental_rotation = yaw * pitch;
@@ -139,7 +132,6 @@ impl Camera {
     fn update_rotation(&mut self) {
         let forward = (self.target - self.eye).normalize();
         let right = forward.cross(self.up).normalize();
-        //let rotation_matrix = Mat3::from_cols(right, self.up, forward);
         let rotation_matrix = Mat3::from_cols(-forward, right, self.up);
         self.rotation = Quat::from_mat3(&rotation_matrix);
     }

@@ -28,9 +28,9 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     );
 
     var uvs = array<vec2<f32>, 3>(
-        vec2(0.0, 0.0),
-        vec2(2.0, 0.0),
-        vec2(0.0, 2.0)
+        vec2(0.0, 1.0),
+        vec2(2.0, 1.0),
+        vec2(0.0, -1.0)
     );
 
     var out: VertexOutput;

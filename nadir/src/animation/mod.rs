@@ -330,6 +330,11 @@ impl AnimationProgram {
                 for (_, mesh) in &mut celestial.meshes {
                     mesh.set_position_from_target(camera_target);
                 }
+                self.scene.light_pos = [
+                    self.scene.light_pos[0] - camera_target.x,
+                    self.scene.light_pos[1] - camera_target.y,
+                    self.scene.light_pos[2] - camera_target.z,
+                ];
             }
         }
     }

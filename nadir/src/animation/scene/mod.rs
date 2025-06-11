@@ -17,7 +17,7 @@ use iced::{
 use nadir_3d::{
     geometry::{
         Geometry,
-        cuboid::{self, Cuboid},
+        cuboid::Cuboid,
         ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64},
     },
     mesh::{Mesh, MeshGpu, MeshPrimitive},

@@ -57,9 +57,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
     let orbit = KeplerianElements::new(
-        9e6,
+        8e6,
         0.0,
-        3.14,
+        0.0,
         0.0,
         0.0,
         0.0,
