@@ -1,8 +1,19 @@
+use std::env::current_dir;
+
 use color::Color;
 use mass_properties::MassPropertiesBuilder;
-use multibody::{joint::revolute::RevoluteBuilder, system::MultibodySystemBuilder};
+use multibody::{
+    joint::revolute::RevoluteBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem,
+    events::{PostSimEvent, SaveEvent},
+    saving::SaveMethod,
+    solvers::Solver,
+};
 use rotations::Rotation;
-use transforms::{prelude::Cartesian, Transform};
+use transforms::{Transform, prelude::Cartesian};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a new system
@@ -33,10 +44,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // connect the system
     // we need transforms to place the joint frames (hinges) at the right place in the bodies
-    let top = Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, 0.5).into());
-    let bottom = Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 0.0, -0.5).into());
+    let top = Transform::new(
+        Rotation::IDENTITY,
+        Cartesian::new(0.0, 0.0, 0.5).into(),
+    );
+    let bottom = Transform::new(
+        Rotation::IDENTITY,
+        Cartesian::new(0.0, 0.0, -0.5).into(),
+    );
 
-    sys.base.connect_outer_joint(&mut j1, Transform::IDENTITY)?;
+    sys.base
+        .connect_outer_joint(&mut j1, Transform::IDENTITY)?;
     b1.connect_inner_joint(&mut j1, top)?;
     b1.connect_outer_joint(&mut j2, bottom)?;
     b2.connect_inner_joint(&mut j2, top)?;
@@ -46,8 +64,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j1);
     sys.add_joint(j2);
 
+    let mut sys = sys.nominal()?;
+    let x0 = sys.initial_state();
+
     // run the simulation
-    sys.simulate("", 0.0, 20.0, 0.1, None)?;
+    let mut problem = OdeProblem::new(sys)
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+
+    problem.solve_fixed(
+        &x0,
+        (0.0, 10.0),
+        0.1,
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
 
     Ok(())
 }

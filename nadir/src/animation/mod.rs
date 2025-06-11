@@ -27,7 +27,7 @@ use scene::Scene;
 
 use thiserror::Error;
 
-use crate::window_manager::Message;
+use crate::{animation::celestial_animation::CelestialAnimation, window_manager::Message};
 
 #[derive(Debug, Error)]
 pub enum AnimationErrors {
@@ -93,8 +93,11 @@ impl AnimationProgram {
     pub fn content(&self) -> Element<Message, Theme> {
         // we use a stack to put content on top of the animation
         // create the stack and add the shader program
-        let mut stack =
-            Stack::new().push(shader(&self.scene).width(Length::Fill).height(Length::Fill));
+        let mut stack = Stack::new().push(
+            shader(&self.scene)
+                .width(Length::Fill)
+                .height(Length::Fill),
+        );
 
         // add the menu content if we should be
         if self.show_menu {
@@ -158,7 +161,9 @@ impl AnimationProgram {
                 .center();
 
             let play_button = button(play_or_pause)
-                .on_press(Message::AnimationMessage(AnimationMessage::TogglePlayPause))
+                .on_press(Message::AnimationMessage(
+                    AnimationMessage::TogglePlayPause,
+                ))
                 .width(Length::FillPortion(2));
 
             let progress_row = Row::new()
@@ -234,12 +239,16 @@ impl AnimationProgram {
         }
 
         if !animation_result.celestial_meshes.is_empty() {
+            let mut celestial = CelestialAnimation::default();
             for result in &animation_result.celestial_meshes {
-                scene.celestial.add_body(result.body);
-                scene
-                    .celestial
-                    .update_body(result.body, result.position[0], result.attitude[0]);
+                celestial.add_body(result.body);
+                celestial.update_body(
+                    result.body,
+                    result.position[0],
+                    result.attitude[0],
+                );
             }
+            scene.celestial = Some(celestial);
             scene.set_celestial();
         }
 
@@ -296,12 +305,20 @@ impl AnimationProgram {
                 let (q, r) = result.get_state_at_time_interp(t, time);
                 mesh.update(r, q);
             });
-
-        self.result.celestial_meshes.iter().for_each(|result| {
-            let (q, r) = result.get_state_at_time_interp(t, time);
-            // celestial position is in km, convert to m;
-            self.scene.celestial.update_body(result.body, 1e3 * r, q);
-        });
+        if let Some(celestial) = &mut self.scene.celestial {
+            self.result
+                .celestial_meshes
+                .iter()
+                .for_each(|result| {
+                    let (q, r) = result.get_state_at_time_interp(t, time);
+                    // celestial position is in km, convert to m;
+                    celestial.update_body(result.body, 1e3 * r, q);
+                    // set the light pos if this is the sun
+                    if result.body == CelestialBodies::Sun {
+                        self.scene.light_pos = [r[0], r[1], r[2]];
+                    }
+                });
+        }
 
         // adjust mesh positions so target is at origin and all other meshes are relative to it
         if let Some(index) = self.scene.world_target {
@@ -309,19 +326,31 @@ impl AnimationProgram {
             for mesh in &mut self.scene.body_meshes {
                 mesh.set_position_from_target(camera_target);
             }
-            for (_, mesh) in &mut self.scene.celestial.meshes {
-                mesh.set_position_from_target(camera_target);
+            if let Some(celestial) = &mut self.scene.celestial {
+                for (_, mesh) in &mut celestial.meshes {
+                    mesh.set_position_from_target(camera_target);
+                }
+                self.scene.light_pos = [
+                    self.scene.light_pos[0] - camera_target.x,
+                    self.scene.light_pos[1] - camera_target.y,
+                    self.scene.light_pos[2] - camera_target.z,
+                ];
             }
         }
     }
 
     pub fn wheel_scrolled(&mut self, delta: ScrollDelta) {
-        self.scene.camera.update_position_from_scroll_delta(delta);
+        self.scene
+            .camera
+            .update_position_from_scroll_delta(delta);
     }
 
     pub fn window_resized(&mut self, size: Size) {
         let top_left = Point::new(0.0, 19.0 / 20.0 * size.height);
-        self.progress_bounds = Rectangle::new(top_left, Size::new(size.width, size.height / 20.0));
+        self.progress_bounds = Rectangle::new(
+            top_left,
+            Size::new(size.width, size.height / 20.0),
+        );
     }
 }
 
@@ -380,11 +409,7 @@ fn get_mesh_result(bodies_path: &Path) -> Vec<MeshResult> {
                     let mesh: Mesh = from_str(&mesh_str).expect("Failed to deserialize .mesh file");
 
                     let (attitude, position) = read_csv_result(&path);
-                    results.push(MeshResult {
-                        mesh,
-                        position,
-                        attitude,
-                    })
+                    results.push(MeshResult { mesh, position, attitude })
                 }
             }
         }
@@ -405,11 +430,7 @@ fn get_celestial_result(bodies_path: &Path) -> Vec<CelestialResult> {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                 if let Some(body) = CelestialBodies::from_str(stem) {
                     let (attitude, position) = read_csv_result(&path);
-                    results.push(CelestialResult {
-                        body,
-                        attitude,
-                        position,
-                    })
+                    results.push(CelestialResult { body, attitude, position })
                 }
             }
         }

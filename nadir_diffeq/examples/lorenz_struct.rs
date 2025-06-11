@@ -1,10 +1,15 @@
 use nadir_diffeq::{
-    Integrable, OdeModel, OdeProblem, Solver,
+    OdeModel, OdeProblem,
     saving::{ResultStorage, SaveMethod},
-    stepping::{AdaptiveStepControl, StepMethod},
+    solvers::Solver,
+    state::Adaptive,
+    stepping::AdaptiveStepControl,
 };
-use std::ops::{AddAssign, MulAssign};
-use tolerance::{Tolerance, Tolerances, compute_component_error};
+use std::{
+    error::Error,
+    ops::{AddAssign, MulAssign},
+};
+use tolerance::compute_error;
 
 #[derive(Debug)]
 struct Lorenz {
@@ -36,134 +41,37 @@ impl MulAssign<f64> for LorenzState {
     }
 }
 
-impl AddAssign<&LorenzDerivative> for LorenzState {
-    fn add_assign(&mut self, rhs: &LorenzDerivative) {
-        self.x += rhs.x;
-        self.y += rhs.y;
-        self.z += rhs.z;
-    }
-}
-
-#[derive(Clone, Default, Debug)]
-struct LorenzDerivative {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl MulAssign<f64> for LorenzDerivative {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.x *= rhs;
-        self.y *= rhs;
-        self.z *= rhs;
-    }
-}
-
-struct LorenzTolerances {
-    x: Option<Tolerances>,
-    y: Option<Tolerances>,
-    z: Option<Tolerances>,
-}
-
-impl Default for LorenzTolerances {
-    fn default() -> Self {
-        Self {
-            x: None,
-            y: None,
-            z: Some(Tolerances::new(1e-5, 1e-7)),
-        }
-    }
-}
-
-impl Tolerance for LorenzTolerances {
-    type State = LorenzState;
-
-    fn compute_error(
-        &self,
-        x: &Self::State,
-        x_prev: &Self::State,
-        x_tilde: &Self::State,
-        rel_tol: f64,
-        abs_tol: f64,
-    ) -> f64 {
+impl Adaptive for LorenzState {
+    fn compute_error(&self, x_prev: &Self, x_tilde: &Self, rel_tol: f64, abs_tol: f64) -> f64 {
         let mut sum_squared_errors = 0.0;
-
         // Calculate squared error for each component
-        sum_squared_errors +=
-            compute_component_error(&self.x, x.x, x_prev.x, x_tilde.x, rel_tol, abs_tol).powi(2);
-        sum_squared_errors +=
-            compute_component_error(&self.y, x.y, x_prev.y, x_tilde.y, rel_tol, abs_tol).powi(2);
-        sum_squared_errors +=
-            compute_component_error(&self.z, x.z, x_prev.z, x_tilde.z, rel_tol, abs_tol).powi(2);
-
+        sum_squared_errors += compute_error(self.x, x_prev.x, x_tilde.x, rel_tol, abs_tol).powi(2);
+        sum_squared_errors += compute_error(self.y, x_prev.y, x_tilde.y, rel_tol, abs_tol).powi(2);
+        sum_squared_errors += compute_error(self.z, x_prev.z, x_tilde.z, rel_tol, abs_tol).powi(2);
         // Return RMS error
         (sum_squared_errors / 3.0).sqrt()
     }
 }
 
-impl Integrable for LorenzState {
-    type Derivative = LorenzDerivative;
-    type Tolerance = LorenzTolerances;
+impl OdeModel for Lorenz {
+    type State = LorenzState;
 
-    fn initialize_writer(
-        path: &std::path::PathBuf,
-    ) -> Option<csv::Writer<std::io::BufWriter<std::fs::File>>> {
-        // Create a new path by joining the directory path with the filename
-        let file_path = path.join("result.csv");
-
-        // Ensure the directory exists
-        if let Some(parent) = file_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).unwrap();
-            }
-        }
-        let file = std::fs::File::create(&file_path).unwrap();
-        let mut writer = csv::Writer::from_writer(std::io::BufWriter::new(file));
-        // Create header vector
-        let headers = ["t", "x", "y", "z"];
-        // Write headers
-        writer.write_record(&headers).unwrap();
-        // Flush to ensure headers are written
-        writer.flush().unwrap();
-        Some(writer)
-    }
-
-    fn save_to_writer(&self, writer: &mut csv::Writer<std::io::BufWriter<std::fs::File>>, t: f64) {
-        // Using the serializer approach avoids string conversions
-        let record = [t, self.x, self.y, self.z];
-
-        // Serialize and write the record
-        if let Err(err) = writer.serialize(&record) {
-            eprintln!("Failed to serialize record at t={}: {}", t, err);
-        }
-    }
-}
-
-impl OdeModel<LorenzState> for Lorenz {
-    fn f(&mut self, _t: f64, x: &LorenzState, dx: &mut LorenzDerivative) {
+    fn f(&mut self, _t: f64, x: &LorenzState, dx: &mut LorenzState) -> Result<(), Box<dyn Error>> {
         dx.x = self.sigma * (x.y - x.x);
         dx.y = x.x * (self.rho - x.z) - x.y;
         dx.z = x.x * x.y - self.beta * x.z;
+        Ok(())
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let model = Lorenz {
         sigma: 10.,
         rho: 28.,
         beta: 8. / 3.,
     };
 
-    let mut problem = OdeProblem::new(
-        model,
-        Solver::DoPri45,
-        StepMethod::Adaptive(
-            AdaptiveStepControl::default()
-                .with_rel_tol(1e-9)
-                .with_abs_tol(1e-6),
-        ),
-        SaveMethod::Memory,
-    );
+    let mut problem = OdeProblem::new(model);
 
     let x0 = LorenzState {
         x: 1.0,
@@ -171,7 +79,13 @@ fn main() {
         z: 0.0,
     };
 
-    let result = problem.solve(&x0, (0.0, 1.0));
+    let result = problem.solve_adaptive(
+        &x0,
+        (0.0, 1.0),
+        AdaptiveStepControl::default(),
+        Solver::DoPri45,
+        SaveMethod::Memory,
+    )?;
 
     match result {
         ResultStorage::Memory(result) => {
@@ -186,4 +100,5 @@ fn main() {
         }
         _ => {}
     }
+    Ok(())
 }

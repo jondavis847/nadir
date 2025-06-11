@@ -1,76 +1,81 @@
-use std::{array, f64::INFINITY, mem::swap};
-
-use tolerance::Tolerance;
+use std::{array, error::Error, f64::INFINITY, mem::swap};
 
 use crate::{
-    Integrable, OdeModel, StepMethod,
+    OdeModel,
     events::{ContinuousEvent, EventManager},
-    saving::ResultStorage,
+    saving::{ResultStorage, WriterManager},
+    state::{Adaptive, OdeState},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
 };
 
-// preallocated buffers for intermediate calculations
-#[derive(Default)]
-struct RKBuffers<State: Integrable, const STAGES: usize> {
+/// A reusable buffer holding all intermediate data required for a Runge-Kutta integration step.
+///
+/// This includes buffers for each stage derivative `k`, an intermediate state, a derivative buffer,
+/// and an interpolated state used for dense output or event location.
+#[derive(Debug)]
+struct RKBuffers<State: OdeState, const STAGES: usize> {
     stage: StageBuffer<State, STAGES>,
     state: State,
-    derivative: State::Derivative,
+    derivative: State,
     interpolant: State,
 }
 
-pub struct RungeKutta<State: Integrable, const ORDER: usize, const STAGES: usize> {
+impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
+    fn new() -> Self {
+        Self {
+            stage: StageBuffer::new(),
+            state: State::default(),
+            derivative: State::default(),
+            interpolant: State::default(),
+        }
+    }
+
+    pub fn init(&mut self, x0: &State) {
+        self.state.clone_from(x0);
+        self.derivative.clone_from(x0);
+        self.interpolant.clone_from(x0);
+        for buffer in &mut self.stage.k {
+            buffer.clone_from(x0);
+        }
+    }
+}
+
+/// A generic Runge-Kutta solver capable of fixed or adaptive integration with support for:
+/// - Embedded error estimation
+/// - First-same-as-last (FSAL) optimizations
+/// - Dense output via interpolation
+/// - Periodic and continuous event handling
+///
+/// # Type Parameters
+/// - `ORDER`: The order of the method (e.g., 5 for Dormand-Prince 4(5))
+/// - `STAGES`: Number of stages in the Butcher tableau
+#[derive(Debug)]
+pub struct RungeKutta<State: OdeState, const ORDER: usize, const STAGES: usize> {
     x: State,
     y: State,
     y_tilde: State,
     tableau: ButcherTableau<ORDER, STAGES>,
-    tolerances: State::Tolerance,
     buffers: RKBuffers<State, STAGES>,
     first_step: bool,
 }
 
-impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
-    pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self
-    where
-        State: Integrable,
-    {
+impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State, ORDER, STAGES> {
+    /// Constructs a new Runge-Kutta solver using a specific Butcher tableau.
+
+    pub fn new(tableau: ButcherTableau<ORDER, STAGES>) -> Self {
         Self {
-            buffers: RKBuffers::default(),
+            buffers: RKBuffers::new(),
             x: State::default(),
             y: State::default(),
             y_tilde: State::default(),
             tableau,
-            tolerances: State::Tolerance::default(),
             first_step: true,
         }
     }
 
-    pub fn with_tolerances(mut self, tol: State::Tolerance) -> Self {
-        self.tolerances = tol;
-        self
-    }
-
-    pub fn solve<Model: OdeModel<State>>(
-        &mut self,
-        model: &mut Model,
-        x0: &State,
-        tspan: (f64, f64),
-        step_method: &mut StepMethod,
-        events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
-    ) {
-        match step_method {
-            StepMethod::Fixed(controller) => {
-                controller.next_time = tspan.0;
-                self.solve_fixed(model, x0, tspan, controller, events, result)
-            }
-            StepMethod::Adaptive(controller) => {
-                self.solve_adaptive(model, x0, tspan, controller, events, result)
-            }
-        }
-    }
-
-    pub fn solve_fixed<Model: OdeModel<State>>(
+    /// Solves the system using fixed step size control, handling periodic events.
+    pub fn solve_fixed<Model: OdeModel<State = State>>(
         &mut self,
         model: &mut Model,
         x0: &State,
@@ -78,22 +83,32 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
-    ) {
+        writer_manager: &mut Option<WriterManager>,
+    ) -> Result<(), Box<dyn Error>> {
         // Counter to count number of function calls
         let mut function_calls = 0;
-
         let mut t = tspan.0;
 
-        // Copy initial state
+        // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
         self.x.clone_from(x0);
+        self.y.clone_from(x0);
+        self.y_tilde.clone_from(x0);
+        self.buffers.init(x0);
 
         // Save the true initial state before any processing
-        result.save(t, &self.x);
+        result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, x0, tspan.0, manager);
+                }
+            }
+        }
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
-            result.save(t, &self.x);
+            result.save(t, &self.x)?;
         };
 
         while t < tspan.1 {
@@ -112,18 +127,25 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             }
 
             // Take a step
-            self.step(model, t, dt, false, &mut function_calls);
+            self.step(model, t, dt, false, &mut function_calls)?;
 
             // Update time based on dt
             t += dt;
 
             // Save the result for this time step
-            result.save(t, &self.y);
+            result.save(t, &self.y)?;
+            if let Some(manager) = writer_manager {
+                for event in &mut events.save_events {
+                    if event.options.every_step {
+                        (event.save_fn)(model, &self.y, t, manager);
+                    }
+                }
+            }
 
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
                 // Save the result after events
-                result.save(t, &self.y);
+                result.save(t, &self.y)?;
             };
 
             // Initialize next loop
@@ -135,9 +157,14 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 k0[0].clone_from(ks.last().unwrap());
             }
         }
+        Ok(())
     }
 
-    pub fn solve_adaptive<Model: OdeModel<State>>(
+    /// Solves the system using adaptive step size control with event detection.
+    ///
+    /// Supports both periodic and continuous events, and performs root-finding
+    /// to locate the time of continuous events using Brent's method.
+    pub fn solve_adaptive<Model>(
         &mut self,
         model: &mut Model,
         x0: &State,
@@ -145,23 +172,41 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
         result: &mut ResultStorage<State>,
-    ) {
+        writer_manager: &mut Option<WriterManager>,
+    ) -> Result<(), Box<dyn Error>>
+    where
+        Model: OdeModel<State = State>,
+        State: OdeState + Adaptive,
+    {
         let mut accept_counter = 0;
         let mut reject_counter = 0;
         let mut function_calls = 0;
 
         let mut t = tspan.0;
+
+        // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
         self.x.clone_from(x0);
+        self.y.clone_from(x0);
+        self.y_tilde.clone_from(x0);
+        self.buffers.init(x0);
+
         let mut dt = 1e-3; // initial dt
 
         // Save the true initial state before any processing
-        result.save(t, &self.x);
+        result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, x0, tspan.0, manager);
+                }
+            }
+        }
 
-        // Process initial events if any are scheduled at t0
-        if events.process_periodic_events(model, &mut self.x, t) {
-            // If initial events changed state, save the updated state
-            result.save(t, &self.x);
-        };
+        // // Process initial events if any are scheduled at t0
+        // if events.process_periodic_events(model, &mut self.x, t) {
+        //     // If initial events changed state, save the updated state
+        //     result.save(t, &self.x)?;
+        // };
 
         while t < tspan.1 {
             // Determine step size - standard dt or adjusted for upcoming event
@@ -177,15 +222,14 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             }
 
             // Trial step
-            self.step(model, t, dt, true, &mut function_calls);
+            self.step(model, t, dt, true, &mut function_calls)?;
 
             // Calculate error
-            let error = self.compute_error(
-                &self.y,
+            let error = self.y.compute_error(
                 &self.x,
                 &self.y_tilde,
-                controller.rel_tol,
                 controller.abs_tol,
+                controller.rel_tol,
             );
 
             // Calculate new step size based on dt
@@ -198,31 +242,31 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 // First determine if any continuous events occurred that require us to step back in time
                 let mut continuous_event_occurred = false;
                 let mut continuous_event_time = INFINITY;
-                let mut event_indeces = Vec::new();
+                let mut event_indices = Vec::new();
                 for (i, event) in events.continuous_events.iter_mut().enumerate() {
                     let (event_occurred, event_time) = self.continuous_event_occurred(t, dt, event);
                     if event_occurred {
                         continuous_event_occurred = true;
                         if event_time < continuous_event_time {
                             continuous_event_time = event_time;
-                            event_indeces.clear();
-                            event_indeces.push(i);
+                            event_indices.clear();
+                            event_indices.push(i);
                         }
                     }
                 }
                 if continuous_event_occurred {
                     self.interpolate(t, dt, continuous_event_time);
                     // save the result prior to the event action
-                    result.save(continuous_event_time, &self.buffers.interpolant);
+                    result.save(continuous_event_time, &self.buffers.interpolant)?;
                     // perform the event actions
-                    for i in event_indeces {
+                    for i in event_indices {
                         (events.continuous_events[i].action)(
                             model,
                             &mut self.buffers.interpolant,
                             continuous_event_time,
                         );
                         // save after each action
-                        result.save(continuous_event_time, &self.buffers.interpolant);
+                        result.save(continuous_event_time, &self.buffers.interpolant)?;
                     }
                     // update dt for the continuous event time
                     dt = continuous_event_time - t;
@@ -232,11 +276,18 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
 
                 t += dt;
                 // Save the true state before any event processing
-                result.save(t, &self.y);
+                result.save(t, &self.y)?;
+                if let Some(manager) = writer_manager {
+                    for event in &mut events.save_events {
+                        if event.options.every_step {
+                            (event.save_fn)(model, &self.y, t, manager);
+                        }
+                    }
+                }
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
-                    result.save(t, &self.y);
+                    result.save(t, &self.y)?;
                 };
 
                 self.x.clone_from(&self.y);
@@ -279,25 +330,32 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             "Adaptive step size: accepted {} steps, rejected {} steps, function calls: {}",
             accept_counter, reject_counter, function_calls
         );
+        Ok(())
     }
-
-    pub fn step<Model: OdeModel<State>>(
+    /// Performs a single integration step using the configured Butcher tableau.
+    ///
+    /// Supports FSAL and dense output (when `adaptive` is true).
+    pub fn step<Model>(
         &mut self,
         model: &mut Model,
         t: f64,
         h: f64,
         adaptive: bool,
         function_calls: &mut i32,
-    ) {
+    ) -> Result<(), Box<dyn Error>>
+    where
+        Model: OdeModel<State = State>,
+        State: OdeState,
+    {
         let k = &mut self.buffers.stage.k;
 
         if self.tableau.fsal {
             // FSAL method implementation
             if self.first_step {
-                model.f(t, &self.x, &mut k[0]);
+                model.f(t, &self.x, &mut k[0])?;
                 *function_calls += 1;
                 self.first_step = false;
-            } // else k0 set up a function if step size was accepted
+            } // else k0 set up a function if step size was accepted            
 
             // Compute intermediate stages k1 through k[STAGES-2]
             for s in 1..STAGES - 1 {
@@ -310,7 +368,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 self.buffers.state *= h;
                 self.buffers.state += &self.x;
 
-                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
+                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s])?;
                 *function_calls += 1;
             }
 
@@ -323,11 +381,11 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             }
 
             // Calculate final stage at new solution point
-            model.f(t + h, &self.y, &mut k[STAGES - 1]);
+            model.f(t + h, &self.y, &mut k[STAGES - 1])?;
             *function_calls += 1;
         } else {
             // Standard (non-FSAL) method implementation
-            model.f(t, &self.x, &mut k[0]);
+            model.f(t, &self.x, &mut k[0])?;
             *function_calls += 1;
 
             for s in 1..STAGES {
@@ -340,7 +398,7 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
                 self.buffers.state *= h;
                 self.buffers.state += &self.x;
 
-                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s]);
+                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s])?;
                 *function_calls += 1;
             }
 
@@ -363,20 +421,14 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
             }
             self.y_tilde *= h;
         }
+        Ok(())
     }
 
-    pub fn compute_error(
-        &self,
-        y: &State,
-        y_prev: &State,
-        y_tilde: &State,
-        rel_tol: f64,
-        abs_tol: f64,
-    ) -> f64 {
-        self.tolerances
-            .compute_error(y, y_prev, y_tilde, rel_tol, abs_tol)
-    }
-
+    /// Computes the interpolated state at time `t` using dense output coefficients.
+    ///
+    /// # Panics
+    ///
+    /// Panics if interpolation coefficients are not available or if `t` is outside `[t0, t0+dt]`.
     pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
         if let Some(bi) = &self.tableau.bi {
             if t < t0 || t > t0 + dt {
@@ -413,8 +465,12 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         }
     }
 
-    // uses brents method to find exact time of continuous events
-    fn continuous_event_occurred<Model: OdeModel<State>>(
+    /// Determines whether a continuous event condition crosses zero during the last step.
+    ///
+    /// Uses Brent's method for robust root finding. Returns a tuple:
+    /// - `bool`: Whether the event occurred.
+    /// - `f64`: The estimated time of the zero crossing.
+    fn continuous_event_occurred<Model: OdeModel<State = State>>(
         &mut self,
         t0: f64, // time at beginning of step
         dt: f64, // time at end of step
@@ -513,22 +569,16 @@ impl<State: Integrable, const ORDER: usize, const STAGES: usize> RungeKutta<Stat
         (true, output)
     }
 }
-
+/// A buffer holding the `k` stages (derivative evaluations) for a Runge-Kutta method.
 #[derive(Debug, Clone)]
-pub struct StageBuffer<State, const STAGES: usize>
-where
-    State: Integrable,
-{
-    pub k: [State::Derivative; STAGES],
+pub struct StageBuffer<State: OdeState, const STAGES: usize> {
+    pub k: [State; STAGES],
 }
 
-impl<State, const STAGES: usize> Default for StageBuffer<State, STAGES>
-where
-    State: Integrable,
-{
-    fn default() -> Self {
+impl<State: OdeState, const STAGES: usize> StageBuffer<State, STAGES> {
+    fn new() -> Self {
         Self {
-            k: array::from_fn(|_| State::Derivative::default()),
+            k: array::from_fn(|_| State::default()),
         }
     }
 }

@@ -3,21 +3,20 @@ use crate::{
         articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
         recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters},
-    solver::SimStateVector,
+    joint::{JointParameters, joint_transforms::JointTransforms},
 };
 use aerospace::orbit::Orbit;
-use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_result::ResultManager;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Matrix4x3, Matrix6, Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rand_distr::NormalError;
 use rotations::{
+    Rotation, RotationTrait,
     euler_angles::EulerAngles,
     prelude::{UnitQuaternion, UnitQuaternionBuilder},
     quaternion::Quaternion,
-    Rotation, RotationTrait,
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -123,8 +122,8 @@ pub struct FloatingState {
     pub v: Vector3<f64>,
 }
 
-impl<'a> AddAssign<&'a Self> for FloatingState {
-    fn add_assign(&mut self, rhs: &'a Self) {
+impl AddAssign<&Self> for FloatingState {
+    fn add_assign(&mut self, rhs: &Self) {
         self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
         self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w += &rhs.w;
@@ -294,7 +293,7 @@ impl JointModel for Floating {
         6
     }
 
-    fn state_derivative(&self, dx: &mut SimStateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, dx: &mut [f64], transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
         // due to quaternion kinematic equations
         let q = self.state.q;
@@ -319,22 +318,22 @@ impl JointModel for Floating {
         let v_jof = self.state.v;
         let v_jif = jif_from_jof.transform(&v_jof);
 
-        dx.0[0] = dq.x;
-        dx.0[1] = dq.y;
-        dx.0[2] = dq.z;
-        dx.0[3] = dq.w;
-        dx.0[4] = v_jif[0];
-        dx.0[5] = v_jif[1];
-        dx.0[6] = v_jif[2];
-        dx.0[7] = self.cache.q_ddot[0];
-        dx.0[8] = self.cache.q_ddot[1];
-        dx.0[9] = self.cache.q_ddot[2];
-        dx.0[10] = self.cache.q_ddot[3];
-        dx.0[11] = self.cache.q_ddot[4];
-        dx.0[12] = self.cache.q_ddot[5];
+        dx[0] = dq.x;
+        dx[1] = dq.y;
+        dx[2] = dq.z;
+        dx[3] = dq.w;
+        dx[4] = v_jif[0];
+        dx[5] = v_jif[1];
+        dx[6] = v_jif[2];
+        dx[7] = self.cache.q_ddot[0];
+        dx[8] = self.cache.q_ddot[1];
+        dx[9] = self.cache.q_ddot[2];
+        dx[10] = self.cache.q_ddot[3];
+        dx[11] = self.cache.q_ddot[4];
+        dx[12] = self.cache.q_ddot[5];
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         let state = vec![
             self.state.q.x,
             self.state.q.y,
@@ -350,24 +349,24 @@ impl JointModel for Floating {
             self.state.v[1],
             self.state.v[2],
         ];
-        SimStateVector(state)
+        StateVector::new(state)
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         // need to normalize the integrated quaternion
-        let q = Quaternion::new(state.0[0], state.0[1], state.0[2], state.0[3])
+        let q = Quaternion::new(state[0], state[1], state[2], state[3])
             .normalize()
             .unwrap();
         self.state.q = q;
-        self.state.r[0] = state.0[4];
-        self.state.r[1] = state.0[5];
-        self.state.r[2] = state.0[6];
-        self.state.w[0] = state.0[7];
-        self.state.w[1] = state.0[8];
-        self.state.w[2] = state.0[9];
-        self.state.v[0] = state.0[10];
-        self.state.v[1] = state.0[11];
-        self.state.v[2] = state.0[12];
+        self.state.r[0] = state[4];
+        self.state.r[1] = state[5];
+        self.state.r[2] = state[6];
+        self.state.w[0] = state[7];
+        self.state.w[1] = state[8];
+        self.state.w[2] = state[9];
+        self.state.v[0] = state[10];
+        self.state.v[1] = state[11];
+        self.state.v[2] = state[12];
     }
 
     fn update_transforms(
@@ -384,7 +383,7 @@ impl JointModel for Floating {
         transforms.update(inner_joint);
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &[
             "acceleration[x]",
             "acceleration[y]",
@@ -414,37 +413,33 @@ impl JointModel for Floating {
         ]
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.cache.q_ddot[3].to_string(),
-                self.cache.q_ddot[4].to_string(),
-                self.cache.q_ddot[5].to_string(),
-                self.cache.q_ddot[0].to_string(),
-                self.cache.q_ddot[1].to_string(),
-                self.cache.q_ddot[2].to_string(),
-                self.state.w[0].to_string(),
-                self.state.w[1].to_string(),
-                self.state.w[2].to_string(),
-                self.state.q.x.to_string(),
-                self.state.q.y.to_string(),
-                self.state.q.z.to_string(),
-                self.state.q.w.to_string(),
-                self.state.r[0].to_string(),
-                self.state.r[1].to_string(),
-                self.state.r[2].to_string(),
-                self.cache.tau[0].to_string(),
-                self.cache.tau[1].to_string(),
-                self.cache.tau[2].to_string(),
-                self.cache.tau[3].to_string(),
-                self.cache.tau[4].to_string(),
-                self.cache.tau[5].to_string(),
-                self.state.v[0].to_string(),
-                self.state.v[1].to_string(),
-                self.state.v[2].to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.cache.q_ddot[3];
+        writer.float_buffer[1] = self.cache.q_ddot[4];
+        writer.float_buffer[2] = self.cache.q_ddot[5];
+        writer.float_buffer[3] = self.cache.q_ddot[0];
+        writer.float_buffer[4] = self.cache.q_ddot[1];
+        writer.float_buffer[5] = self.cache.q_ddot[2];
+        writer.float_buffer[6] = self.state.w[0];
+        writer.float_buffer[7] = self.state.w[1];
+        writer.float_buffer[8] = self.state.w[2];
+        writer.float_buffer[9] = self.state.q.x;
+        writer.float_buffer[10] = self.state.q.y;
+        writer.float_buffer[11] = self.state.q.z;
+        writer.float_buffer[12] = self.state.q.w;
+        writer.float_buffer[13] = self.state.r[0];
+        writer.float_buffer[14] = self.state.r[1];
+        writer.float_buffer[15] = self.state.r[2];
+        writer.float_buffer[16] = self.cache.tau[0];
+        writer.float_buffer[17] = self.cache.tau[1];
+        writer.float_buffer[18] = self.cache.tau[2];
+        writer.float_buffer[19] = self.cache.tau[3];
+        writer.float_buffer[20] = self.cache.tau[4];
+        writer.float_buffer[21] = self.cache.tau[5];
+        writer.float_buffer[22] = self.state.v[0];
+        writer.float_buffer[23] = self.state.v[1];
+        writer.float_buffer[24] = self.state.v[2];
+        writer.write_record().unwrap();
     }
 }
 

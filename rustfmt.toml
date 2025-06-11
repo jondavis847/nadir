@@ -1,0 +1,6 @@
+max_width = 100               # or whatever you normally prefer
+use_small_heuristics = "Off" # disables “keep it on one line” heuristics
+
+chain_width = 50              # break method chains sooner
+fn_call_width = 50            # break long function calls sooner
+struct_lit_width = 50         # break struct literals sooner

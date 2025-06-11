@@ -1,12 +1,11 @@
-use crate::{
-    actuator::ActuatorModel, body::BodyConnection, solver::SimStateVector, HardwareBuffer,
-};
+use crate::{HardwareBuffer, actuator::ActuatorModel, body::BodyConnection};
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Vector3, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
-    prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
     RotationTrait,
+    prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder},
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
@@ -53,11 +52,6 @@ impl ReactionWheelCommand {
     const TORQUE: u8 = 0;
     const CURRENT: u8 = 1;
     const SPEED: u8 = 2;
-    const ZERO: Self = Self {
-        value: 0.0,
-        command: 0,
-        _padding: [0; 7],
-    };
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -337,7 +331,10 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
+        self.parameters
+            .friction
+            .stiction_threshold
+            .nominal = stiction_threshold;
         Ok(())
     }
 
@@ -348,7 +345,10 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
+        self.parameters
+            .friction
+            .stiction_threshold
+            .nominal = stiction_threshold;
         Ok(self)
     }
 
@@ -381,8 +381,9 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<(), ReactionWheelErrors> {
-        self.parameters.torque_speed_curve =
-            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+            knee_speed, max_speed,
+        )?);
         Ok(())
     }
 
@@ -391,8 +392,9 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<Self, ReactionWheelErrors> {
-        self.parameters.torque_speed_curve =
-            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+            knee_speed, max_speed,
+        )?);
         Ok(self)
     }
 
@@ -501,11 +503,10 @@ impl ActuatorModel for ReactionWheel {
             .transform
             .rotation
             .transform(&Vector3::new(0.0, 0.0, -torque));
-        self.state.momentum_body =
-            connection
-                .transform
-                .rotation
-                .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
+        self.state.momentum_body = connection
+            .transform
+            .rotation
+            .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
 
         // apply misaligntment if applicable
         if let Some(misalignment) = &self.parameters.misalignment {
@@ -529,26 +530,22 @@ impl ActuatorModel for ReactionWheel {
         Ok(())
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.acceleration.to_string(),
-                self.state.current.to_string(),
-                self.state.momentum.to_string(),
-                self.state.momentum_body[0].to_string(),
-                self.state.momentum_body[1].to_string(),
-                self.state.momentum_body[2].to_string(),
-                self.state.velocity.to_string(),
-                self.state.torque.to_string(),
-                self.state.torque_body[0].to_string(),
-                self.state.torque_body[1].to_string(),
-                self.state.torque_body[2].to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.acceleration;
+        writer.float_buffer[1] = self.state.current;
+        writer.float_buffer[2] = self.state.momentum;
+        writer.float_buffer[3] = self.state.momentum_body[0];
+        writer.float_buffer[4] = self.state.momentum_body[1];
+        writer.float_buffer[5] = self.state.momentum_body[2];
+        writer.float_buffer[6] = self.state.velocity;
+        writer.float_buffer[7] = self.state.torque;
+        writer.float_buffer[8] = self.state.torque_body[0];
+        writer.float_buffer[9] = self.state.torque_body[1];
+        writer.float_buffer[10] = self.state.torque_body[2];
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &[
             "acceleration",
             "current",
@@ -564,16 +561,16 @@ impl ActuatorModel for ReactionWheel {
         ]
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector) {
-        derivative.0[0] = self.state.acceleration;
+    fn state_derivative(&self, derivative: &mut [f64]) {
+        derivative[0] = self.state.acceleration;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.velocity])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.velocity])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.velocity = state.0[0];
+    fn state_vector_read(&mut self, state: &[f64]) {
+        self.state.velocity = state[0];
         self.state.momentum = self.state.velocity * self.parameters.inertia;
     }
 

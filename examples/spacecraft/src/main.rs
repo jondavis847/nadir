@@ -15,13 +15,21 @@ use multibody::{
         rate_gyro::RateGyroBuilder, star_tracker::StarTrackerBuilder,
     },
     software::Software,
-    system::MultibodySystemBuilder,
+    system::{MultibodySystem, MultibodySystemBuilder},
+};
+use nadir_diffeq::{
+    OdeProblem,
+    events::{PeriodicEvent, PostSimEvent, SaveEvent},
+    saving::SaveMethod,
+    solvers::Solver,
+    state::state_vector::StateVector,
+    stepping::AdaptiveStepControl,
 };
 use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
 };
-use std::{error::Error, f64::consts::PI, path::Path};
+use std::{env::current_dir, error::Error, f64::consts::PI, path::Path};
 use time::Time;
 use transforms::{
     Transform,
@@ -48,8 +56,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
-    let orbit =
-        KeplerianElements::new(7e6, 0.0, 1.57, 0.0, 0.0, 0.0, epoch, CelestialBodies::Earth);
+    let orbit = KeplerianElements::new(
+        8e6,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        epoch,
+        CelestialBodies::Earth,
+    );
     let f = FloatingBuilder::new()
         .with_attitude(UnitQuaternion::new(
             -0.3607597432795579,
@@ -160,10 +176,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     // Create the reaction wheels
-    let mut rw1 = ActuatorBuilder::new("rw1", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw2 = ActuatorBuilder::new("rw2", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw3 = ActuatorBuilder::new("rw3", ReactionWheelBuilder::new(0.25, 0.5)?.into());
-    let mut rw4 = ActuatorBuilder::new("rw4", ReactionWheelBuilder::new(0.25, 0.5)?.into());
+    let mut rw1 = ActuatorBuilder::new(
+        "rw1",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw2 = ActuatorBuilder::new(
+        "rw2",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw3 = ActuatorBuilder::new(
+        "rw3",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
+    let mut rw4 = ActuatorBuilder::new(
+        "rw4",
+        ReactionWheelBuilder::new(0.25, 0.5)?.into(),
+    );
 
     // Connect the components together.
     let rw1_transform = Transform::new(
@@ -191,34 +219,53 @@ fn main() -> Result<(), Box<dyn Error>> {
     rw4.connect_body(bus.id, rw4_transform);
 
     // TODO: These connections are not the ideal interface and will be improved in the future
-    sys.base.connect_outer_joint(&mut j, Transform::IDENTITY)?;
+    sys.base
+        .connect_outer_joint(&mut j, Transform::IDENTITY)?;
     bus.connect_inner_joint(&mut j, Transform::IDENTITY)?;
     bus.connect_outer_joint(
         &mut h1,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -1.0).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, -1.0).into(),
+        ),
     )?;
     sa1.connect_inner_joint(
         &mut h1,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, 0.05).into(),
+        ),
     )?;
     sa1.connect_outer_joint(
         &mut h2,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, -0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, -0.05).into(),
+        ),
     )?;
 
     sa2.connect_inner_joint(
         &mut h2,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, -0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, -0.05).into(),
+        ),
     )?;
 
     sa2.connect_outer_joint(
         &mut h3,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, 1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, 1.0, 0.05).into(),
+        ),
     )?;
 
     sa3.connect_inner_joint(
         &mut h3,
-        Transform::new(Rotation::IDENTITY, Cartesian::new(0.0, -1.0, 0.05).into()),
+        Transform::new(
+            Rotation::IDENTITY,
+            Cartesian::new(0.0, -1.0, 0.05).into(),
+        ),
     )?;
 
     gps.connect_body(bus.id, Transform::IDENTITY)?;
@@ -269,10 +316,32 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
 
-    //let pwd = std::env::current_dir()?;
-    //sys.save(&pwd);
-    // Run the simulation
-    sys.simulate("", 0.0, 4000.0, 0.1, None)?;
+    let mut sys = sys.nominal()?;
+    let x0 = sys.initial_state();
+    let mut problem = OdeProblem::new(sys)
+        .with_periodic_event(PeriodicEvent::new(
+            1.0,
+            0.0,
+            |sys: &mut MultibodySystem, _x: &mut StateVector, _t| {
+                sys.software[0]
+                    .step(&sys.sensors, &mut sys.actuators)
+                    .unwrap();
+            },
+        ))
+        .with_saving(current_dir()?.join("results"))
+        .with_save_event(SaveEvent::new(
+            MultibodySystem::init_fn,
+            MultibodySystem::save_fn,
+        ))
+        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+
+    problem.solve_adaptive(
+        &x0,
+        (0.0, 4000.0),
+        AdaptiveStepControl::default(),
+        Solver::Tsit5,
+        SaveMethod::None,
+    )?;
 
     Ok(())
 }

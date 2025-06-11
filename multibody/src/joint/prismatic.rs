@@ -2,12 +2,11 @@ use crate::{
     algorithms::{
         articulated_body_algorithm::ArticulatedBodyAlgorithm, recursive_newton_euler::RneCache,
     },
-    joint::{joint_transforms::JointTransforms, JointParameters},
-    solver::SimStateVector,
+    joint::{JointParameters, joint_transforms::JointTransforms},
 };
-use coordinate_systems::{cartesian::Cartesian, CoordinateSystem};
+use coordinate_systems::{CoordinateSystem, cartesian::Cartesian};
 use mass_properties::MassProperties;
-use nadir_result::ResultManager;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{Rotation, RotationTrait};
@@ -50,8 +49,8 @@ pub struct PrismaticState {
     pub velocity: f64,
 }
 
-impl<'a> AddAssign<&'a Self> for PrismaticState {
-    fn add_assign(&mut self, rhs: &'a Self) {
+impl AddAssign<&Self> for PrismaticState {
+    fn add_assign(&mut self, rhs: &Self) {
         self.position += rhs.position;
         self.velocity += rhs.velocity;
     }
@@ -494,18 +493,18 @@ impl JointModel for Prismatic {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
-        derivative.0[0] = self.state.velocity;
-        derivative.0[1] = self.cache.q_ddot;
+    fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
+        derivative[0] = self.state.velocity;
+        derivative[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.position, self.state.velocity])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.position, self.state.velocity])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.position = state.0[0];
-        self.state.velocity = state.0[1];
+    fn state_vector_read(&mut self, state: &[f64]) {
+        self.state.position = state[0];
+        self.state.velocity = state[1];
     }
 
     fn update_transforms(
@@ -522,20 +521,16 @@ impl JointModel for Prismatic {
         transforms.update(inner_joint)
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &["position", "velocity", "acceleration", "tau"]
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.position.to_string(),
-                self.state.velocity.to_string(),
-                self.cache.q_ddot.to_string(),
-                self.cache.tau.to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.position;
+        writer.float_buffer[1] = self.state.velocity;
+        writer.float_buffer[2] = self.cache.q_ddot;
+        writer.float_buffer[3] = self.cache.tau;
+        writer.write_record().unwrap();
     }
 }
 

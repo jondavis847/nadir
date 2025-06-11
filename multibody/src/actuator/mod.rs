@@ -1,18 +1,20 @@
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::{
+    saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager},
+    state::state_vector::StateVector,
+};
 use rand::rngs::SmallRng;
 use reaction_wheel::{ReactionWheel, ReactionWheelBuilder, ReactionWheelErrors};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 use thiserror::Error;
 use thruster::{Thruster, ThrusterBuilder, ThrusterErrors};
 use transforms::Transform;
 use uncertainty::Uncertainty;
 
 use crate::{
-    body::{BodyConnection, BodyConnectionBuilder},
-    solver::{SimStateVector, SimStates},
-    system::Id,
     BufferError, HardwareBuffer,
+    body::{BodyConnection, BodyConnectionBuilder},
+    system::Id,
 };
 
 pub mod reaction_wheel;
@@ -27,11 +29,7 @@ pub struct ActuatorBuilder {
 
 impl ActuatorBuilder {
     pub fn new(name: &str, model: ActuatorModelBuilders) -> Self {
-        Self {
-            name: name.to_string(),
-            model,
-            connection: None,
-        }
+        Self { name: name.to_string(), model, connection: None }
     }
     pub fn connect_body(&mut self, body: Id, transform: Transform) {
         self.connection = Some(BodyConnectionBuilder::new(body, transform));
@@ -48,8 +46,9 @@ impl ActuatorBuilder {
             name: self.name.clone(),
             model,
             connection,
-            result_id: None,
-            state_id: None,
+            writer_id: None,
+            state_start: 0,
+            state_end: 0,
         })
     }
 }
@@ -70,17 +69,17 @@ pub enum ActuatorErrors {
 
 pub trait ActuatorModel {
     fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors>;
-    fn result_headers(&self) -> &[&str];
-    fn result_content(&self, id: u32, results: &mut ResultManager);
     /// Populates derivative with the appropriate values for the actuator state derivative
-    fn state_derivative(&self, _derivative: &mut SimStateVector) {}
+    fn state_derivative(&self, _derivative: &mut [f64]) {}
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![])
     }
     /// Reads a state vector into the sim state
-    fn state_vector_read(&mut self, state: &SimStateVector);
+    fn state_vector_read(&mut self, state: &[f64]);
     fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors>;
+    fn writer_headers(&self) -> &[&str];
+    fn writer_save_fn(&self, writer: &mut StateWriter);
 }
 
 #[derive(Debug)]
@@ -89,9 +88,9 @@ pub struct Actuator {
     pub model: ActuatorModels,
     pub connection: BodyConnection,
     /// Id of the result writer in sys.writers
-    result_id: Option<u32>,
-    /// Id of state index in SimStateVector
-    state_id: Option<usize>,
+    writer_id: Option<WriterId>,
+    state_start: usize,
+    state_end: usize,
 }
 
 impl Actuator {
@@ -99,51 +98,42 @@ impl Actuator {
         self.model.update(&self.connection)
     }
 
-    pub fn state_vector_init(&mut self, x0: &mut SimStates) {
-        self.state_id = Some(x0.0.len());
-        x0.0.push(self.model.state_vector_init());
+    pub fn state_vector_init(&mut self, x0: &mut StateVector) {
+        self.state_start = x0.len();
+        x0.extend(&self.model.state_vector_init());
+        self.state_end = x0.len();
     }
 
-    pub fn state_vector_read(&mut self, x0: &SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_vector_read(&x0.0[id as usize]);
-        }
+    pub fn state_vector_read(&mut self, x0: &StateVector) {
+        let state = &x0[self.state_start..self.state_end];
+        self.model.state_vector_read(state);
     }
 
-    pub fn state_derivative(&self, x0: &mut SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_derivative(&mut x0.0[id as usize]);
-        }
+    pub fn state_derivative(&self, x0: &mut StateVector) {
+        let derivative = &mut x0[self.state_start..self.state_end];
+        self.model.state_derivative(derivative);
     }
 
     pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
         self.model.read_command(buffer)
     }
-}
 
-impl NadirResult for Actuator {
-    fn new_result(&mut self, results: &mut ResultManager) {
-        // Define the actuator subfolder folder path
-        let actuator_folder_path = results.result_path.join("actuators");
-
-        // Check if the folder exists, if not, create it
-        if !actuator_folder_path.exists() {
-            std::fs::create_dir_all(&actuator_folder_path)
-                .expect("Failed to create actuator folder");
-        }
-
-        // Initialize writer using the updated path
-        let id = results.new_writer(
-            &self.name,
-            &actuator_folder_path,
-            self.model.result_headers(),
-        );
-        self.result_id = Some(id);
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let rel_path = PathBuf::new()
+            .join("actuators")
+            .join(format!("{}.csv", &self.name));
+        let headers = self.model.writer_headers();
+        let writer = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(headers)
+            .unwrap();
+        self.writer_id = Some(manager.add_writer(writer));
     }
 
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            self.model.result_content(id, results);
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                self.model.writer_save_fn(writer);
+            }
         }
     }
 }
@@ -161,12 +151,12 @@ impl ActuatorModelBuilders {
         rng: &mut SmallRng,
     ) -> Result<ActuatorModels, ActuatorErrors> {
         match self {
-            ActuatorModelBuilders::ReactionWheel(builder) => {
-                Ok(ActuatorModels::ReactionWheel(builder.sample(nominal, rng)?))
-            }
-            ActuatorModelBuilders::Thruster(builder) => {
-                Ok(ActuatorModels::Thruster(builder.sample(nominal, rng)?))
-            }
+            ActuatorModelBuilders::ReactionWheel(builder) => Ok(ActuatorModels::ReactionWheel(
+                builder.sample(nominal, rng)?,
+            )),
+            ActuatorModelBuilders::Thruster(builder) => Ok(ActuatorModels::Thruster(
+                builder.sample(nominal, rng)?,
+            )),
         }
     }
 }
@@ -190,35 +180,35 @@ pub enum ActuatorModels {
 }
 
 impl ActuatorModel for ActuatorModels {
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.result_content(id, results),
-            ActuatorModels::Thruster(act) => act.result_content(id, results),
+            ActuatorModels::ReactionWheel(act) => act.writer_save_fn(writer),
+            ActuatorModels::Thruster(act) => act.writer_save_fn(writer),
         }
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         match self {
-            ActuatorModels::ReactionWheel(act) => act.result_headers(),
-            ActuatorModels::Thruster(act) => act.result_headers(),
+            ActuatorModels::ReactionWheel(act) => act.writer_headers(),
+            ActuatorModels::Thruster(act) => act.writer_headers(),
         }
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector) {
+    fn state_derivative(&self, derivative: &mut [f64]) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
             ActuatorModels::Thruster(act) => act.state_derivative(derivative),
         }
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
             ActuatorModels::Thruster(act) => act.state_vector_init(),
         }
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         match self {
             ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
             ActuatorModels::Thruster(act) => act.state_vector_read(state),

@@ -1,7 +1,7 @@
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tolerances {
-    abs_tol: f64,
-    rel_tol: f64,
+    pub abs_tol: f64,
+    pub rel_tol: f64,
 }
 
 impl Default for Tolerances {
@@ -39,18 +39,4 @@ pub trait Tolerance: Default {
 /// calculated from dt * sum(b_tilde[i] * k[i]), NOT y_hat - y
 pub fn compute_error(x: f64, x_prev: f64, x_tilde: f64, rel_tol: f64, abs_tol: f64) -> f64 {
     x_tilde / (abs_tol + x.abs().max(x_prev.abs()).max(1e-14) * rel_tol)
-}
-
-pub fn compute_component_error(
-    opt_tol: &Option<Tolerances>,
-    x: f64,
-    x_prev: f64,
-    x_tilde: f64,
-    rel_tol: f64,
-    abs_tol: f64,
-) -> f64 {
-    match opt_tol {
-        Some(tol) => tol.compute_error(x, x_prev, x_tilde),
-        None => compute_error(x, x_prev, x_tilde, rel_tol, abs_tol),
-    }
 }

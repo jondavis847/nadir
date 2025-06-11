@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct ButcherTableau<const ORDER: usize, const STAGES: usize> {
     pub a: [[f64; STAGES]; STAGES],
     pub b: [f64; STAGES],

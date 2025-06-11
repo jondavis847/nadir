@@ -656,7 +656,7 @@ version = "0.0.1"
 dependencies = [
  "gravity",
  "magnetics",
- "nadir_result",
+ "nadir_diffeq",
  "nalgebra",
  "rotations",
  "serde",
@@ -1275,22 +1275,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0688c2a7f92e427f44895cd63841bff7b29f8d7a1648b9e7e07a4a365b2e1257"
 
 [[package]]
-name = "double_pendulum"
-version = "0.0.1"
-dependencies = [
- "aerospace",
- "color",
- "gravity",
- "mass_properties",
- "multibody",
- "nadir_3d",
- "nalgebra",
- "ron",
- "rotations",
- "transforms",
-]
-
-[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1535,20 +1519,6 @@ name = "float_next_after"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
-
-[[package]]
-name = "floater"
-version = "0.0.1"
-dependencies = [
- "aerospace",
- "celestial",
- "color",
- "mass_properties",
- "multibody",
- "nadir_3d",
- "time 0.0.1",
- "transforms",
-]
 
 [[package]]
 name = "fnv"
@@ -1838,9 +1808,9 @@ checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 
 [[package]]
 name = "glam"
-version = "0.30.2"
+version = "0.30.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e9b6647e9b41d3a5ef02964c6be01311a7f2472fea40595c635c6d046c259e"
+checksum = "6b46b9ca4690308844c644e7c634d68792467260e051c8543e0c7871662b3ba7"
 dependencies = [
  "bytemuck",
  "serde",
@@ -3135,6 +3105,7 @@ dependencies = [
  "libloading 0.8.6",
  "mass_properties",
  "nadir_3d",
+ "nadir_diffeq",
  "nadir_result",
  "nalgebra",
  "rand 0.9.0",
@@ -3147,6 +3118,7 @@ dependencies = [
  "spice",
  "thiserror 2.0.12",
  "time 0.0.1",
+ "tolerance",
  "transforms",
  "typetag",
  "uncertainty",
@@ -3171,7 +3143,7 @@ dependencies = [
  "color",
  "csv",
  "dirs 6.0.0",
- "glam 0.30.2",
+ "glam 0.30.3",
  "iced",
  "image 0.25.6",
  "inquire",
@@ -3199,7 +3171,7 @@ version = "0.0.1"
 dependencies = [
  "bytemuck",
  "color",
- "glam 0.30.2",
+ "glam 0.30.3",
  "iced",
  "serde",
  "thiserror 2.0.12",
@@ -3210,6 +3182,7 @@ name = "nadir_diffeq"
 version = "0.0.1"
 dependencies = [
  "csv",
+ "serde",
  "tolerance",
 ]
 
@@ -4052,22 +4025,6 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide",
-]
-
-[[package]]
-name = "pole_cart"
-version = "0.0.1"
-dependencies = [
- "aerospace",
- "color",
- "gravity",
- "mass_properties",
- "multibody",
- "nadir_3d",
- "nalgebra",
- "ron",
- "rotations",
- "transforms",
 ]
 
 [[package]]
@@ -5099,6 +5056,7 @@ dependencies = [
  "mass_properties",
  "multibody",
  "nadir_3d",
+ "nadir_diffeq",
  "nadir_result",
  "nalgebra",
  "ron",

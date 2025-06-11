@@ -8,6 +8,7 @@ use crate::{
     sensor::{SensorModel, noise::QuaternionNoise},
 };
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::saving::StateWriter;
 use rotations::prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -73,7 +74,7 @@ struct StarTrackerParameters {
 
 #[derive(Debug, Default)]
 pub struct StarTrackerState {
-    noise: UnitQuaternion,
+    noise: Option<UnitQuaternion>,
     pub measurement: UnitQuaternion,
 }
 
@@ -147,8 +148,8 @@ impl SensorModel for StarTracker {
         if let Some(noise) = &mut self.parameters.noise {
             let quaternion_noise = noise.sample();
             sensor_attitude = quaternion_noise * sensor_attitude;
-            self.state.noise = quaternion_noise;
-        } // else keep as identity from initialization
+            self.state.noise = Some(quaternion_noise);
+        } // else keep as None from initialization
         self.state.measurement = sensor_attitude;
 
         //update telemetry
@@ -159,31 +160,40 @@ impl SensorModel for StarTracker {
         self.telemetry.valid = 1u8;
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
-        let content = &[
-            self.state.measurement.0.x.to_string(),
-            self.state.measurement.0.y.to_string(),
-            self.state.measurement.0.z.to_string(),
-            self.state.measurement.0.w.to_string(),
-            self.state.noise.0.x.to_string(),
-            self.state.noise.0.y.to_string(),
-            self.state.noise.0.z.to_string(),
-            self.state.noise.0.w.to_string(),
-        ];
-        results.write_record(id, content);
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.measurement.0.x;
+        writer.float_buffer[1] = self.state.measurement.0.y;
+        writer.float_buffer[2] = self.state.measurement.0.z;
+        writer.float_buffer[3] = self.state.measurement.0.w;
+        if let Some(noise) = self.state.noise {
+            writer.float_buffer[4] = noise.0.x;
+            writer.float_buffer[5] = noise.0.y;
+            writer.float_buffer[6] = noise.0.z;
+            writer.float_buffer[7] = noise.0.w;
+        }
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
-        &[
-            "measurement[x]",
-            "measurement[y]",
-            "measurement[z]",
-            "measurement[w]",
-            "noise[x]",
-            "noise[y]",
-            "noise[z]",
-            "noise[w]",
-        ]
+    fn writer_headers(&self) -> &[&str] {
+        if let Some(_) = self.state.noise {
+            &[
+                "measurement[x]",
+                "measurement[y]",
+                "measurement[z]",
+                "measurement[w]",
+                "noise[x]",
+                "noise[y]",
+                "noise[z]",
+                "noise[w]",
+            ]
+        } else {
+            &[
+                "measurement[x]",
+                "measurement[y]",
+                "measurement[z]",
+                "measurement[w]",
+            ]
+        }
     }
 
     fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors> {

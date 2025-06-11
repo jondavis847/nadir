@@ -37,11 +37,11 @@ impl Mesh {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 #[repr(C)]
 pub struct MeshGpu {
-    transformation: Mat4, // 16 * 4 = 64 bytes
-    normal: Mat3,         // 9 * 4 = 36 bytes
-    color: [f32; 4],      // 16 bytes
-    material: u32,        // 4
-    specular_power: f32,  // 4
+    pub transformation: Mat4, // 16 * 4 = 64 bytes
+    normal: Mat3,             // 9 * 4 = 36 bytes
+    color: [f32; 4],          // 16 bytes
+    material: u32,            // 4
+    specular_power: f32,      // 4
     _padding: f32,
 }
 
@@ -73,10 +73,7 @@ impl From<&Mesh> for MeshGpu {
         let transforms = mesh.geometry.get_mesh_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
-            Material::Phong {
-                color,
-                specular_power,
-            } => (color, 1, *specular_power),
+            Material::Phong { color, specular_power } => (color, 1, *specular_power),
         };
         MeshGpu {
             transformation: transforms.transformation_matrix,
@@ -100,10 +97,7 @@ impl From<&Mesh> for MeshPrimitive {
         let transforms = mesh.geometry.get_mesh_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
-            Material::Phong {
-                color,
-                specular_power,
-            } => (color, 1, *specular_power),
+            Material::Phong { color, specular_power } => (color, 1, *specular_power),
         };
         let mesh_gpu = MeshGpu {
             transformation: transforms.transformation_matrix,
@@ -114,9 +108,6 @@ impl From<&Mesh> for MeshPrimitive {
             _padding: 0.0,
         };
 
-        MeshPrimitive {
-            geometry: mesh.geometry,
-            mesh_gpu,
-        }
+        MeshPrimitive { geometry: mesh.geometry, mesh_gpu }
     }
 }

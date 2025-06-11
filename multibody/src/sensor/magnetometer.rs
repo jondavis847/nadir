@@ -1,9 +1,10 @@
 use crate::{
-    body::BodyConnection,
-    sensor::{noise::Noise, SensorModel},
     HardwareBuffer,
+    body::BodyConnection,
+    sensor::{SensorModel, noise::Noise},
 };
 use bytemuck::{Pod, Zeroable};
+use nadir_diffeq::saving::StateWriter;
 use nalgebra::Vector3;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
@@ -11,8 +12,8 @@ use thiserror::Error;
 use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
 
 use super::{
-    noise::{NoiseBuilder, NoiseErrors},
     SensorErrors,
+    noise::{NoiseBuilder, NoiseErrors},
 };
 
 #[derive(Debug, Error)]
@@ -193,32 +194,23 @@ impl SensorModel for Magnetometer {
         self.telemetry.measurement = self.state.measurement.into();
     }
 
-    fn result_content(&self, id: u32, results: &mut nadir_result::ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         if let Some(noise) = &self.state.noise {
-            results.write_record(
-                id,
-                &[
-                    self.state.measurement[0].to_string(),
-                    self.state.measurement[1].to_string(),
-                    self.state.measurement[2].to_string(),
-                    noise[0].to_string(),
-                    noise[1].to_string(),
-                    noise[2].to_string(),
-                ],
-            );
+            writer.float_buffer[0] = self.state.measurement[0];
+            writer.float_buffer[1] = self.state.measurement[1];
+            writer.float_buffer[2] = self.state.measurement[2];
+            writer.float_buffer[3] = noise[0];
+            writer.float_buffer[4] = noise[1];
+            writer.float_buffer[5] = noise[2];
         } else {
-            results.write_record(
-                id,
-                &[
-                    self.state.measurement[0].to_string(),
-                    self.state.measurement[1].to_string(),
-                    self.state.measurement[2].to_string(),
-                ],
-            );
+            writer.float_buffer[0] = self.state.measurement[0];
+            writer.float_buffer[1] = self.state.measurement[1];
+            writer.float_buffer[2] = self.state.measurement[2];
         }
+        writer.write_record().unwrap();
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         if let Some(_) = &self.parameters.noise {
             &[
                 "measurement[x]",

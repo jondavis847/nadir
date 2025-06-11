@@ -1,16 +1,15 @@
 use crate::{
     algorithms::articulated_body_algorithm::ArticulatedBodyAlgorithm,
-    joint::{joint_transforms::JointTransforms, JointModel, JointParameters},
-    solver::SimStateVector,
+    joint::{JointModel, JointParameters, joint_transforms::JointTransforms},
 };
 use coordinate_systems::CoordinateSystem;
 use mass_properties::MassProperties;
-use nadir_result::ResultManager;
+use nadir_diffeq::{saving::StateWriter, state::state_vector::StateVector};
 use nalgebra::{Matrix6x1, Vector6};
 use rand::rngs::SmallRng;
 use rotations::{
-    euler_angles::{EulerAngles, EulerSequence},
     Rotation,
+    euler_angles::{EulerAngles, EulerSequence},
 };
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Velocity};
@@ -571,18 +570,18 @@ impl JointModel for Revolute {
         1
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, _transforms: &JointTransforms) {
-        derivative.0[0] = self.state.angular_rate;
-        derivative.0[1] = self.cache.q_ddot;
+    fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
+        derivative[0] = self.state.angular_rate;
+        derivative[1] = self.cache.q_ddot;
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
-        SimStateVector(vec![self.state.angle, self.state.angular_rate])
+    fn state_vector_init(&self) -> StateVector {
+        StateVector::new(vec![self.state.angle, self.state.angular_rate])
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
-        self.state.angle = state.0[0];
-        self.state.angular_rate = state.0[1];
+    fn state_vector_read(&mut self, state: &[f64]) {
+        self.state.angle = state[0];
+        self.state.angular_rate = state[1];
     }
 
     fn update_transforms(
@@ -600,20 +599,16 @@ impl JointModel for Revolute {
         transforms.update(inner_joint)
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         &["angle", "angular_rate", "alpha", "tau"]
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
-        results.write_record(
-            id,
-            &[
-                self.state.angle.to_string(),
-                self.state.angular_rate.to_string(),
-                self.cache.q_ddot.to_string(),
-                self.cache.tau.to_string(),
-            ],
-        );
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
+        writer.float_buffer[0] = self.state.angle;
+        writer.float_buffer[1] = self.state.angular_rate;
+        writer.float_buffer[2] = self.cache.q_ddot;
+        writer.float_buffer[3] = self.cache.tau;
+        writer.write_record().unwrap();
     }
 }
 

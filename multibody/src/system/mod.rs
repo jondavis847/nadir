@@ -7,16 +7,17 @@ use crate::{
     joint::{JointBuilder, JointConnection, JointModel, JointModelBuilders, JointRef},
     sensor::{Sensor, SensorBuilder},
     software::{Software, SoftwareSim},
-    solver::{SimStates, rk4::solve_fixed_rk4},
 };
 
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
-use indicatif::MultiProgress;
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::{
+    OdeModel,
+    saving::{StateWriterBuilder, WriterId, WriterManager},
+    state::state_vector::StateVector,
+};
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
-use rayon::prelude::*;
 use ron::{
     from_str,
     ser::{PrettyConfig, to_string_pretty},
@@ -26,13 +27,12 @@ use spatial_algebra::SpatialTransform;
 use std::{
     cell::RefCell,
     collections::HashMap,
+    error::Error,
     fmt::{Display, Formatter},
     fs::File,
     io::{Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
-    sync::Arc,
-    time::Instant,
 };
 use thiserror::Error;
 
@@ -204,126 +204,138 @@ impl MultibodySystemBuilder {
         Ok(())
     }
 
-    pub fn simulate(
-        &mut self,
-        sim_name: &str,
-        tstart: f64,
-        tstop: f64,
-        dt: f64,
-        nruns: Option<usize>,
-    ) -> Result<(), MultibodyErrors> {
-        let (result_path, sim_name) = self.get_result_path_meta(sim_name);
+    // pub fn simulate(
+    //     &mut self,
+    //     sim_name: &str,
+    //     tstart: f64,
+    //     tstop: f64,
+    //     dt: f64,
+    //     nruns: Option<usize>,
+    // ) -> Result<(), MultibodyErrors> {
+    //     let (result_path, sim_name) = self.get_result_path_meta(sim_name);
 
-        let options = SimOptions {
-            tstart,
-            tstop,
-            dt,
-            sim_name,
-            nruns,
-        };
+    //     let options = SimOptions {
+    //         tstart,
+    //         tstop,
+    //         dt,
+    //         sim_name,
+    //         nruns,
+    //     };
 
-        let mut rng = SmallRng::seed_from_u64(self.seed);
+    //     let mut rng = SmallRng::seed_from_u64(self.seed);
 
-        // run the monte carlo if present
-        if let Some(nruns) = nruns {
-            // create progress bars
-            let progress_bars = Arc::new(MultiProgress::new());
-            // run the nominal
-            let nominal_path = result_path.join("nominal");
-            let mut sys = self.sample(None, true, &mut rng)?;
-            sys.simulate(&options, &nominal_path, None)?;
-            // parallel Monte Carlo runs
-            // create a vec of seeds for the local thread rngs
-            let seeds: Vec<u64> = (0..nruns).map(|_| rng.random::<u64>()).collect();
+    //     // run the monte carlo if present
+    //     if let Some(nruns) = nruns {
+    //         // create progress bars
+    //         let progress_bars = Arc::new(MultiProgress::new());
+    //         // run the nominal
+    //         let nominal_path = result_path.join("nominal");
+    //         let mut sys = self.sample(None, true, &mut rng)?;
+    //         sys.simulate(&options, &nominal_path, None)?;
+    //         // parallel Monte Carlo runs
+    //         // create a vec of seeds for the local thread rngs
+    //         let seeds: Vec<u64> = (0..nruns).map(|_| rng.random::<u64>()).collect();
 
-            (1..=nruns)
-                .into_par_iter()
-                .try_for_each(|run| -> Result<(), MultibodyErrors> {
-                    let progress_bars = Arc::clone(&progress_bars);
-                    let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
-                    let mut sys = self.sample(Some(run), false, &mut local_rng)?;
-                    let run_path = result_path.join(format!("run{run}"));
-                    sys.simulate(&options, &run_path, Some(progress_bars))?;
-                    Ok(())
-                })?;
-        } else {
-            // just run the nominal
-            // this is separated logic so we can send the nominal folder as a result  path for monte carlo
-            // where as this is just stored at the sim level
-            let mut sys = self.sample(None, true, &mut rng)?;
-            sys.simulate(&options, &result_path, None)?;
-        }
-        Ok(())
+    //         (1..=nruns)
+    //             .into_par_iter()
+    //             .try_for_each(|run| -> Result<(), MultibodyErrors> {
+    //                 let progress_bars = Arc::clone(&progress_bars);
+    //                 let mut local_rng = SmallRng::seed_from_u64(seeds[run - 1]);
+    //                 let mut sys = self.sample(Some(run), false, &mut local_rng)?;
+    //                 let run_path = result_path.join(format!("run{run}"));
+    //                 sys.simulate(&options, &run_path, Some(progress_bars))?;
+    //                 Ok(())
+    //             })?;
+    //     } else {
+    //         // just run the nominal
+    //         // this is separated logic so we can send the nominal folder as a result  path for monte carlo
+    //         // where as this is just stored at the sim level
+    //         let mut sys = self.sample(None, true, &mut rng)?;
+    //         sys.simulate(&options, &result_path, None)?;
+    //     }
+    //     Ok(())
+    // }
+
+    // fn get_result_path_meta(&self, sim_name: &str) -> (PathBuf, String) {
+    //     // Sim results will be written to the results folder in the current directory
+    //     // Create that folder if it does not exist
+    //     let mut results = std::env::current_dir().unwrap();
+    //     results.push("results");
+    //     let results_dir = match std::fs::read_dir(&results) {
+    //         Ok(results_dir) => results_dir,
+    //         Err(_) => {
+    //             std::fs::create_dir_all(&results).expect("Failed to create directory");
+    //             std::fs::read_dir(&results).unwrap()
+    //         }
+    //     };
+
+    //     // Read the directory entries
+    //     let mut tokens = Vec::new();
+    //     for entry in results_dir {
+    //         let entry = entry.unwrap();
+    //         let path = entry.path();
+
+    //         // Check if the entry is a directory
+    //         if path.is_dir() {
+    //             if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+    //                 // Panic if a result already exists with that name
+    //                 if file_name == sim_name {
+    //                     panic!("Result name already exists. Please pick a different one.")
+    //                 }
+    //                 // Check if the folder starts with "sim"
+    //                 if file_name.starts_with("sim") {
+    //                     // Extract the token after "sim"
+    //                     let token = file_name[3..].to_string();
+    //                     tokens.push(token);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     // if result name is not provided, autogenerate one
+    //     // errors if the sim name is already taken
+    //     let sim_name = if sim_name.is_empty() {
+    //         if !tokens.is_empty() {
+    //             let taken_ids: Vec<i64> = tokens
+    //                 .iter()
+    //                 .map(|string| match string.parse::<i64>() {
+    //                     Ok(i) => i,
+    //                     Err(_) => panic!(
+    //                         "Got a folder name of sim<token> where token is
+    //                         not a numeric integer. This is not valid nadir syntax. Please
+    //                         change the name of the folder to be sim<i64> or something else that doesn't start with sim."
+    //                     ),
+    //                 })
+    //                 .collect();
+    //             let new_id = *taken_ids.iter().max().unwrap() + 1;
+    //             format!("sim{new_id}")
+    //         } else {
+    //             "sim0".to_string()
+    //         }
+    //     } else {
+    //         sim_name.to_string()
+    //     };
+
+    //     let results_path = PathBuf::new().join("results").join(&sim_name);
+    //     (results_path, sim_name)
+    // }
+
+    pub fn nominal(&self) -> Result<MultibodySystem, MultibodyErrors> {
+        self.to_system(None, true, None)
     }
 
-    fn get_result_path_meta(&self, sim_name: &str) -> (PathBuf, String) {
-        // Sim results will be written to the results folder in the current directory
-        // Create that folder if it does not exist
-        let mut results = std::env::current_dir().unwrap();
-        results.push("results");
-        let results_dir = match std::fs::read_dir(&results) {
-            Ok(results_dir) => results_dir,
-            Err(_) => {
-                std::fs::create_dir_all(&results).expect("Failed to create directory");
-                std::fs::read_dir(&results).unwrap()
-            }
-        };
-
-        // Read the directory entries
-        let mut tokens = Vec::new();
-        for entry in results_dir {
-            let entry = entry.unwrap();
-            let path = entry.path();
-
-            // Check if the entry is a directory
-            if path.is_dir() {
-                if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
-                    // Panic if a result already exists with that name
-                    if file_name == sim_name {
-                        panic!("Result name already exists. Please pick a different one.")
-                    }
-                    // Check if the folder starts with "sim"
-                    if file_name.starts_with("sim") {
-                        // Extract the token after "sim"
-                        let token = file_name[3..].to_string();
-                        tokens.push(token);
-                    }
-                }
-            }
-        }
-        // if result name is not provided, autogenerate one
-        // errors if the sim name is already taken
-        let sim_name = if sim_name.is_empty() {
-            if !tokens.is_empty() {
-                let taken_ids: Vec<i64> = tokens
-                    .iter()
-                    .map(|string| match string.parse::<i64>() {
-                        Ok(i) => i,
-                        Err(_) => panic!(
-                            "Got a folder name of sim<token> where token is 
-                            not a numeric integer. This is not valid nadir syntax. Please 
-                            change the name of the folder to be sim<i64> or something else that doesn't start with sim."
-                        ),
-                    })
-                    .collect();
-                let new_id = *taken_ids.iter().max().unwrap() + 1;
-                format!("sim{new_id}")
-            } else {
-                "sim0".to_string()
-            }
-        } else {
-            sim_name.to_string()
-        };
-
-        let results_path = PathBuf::new().join("results").join(&sim_name);
-        (results_path, sim_name)
+    pub fn sample(
+        &self,
+        run_id: usize,
+        rng: &mut SmallRng,
+    ) -> Result<MultibodySystem, MultibodyErrors> {
+        self.to_system(Some(run_id), false, Some(rng))
     }
 
-    fn sample(
+    fn to_system(
         &self,
         run_id: Option<usize>,
         nominal: bool,
-        rng: &mut SmallRng,
+        rng: Option<&mut SmallRng>,
     ) -> Result<MultibodySystem, MultibodyErrors> {
         // ensure builder can produce a valid MultibodySystem
         self.validate()?;
@@ -335,8 +347,15 @@ impl MultibodySystemBuilder {
         let mut sensors = Vec::new();
         let mut software = Vec::new();
 
-        let seed = rng.random::<u64>();
-        let mut sys_rng = SmallRng::seed_from_u64(seed);
+        // this is unnecessary but we're doing it to get it done for now. need make rng optional for multibody
+        let mut sys_rng = if let Some(rng) = rng {
+            let seed = rng.random::<u64>();
+            SmallRng::seed_from_u64(seed)
+        } else {
+            // wasnt provided because this is nominal, create anyways for now since function arguments require one
+            //TODO: it wont be used, need better structure
+            SmallRng::from_os_rng()
+        };
 
         let baseref = Rc::new(RefCell::new(Base::from(&self.base)));
 
@@ -556,159 +575,97 @@ pub struct MultibodySystem {
     pub run_id: Option<usize>, // Monte Carlo run number for progress bar
     pub sensors: Vec<Sensor>,
     pub software: Vec<SoftwareSim>,
-    pub sim_time_id: Option<u32>,
+    pub sim_time_id: Option<WriterId>,
 }
 
 impl MultibodySystem {
-    fn initialize_writers(&mut self, results_path: &PathBuf) -> ResultManager {
-        let mut results = ResultManager::new(results_path.clone());
-        let id = results.new_writer("sim_time", &results_path, &["sim_time(sec)"]);
-        self.sim_time_id = Some(id);
-
-        for body in &self.bodies {
-            body.borrow_mut().new_result(&mut results);
-        }
-
+    pub fn initial_state(&mut self) -> StateVector {
+        let mut x0 = StateVector::new(Vec::new());
         for joint in &self.joints {
-            joint.borrow_mut().new_result(&mut results);
+            joint.borrow_mut().state_vector_init(&mut x0);
         }
-
-        for sensor in &mut self.sensors {
-            sensor.new_result(&mut results);
-        }
-
         for actuator in &mut self.actuators {
-            actuator.new_result(&mut results);
+            actuator.state_vector_init(&mut x0);
+        }
+        x0
+    }
+
+    pub fn init_fn(model: &mut Self, _state: &StateVector, manager: &mut WriterManager) {
+        // sim_time
+        model.sim_time_id = Some(
+            manager.add_writer(
+                StateWriterBuilder::new(1, "sim_time.csv".into())
+                    .with_headers(&["t"])
+                    .unwrap(),
+            ),
+        );
+
+        // joints
+        for joint in &model.joints {
+            joint.borrow_mut().writer_init_fn(manager);
         }
 
-        for software in &mut self.software {
-            if let Err(e) = software.initialize_results(&mut results) {
-                eprintln!(
-                    "Failed to initialize results for software component: {:?}",
-                    e
-                );
+        // bodies
+        for body in &model.bodies {
+            let mut body = body.borrow_mut();
+            body.writer_init_fn(manager);
+        }
+
+        // sensors
+        for sensor in &mut model.sensors {
+            sensor.writer_init_fn(manager);
+        }
+
+        // actuators
+        for actuator in &mut model.actuators {
+            actuator.writer_init_fn(manager);
+        }
+
+        // celestial
+        match &mut model.base.borrow_mut().system {
+            BaseSystems::Celestial(celestial) => celestial.writer_init_fn(manager),
+            _ => {}
+        }
+    }
+
+    pub fn save_fn(model: &Self, _state: &StateVector, t: f64, manager: &mut WriterManager) {
+        // sim time
+        if let Some(id) = &model.sim_time_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                writer.float_buffer[0] = t;
+                writer.write_record().unwrap();
             }
         }
 
-        match &mut self.base.borrow_mut().system {
-            BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => celestial.initialize_writers(&mut results),
+        // bodies
+        for body in &model.bodies {
+            body.borrow().writer_save_fn(manager);
         }
-        results
-    }
 
-    pub fn run(
-        &mut self,
-        dx: &mut SimStates,
-        x: &SimStates,
-        t: f64,
-    ) -> Result<(), MultibodyErrors> {
-        self.update_state(x); // write the integrated states back in to the joints
-        self.update_base(t); // update epoch based celestial states based on new time
-        self.update_joints(); // update joint state based quantities like transforms
-        self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-        self.update_actuators()?; // update the actuators before updating forces on the bodies
-        self.update_environments(); //update the environmental forces before updating forcces on the bodies
-        self.update_forces(); // update body forces
+        // bodies
+        for joint in &model.joints {
+            joint.borrow().writer_save_fn(manager);
+        }
 
-        match self.algorithm {
-            MultibodyAlgorithm::ArticulatedBody => {
-                // First Pass
-                for jointref in &mut self.joints {
-                    let mut joint = jointref.borrow_mut();
-                    joint.aba_first_pass();
-                }
+        // sensors
+        for sensor in &model.sensors {
+            sensor.writer_save_fn(manager);
+        }
 
-                // Second Pass
-                for joint in self.joints.iter().rev() {
-                    joint.borrow_mut().aba_second_pass();
-                }
+        // actuators
+        for actuator in &model.actuators {
+            actuator.writer_save_fn(manager);
+        }
 
-                // Third Pass
-                for joint in &self.joints {
-                    joint.borrow_mut().aba_third_pass();
-                }
+        match &model.base.borrow().system {
+            BaseSystems::Celestial(celestial) => {
+                celestial.writer_save_fn(manager);
             }
-            MultibodyAlgorithm::CompositeRigidBody => {
-                // let n: usize = self.joints.len();
-
-                // // Run the Recursive Newton Euler algorithm to calculate C.
-                // let c = &mut self.crb_cache.as_mut().unwrap().c;
-
-                // // first pass
-                // for i in 0..n {
-                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indeces[i] {
-                //         (
-                //             *self.joints[parent_index].cache.a,
-                //             *self.joints[parent_index].cache.v,
-                //         )
-                //     } else {
-                //         (Acceleration::zeros(), Velocity::zeros())
-                //     };
-
-                //     let joint = &mut self.joints[i];
-                //     joint.rne_first_pass(a_ij, v_ij, false);
-                // }
-
-                // // Second Pass
-                // for i in (0..n).rev() {
-                //     let joint = &mut self.joints[i];
-                //     joint.rne_set_tau();
-
-                //     // set C values
-                //     joint.set_c(c);
-
-                //     if let Some(parent_index) = self.parent_indeces[i] {
-                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
-                //         let parent_force = ij_jof_from_jof * joint.rne_get_force();
-
-                //         let parent = &mut self.joints[parent_index];
-                //         parent.rne_add_force(parent_force);
-                //     }
-                // }
-
-                // // Solve for H with CRB
-                // let h = &mut self.crb_cache.as_mut().unwrap().h;
-                // h.fill(0.0);
-
-                // // first pass
-                // self.joints.iter_mut().for_each(|joint| joint.reset_ic());
-
-                // // second pass
-                // for i in 0..n {
-                //     let joint = &mut self.joints[i];
-                //     joint.set_h(h);
-
-                //     if let Some(parent_index) = self.parent_indeces[i] {
-                //         let joint_ic = joint.get_ic();
-                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
-                //         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
-
-                //         let parent = &mut self.joints[parent_index];
-                //         parent.add_ic(joint_ic_in_parent);
-
-                //         // just commented out until we finish the crb
-                //         //let j = i;
-                //         //while let Some(parent_index) = self.parent_indeces[j] {}
-                //     };
-                // }
-            }
+            _ => {}
         }
-        self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
-        //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
-        self.write_derivative(dx);
-
-        Ok(())
     }
 
-    pub fn update_software(&mut self) -> Result<(), MultibodyErrors> {
-        for software in &mut self.software {
-            software.step(&self.sensors, &mut self.actuators)?;
-        }
-        Ok(())
-    }
-
-    fn update_state(&mut self, states: &SimStates) {
+    fn update_state(&mut self, states: &StateVector) {
         for joint in &self.joints {
             joint.borrow_mut().state_vector_read(states);
         }
@@ -717,59 +674,62 @@ impl MultibodySystem {
         }
     }
 
-    pub fn simulate(
-        &mut self,
-        options: &SimOptions,
-        result_path: &PathBuf,
-        progress_bars: Option<Arc<MultiProgress>>,
-    ) -> Result<(), MultibodyErrors> {
-        let start_time = Instant::now();
-        let mut results = self.initialize_writers(result_path);
+    // pub fn simulate(
+    //     &mut self,
+    //     options: &SimOptions,
+    //     result_path: &PathBuf,
+    //     progress_bars: Option<Arc<MultiProgress>>,
+    // ) -> Result<(), MultibodyErrors> {
+    //     let start_time = Instant::now();
+    //     let mut results = self.initialize_writers(result_path);
 
-        // initialize the components initial conditions and secondary states
-        for jointref in &self.joints {
-            let mut joint = jointref.borrow_mut();
-            joint.update_transforms();
-            joint.calculate_joint_inertia();
-            joint.calculate_vj();
-            joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
-        }
+    //     // initialize the components initial conditions and secondary states
+    //     for jointref in &self.joints {
+    //         let mut joint = jointref.borrow_mut();
+    //         joint.update_transforms();
+    //         joint.calculate_joint_inertia();
+    //         joint.calculate_vj();
+    //         joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
+    //     }
 
-        self.update_body_states();
-        self.update_sensors();
+    //     self.update_body_states();
+    //     self.update_sensors();
 
-        // solve the multibody system
-        solve_fixed_rk4(
-            self,
-            options.tstart,
-            options.tstop,
-            options.dt,
-            &mut results,
-            progress_bars,
-        )?;
+    //     let prob = OdeProblem::new(
 
-        // save the body meshes to the result
-        let mut meshes = HashMap::new();
-        for body in &self.bodies {
-            let body = body.borrow();
-            if let Some(mesh) = &body.mesh {
-                meshes.insert(body.name.clone(), mesh.clone());
-            }
-        }
+    //     );
+    //     // solve the multibody system
+    //     solve_fixed_rk4(
+    //         self,
+    //         options.tstart,
+    //         options.tstop,
+    //         options.dt,
+    //         &mut results,
+    //         progress_bars,
+    //     )?;
 
-        let sim_duration = start_time.elapsed();
-        let sim_duration_str = utilities::format_duration(sim_duration);
+    //     // save the body meshes to the result
+    //     let mut meshes = HashMap::new();
+    //     for body in &self.bodies {
+    //         let body = body.borrow();
+    //         if let Some(mesh) = &body.mesh {
+    //             meshes.insert(body.name.clone(), mesh.clone());
+    //         }
+    //     }
 
-        // only print sim  time info if not a monte carlo, otherwise it gets ugly
-        if self.run_id.is_none() {
-            println!(
-                "Simulation '{}' completed in {sim_duration_str}.",
-                options.sim_name
-            );
-        }
+    //     let sim_duration = start_time.elapsed();
+    //     let sim_duration_str = utilities::format_duration(sim_duration);
 
-        Ok(())
-    }
+    //     // only print sim  time info if not a monte carlo, otherwise it gets ugly
+    //     if self.run_id.is_none() {
+    //         println!(
+    //             "Simulation '{}' completed in {sim_duration_str}.",
+    //             options.sim_name
+    //         );
+    //     }
+
+    //     Ok(())
+    // }
 
     fn update_actuators(&mut self) -> Result<(), MultibodyErrors> {
         self.actuators
@@ -850,40 +810,7 @@ impl MultibodySystem {
         Ok(())
     }
 
-    pub fn write_result_files(&self, t: f64, results: &mut ResultManager) {
-        if let Some(id) = self.sim_time_id {
-            results.write_record(id, &[t.to_string()]);
-        }
-
-        for body in &self.bodies {
-            body.borrow().write_result(results);
-        }
-
-        for joint in &self.joints {
-            joint.borrow().write_result(results);
-        }
-
-        for actuator in &self.actuators {
-            actuator.write_result(results);
-        }
-
-        for sensor in &self.sensors {
-            sensor.write_result(results);
-        }
-
-        for software in &self.software {
-            if let Err(e) = software.write_results(results) {
-                eprintln!("Failed to write results for software component: {:?}", e);
-            }
-        }
-
-        match &self.base.borrow().system {
-            BaseSystems::Basic(_) => {}
-            BaseSystems::Celestial(celestial) => celestial.write_results(results),
-        }
-    }
-
-    fn write_derivative(&self, dx: &mut SimStates) {
+    fn write_derivative(&self, dx: &mut StateVector) {
         for joint in &self.joints {
             joint.borrow().state_derivative(dx);
         }
@@ -892,7 +819,130 @@ impl MultibodySystem {
             actuator.state_derivative(dx);
         }
     }
+
+    pub fn post_sim_fn(&self, manager: &Option<WriterManager>) {
+        // also need to write the meshes for animation
+        if let Some(manager) = &manager {
+            for body in &self.bodies {
+                let body = body.borrow_mut();
+
+                if let Some(mesh) = &body.mesh {
+                    if let Some(root_dir) = &manager.root_dir {
+                        let bodies_folder = root_dir.join("bodies");
+                        let mesh_file_path = bodies_folder.join(body.name.clone() + ".mesh");
+                        let mut mesh_file = File::create(mesh_file_path).unwrap();
+                        let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
+                        mesh_file.write_all(ron_string.as_bytes()).unwrap();
+                    }
+                }
+            }
+        }
+    }
 }
+
+impl OdeModel for MultibodySystem {
+    type State = StateVector;
+    fn f(&mut self, t: f64, x: &StateVector, dx: &mut StateVector) -> Result<(), Box<dyn Error>> {
+        self.update_state(x); // write the integrated states back in to the joints
+        self.update_base(t); // update epoch based celestial states based on new time
+        self.update_joints(); // update joint state based quantities like transforms
+        self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
+        self.update_sensors()?;
+        self.update_actuators()?; // update the actuators before updating forces on the bodies
+        self.update_environments(); //update the environmental forces before updating forcces on the bodies
+        self.update_forces(); // update body forces
+
+        match self.algorithm {
+            MultibodyAlgorithm::ArticulatedBody => {
+                // First Pass
+                for jointref in &mut self.joints {
+                    let mut joint = jointref.borrow_mut();
+                    joint.aba_first_pass();
+                }
+
+                // Second Pass
+                for joint in self.joints.iter().rev() {
+                    joint.borrow_mut().aba_second_pass();
+                }
+
+                // Third Pass
+                for joint in &self.joints {
+                    joint.borrow_mut().aba_third_pass();
+                }
+            }
+            MultibodyAlgorithm::CompositeRigidBody => {
+                // let n: usize = self.joints.len();
+
+                // // Run the Recursive Newton Euler algorithm to calculate C.
+                // let c = &mut self.crb_cache.as_mut().unwrap().c;
+
+                // // first pass
+                // for i in 0..n {
+                //     let (a_ij, v_ij) = if let Some(parent_index) = self.parent_indices[i] {
+                //         (
+                //             *self.joints[parent_index].cache.a,
+                //             *self.joints[parent_index].cache.v,
+                //         )
+                //     } else {
+                //         (Acceleration::zeros(), Velocity::zeros())
+                //     };
+
+                //     let joint = &mut self.joints[i];
+                //     joint.rne_first_pass(a_ij, v_ij, false);
+                // }
+
+                // // Second Pass
+                // for i in (0..n).rev() {
+                //     let joint = &mut self.joints[i];
+                //     joint.rne_set_tau();
+
+                //     // set C values
+                //     joint.set_c(c);
+
+                //     if let Some(parent_index) = self.parent_indices[i] {
+                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                //         let parent_force = ij_jof_from_jof * joint.rne_get_force();
+
+                //         let parent = &mut self.joints[parent_index];
+                //         parent.rne_add_force(parent_force);
+                //     }
+                // }
+
+                // // Solve for H with CRB
+                // let h = &mut self.crb_cache.as_mut().unwrap().h;
+                // h.fill(0.0);
+
+                // // first pass
+                // self.joints.iter_mut().for_each(|joint| joint.reset_ic());
+
+                // // second pass
+                // for i in 0..n {
+                //     let joint = &mut self.joints[i];
+                //     joint.set_h(h);
+
+                //     if let Some(parent_index) = self.parent_indices[i] {
+                //         let joint_ic = joint.get_ic();
+                //         let ij_jof_from_jof = joint.get_transforms().ij_jof_from_jof;
+                //         let joint_ic_in_parent = ij_jof_from_jof * joint_ic;
+
+                //         let parent = &mut self.joints[parent_index];
+                //         parent.add_ic(joint_ic_in_parent);
+
+                //         // just commented out until we finish the crb
+                //         //let j = i;
+                //         //while let Some(parent_index) = self.parent_indices[j] {}
+                //     };
+                // }
+            }
+        }
+        self.update_body_acceleration(); // update body acceleration after joint accelerations are calculated
+        //self.update_accelerometers(); // would need to update accelerometers here, or maybe just ZOH from before?
+        self.write_derivative(dx);
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Identifier {
     current_id: usize,

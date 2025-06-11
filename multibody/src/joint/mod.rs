@@ -6,13 +6,15 @@ pub mod revolute;
 use crate::{
     algorithms::articulated_body_algorithm::{AbaCache, ArticulatedBodyAlgorithm},
     body::{BodyConnection, BodyConnectionBuilder},
-    solver::{SimStateVector, SimStates},
     system::Id,
 };
 use floating::{Floating, FloatingBuilder, FloatingErrors};
 use joint_transforms::JointTransforms;
 use mass_properties::MassProperties;
-use nadir_result::{NadirResult, ResultManager};
+use nadir_diffeq::{
+    saving::{StateWriter, StateWriterBuilder, WriterId, WriterManager},
+    state::state_vector::StateVector,
+};
 use nalgebra::Vector6;
 use prismatic::{Prismatic, PrismaticBuilder, PrismaticErrors};
 use rand::rngs::SmallRng;
@@ -20,7 +22,7 @@ use revolute::{Revolute, RevoluteBuilder, RevoluteErrors};
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
-use std::{cell::RefCell, fmt::Debug, rc::Rc};
+use std::{cell::RefCell, fmt::Debug, path::PathBuf, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
 use uncertainty::{SimValue, Uncertainty};
@@ -142,8 +144,9 @@ impl JointBuilder {
             name: self.name.clone(),
             model,
             connections,
-            result_id: None,
-            state_id: None,
+            writer_id: None,
+            state_start: 0,
+            state_end: 0,
             cache: JointCache::default(),
             inner_joint: None,
         })
@@ -164,11 +167,11 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
     /// Used to populate elements in the mass matrix and state arrays        
     fn ndof(&self) -> u32;
     /// Populates derivative with the appropriate values for the joint state derivative
-    fn state_derivative(&self, derivative: &mut SimStateVector, transforms: &JointTransforms);
+    fn state_derivative(&self, derivative: &mut [f64], transforms: &JointTransforms);
     /// Initializes a vector of f64 values representing state vector for the ODE integration
-    fn state_vector_init(&self) -> SimStateVector;
+    fn state_vector_init(&self) -> StateVector;
     /// Reads a state vector into the joint state
-    fn state_vector_read(&mut self, state: &SimStateVector);
+    fn state_vector_read(&mut self, state: &[f64]);
     /// Updates the joint transforms based on model specific state
     /// Depends on the inner joint transforms as well
     fn update_transforms(
@@ -176,8 +179,8 @@ pub trait JointModel: ArticulatedBodyAlgorithm {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     );
-    fn result_headers(&self) -> &[&str];
-    fn result_content(&self, id: u32, results: &mut ResultManager);
+    fn writer_headers(&self) -> &[&str];
+    fn writer_save_fn(&self, writer: &mut StateWriter);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -230,23 +233,23 @@ impl JointModel for JointModels {
         }
     }
 
-    fn result_content(&self, id: u32, results: &mut ResultManager) {
+    fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
-            JointModels::Floating(model) => model.result_content(id, results),
-            JointModels::Prismatic(model) => model.result_content(id, results),
-            JointModels::Revolute(model) => model.result_content(id, results),
+            JointModels::Floating(model) => model.writer_save_fn(writer),
+            JointModels::Prismatic(model) => model.writer_save_fn(writer),
+            JointModels::Revolute(model) => model.writer_save_fn(writer),
         }
     }
 
-    fn result_headers(&self) -> &[&str] {
+    fn writer_headers(&self) -> &[&str] {
         match self {
-            JointModels::Floating(model) => model.result_headers(),
-            JointModels::Prismatic(model) => model.result_headers(),
-            JointModels::Revolute(model) => model.result_headers(),
+            JointModels::Floating(model) => model.writer_headers(),
+            JointModels::Prismatic(model) => model.writer_headers(),
+            JointModels::Revolute(model) => model.writer_headers(),
         }
     }
 
-    fn state_derivative(&self, derivative: &mut SimStateVector, transforms: &JointTransforms) {
+    fn state_derivative(&self, derivative: &mut [f64], transforms: &JointTransforms) {
         match self {
             JointModels::Floating(model) => model.state_derivative(derivative, transforms),
             JointModels::Prismatic(model) => model.state_derivative(derivative, transforms),
@@ -254,7 +257,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_vector_init(&self) -> SimStateVector {
+    fn state_vector_init(&self) -> StateVector {
         match self {
             JointModels::Floating(model) => model.state_vector_init(),
             JointModels::Prismatic(model) => model.state_vector_init(),
@@ -262,7 +265,7 @@ impl JointModel for JointModels {
         }
     }
 
-    fn state_vector_read(&mut self, state: &SimStateVector) {
+    fn state_vector_read(&mut self, state: &[f64]) {
         match self {
             JointModels::Floating(model) => model.state_vector_read(state),
             JointModels::Prismatic(model) => model.state_vector_read(state),
@@ -305,8 +308,9 @@ pub struct Joint {
     pub name: String,
     pub model: JointModels,
     pub connections: JointConnection,
-    result_id: Option<u32>,
-    state_id: Option<usize>,
+    writer_id: Option<WriterId>,
+    state_start: usize,
+    state_end: usize,
     pub cache: JointCache,
     pub inner_joint: Option<JointRef>,
 }
@@ -384,12 +388,10 @@ impl Joint {
             .calculate_joint_inertia(mass_properties, &self.cache.transforms);
     }
 
-    pub fn state_derivative(&self, derivatives: &mut SimStates) {
-        if let Some(id) = self.state_id {
-            let derivative = &mut derivatives.0[id];
-            self.model
-                .state_derivative(derivative, &self.cache.transforms);
-        }
+    pub fn state_derivative(&self, derivatives: &mut StateVector) {
+        let derivative = &mut derivatives[self.state_start..self.state_end];
+        self.model
+            .state_derivative(derivative, &self.cache.transforms);
     }
 
     pub fn update_transforms(&mut self) {
@@ -402,36 +404,34 @@ impl Joint {
         self
     }
 
-    pub fn state_vector_init(&mut self, x0: &mut SimStates) {
-        self.state_id = Some(x0.0.len());
-        x0.0.push(self.model.state_vector_init());
+    pub fn state_vector_init(&mut self, x0: &mut StateVector) {
+        self.state_start = x0.len();
+        let state = self.model.state_vector_init();
+        self.state_end = self.state_start + state.len();
+        x0.extend(&self.model.state_vector_init());
     }
 
-    pub fn state_vector_read(&mut self, x0: &SimStates) {
-        if let Some(id) = self.state_id {
-            self.model.state_vector_read(&x0.0[id]);
-        }
-    }
-}
-
-impl NadirResult for Joint {
-    fn new_result(&mut self, results: &mut ResultManager) {
-        // Define the joints subfolder folder path
-        let joints_folder_path = results.result_path.join("joints");
-        // Check if the folder exists, if not, create it
-        if !joints_folder_path.exists() {
-            std::fs::create_dir_all(&joints_folder_path).expect("Failed to create bodies folder");
-        }
-        // Get the headers from the joint model
-        let headers = self.model.result_headers();
-        // Create the writer and assign its id
-        let id = results.new_writer(&self.name.clone(), &joints_folder_path, headers);
-        self.result_id = Some(id);
+    pub fn state_vector_read(&mut self, x0: &StateVector) {
+        let state = &x0[self.state_start..self.state_end];
+        self.model.state_vector_read(state);
     }
 
-    fn write_result(&self, results: &mut ResultManager) {
-        if let Some(id) = self.result_id {
-            self.model.result_content(id, results);
+    pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
+        let headers = self.model.writer_headers();
+        let rel_path = PathBuf::new()
+            .join("joints")
+            .join(format!("{}.csv", self.name));
+        let builder = StateWriterBuilder::new(headers.len(), rel_path)
+            .with_headers(headers)
+            .unwrap();
+        self.writer_id = Some(manager.add_writer(builder));
+    }
+
+    pub fn writer_save_fn(&self, manager: &mut WriterManager) {
+        if let Some(id) = &self.writer_id {
+            if let Some(writer) = manager.writers.get_mut(id) {
+                self.model.writer_save_fn(writer);
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use super::{GeometryState, GeometryTrait, GeometryTransform};
 use crate::vertex::Vertex;
-use glam::{vec2, vec3, Mat3, Mat4, Quat};
+use glam::{Mat3, Mat4, Quat, vec2, vec3};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -270,7 +270,9 @@ impl GeometryTrait for Cuboid {
             ),
         );
 
-        let normal = Mat3::from_mat4(transformation).inverse().transpose();
+        let normal = Mat3::from_mat4(transformation)
+            .inverse()
+            .transpose();
         GeometryTransform::new(transformation, normal)
     }
 }
