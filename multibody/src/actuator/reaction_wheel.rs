@@ -52,11 +52,6 @@ impl ReactionWheelCommand {
     const TORQUE: u8 = 0;
     const CURRENT: u8 = 1;
     const SPEED: u8 = 2;
-    const ZERO: Self = Self {
-        value: 0.0,
-        command: 0,
-        _padding: [0; 7],
-    };
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -336,7 +331,10 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
+        self.parameters
+            .friction
+            .stiction_threshold
+            .nominal = stiction_threshold;
         Ok(())
     }
 
@@ -347,7 +345,10 @@ impl ReactionWheelBuilder {
         if stiction_threshold < 0.0 {
             return Err(ReactionWheelErrors::NegativeStictionThreshold);
         }
-        self.parameters.friction.stiction_threshold.nominal = stiction_threshold;
+        self.parameters
+            .friction
+            .stiction_threshold
+            .nominal = stiction_threshold;
         Ok(self)
     }
 
@@ -380,8 +381,9 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<(), ReactionWheelErrors> {
-        self.parameters.torque_speed_curve =
-            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+            knee_speed, max_speed,
+        )?);
         Ok(())
     }
 
@@ -390,8 +392,9 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<Self, ReactionWheelErrors> {
-        self.parameters.torque_speed_curve =
-            Some(TorqueSpeedCurveBuilder::new(knee_speed, max_speed)?);
+        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+            knee_speed, max_speed,
+        )?);
         Ok(self)
     }
 
@@ -500,11 +503,10 @@ impl ActuatorModel for ReactionWheel {
             .transform
             .rotation
             .transform(&Vector3::new(0.0, 0.0, -torque));
-        self.state.momentum_body =
-            connection
-                .transform
-                .rotation
-                .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
+        self.state.momentum_body = connection
+            .transform
+            .rotation
+            .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
 
         // apply misaligntment if applicable
         if let Some(misalignment) = &self.parameters.misalignment {
