@@ -1,6 +1,7 @@
 use crate::{
     HardwareBuffer,
     body::BodyConnection,
+    delay::DelayedValue,
     sensor::{
         SensorModel,
         noise::{Noise, NoiseBuilder},
@@ -43,7 +44,17 @@ impl Uncertainty for GpsParametersBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
-            Some(delay) => Some(delay.sample(nominal, rng)),
+            Some(delay) => {
+                let delay = delay.sample(nominal, rng);
+                Some([
+                    DelayedValue::new(delay),
+                    DelayedValue::new(delay),
+                    DelayedValue::new(delay),
+                    DelayedValue::new(delay),
+                    DelayedValue::new(delay),
+                    DelayedValue::new(delay),
+                ])
+            }
             None => None,
         };
         let position_noise = match &self.position_noise {
@@ -67,7 +78,7 @@ impl Uncertainty for GpsParametersBuilder {
 }
 #[derive(Debug)]
 struct GpsParameters {
-    delay: Option<f64>,
+    delay: Option<[DelayedValue; 6]>,
     position_noise: Option<[Noise; 3]>,
     velocity_noise: Option<[Noise; 3]>,
 }
@@ -223,11 +234,25 @@ pub struct Gps {
 }
 
 impl SensorModel for Gps {
-    fn update(&mut self, _t: f64, connection: &BodyConnection) {
+    fn update(&mut self, t: f64, connection: &BodyConnection) {
         let body = connection.body.borrow();
 
         let true_position = body.state.position_base;
         let true_velocity = body.state.velocity_base;
+
+        let (position, velocity) = if let Some(delay) = &mut self.parameters.delay {
+            let mut delayed_position = Vector3::zeros();
+            let mut delayed_velocity = Vector3::zeros();
+            for i in 0..3 {
+                delay[i].update(t, true_position[i]);
+                delayed_position[i] = delay[i].get_delayed_reading(t);
+                delay[i + 3].update(t, true_velocity[i]);
+                delayed_velocity[i] = delay[i + 3].get_delayed_reading(t);
+            }
+            (delayed_position, delayed_velocity)
+        } else {
+            (true_position, true_velocity)
+        };
 
         if let Some(noise_model) = &mut self.parameters.position_noise {
             let noise1 = noise_model[0].sample();
@@ -235,9 +260,9 @@ impl SensorModel for Gps {
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
             self.state.position_noise = Some(noise);
-            self.state.position = true_position + noise;
+            self.state.position = position + noise;
         } else {
-            self.state.position = true_position;
+            self.state.position = position;
         }
 
         if let Some(noise_model) = &mut self.parameters.velocity_noise {
@@ -246,9 +271,9 @@ impl SensorModel for Gps {
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
             self.state.velocity_noise = Some(noise);
-            self.state.velocity = true_velocity + noise;
+            self.state.velocity = velocity + noise;
         } else {
-            self.state.velocity = true_velocity;
+            self.state.velocity = velocity;
         }
 
         // update telemetry
