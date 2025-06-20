@@ -76,10 +76,7 @@ impl Struct {
         struct_methods: HashMap<&'static str, Vec<StructMethod>>,
         instance_methods: HashMap<&'static str, Vec<InstanceMethod>>,
     ) -> Self {
-        Self {
-            struct_methods,
-            instance_methods,
-        }
+        Self { struct_methods, instance_methods }
     }
 }
 
@@ -90,10 +87,7 @@ pub struct StructMethod {
 }
 impl StructMethod {
     fn new(args: Vec<Argument>, implementation: StructMethodFn) -> Self {
-        Self {
-            args,
-            implementation,
-        }
+        Self { args, implementation }
     }
 }
 
@@ -105,10 +99,7 @@ pub struct InstanceMethod {
 
 impl InstanceMethod {
     fn new(args: Vec<Argument>, implementation: InstanceMethodFn) -> Self {
-        Self {
-            args,
-            implementation,
-        }
+        Self { args, implementation }
     }
 }
 
@@ -119,10 +110,7 @@ pub struct FunctionMethod {
 }
 impl FunctionMethod {
     fn new(args: Vec<Argument>, implementation: FunctionFn) -> Self {
-        Self {
-            args,
-            implementation,
-        }
+        Self { args, implementation }
     }
 }
 
@@ -169,39 +157,68 @@ impl Registry {
 
         // CelestialBodies
         let mut celestial_bodies_variants = HashMap::new();
-        celestial_bodies_variants.insert("Earth", Value::CelestialBodies(CelestialBodies::Earth));
-        celestial_bodies_variants
-            .insert("Jupiter", Value::CelestialBodies(CelestialBodies::Jupiter));
-        celestial_bodies_variants.insert("Mars", Value::CelestialBodies(CelestialBodies::Mars));
-        celestial_bodies_variants
-            .insert("Mercury", Value::CelestialBodies(CelestialBodies::Mercury));
-        celestial_bodies_variants
-            .insert("Neptune", Value::CelestialBodies(CelestialBodies::Neptune));
-        celestial_bodies_variants.insert("Pluto", Value::CelestialBodies(CelestialBodies::Pluto));
-        celestial_bodies_variants.insert("Saturn", Value::CelestialBodies(CelestialBodies::Saturn));
-        celestial_bodies_variants.insert("Sun", Value::CelestialBodies(CelestialBodies::Sun));
-        celestial_bodies_variants.insert("Uranus", Value::CelestialBodies(CelestialBodies::Uranus));
-        celestial_bodies_variants.insert("Venus", Value::CelestialBodies(CelestialBodies::Mercury));
+        celestial_bodies_variants.insert(
+            "Earth",
+            Value::CelestialBodies(CelestialBodies::Earth),
+        );
+        celestial_bodies_variants.insert(
+            "Jupiter",
+            Value::CelestialBodies(CelestialBodies::Jupiter),
+        );
+        celestial_bodies_variants.insert(
+            "Mars",
+            Value::CelestialBodies(CelestialBodies::Mars),
+        );
+        celestial_bodies_variants.insert(
+            "Mercury",
+            Value::CelestialBodies(CelestialBodies::Mercury),
+        );
+        celestial_bodies_variants.insert(
+            "Neptune",
+            Value::CelestialBodies(CelestialBodies::Neptune),
+        );
+        celestial_bodies_variants.insert(
+            "Pluto",
+            Value::CelestialBodies(CelestialBodies::Pluto),
+        );
+        celestial_bodies_variants.insert(
+            "Saturn",
+            Value::CelestialBodies(CelestialBodies::Saturn),
+        );
+        celestial_bodies_variants.insert(
+            "Sun",
+            Value::CelestialBodies(CelestialBodies::Sun),
+        );
+        celestial_bodies_variants.insert(
+            "Uranus",
+            Value::CelestialBodies(CelestialBodies::Uranus),
+        );
+        celestial_bodies_variants.insert(
+            "Venus",
+            Value::CelestialBodies(CelestialBodies::Mercury),
+        );
         enums.insert(
             "CelestialBodies",
-            Enum {
-                variants: celestial_bodies_variants,
-            },
+            Enum { variants: celestial_bodies_variants },
         );
 
         //TimeFormat
         let mut time_format_variants = HashMap::new();
-        time_format_variants.insert("JulianDate", Value::TimeFormat(TimeFormat::JulianDate));
+        time_format_variants.insert(
+            "JulianDate",
+            Value::TimeFormat(TimeFormat::JulianDate),
+        );
         time_format_variants.insert(
             "SecondsSinceJ2000",
             Value::TimeFormat(TimeFormat::SecondsSinceJ2000),
         );
-        time_format_variants.insert("DateTime", Value::TimeFormat(TimeFormat::DateTime));
+        time_format_variants.insert(
+            "DateTime",
+            Value::TimeFormat(TimeFormat::DateTime),
+        );
         enums.insert(
             "TimeFormat",
-            Enum {
-                variants: time_format_variants,
-            },
+            Enum { variants: time_format_variants },
         );
 
         //TimeSystem
@@ -213,9 +230,7 @@ impl Registry {
         time_system_variants.insert("UTC", Value::TimeSystem(TimeSystem::UTC));
         enums.insert(
             "TimeSystem",
-            Enum {
-                variants: time_system_variants,
-            },
+            Enum { variants: time_system_variants },
         );
 
         // Structs with their methods
@@ -284,7 +299,9 @@ impl Registry {
                     axes.add_line(l);
                 }
 
-                Ok(Value::Event(Event::NewFigure(Arc::new(Mutex::new(figure)))))
+                Ok(Value::Event(Event::NewFigure(Arc::new(
+                    Mutex::new(figure),
+                ))))
             })],
         );
         let mut figure_instance_methods = HashMap::new();
@@ -395,15 +412,12 @@ impl Registry {
 
         ke_instance_methods.insert(
             "keplers_problem",
-            vec![InstanceMethod::new(
-                vec![Argument::new("t", "Time")],
-                |val, args| {
-                    let ke = val.as_keplerian_elements()?;
-                    let t = args[0].as_time()?;
-                    let t = t.lock().unwrap();
-                    Ok(Value::KeplerianElements(ke.keplers_problem(*t)?))
-                },
-            )],
+            vec![InstanceMethod::new(vec![Argument::new("t", "Time")], |val, args| {
+                let ke = val.as_keplerian_elements()?;
+                let t = args[0].as_time()?;
+                let t = t.lock().unwrap();
+                Ok(Value::KeplerianElements(ke.keplers_problem(*t)?))
+            })],
         );
 
         structs.insert(
@@ -442,10 +456,7 @@ impl Registry {
         line_struct_methods.insert(
             "new",
             vec![StructMethod::new(
-                vec![
-                    Argument::new("x_data", "Vector"),
-                    Argument::new("y_data", "Vector"),
-                ],
+                vec![Argument::new("x_data", "Vector"), Argument::new("y_data", "Vector")],
                 |args, _pwd| {
                     let x_data = args[0].as_vector()?;
                     let x_data = &*x_data.lock().unwrap();
@@ -527,10 +538,7 @@ impl Registry {
         map_instance_methods.insert(
             "insert",
             vec![InstanceMethod::new(
-                vec![
-                    Argument::new("key", "String"),
-                    Argument::new("value", "Value"),
-                ],
+                vec![Argument::new("key", "String"), Argument::new("value", "Value")],
                 |val, args| {
                     let map_guard = val.as_map()?;
                     let mut map = map_guard.lock().unwrap();
@@ -551,7 +559,10 @@ impl Registry {
                 Ok(Value::None)
             })],
         );
-        structs.insert("Map", Struct::new(map_struct_methods, map_instance_methods));
+        structs.insert(
+            "Map",
+            Struct::new(map_struct_methods, map_instance_methods),
+        );
 
         // Matrix
         let mut matrix_struct_methods = HashMap::new();
@@ -585,7 +596,9 @@ impl Registry {
                     let n = args[0].as_usize()?;
                     let mut rng = rand::rng();
                     let normal = Normal::new(0.0, 1.0 / 3.0).unwrap();
-                    let data: Vec<f64> = (0..(n * n)).map(|_| normal.sample(&mut rng)).collect();
+                    let data: Vec<f64> = (0..(n * n))
+                        .map(|_| normal.sample(&mut rng))
+                        .collect();
                     let matrix = DMatrix::from_vec(n, n, data);
                     Ok(Value::Matrix(Arc::new(Mutex::new(matrix))))
                 }),
@@ -623,19 +636,23 @@ impl Registry {
                     Argument::new("w", "f64"),
                 ],
                 |args, _pwd| {
-                    Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::new(
-                        args[0].as_f64()?,
-                        args[1].as_f64()?,
-                        args[2].as_f64()?,
-                        args[3].as_f64()?,
-                    )))))
+                    Ok(Value::Quaternion(Arc::new(Mutex::new(
+                        Quaternion::new(
+                            args[0].as_f64()?,
+                            args[1].as_f64()?,
+                            args[2].as_f64()?,
+                            args[3].as_f64()?,
+                        ),
+                    ))))
                 },
             )],
         );
         quaternion_struct_methods.insert(
             "rand",
             vec![StructMethod::new(vec![], |_, _pwd| {
-                Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(
+                    Quaternion::rand(),
+                ))))
             })],
         );
         let mut quaternion_instance_methods = HashMap::new();
@@ -650,7 +667,10 @@ impl Registry {
 
         structs.insert(
             "Quaternion",
-            Struct::new(quaternion_struct_methods, quaternion_instance_methods),
+            Struct::new(
+                quaternion_struct_methods,
+                quaternion_instance_methods,
+            ),
         );
 
         // MultibodySystem
@@ -659,8 +679,10 @@ impl Registry {
             "load",
             vec![StructMethod::new(
                 vec![Argument::new("file", "String")],
-                |args, _pwd| {
-                    let file = std::env::current_dir().unwrap().join(args[0].as_string()?);
+                |_args, _pwd| {
+                    // let file = std::env::current_dir()
+                    //     .unwrap()
+                    //     .join(args[0].as_string()?);
 
                     Ok(Value::None)
                 },
@@ -679,10 +701,7 @@ impl Registry {
         time_struct_methods.insert(
             "from_jd",
             vec![StructMethod::new(
-                vec![
-                    Argument::new("jd", "f64"),
-                    Argument::new("system", "TimeSystem"),
-                ],
+                vec![Argument::new("jd", "f64"), Argument::new("system", "TimeSystem")],
                 |args, _pwd| {
                     let jd = args[0].as_f64()?;
                     let system = args[1].as_time_system()?;
@@ -741,10 +760,7 @@ impl Registry {
         time_struct_methods.insert(
             "from_sec_j2k",
             vec![StructMethod::new(
-                vec![
-                    Argument::new("sec", "f64"),
-                    Argument::new("system", "TimeSystem"),
-                ],
+                vec![Argument::new("sec", "f64"), Argument::new("system", "TimeSystem")],
                 |args, _pwd| {
                     let y = args[0].as_f64()?;
                     let system = args[1].as_time_system()?;
@@ -763,7 +779,9 @@ impl Registry {
                     let val = val.as_time()?;
                     let val = &*val.lock().unwrap();
                     let system = args[0].as_time_system()?;
-                    Ok(Value::Time(Arc::new(Mutex::new(val.to_system(system)))))
+                    Ok(Value::Time(Arc::new(Mutex::new(
+                        val.to_system(system),
+                    ))))
                 },
             )],
         );
@@ -836,7 +854,9 @@ impl Registry {
         unit_quaternion_struct_methods.insert(
             "rand",
             vec![StructMethod::new(vec![], |_args, _pwd| {
-                Ok(Value::Quaternion(Arc::new(Mutex::new(Quaternion::rand()))))
+                Ok(Value::Quaternion(Arc::new(Mutex::new(
+                    Quaternion::rand(),
+                ))))
             })],
         );
 
@@ -862,30 +882,30 @@ impl Registry {
         let mut vector_struct_methods = HashMap::new();
         vector_struct_methods.insert(
             "rand",
-            vec![StructMethod::new(
-                vec![Argument::new("n", "i64")],
-                |args, _pwd| {
-                    let mut rng = rand::rng();
-                    let vector =
-                        DVector::from_vec((0..args[0].as_usize()?).map(|_| rng.random()).collect());
-                    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
-                },
-            )],
+            vec![StructMethod::new(vec![Argument::new("n", "i64")], |args, _pwd| {
+                let mut rng = rand::rng();
+                let vector = DVector::from_vec(
+                    (0..args[0].as_usize()?)
+                        .map(|_| rng.random())
+                        .collect(),
+                );
+                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+            })],
         );
         vector_struct_methods.insert(
             "randn",
-            vec![StructMethod::new(
-                vec![Argument::new("n", "i64")],
-                |args, _pwd| {
-                    let size = args[0].as_usize()?;
+            vec![StructMethod::new(vec![Argument::new("n", "i64")], |args, _pwd| {
+                let size = args[0].as_usize()?;
 
-                    let mut rng = rand::rng();
-                    let normal = Normal::new(0.0, 1.0).unwrap();
-                    let vector =
-                        DVector::from_vec((0..size).map(|_| normal.sample(&mut rng)).collect());
-                    Ok(Value::Vector(Arc::new(Mutex::new(vector))))
-                },
-            )],
+                let mut rng = rand::rng();
+                let normal = Normal::new(0.0, 1.0).unwrap();
+                let vector = DVector::from_vec(
+                    (0..size)
+                        .map(|_| normal.sample(&mut rng))
+                        .collect(),
+                );
+                Ok(Value::Vector(Arc::new(Mutex::new(vector))))
+            })],
         );
         vector_struct_methods.insert(
             "from_file",
@@ -1030,12 +1050,7 @@ impl Registry {
             }),
         );
 
-        Self {
-            structs,
-            functions,
-            commands,
-            enums,
-        }
+        Self { structs, functions, commands, enums }
     }
 }
 
@@ -1069,10 +1084,12 @@ impl Registry {
             .ok_or_else(|| RegistryErrors::StructNotFound(struct_name.to_string()))?;
 
         // Get the list of possible method signatures
-        let method_overloads = struc.struct_methods.get(method_name).ok_or_else(|| {
-            RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
-        })?;
-
+        let method_overloads = struc
+            .struct_methods
+            .get(method_name)
+            .ok_or_else(|| {
+                RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
+            })?;
         // Try each possible overload
         for method in method_overloads {
             // Check if argument lengths match
@@ -1131,9 +1148,13 @@ impl Registry {
             .ok_or_else(|| RegistryErrors::StructNotFound(struct_name.to_string()))?;
 
         // Get the list of possible method signatures
-        let method_overloads = struc.instance_methods.get(method_name).ok_or_else(|| {
-            RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
-        })?;
+        let method_overloads = struc
+            .instance_methods
+            .get(method_name)
+            .ok_or_else(|| {
+                RegistryErrors::MethodNotFound(struct_name.to_string(), method_name.to_string())
+            })?;
+
         // Try each possible overload
         for method in method_overloads {
             // Check if argument lengths match
@@ -1144,7 +1165,7 @@ impl Registry {
             // Check if each argument type matches
             let mut signature_matches = true;
             for (required, actual) in method.args.iter().zip(args.iter()) {
-                if required.type_name != actual.to_string() && required.type_name != "Value" {
+                if required.type_name != actual.type_check() && required.type_name != "Value" {
                     signature_matches = false;
                     break;
                 }
@@ -1201,7 +1222,9 @@ impl Registry {
             return (method.implementation)(args, pwd);
         }
         // If we exhaust all overloads without finding a match:
-        Err(RegistryErrors::FunctionNotFound(function_name.to_string()))
+        Err(RegistryErrors::FunctionNotFound(
+            function_name.to_string(),
+        ))
     }
 
     pub fn eval_command(
@@ -1226,7 +1249,11 @@ fn display_in_columns(entries: &[String], terminal_width: usize) -> String {
     }
 
     // Find the maximum entry length for column width calculation
-    let max_len = entries.iter().map(|entry| entry.len()).max().unwrap_or(0);
+    let max_len = entries
+        .iter()
+        .map(|entry| entry.len())
+        .max()
+        .unwrap_or(0);
 
     // Add padding between columns
     let column_width = max_len + 2;
@@ -1250,7 +1277,11 @@ fn display_in_columns(entries: &[String], terminal_width: usize) -> String {
             if index < entries.len() {
                 let entry = &entries[index];
                 // Add padding to align columns
-                result.push_str(&format!("{:<width$}", entry, width = column_width));
+                result.push_str(&format!(
+                    "{:<width$}",
+                    entry,
+                    width = column_width
+                ));
             }
         }
         result.push('\n');
@@ -1331,7 +1362,9 @@ fn navigate_and_select_file(start_dir: &Path) -> Result<PathBuf, Box<dyn std::er
 
         // No valid options? Return an error
         if options.is_empty() {
-            return Err("No valid files or directories found.".to_string().into());
+            return Err("No valid files or directories found."
+                .to_string()
+                .into());
         }
 
         // Prompt user to select an entry
@@ -1426,8 +1459,10 @@ fn smart_file_utils(
             .from_reader(filtered_content.as_bytes());
 
         // Check field count consistency across rows
-        let records: Vec<csv::StringRecord> =
-            reader.into_records().filter_map(Result::ok).collect();
+        let records: Vec<csv::StringRecord> = reader
+            .into_records()
+            .filter_map(Result::ok)
+            .collect();
         if records.is_empty() {
             continue;
         }
@@ -1457,7 +1492,11 @@ fn smart_file_utils(
         .flexible(true)
         .from_reader(filtered_content.as_bytes());
 
-    let records: Vec<csv::StringRecord> = reader.records().take(5).filter_map(Result::ok).collect();
+    let records: Vec<csv::StringRecord> = reader
+        .records()
+        .take(5)
+        .filter_map(Result::ok)
+        .collect();
     if records.len() < 2 {
         // Not enough data to determine headers, assume no headers
         let column_options: Vec<String> = if !records.is_empty() {
@@ -1601,7 +1640,11 @@ fn load_single_column(
     }
 
     if values.is_empty() {
-        return Err(format!("No valid numeric data found for column {}", column_idx + 1).into());
+        return Err(format!(
+            "No valid numeric data found for column {}",
+            column_idx + 1
+        )
+        .into());
     }
 
     Ok((header_name, DVector::from_vec(values)))

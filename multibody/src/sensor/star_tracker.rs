@@ -54,11 +54,7 @@ impl Uncertainty for StarTrackerParametersBuilder {
             Some(noise) => Some(noise.sample(nominal, rng)?),
             None => None,
         };
-        Ok(StarTrackerParameters {
-            delay,
-            misalignment,
-            noise,
-        })
+        Ok(StarTrackerParameters { delay, misalignment, noise })
     }
 }
 
@@ -132,7 +128,7 @@ pub struct StarTracker {
 }
 
 impl SensorModel for StarTracker {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, _t: f64, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let transform = &connection.transform;
 
@@ -187,12 +183,7 @@ impl SensorModel for StarTracker {
                 "noise[w]",
             ]
         } else {
-            &[
-                "measurement[x]",
-                "measurement[y]",
-                "measurement[z]",
-                "measurement[w]",
-            ]
+            &["measurement[x]", "measurement[y]", "measurement[z]", "measurement[w]"]
         }
     }
 

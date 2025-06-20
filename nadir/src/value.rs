@@ -196,7 +196,11 @@ impl std::fmt::Debug for Value {
                 writeln!(
                     f,
                     "{}",
-                    label(&format!("Matrix<f64,{}x{}>", m.nrows(), m.ncols()))
+                    label(&format!(
+                        "Matrix<f64,{}x{}>",
+                        m.nrows(),
+                        m.ncols()
+                    ))
                 )?;
 
                 let col_width: usize = 8; // Explicitly define col_width as `usize`
@@ -267,7 +271,11 @@ impl std::fmt::Debug for Value {
                     }
                 }
                 let v = v.lock().unwrap();
-                writeln!(f, "{}", label(&format!("Vector<f64,{}>", v.len())))?;
+                writeln!(
+                    f,
+                    "{}",
+                    label(&format!("Vector<f64,{}>", v.len()))
+                )?;
 
                 // Determine how many entries to display
                 let len = v.len();
@@ -298,7 +306,11 @@ impl std::fmt::Debug for Value {
             }
             Value::VectorUsize(v) => {
                 let v = v.lock().unwrap();
-                writeln!(f, "{}", label(&format!("Vector<usize,{}>", v.len())))?;
+                writeln!(
+                    f,
+                    "{}",
+                    label(&format!("Vector<usize,{}>", v.len()))
+                )?;
                 for (i, e) in v.iter().enumerate() {
                     writeln!(f, "{} {}", label(&i.to_string()), e)?;
                 }
@@ -306,7 +318,11 @@ impl std::fmt::Debug for Value {
             }
             Value::VectorBool(v) => {
                 let v = v.lock().unwrap();
-                writeln!(f, "{}", label(&format!("Vector<bool,{}>", v.len())))?;
+                writeln!(
+                    f,
+                    "{}",
+                    label(&format!("Vector<bool,{}>", v.len()))
+                )?;
                 for (i, e) in v.iter().enumerate() {
                     writeln!(f, "{} {}", label(&i.to_string()), e)?;
                 }
@@ -407,7 +423,7 @@ impl Value {
     }
 
     // returns the general type of the Value
-    // we need this since we custom format to_string() to pring the size and type
+    // we need this since we custom format to_string() to print the size and type
     pub fn type_check(&self) -> String {
         match self {
             Value::Vector(_) => "Vector".to_string(),
@@ -643,19 +659,27 @@ impl Value {
             (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a + b)),
             (Value::f64(a), Value::Vector(v)) | (Value::Vector(v), Value::f64(a)) => {
                 let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.add_scalar(*a)))))
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    v.add_scalar(*a),
+                ))))
             }
             (Value::Matrix(m), Value::f64(f)) | (Value::f64(f), Value::Matrix(m)) => {
                 let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.add_scalar(*f)))))
+                Ok(Value::Matrix(Arc::new(Mutex::new(
+                    m.add_scalar(*f),
+                ))))
             }
             (Value::i64(a), Value::Vector(v)) | (Value::Vector(v), Value::i64(a)) => {
                 let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.add_scalar(*a as f64)))))
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    v.add_scalar(*a as f64),
+                ))))
             }
             (Value::Matrix(m), Value::i64(f)) | (Value::i64(f), Value::Matrix(m)) => {
                 let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.add_scalar(*f as f64)))))
+                Ok(Value::Matrix(Arc::new(Mutex::new(
+                    m.add_scalar(*f as f64),
+                ))))
             }
             (Value::Vector(v1), Value::Vector(v2)) => {
                 let v1 = v1.lock().unwrap();
@@ -692,7 +716,10 @@ impl Value {
             (Value::String(a), Value::String(b)) => {
                 let a = a.lock().unwrap();
                 let b = b.lock().unwrap();
-                Ok(Value::String(Arc::new(Mutex::new(format!("{}{}", a, b)))))
+                Ok(Value::String(Arc::new(Mutex::new(format!(
+                    "{}{}",
+                    a, b
+                )))))
             }
             _ => Err(ValueErrors::CannotAddTypes(
                 other.to_string(),
@@ -737,11 +764,15 @@ impl Value {
             }
             (Value::Vector(v), Value::f64(a)) => {
                 let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.scale(1.0 / *a))))) // This will produce inf or NaN elements for division by zero
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    v.scale(1.0 / *a),
+                )))) // This will produce inf or NaN elements for division by zero
             }
             (Value::Matrix(m), Value::f64(f)) => {
                 let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.scale(1.0 / *f))))) // This will produce inf or NaN elements for division by zero
+                Ok(Value::Matrix(Arc::new(Mutex::new(
+                    m.scale(1.0 / *f),
+                )))) // This will produce inf or NaN elements for division by zero
             }
             (Value::Vector(v), Value::i64(a)) => {
                 let v = v.lock().unwrap();
@@ -872,11 +903,15 @@ impl Value {
             }
             (Value::i64(a), Value::Vector(v)) | (Value::Vector(v), Value::i64(a)) => {
                 let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.scale(*a as f64)))))
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    v.scale(*a as f64),
+                ))))
             }
             (Value::Matrix(m), Value::i64(f)) | (Value::i64(f), Value::Matrix(m)) => {
                 let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.scale(*f as f64)))))
+                Ok(Value::Matrix(Arc::new(Mutex::new(
+                    m.scale(*f as f64),
+                ))))
             }
             (Value::Matrix(a), Value::Vector(b)) => {
                 let a = &*a.lock().unwrap();
@@ -908,7 +943,9 @@ impl Value {
             (Value::UnitQuaternion(q1), Value::UnitQuaternion(q2)) => {
                 let q1 = *q1.lock().unwrap();
                 let q2 = *q2.lock().unwrap();
-                Ok(Value::UnitQuaternion(Arc::new(Mutex::new(q1 * q2))))
+                Ok(Value::UnitQuaternion(Arc::new(Mutex::new(
+                    q1 * q2,
+                ))))
             }
             (Value::UnitQuaternion(q1), Value::Quaternion(q2)) => {
                 let q1 = *q1.lock().unwrap();
@@ -957,7 +994,9 @@ impl Value {
                 if *exp >= 0 {
                     Ok(Value::i64(base.pow(*exp as u32)))
                 } else {
-                    Ok(Value::f64((base.pow(-*exp as u32) as f64).recip()))
+                    Ok(Value::f64(
+                        (base.pow(-*exp as u32) as f64).recip(),
+                    ))
                 }
             }
             (Value::f64(base), Value::i64(exp)) => Ok(Value::f64(base.powi(*exp as i32))),
@@ -975,7 +1014,9 @@ impl Value {
             (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a - b)),
             (Value::Vector(v), Value::f64(a)) => {
                 let v = &*v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.add_scalar(-*a)))))
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    v.add_scalar(-*a),
+                ))))
             }
             (Value::Vector(v), Value::i64(a)) => {
                 let v = &*v.lock().unwrap();
@@ -985,7 +1026,9 @@ impl Value {
             }
             (Value::Matrix(m), Value::f64(f)) => {
                 let m = &*m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.add_scalar(-*f)))))
+                Ok(Value::Matrix(Arc::new(Mutex::new(
+                    m.add_scalar(-*f),
+                ))))
             }
             (Value::Matrix(m), Value::i64(f)) => {
                 let m = &*m.lock().unwrap();
@@ -1021,7 +1064,9 @@ impl Value {
                         if stop > rows {
                             return Err(ValueErrors::OutOfBoundsIndex(stop, rows));
                         }
-                        (start..stop).step_by(r.step.unwrap_or(1)).collect()
+                        (start..stop)
+                            .step_by(r.step.unwrap_or(1))
+                            .collect()
                     }
                     IndexStyle::VecUsize(indices) => {
                         let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
@@ -1056,7 +1101,9 @@ impl Value {
                         if stop > cols {
                             return Err(ValueErrors::OutOfBoundsIndex(stop, cols));
                         }
-                        (start..stop).step_by(r.step.unwrap_or(1)).collect()
+                        (start..stop)
+                            .step_by(r.step.unwrap_or(1))
+                            .collect()
                     }
                     IndexStyle::VecUsize(indices) => {
                         let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
@@ -1088,15 +1135,15 @@ impl Value {
                 // Single Row or Column Case (Returns a Vector)
                 if row_indices.len() == 1 {
                     let row = m.row(row_indices[0]);
-                    return Ok(Value::Vector(Arc::new(Mutex::new(DVector::from_vec(
-                        col_indices.iter().map(|&c| row[c]).collect(),
-                    )))));
+                    return Ok(Value::Vector(Arc::new(Mutex::new(
+                        DVector::from_vec(col_indices.iter().map(|&c| row[c]).collect()),
+                    ))));
                 }
                 if col_indices.len() == 1 {
                     let col = m.column(col_indices[0]);
-                    return Ok(Value::Vector(Arc::new(Mutex::new(DVector::from_vec(
-                        row_indices.iter().map(|&r| col[r]).collect(),
-                    )))));
+                    return Ok(Value::Vector(Arc::new(Mutex::new(
+                        DVector::from_vec(row_indices.iter().map(|&r| col[r]).collect()),
+                    ))));
                 }
 
                 // General Case (Returns a Submatrix)
@@ -1107,8 +1154,11 @@ impl Value {
                     }
                 }
 
-                let submatrix =
-                    DMatrix::from_vec(row_indices.len(), col_indices.len(), submatrix_data);
+                let submatrix = DMatrix::from_vec(
+                    row_indices.len(),
+                    col_indices.len(),
+                    submatrix_data,
+                );
                 Ok(Value::Matrix(Arc::new(Mutex::new(submatrix))))
             }
             _ => Err(ValueErrors::CannotIndexType(self.to_string())),
@@ -1157,7 +1207,9 @@ impl Value {
                                 v2.push(v[i]);
                             }
                         }
-                        Ok(Value::Vector(Arc::new(Mutex::new(DVector::from(v2)))))
+                        Ok(Value::Vector(Arc::new(Mutex::new(
+                            DVector::from(v2),
+                        ))))
                     }
                     IndexStyle::VecUsize(vu) => {
                         let mut v2 = Vec::new();
@@ -1170,7 +1222,9 @@ impl Value {
                             }
                         }
 
-                        Ok(Value::Vector(Arc::new(Mutex::new(DVector::from(v2)))))
+                        Ok(Value::Vector(Arc::new(Mutex::new(
+                            DVector::from(v2),
+                        ))))
                     }
                 }
             }

@@ -827,9 +827,9 @@ impl MultibodySystem {
         }
     }
 
-    pub fn update_sensors(&mut self) -> Result<(), MultibodyErrors> {
+    pub fn update_sensors(&mut self, t: f64) -> Result<(), MultibodyErrors> {
         for sensor in &mut self.sensors {
-            sensor.update()?;
+            sensor.update(t)?;
         }
         Ok(())
     }
@@ -873,7 +873,7 @@ impl OdeModel for MultibodySystem {
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces
-        self.update_sensors()?;
+        self.update_sensors(t)?;
         self.update_actuators()?; // update the actuators before updating forces on the bodies
         self.update_environments(); //update the environmental forces before updating forcces on the bodies
         self.update_forces(); // update body forces

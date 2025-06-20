@@ -62,11 +62,7 @@ impl Uncertainty for GpsParametersBuilder {
             ]),
             None => None,
         };
-        Ok(GpsParameters {
-            delay,
-            position_noise,
-            velocity_noise,
-        })
+        Ok(GpsParameters { delay, position_noise, velocity_noise })
     }
 }
 #[derive(Debug)]
@@ -227,7 +223,7 @@ pub struct Gps {
 }
 
 impl SensorModel for Gps {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, _t: f64, connection: &BodyConnection) {
         let body = connection.body.borrow();
 
         let true_position = body.state.position_base;
@@ -269,7 +265,10 @@ impl SensorModel for Gps {
         writer.float_buffer[4] = self.state.velocity[1];
         writer.float_buffer[5] = self.state.velocity[2];
 
-        match (&self.state.position_noise, &self.state.velocity_noise) {
+        match (
+            &self.state.position_noise,
+            &self.state.velocity_noise,
+        ) {
             (Some(position_noise), Some(velocity_noise)) => {
                 writer.float_buffer[6] = position_noise[0];
                 writer.float_buffer[7] = position_noise[1];

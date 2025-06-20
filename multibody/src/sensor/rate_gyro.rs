@@ -1,6 +1,7 @@
 use crate::{
     HardwareBuffer,
     body::BodyConnection,
+    delay::{DelayedValue, InterpolationMethod},
     sensor::{SensorModel, noise::Noise},
 };
 use bytemuck::{Pod, Zeroable};
@@ -40,7 +41,14 @@ impl Uncertainty for RateGyroParametersBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
-            Some(delay) => Some(delay.sample(nominal, rng)),
+            Some(delay) => Some([
+                DelayedValue::new(delay.sample(nominal, rng))
+                    .with_interpolation(InterpolationMethod::Linear),
+                DelayedValue::new(delay.sample(nominal, rng))
+                    .with_interpolation(InterpolationMethod::Linear),
+                DelayedValue::new(delay.sample(nominal, rng))
+                    .with_interpolation(InterpolationMethod::Linear),
+            ]),
             None => None,
         };
         let noise = match &self.noise {
@@ -51,12 +59,13 @@ impl Uncertainty for RateGyroParametersBuilder {
             ]),
             None => None,
         };
+
         Ok(RateGyroParameters { delay, noise })
     }
 }
 #[derive(Debug)]
 struct RateGyroParameters {
-    delay: Option<f64>,
+    delay: Option<[DelayedValue; 3]>,
     noise: Option<[Noise; 3]>,
 }
 
@@ -78,9 +87,7 @@ pub struct RateGyroBuilder {
 
 impl RateGyroBuilder {
     pub fn new() -> Self {
-        RateGyroBuilder {
-            parameters: RateGyroParametersBuilder::default(),
-        }
+        RateGyroBuilder { parameters: RateGyroParametersBuilder::default() }
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
@@ -170,11 +177,21 @@ pub struct RateGyro {
 }
 
 impl SensorModel for RateGyro {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, t: f64, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let transform = &connection.transform;
         let body_rate = body.state.angular_rate_body;
-        let sensor_rate = transform.rotation.transform(&body_rate);
+        let sensor_rate = if let Some(delay) = &mut self.parameters.delay {
+            let new_rate = transform.rotation.transform(&body_rate);
+            let mut delayed_rate = Vector3::zeros();
+            for i in 0..3 {
+                delay[i].update(t, new_rate[i]);
+                delayed_rate[i] = delay[i].get_delayed_reading(t);
+            }
+            delayed_rate
+        } else {
+            transform.rotation.transform(&body_rate)
+        };
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();

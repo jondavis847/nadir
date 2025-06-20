@@ -172,7 +172,7 @@ pub struct Magnetometer {
 impl Magnetometer {}
 
 impl SensorModel for Magnetometer {
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, _t: f64, connection: &BodyConnection) {
         let transform = &connection.transform;
         let body = connection.body.borrow();
 
