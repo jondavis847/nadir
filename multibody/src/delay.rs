@@ -39,25 +39,47 @@ impl DelayedValue {
         self.history.push_back(DelayEntry { time, value });
 
         // Keep extra history based on interpolation method
-        let history_multiplier = match self.interpolation_method {
-            InterpolationMethod::Linear => 2.0,
-            InterpolationMethod::CubicHermite => 4.0,
-            InterpolationMethod::CubicSpline => 4.0,
-            InterpolationMethod::Lagrange => 6.0,
+        let (history_multiplier, min_history_points) = match self.interpolation_method {
+            InterpolationMethod::Linear => (5.0, 3), // Need at least 2 for interpolation + 1 buffer
+            InterpolationMethod::CubicHermite => (10.0, 6), // Need 4 for algorithm + 2 buffer
+            InterpolationMethod::CubicSpline => (10.0, 6), // Similar to Hermite
+            InterpolationMethod::Lagrange => (15.0, 8), // Need up to 4 for algorithm + 4 buffer
         };
 
-        let cutoff_time = time - self.delay * history_multiplier;
-        while let Some(entry) = self.history.front() {
-            if entry.time < cutoff_time {
-                self.history.pop_front();
-            } else {
-                break;
+        // Only prune if we have sufficient history AND the data is old enough
+        if self.history.len() > min_history_points {
+            let cutoff_time = time - self.delay * history_multiplier;
+            while let Some(entry) = self.history.front() {
+                if entry.time < cutoff_time && self.history.len() > min_history_points {
+                    self.history.pop_front();
+                } else {
+                    break;
+                }
             }
         }
     }
 
     pub fn get_delayed_reading(&self, current_time: f64) -> f64 {
+        if self.history.is_empty() {
+            return 0.0;
+        }
+
         let target_time = current_time - self.delay;
+
+        // If target time is before our earliest data, return earliest value
+        if let Some(first) = self.history.front() {
+            if target_time <= first.time {
+                return first.value;
+            }
+        }
+
+        // If target time is after our latest data, return latest value
+        if let Some(last) = self.history.back() {
+            if target_time >= last.time {
+                return last.value;
+            }
+        }
+
         self.interpolate_at_time(target_time)
     }
 
@@ -71,7 +93,6 @@ impl DelayedValue {
     }
 
     fn linear_interpolate(&self, target_time: f64) -> f64 {
-        // Your existing linear interpolation code
         if self.history.len() < 2 {
             return self
                 .history
@@ -90,7 +111,14 @@ impl DelayedValue {
                 before.value + alpha * (after.value - before.value)
             }
             (Some(idx), _) => self.history[idx].value,
-            _ => 0.0,
+            _ => {
+                // return the closest available value
+                if target_time < self.history.front().unwrap().time {
+                    self.history.front().unwrap().value
+                } else {
+                    self.history.back().unwrap().value
+                }
+            }
         }
     }
 

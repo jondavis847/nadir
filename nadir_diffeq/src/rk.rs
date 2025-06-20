@@ -97,6 +97,15 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            // run the model function to update internal algebraic/kinematic states
+            model.f(t, x0, &mut self.buffers.derivative)?;
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, &self.x, t, manager);
+                }
+            }
+        }
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
@@ -122,21 +131,20 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             // Take a step
             self.step(model, t, dt, false, &mut function_calls)?;
 
-            // Save the result from the last time step
-            // We do this here so in case a save_event save_fn saves data from the model after stepping
-            if let Some(manager) = writer_manager {
-                for event in &mut events.save_events {
-                    if event.options.every_step {
-                        (event.save_fn)(model, &self.y, t, manager);
-                    }
-                }
-            }
-
             // Update time based on dt
             t += dt;
 
             // Save the memory result state
             result.save(t, &self.y)?;
+            if let Some(manager) = writer_manager {
+                // run the model function to update internal algebraic/kinematic states
+                model.f(t, x0, &mut self.buffers.derivative)?;
+                for event in &mut events.save_events {
+                    if event.options.every_step {
+                        (event.save_fn)(model, &self.x, t, manager);
+                    }
+                }
+            }
 
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
@@ -199,6 +207,15 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
+        if let Some(manager) = writer_manager {
+            // run the model function to update any mutable internal algebraic/kinematic states
+            model.f(t, x0, &mut self.buffers.derivative)?;
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, &self.x, t, manager);
+                }
+            }
+        }
 
         // // Process initial events if any are scheduled at t0
         // if events.process_periodic_events(model, &mut self.x, t) {
@@ -272,22 +289,34 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     self.y.clone_from(&self.buffers.interpolant);
                 }
 
-                if let Some(manager) = writer_manager {
-                    for event in &mut events.save_events {
-                        if event.options.every_step {
-                            (event.save_fn)(model, &self.x, t, manager);
-                        }
-                    }
-                }
-
                 t += dt;
                 // Save the true state before any event processing
                 result.save(t, &self.y)?;
+                if let Some(manager) = writer_manager {
+                    // run the model function to update internal algebraic/kinematic states
+                    // this unfortunately incurs one more function call
+                    // TODO: could put this in the step method after the first stage call to avoid extra function call
+                    model.f(t, &self.y, &mut self.buffers.derivative)?;
+                    for event in &mut events.save_events {
+                        if event.options.every_step {
+                            (event.save_fn)(model, &self.y, t, manager);
+                        }
+                    }
+                }
 
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
                     result.save(t, &self.y)?;
+                    // if let Some(manager) = writer_manager {
+                    //     // run the model function to update internal algebraic/kinematic states
+                    //     model.f(t, &self.y, &mut self.buffers.derivative)?;
+                    //     for event in &mut events.save_events {
+                    //         if event.options.every_step {
+                    //             (event.save_fn)(model, &self.y, t, manager);
+                    //         }
+                    //     }
+                    // }
                 };
 
                 self.x.clone_from(&self.y);

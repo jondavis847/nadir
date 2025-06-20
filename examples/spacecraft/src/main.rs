@@ -163,7 +163,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut imu = SensorBuilder::new(
         "imu",
         RateGyroBuilder::new()
-            .with_noise_normal(0.0, 1.0e-3 * PI / 180.0)
+            //.with_noise_normal(0.0, 1.0e-3 * PI / 180.0)
             .with_delay(0.5)
             .into(),
     );
@@ -321,7 +321,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x0 = sys.initial_state();
     let mut problem = OdeProblem::new(sys)
         .with_periodic_event(PeriodicEvent::new(
-            10.0,
+            0.1,
             0.0,
             |sys: &mut MultibodySystem, _x: &mut StateVector, _t| {
                 sys.software[0]
@@ -338,7 +338,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     problem.solve_adaptive(
         &x0,
-        (0.0, 100.0),
+        (0.0, 1000.0),
         AdaptiveStepControl::default(),
         Solver::Tsit5,
         SaveMethod::None,

@@ -132,8 +132,8 @@ impl RateGyroBuilder {
 
     pub fn with_noise_uniform(mut self, low: f64, high: f64) -> Self {
         let noise1 = NoiseBuilder::new_uniform(low, high);
-        let noise2 = NoiseBuilder::new_normal(low, high);
-        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise2 = NoiseBuilder::new_uniform(low, high);
+        let noise3 = NoiseBuilder::new_uniform(low, high);
         let noise = [noise1, noise2, noise3];
         self.parameters.noise = Some(noise);
         self
@@ -141,8 +141,8 @@ impl RateGyroBuilder {
 
     pub fn set_noise_uniform(&mut self, low: f64, high: f64) {
         let noise1 = NoiseBuilder::new_uniform(low, high);
-        let noise2 = NoiseBuilder::new_normal(low, high);
-        let noise3 = NoiseBuilder::new_normal(low, high);
+        let noise2 = NoiseBuilder::new_uniform(low, high);
+        let noise3 = NoiseBuilder::new_uniform(low, high);
         let noise = [noise1, noise2, noise3];
         self.parameters.noise = Some(noise);
     }
