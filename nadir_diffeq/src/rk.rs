@@ -97,13 +97,6 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
-        if let Some(manager) = writer_manager {
-            for event in &mut events.save_events {
-                if event.options.every_step {
-                    (event.save_fn)(model, x0, tspan.0, manager);
-                }
-            }
-        }
 
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
@@ -129,11 +122,8 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             // Take a step
             self.step(model, t, dt, false, &mut function_calls)?;
 
-            // Update time based on dt
-            t += dt;
-
-            // Save the result for this time step
-            result.save(t, &self.y)?;
+            // Save the result from the last time step
+            // We do this here so in case a save_event save_fn saves data from the model after stepping
             if let Some(manager) = writer_manager {
                 for event in &mut events.save_events {
                     if event.options.every_step {
@@ -141,6 +131,12 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     }
                 }
             }
+
+            // Update time based on dt
+            t += dt;
+
+            // Save the memory result state
+            result.save(t, &self.y)?;
 
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
@@ -155,6 +151,15 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 // Reuse last stage from previous step as first stage
                 let (k0, ks) = self.buffers.stage.k.split_at_mut(1);
                 k0[0].clone_from(ks.last().unwrap());
+            }
+        }
+
+        // write the last state
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, &self.x, t, manager);
+                }
             }
         }
         Ok(())
@@ -194,13 +199,6 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         // Save the true initial state before any processing
         result.save(t, &self.x)?;
-        if let Some(manager) = writer_manager {
-            for event in &mut events.save_events {
-                if event.options.every_step {
-                    (event.save_fn)(model, x0, tspan.0, manager);
-                }
-            }
-        }
 
         // // Process initial events if any are scheduled at t0
         // if events.process_periodic_events(model, &mut self.x, t) {
@@ -274,16 +272,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     self.y.clone_from(&self.buffers.interpolant);
                 }
 
-                t += dt;
-                // Save the true state before any event processing
-                result.save(t, &self.y)?;
                 if let Some(manager) = writer_manager {
                     for event in &mut events.save_events {
                         if event.options.every_step {
-                            (event.save_fn)(model, &self.y, t, manager);
+                            (event.save_fn)(model, &self.x, t, manager);
                         }
                     }
                 }
+
+                t += dt;
+                // Save the true state before any event processing
+                result.save(t, &self.y)?;
+
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
@@ -323,6 +323,14 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     "Emergency minimum step size reached at t = {}, error = {}",
                     t, error
                 );
+            }
+        }
+        // write the last state
+        if let Some(manager) = writer_manager {
+            for event in &mut events.save_events {
+                if event.options.every_step {
+                    (event.save_fn)(model, &self.x, t, manager);
+                }
             }
         }
 
@@ -368,7 +376,11 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 self.buffers.state *= h;
                 self.buffers.state += &self.x;
 
-                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s])?;
+                model.f(
+                    t + self.tableau.c[s] * h,
+                    &self.buffers.state,
+                    &mut k[s],
+                )?;
                 *function_calls += 1;
             }
 
@@ -398,7 +410,11 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 self.buffers.state *= h;
                 self.buffers.state += &self.x;
 
-                model.f(t + self.tableau.c[s] * h, &self.buffers.state, &mut k[s])?;
+                model.f(
+                    t + self.tableau.c[s] * h,
+                    &self.buffers.state,
+                    &mut k[s],
+                )?;
                 *function_calls += 1;
             }
 
@@ -452,7 +468,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 b *= theta;
 
                 // Scale and accumulate interpolant
-                self.buffers.derivative.clone_from(&self.buffers.stage.k[s]);
+                self.buffers
+                    .derivative
+                    .clone_from(&self.buffers.stage.k[s]);
                 self.buffers.derivative *= b;
                 self.buffers.interpolant += &self.buffers.derivative;
             }
@@ -577,8 +595,6 @@ pub struct StageBuffer<State: OdeState, const STAGES: usize> {
 
 impl<State: OdeState, const STAGES: usize> StageBuffer<State, STAGES> {
     fn new() -> Self {
-        Self {
-            k: array::from_fn(|_| State::default()),
-        }
+        Self { k: array::from_fn(|_| State::default()) }
     }
 }

@@ -193,14 +193,16 @@ impl MultibodySystemBuilder {
         gy: f64,
         gz: f64,
     ) -> Result<(), MultibodyErrors> {
-        self.base.system =
-            BaseSystemsBuilder::Basic(Some(Gravity::Constant(ConstantGravity::new(gx, gy, gz))));
+        self.base.system = BaseSystemsBuilder::Basic(Some(Gravity::Constant(
+            ConstantGravity::new(gx, gy, gz),
+        )));
         Ok(())
     }
 
     pub fn set_gravity_newtonian(&mut self, mu: f64) -> Result<(), MultibodyErrors> {
-        self.base.system =
-            BaseSystemsBuilder::Basic(Some(Gravity::Newtonian(NewtonianGravity::new(mu))));
+        self.base.system = BaseSystemsBuilder::Basic(Some(Gravity::Newtonian(
+            NewtonianGravity::new(mu),
+        )));
         Ok(())
     }
 
@@ -485,7 +487,9 @@ impl MultibodySystemBuilder {
         // check that all outer joints exist in the hashmap
         for outer_joint_id in base_outer_joints {
             if !self.joints.contains_key(outer_joint_id) {
-                return Err(MultibodyErrors::JointNotFound(outer_joint_id.to_string()));
+                return Err(MultibodyErrors::JointNotFound(
+                    outer_joint_id.to_string(),
+                ));
             }
         }
 
@@ -494,16 +498,22 @@ impl MultibodySystemBuilder {
             if let Some(inner_joint_id) = &body.inner_joint {
                 // check that the inner joint exists in the hashmap
                 if !self.joints.contains_key(inner_joint_id) {
-                    return Err(MultibodyErrors::JointNotFound(inner_joint_id.to_string()));
+                    return Err(MultibodyErrors::JointNotFound(
+                        inner_joint_id.to_string(),
+                    ));
                 }
             } else {
-                return Err(MultibodyErrors::BodyMissingInnerJoint(body.name.clone()));
+                return Err(MultibodyErrors::BodyMissingInnerJoint(
+                    body.name.clone(),
+                ));
             }
 
             // check that if the body has outer joints, that they all exist in the hashmap
             for outer_joint_id in &body.outer_joints {
                 if !self.joints.contains_key(outer_joint_id) {
-                    return Err(MultibodyErrors::JointNotFound(outer_joint_id.to_string()));
+                    return Err(MultibodyErrors::JointNotFound(
+                        outer_joint_id.to_string(),
+                    ));
                 }
             }
         }
@@ -512,7 +522,9 @@ impl MultibodySystemBuilder {
         for (_, joint) in &self.joints {
             if let Some(inner_body_connection) = &joint.connections.inner_body {
                 // check that the inner body exists in the hashmap
-                if !self.bodies.contains_key(&inner_body_connection.body_id)
+                if !self
+                    .bodies
+                    .contains_key(&inner_body_connection.body_id)
                     && &inner_body_connection.body_id != &self.base.id
                 {
                     return Err(MultibodyErrors::BodyNotFound(
@@ -520,17 +532,24 @@ impl MultibodySystemBuilder {
                     ));
                 }
             } else {
-                return Err(MultibodyErrors::JointMissingInnerBody(joint.name.clone()));
+                return Err(MultibodyErrors::JointMissingInnerBody(
+                    joint.name.clone(),
+                ));
             };
             if let Some(outer_body_connection) = &joint.connections.outer_body {
                 // check that the outer body exists in the hashmap
-                if !self.bodies.contains_key(&outer_body_connection.body_id) {
+                if !self
+                    .bodies
+                    .contains_key(&outer_body_connection.body_id)
+                {
                     return Err(MultibodyErrors::BodyNotFound(
                         outer_body_connection.body_id.to_string(),
                     ));
                 }
             } else {
-                return Err(MultibodyErrors::JointMissingOuterBody(joint.name.clone()));
+                return Err(MultibodyErrors::JointMissingOuterBody(
+                    joint.name.clone(),
+                ));
             }
         }
 
@@ -544,7 +563,9 @@ impl MultibodySystemBuilder {
                     ));
                 }
             } else {
-                return Err(MultibodyErrors::ActuatorMissingBody(actuator.name.clone()));
+                return Err(MultibodyErrors::ActuatorMissingBody(
+                    actuator.name.clone(),
+                ));
             }
         }
 
@@ -558,7 +579,9 @@ impl MultibodySystemBuilder {
                     ));
                 }
             } else {
-                return Err(MultibodyErrors::SensorMissingBody(sensor.name.clone()));
+                return Err(MultibodyErrors::SensorMissingBody(
+                    sensor.name.clone(),
+                ));
             }
         }
         Ok(())
@@ -758,7 +781,8 @@ impl MultibodySystem {
         match &mut self.base.borrow_mut().system {
             BaseSystems::Celestial(celestial) => {
                 for body in &self.bodies {
-                    body.borrow_mut().calculate_magnetic_field(celestial);
+                    body.borrow_mut()
+                        .calculate_magnetic_field(celestial);
                 }
             }
             _ => {} //continue
@@ -832,7 +856,9 @@ impl MultibodySystem {
                         let mesh_file_path = bodies_folder.join(body.name.clone() + ".mesh");
                         let mut mesh_file = File::create(mesh_file_path).unwrap();
                         let ron_string = to_string_pretty(mesh, PrettyConfig::default()).unwrap();
-                        mesh_file.write_all(ron_string.as_bytes()).unwrap();
+                        mesh_file
+                            .write_all(ron_string.as_bytes())
+                            .unwrap();
                     }
                 }
             }
@@ -1036,7 +1062,9 @@ fn traverse_body(
             .get(&body_id)
             .expect("validation should catch this");
         // Create the body from the body builder, sampling for monte carlo if applicable
-        let inner_joint = joints.last().expect("should be at least 1 element");
+        let inner_joint = joints
+            .last()
+            .expect("should be at least 1 element");
         let body = body_builder.sample(inner_joint.clone(), nominal, rng)?;
         bodies.push(body.into());
 
@@ -1050,7 +1078,10 @@ fn traverse_body(
                 == body_builder.id
             {
                 let connection = BodyConnection {
-                    body: bodies.last().expect("should be at least 1 element").clone(),
+                    body: bodies
+                        .last()
+                        .expect("should be at least 1 element")
+                        .clone(),
                     transform: actuator_builder
                         .connection
                         .as_ref()
@@ -1070,7 +1101,10 @@ fn traverse_body(
                 == body_builder.id
             {
                 let connection = BodyConnection {
-                    body: bodies.last().expect("should be at least 1 element").clone(),
+                    body: bodies
+                        .last()
+                        .expect("should be at least 1 element")
+                        .clone(),
                     transform: sensor_builder
                         .connection
                         .as_ref()
@@ -1097,7 +1131,10 @@ fn traverse_body(
             .expect("validation should catch this")
             .transform;
         inner_joint.borrow_mut().connections.outer_body = Some(BodyConnection {
-            body: bodies.last().expect("should be at least 1 element").clone(),
+            body: bodies
+                .last()
+                .expect("should be at least 1 element")
+                .clone(),
             transform: inner_joint_outer_body_transform,
         });
         body_builder.outer_joints.clone()
@@ -1114,7 +1151,10 @@ fn traverse_body(
             // Create the outer joints inner connections
             // Outer connections are created during their turn in the recursion
             // TODO: is there a way to set the outer connections directly without using temporary Options?
-            let inner_bodyref = bodies.last().expect("should be at least 1 element").clone();
+            let inner_bodyref = bodies
+                .last()
+                .expect("should be at least 1 element")
+                .clone();
             let inner_body_transform = outer_joint_builder
                 .connections
                 .inner_body
