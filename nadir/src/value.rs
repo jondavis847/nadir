@@ -1024,6 +1024,21 @@ impl Value {
                     v.add_scalar(-(*a as f64)),
                 ))))
             }
+            (Value::Vector(v1), Value::Vector(v2)) => {
+                let v1 = v1.lock().unwrap();
+                let v2 = v2.lock().unwrap();
+                if v1.len() != v2.len() {
+                    return Err(ValueErrors::SizeMismatch(
+                        v1.len().to_string(),
+                        v2.len().to_string(),
+                    ));
+                }
+                let mut v3 = v1.clone();
+                for i in 0..v1.len() {
+                    v3[i] = v1[i] - v2[i];
+                }
+                Ok(Value::Vector(Arc::new(Mutex::new(v3))))
+            }
             (Value::Matrix(m), Value::f64(f)) => {
                 let m = &*m.lock().unwrap();
                 Ok(Value::Matrix(Arc::new(Mutex::new(

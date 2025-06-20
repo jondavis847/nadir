@@ -651,9 +651,9 @@ impl MultibodySystem {
         }
     }
 
-    pub fn save_fn(model: &Self, _state: &StateVector, t: f64, manager: &mut WriterManager) {
+    pub fn save_fn(&self, _state: &StateVector, t: f64, manager: &mut WriterManager) {
         // sim time
-        if let Some(id) = &model.sim_time_id {
+        if let Some(id) = &self.sim_time_id {
             if let Some(writer) = manager.writers.get_mut(id) {
                 writer.float_buffer[0] = t;
                 writer.write_record().unwrap();
@@ -661,26 +661,26 @@ impl MultibodySystem {
         }
 
         // bodies
-        for body in &model.bodies {
+        for body in &self.bodies {
             body.borrow().writer_save_fn(manager);
         }
 
         // bodies
-        for joint in &model.joints {
+        for joint in &self.joints {
             joint.borrow().writer_save_fn(manager);
         }
 
         // sensors
-        for sensor in &model.sensors {
+        for sensor in &self.sensors {
             sensor.writer_save_fn(manager);
         }
 
         // actuators
-        for actuator in &model.actuators {
+        for actuator in &self.actuators {
             actuator.writer_save_fn(manager);
         }
 
-        match &model.base.borrow().system {
+        match &self.base.borrow().system {
             BaseSystems::Celestial(celestial) => {
                 celestial.writer_save_fn(manager);
             }
