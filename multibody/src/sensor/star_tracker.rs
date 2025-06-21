@@ -5,6 +5,7 @@ use super::{
 use crate::{
     HardwareBuffer,
     body::BodyConnection,
+    delay::DelayedQuaternion,
     sensor::{SensorModel, noise::QuaternionNoise},
 };
 use bytemuck::{Pod, Zeroable};
@@ -43,7 +44,7 @@ impl Uncertainty for StarTrackerParametersBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
-            Some(delay) => Some(delay.sample(nominal, rng)),
+            Some(delay) => Some(DelayedQuaternion::new(delay.sample(nominal, rng))),
             None => None,
         };
         let misalignment = match &self.misalignment {
@@ -63,7 +64,7 @@ impl Uncertainty for StarTrackerParametersBuilder {
 /// noise_(x,y,z) - noise in arcseconds for each axis
 #[derive(Debug)]
 struct StarTrackerParameters {
-    delay: Option<f64>,
+    delay: Option<DelayedQuaternion>,
     misalignment: Option<UnitQuaternion>,
     noise: Option<QuaternionNoise>,
 }
@@ -128,13 +129,18 @@ pub struct StarTracker {
 }
 
 impl SensorModel for StarTracker {
-    fn update(&mut self, _t: f64, connection: &BodyConnection) {
+    fn update(&mut self, t: f64, connection: &BodyConnection) {
         let body = connection.body.borrow();
         let transform = &connection.transform;
 
         let body_to_st = UnitQuaternion::from(&transform.rotation);
         // Get the truth attitude
         let mut sensor_attitude = body_to_st * body.state.attitude_base;
+        if let Some(delay) = &mut self.parameters.delay {
+            delay.update(t, sensor_attitude);
+            sensor_attitude = delay.get_delayed_reading(t);
+        }
+
         // Apply optional misalignment
         if let Some(misalignment) = &self.parameters.misalignment {
             sensor_attitude = *misalignment * sensor_attitude;

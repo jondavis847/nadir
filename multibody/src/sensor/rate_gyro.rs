@@ -1,7 +1,7 @@
 use crate::{
     HardwareBuffer,
     body::BodyConnection,
-    delay::{DelayedValue, InterpolationMethod},
+    delay::DelayedValue,
     sensor::{SensorModel, noise::Noise},
 };
 use bytemuck::{Pod, Zeroable};
@@ -42,12 +42,9 @@ impl Uncertainty for RateGyroParametersBuilder {
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
             Some(delay) => Some([
-                DelayedValue::new(delay.sample(nominal, rng))
-                    .with_interpolation(InterpolationMethod::Linear),
-                DelayedValue::new(delay.sample(nominal, rng))
-                    .with_interpolation(InterpolationMethod::Linear),
-                DelayedValue::new(delay.sample(nominal, rng))
-                    .with_interpolation(InterpolationMethod::Linear),
+                DelayedValue::new(delay.sample(nominal, rng)),
+                DelayedValue::new(delay.sample(nominal, rng)),
+                DelayedValue::new(delay.sample(nominal, rng)),
             ]),
             None => None,
         };

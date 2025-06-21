@@ -166,11 +166,6 @@ impl ReactionWheelParametersBuilder {
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<ReactionWheelParameters, ReactionWheelErrors> {
-        let delay = if let Some(delay) = &self.delay {
-            Some(delay.sample(nominal, rng))
-        } else {
-            None
-        };
         let misalignment = if let Some(misalignment) = &self.misalignment {
             Some(misalignment.sample(nominal, rng)?)
         } else {
@@ -187,7 +182,6 @@ impl ReactionWheelParametersBuilder {
             None
         };
         Ok(ReactionWheelParameters {
-            delay,
             friction: self.friction.sample(nominal, rng),
             inertia: self.inertia.sample(nominal, rng),
             misalignment,
@@ -200,7 +194,6 @@ impl ReactionWheelParametersBuilder {
 
 #[derive(Debug)]
 struct ReactionWheelParameters {
-    delay: Option<f64>, //sec
     friction: ReactionWheelFriction,
     inertia: f64, // kg-m^2
     misalignment: Option<UnitQuaternion>,

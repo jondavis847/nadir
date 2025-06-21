@@ -8,7 +8,7 @@ use multibody::{
 };
 use nadir_diffeq::{
     OdeProblem,
-    events::{PostSimEvent, PreSimEvent, SaveEvent},
+    events::{PostSimEvent, SaveEvent},
     saving::SaveMethod,
     solvers::Solver,
 };

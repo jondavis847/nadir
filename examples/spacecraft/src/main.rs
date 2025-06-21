@@ -152,19 +152,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut gps = SensorBuilder::new(
         "gps",
         GpsBuilder::new()
+            .with_delay(0.1)
             .with_noise_position_normal(0.0, 50.0 / 3.0)
             .with_noise_velocity_normal(0.0, 1.0 / 3.0)
             .into(),
     );
     // Add a star tracker model
-    let mut st = SensorBuilder::new("st", StarTrackerBuilder::new().into());
+    let mut st = SensorBuilder::new(
+        "st",
+        StarTrackerBuilder::new().with_delay(0.1).into(),
+    );
 
     // Add a rate gyro model
     let mut imu = SensorBuilder::new(
         "imu",
         RateGyroBuilder::new()
             //.with_noise_normal(0.0, 1.0e-3 * PI / 180.0)
-            .with_delay(0.5)
+            .with_delay(0.1)
             .into(),
     );
 
@@ -172,6 +176,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut mag = SensorBuilder::new(
         "mag",
         MagnetometerBuilder::new()
+            .with_delay(0.1)
             .with_noise_normal(0.0, 100.0)
             .into(),
     );

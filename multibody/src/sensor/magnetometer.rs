@@ -1,6 +1,7 @@
 use crate::{
     HardwareBuffer,
     body::BodyConnection,
+    delay::DelayedValue,
     sensor::{SensorModel, noise::Noise},
 };
 use bytemuck::{Pod, Zeroable};
@@ -39,7 +40,10 @@ impl Uncertainty for MagnetometerParametersBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
-            Some(delay) => Some(delay.sample(nominal, rng)),
+            Some(delay) => {
+                let delay = delay.sample(nominal, rng);
+                Some([DelayedValue::new(delay), DelayedValue::new(delay), DelayedValue::new(delay)])
+            }
             None => None,
         };
         let noise = match &self.noise {
@@ -56,7 +60,7 @@ impl Uncertainty for MagnetometerParametersBuilder {
 
 #[derive(Debug)]
 struct MagnetometerParameters {
-    delay: Option<f64>,
+    delay: Option<[DelayedValue; 3]>,
     noise: Option<[Noise; 3]>,
 }
 
@@ -172,13 +176,26 @@ pub struct Magnetometer {
 impl Magnetometer {}
 
 impl SensorModel for Magnetometer {
-    fn update(&mut self, _t: f64, connection: &BodyConnection) {
+    fn update(&mut self, t: f64, connection: &BodyConnection) {
         let transform = &connection.transform;
         let body = connection.body.borrow();
 
         let sensor_b = transform
             .rotation
             .transform(&body.state.magnetic_field_body);
+
+        let sensor_b = if let Some(delay) = &mut self.parameters.delay {
+            let new_b = transform.rotation.transform(&sensor_b);
+            let mut delayed_b = Vector3::zeros();
+            for i in 0..3 {
+                delay[i].update(t, new_b[i]);
+                delayed_b[i] = delay[i].get_delayed_reading(t);
+            }
+            delayed_b
+        } else {
+            transform.rotation.transform(&sensor_b)
+        };
+
         if let Some(noise_model) = &mut self.parameters.noise {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();

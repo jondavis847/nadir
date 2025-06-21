@@ -1,3 +1,4 @@
+use rotations::prelude::{Quaternion, UnitQuaternion};
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone, Copy)]
@@ -293,5 +294,117 @@ impl DelayedValue {
         };
 
         (actual_start..end).collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct DelayedQuaternion {
+    pub delay: f64,
+    history: VecDeque<(f64, UnitQuaternion)>,
+}
+
+impl DelayedQuaternion {
+    pub fn new(delay: f64) -> Self {
+        Self { delay, history: VecDeque::new() }
+    }
+
+    pub fn update(&mut self, time: f64, value: UnitQuaternion) {
+        self.history.push_back((time, value));
+
+        // Keep extra history based on interpolation method
+        let (history_multiplier, min_history_points) = (5.0, 3);
+
+        // Only prune if we have sufficient history AND the data is old enough
+        if self.history.len() > min_history_points {
+            let cutoff_time = time - self.delay * history_multiplier;
+            while let Some(entry) = self.history.front() {
+                if entry.0 < cutoff_time && self.history.len() > min_history_points {
+                    self.history.pop_front();
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn get_delayed_reading(&self, current_time: f64) -> UnitQuaternion {
+        if self.history.is_empty() {
+            return UnitQuaternion::IDENTITY;
+        }
+
+        let target_time = current_time - self.delay;
+
+        // If target time is before our earliest data, return earliest value
+        if let Some(first) = self.history.front() {
+            if target_time <= first.0 {
+                return first.1;
+            }
+        }
+
+        // If target time is after our latest data, return latest value
+        if let Some(last) = self.history.back() {
+            if target_time >= last.0 {
+                return last.1;
+            }
+        }
+
+        self.interpolate_at_time(target_time)
+    }
+
+    fn interpolate_at_time(&self, target_time: f64) -> UnitQuaternion {
+        self.linear_interpolate(target_time)
+    }
+
+    fn linear_interpolate(&self, target_time: f64) -> UnitQuaternion {
+        if self.history.len() < 2 {
+            return self
+                .history
+                .back()
+                .map(|e| e.1)
+                .unwrap_or(UnitQuaternion::IDENTITY);
+        }
+
+        let (before_idx, after_idx) = self.find_bracket_indices(target_time);
+
+        match (before_idx, after_idx) {
+            (Some(before), Some(after)) if before != after => {
+                let before = &self.history[before];
+                let after = &self.history[after];
+                let alpha = (target_time - before.0) / (after.0 - before.0);
+                UnitQuaternion(
+                    Quaternion::slerp(&before.1.0, &after.1.0, alpha)
+                        .unwrap()
+                        .normalize()
+                        .unwrap(),
+                )
+            }
+            (Some(idx), _) => self.history[idx].1,
+            _ => {
+                // return the closest available value
+                if target_time < self.history.front().unwrap().0 {
+                    self.history.front().unwrap().1
+                } else {
+                    self.history.back().unwrap().1
+                }
+            }
+        }
+    }
+
+    // Helper functions
+    fn find_bracket_indices(&self, target_time: f64) -> (Option<usize>, Option<usize>) {
+        let mut before_idx = None;
+        let mut after_idx = None;
+
+        for (i, entry) in self.history.iter().enumerate() {
+            if entry.0 <= target_time {
+                before_idx = Some(i);
+            }
+            if entry.0 >= target_time && after_idx.is_none() {
+                after_idx = Some(i);
+                break;
+            }
+        }
+
+        (before_idx, after_idx)
     }
 }
