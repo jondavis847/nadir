@@ -48,19 +48,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
-    let mut problem = OdeProblem::new(model)
+    OdeProblem::new(model)
         .with_saving(current_dir()?.join("results"))
-        .with_save_event(SaveEvent::new(init_fn, save_fn));
-
-    problem.solve_adaptive(
-        &x0,
-        (0.0, 1472092.8448219472),
-        AdaptiveStepControl::default()
-            .with_abs_tol(1e-14)
-            .with_rel_tol(1e-14),
-        Solver::Verner9,
-        SaveMethod::Memory,
-    )?;
+        .with_save_event(SaveEvent::new(init_fn, save_fn))
+        .solve_adaptive(
+            &x0,
+            (0.0, 1472092.8448219472),
+            AdaptiveStepControl::default()
+                .with_abs_tol(1e-14)
+                .with_rel_tol(1e-14),
+            Solver::Verner9,
+            SaveMethod::Memory,
+        )?;
 
     Ok(())
 }
