@@ -444,7 +444,9 @@ impl NadirRepl {
                     }
                     (None, None) => {
                         // Entire matrix
-                        Ok(Value::Matrix(Arc::new(Mutex::new(matrix.clone()))))
+                        Ok(Value::Matrix(Arc::new(Mutex::new(
+                            matrix.clone(),
+                        ))))
                     }
                 }
             }
@@ -544,9 +546,9 @@ impl NadirRepl {
                     let value = self.parse_expr(value_pair)?;
                     values.push(value.as_f64()?);
                 }
-                Ok(Value::Vector(Arc::new(Mutex::new(DVector::from_vec(
-                    values,
-                )))))
+                Ok(Value::Vector(Arc::new(Mutex::new(
+                    DVector::from_vec(values),
+                ))))
             }
 
             _ => Err(ReplErrors::UnexpectedRule(pair.as_rule())),
@@ -718,11 +720,9 @@ impl NadirRepl {
                 };
 
                 let range = match (first, second, third) {
-                    (Some(first), Some(second), None) => Range {
-                        start: Some(first),
-                        stop: Some(second),
-                        step: None,
-                    },
+                    (Some(first), Some(second), None) => {
+                        Range { start: Some(first), stop: Some(second), step: None }
+                    }
                     (Some(first), Some(second), Some(third)) => Range {
                         start: Some(first),
                         stop: Some(third),
@@ -766,18 +766,21 @@ impl NadirRepl {
             Vec::new()
         };
 
-        Ok(self.registry.lock().unwrap().eval_instance_method(
-            instance,
-            &struct_name,
-            method_name,
-            args,
-        )?)
+        Ok(self
+            .registry
+            .lock()
+            .unwrap()
+            .eval_instance_method(instance, &struct_name, method_name, args)?)
     }
 
     fn evaluate_enum(&mut self, pair: Pair<Rule>) -> Result<Value, ReplErrors> {
         let mut inner_pairs = pair.into_inner();
         let name = inner_pairs.next().unwrap().as_str();
         let variant = inner_pairs.next().unwrap().as_str();
-        Ok(self.registry.lock().unwrap().eval_enum(name, variant)?)
+        Ok(self
+            .registry
+            .lock()
+            .unwrap()
+            .eval_enum(name, variant)?)
     }
 }

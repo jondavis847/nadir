@@ -41,7 +41,7 @@ pub enum SensorErrors {
 }
 
 pub trait SensorModel {
-    fn update(&mut self, connection: &BodyConnection);
+    fn update(&mut self, t: f64, connection: &BodyConnection);
     fn writer_headers(&self) -> &[&str];
     fn writer_save_fn(&self, writer: &mut StateWriter);
     fn write_buffer(&self, buffer: &mut HardwareBuffer) -> Result<(), SensorErrors>;
@@ -94,8 +94,8 @@ pub struct Sensor {
 }
 
 impl Sensor {
-    pub fn update(&mut self) -> Result<(), SensorErrors> {
-        self.model.update(&self.connection);
+    pub fn update(&mut self, t: f64) -> Result<(), SensorErrors> {
+        self.model.update(t, &self.connection);
         self.model
             .write_buffer(&mut self.telemetry_buffer)?;
         Ok(())
@@ -196,12 +196,12 @@ impl SensorModel for SensorModels {
         }
     }
 
-    fn update(&mut self, connection: &BodyConnection) {
+    fn update(&mut self, t: f64, connection: &BodyConnection) {
         match self {
-            SensorModels::Gps(sensor) => sensor.update(connection),
-            SensorModels::Magnetometer(sensor) => sensor.update(connection),
-            SensorModels::RateGyro(sensor) => sensor.update(connection),
-            SensorModels::StarTracker(sensor) => sensor.update(connection),
+            SensorModels::Gps(sensor) => sensor.update(t, connection),
+            SensorModels::Magnetometer(sensor) => sensor.update(t, connection),
+            SensorModels::RateGyro(sensor) => sensor.update(t, connection),
+            SensorModels::StarTracker(sensor) => sensor.update(t, connection),
         }
     }
 

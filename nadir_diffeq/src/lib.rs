@@ -10,7 +10,7 @@ pub mod state;
 pub mod stepping;
 pub mod tableau;
 
-use crate::events::{PostSimEvent, SaveEvent};
+use crate::events::{PostSimEvent, PreSimEvent, SaveEvent};
 use crate::saving::WriterManager;
 use crate::solvers::Solver;
 use crate::state::Adaptive;
@@ -71,7 +71,13 @@ where
         self
     }
 
-    /// Adds a periodic event to the simulation.
+    // Adds a presim event to the simulation.
+    pub fn with_presim_event(mut self, event: PreSimEvent<Model, State>) -> Self {
+        self.events.add_presim(event);
+        self
+    }
+
+    /// Adds a postsim event to the simulation.
     pub fn with_postsim_event(mut self, event: PostSimEvent<Model>) -> Self {
         self.events.add_postsim(event);
         self
@@ -137,6 +143,11 @@ where
             _ => ResultStorage::None,
         };
 
+        // process any presim events
+        for event in &self.events.presim_events {
+            (event.f)(&mut self.model, x0, tspan.0, &writer_manager)?;
+        }
+
         // Dispatch to the appropriate solver
         solver.solve_adaptive(
             &mut self.model,
@@ -150,7 +161,7 @@ where
 
         // process any postsim events
         for event in &self.events.postsim_events {
-            (event.postsim_fn)(&self.model, &writer_manager);
+            (event.f)(&self.model, &writer_manager);
         }
 
         // Finalize and return the results
@@ -205,6 +216,11 @@ where
 
         let mut controller = FixedStepControl::new(dt);
 
+        // process any presim events
+        for event in &self.events.presim_events {
+            (event.f)(&mut self.model, x0, tspan.0, &writer_manager)?;
+        }
+
         solver.solve_fixed(
             &mut self.model,
             x0,
@@ -217,7 +233,7 @@ where
 
         // process any postsim events
         for event in &self.events.postsim_events {
-            (event.postsim_fn)(&self.model, &writer_manager);
+            (event.f)(&self.model, &writer_manager);
         }
 
         // Finalize and return the results

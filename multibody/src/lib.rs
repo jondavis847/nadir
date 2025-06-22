@@ -2,6 +2,7 @@ pub mod actuator;
 pub mod algorithms;
 pub mod base;
 pub mod body;
+pub mod delay;
 pub mod joint;
 pub mod mechanism;
 pub mod sensor;
@@ -93,7 +94,10 @@ impl std::fmt::Debug for HardwareBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HardwareBuffer")
             .field("size", &self.size)
-            .field("data", &&self.data[..self.size.min(self.data.len())])
+            .field(
+                "data",
+                &&self.data[..self.size.min(self.data.len())],
+            )
             .finish()
     }
 }
@@ -101,10 +105,7 @@ impl std::fmt::Debug for HardwareBuffer {
 impl HardwareBuffer {
     // Create a new buffer with capacity for a specific type
     pub fn new() -> Self {
-        HardwareBuffer {
-            data: [0u8; 1024],
-            size: 0,
-        }
+        HardwareBuffer { data: [0u8; 1024], size: 0 }
     }
 
     /// Write a struct into the buffer
@@ -156,10 +157,7 @@ impl HardwareBuffer {
 
     /// Return the raw pointer and length (e.g., for FFI)
     pub fn as_c_interface(&self) -> CInterface {
-        CInterface {
-            data_ptr: self.data.as_ptr(),
-            data_len: self.size,
-        }
+        CInterface { data_ptr: self.data.as_ptr(), data_len: self.size }
     }
 
     pub fn as_c_interface_mut(&mut self) -> CInterface {

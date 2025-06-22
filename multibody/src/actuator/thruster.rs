@@ -56,18 +56,12 @@ impl ThrusterParametersBuilder {
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<ThrusterParameters, ThrusterErrors> {
-        let delay = if let Some(delay) = &self.delay {
-            Some(delay.sample(nominal, rng))
-        } else {
-            None
-        };
         let misalignment = if let Some(misalignment) = &self.misalignment {
             Some(misalignment.sample(nominal, rng)?)
         } else {
             None
         };
         Ok(ThrusterParameters {
-            delay,
             misalignment,
             force: self.force.sample(nominal, rng),
         })
@@ -76,7 +70,6 @@ impl ThrusterParametersBuilder {
 
 #[derive(Debug)]
 struct ThrusterParameters {
-    delay: Option<f64>, //sec
     misalignment: Option<UnitQuaternion>,
     force: f64,
 }
@@ -107,9 +100,7 @@ pub struct ThrusterBuilder {
 
 impl ThrusterBuilder {
     pub fn new(force: f64) -> Result<Self, ThrusterErrors> {
-        Ok(Self {
-            parameters: ThrusterParametersBuilder::new(force)?,
-        })
+        Ok(Self { parameters: ThrusterParametersBuilder::new(force)? })
     }
 
     pub fn set_delay(&mut self, delay: f64) -> Result<(), ThrusterErrors> {

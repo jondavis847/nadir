@@ -1,4 +1,4 @@
-use std::f64::INFINITY;
+use std::{error::Error, f64::INFINITY};
 
 use crate::{OdeModel, saving::WriterManager, state::OdeState};
 
@@ -18,6 +18,8 @@ where
     pub periodic_events: Vec<PeriodicEvent<Model, State>>,
     /// List of save events occurring at some frequency.
     pub save_events: Vec<SaveEvent<Model, State>>,
+    /// List of events to run at the beginning of the sim.
+    pub presim_events: Vec<PreSimEvent<Model, State>>,
     /// List of events to run at the end of the sim.
     pub postsim_events: Vec<PostSimEvent<Model>>,
     /// Next scheduled periodic event time and its indices.
@@ -37,15 +39,10 @@ where
             continuous_events: Vec::new(),
             periodic_events: Vec::new(),
             save_events: Vec::new(),
+            presim_events: Vec::new(),
             postsim_events: Vec::new(),
-            next_periodic: NextEvent {
-                next_time: INFINITY,
-                index: Vec::new(),
-            },
-            next_discrete: NextEvent {
-                next_time: INFINITY,
-                index: Vec::new(),
-            },
+            next_periodic: NextEvent { next_time: INFINITY, index: Vec::new() },
+            next_discrete: NextEvent { next_time: INFINITY, index: Vec::new() },
         }
     }
 
@@ -65,7 +62,12 @@ where
         self.save_events.push(event);
     }
 
-    /// Add a new continuous event that is evaluated every step.
+    /// Add a new presim event that is evaluated once before the start of the simulation.
+    pub fn add_presim(&mut self, event: PreSimEvent<Model, State>) {
+        self.presim_events.push(event);
+    }
+
+    /// Add a new postsim event that is evaluated once at the end of the simulation.
     pub fn add_postsim(&mut self, event: PostSimEvent<Model>) {
         self.postsim_events.push(event);
     }
@@ -165,11 +167,7 @@ where
     where
         F: FnMut(&mut Model, &mut State, f64) + 'static,
     {
-        Self {
-            period,
-            next_time: start_time,
-            f: Box::new(f),
-        }
+        Self { period, next_time: start_time, f: Box::new(f) }
     }
 
     /// Triggers the event and schedules the next one based on its period.
@@ -272,8 +270,23 @@ impl<Model, State> SaveEvent<Model, State> {
     }
 }
 
+pub struct PreSimEvent<Model, State> {
+    pub f:
+        Box<dyn Fn(&mut Model, &State, f64, &Option<WriterManager>) -> Result<(), Box<dyn Error>>>,
+}
+
+impl<Model, State> PreSimEvent<Model, State> {
+    pub fn new<F>(presim_fn: F) -> Self
+    where
+        F: Fn(&mut Model, &State, f64, &Option<WriterManager>) -> Result<(), Box<dyn Error>>
+            + 'static,
+    {
+        Self { f: Box::new(presim_fn) }
+    }
+}
+
 pub struct PostSimEvent<Model> {
-    pub postsim_fn: Box<dyn Fn(&Model, &Option<WriterManager>)>,
+    pub f: Box<dyn Fn(&Model, &Option<WriterManager>)>,
 }
 
 impl<Model> PostSimEvent<Model> {
@@ -281,8 +294,6 @@ impl<Model> PostSimEvent<Model> {
     where
         F: Fn(&Model, &Option<WriterManager>) + 'static,
     {
-        Self {
-            postsim_fn: Box::new(postsim_fn),
-        }
+        Self { f: Box::new(postsim_fn) }
     }
 }

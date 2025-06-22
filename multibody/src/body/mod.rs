@@ -345,6 +345,7 @@ impl Body {
         let base_from_body = transforms.base_from_jof * transforms.jof_from_ob;
         let joint_v = inner_joint.cache.v;
         let body_v = body_from_joint * joint_v;
+
         // need to apply kinematic transport theorem to get velocity of the body in the base
         // r is technically 0 since the body is coincident with its own frame
         // there would be a non-zero r if we were looking for motion of body frame w.r.t jof, but that motion
