@@ -1055,7 +1055,16 @@ impl Primitive for ScenePrimitive {
             );
         }
 
-        // render atmosphere first so its always covered
+        if let Some(pipeline) = storage.get::<EarthPipeline>() {
+            if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
+                pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
+                pass.set_pipeline(&pipeline.pipeline);
+                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
+                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            }
+        }
+
         if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
             let pipeline = &atmosphere_pipeline.pipeline;
             pass.set_pipeline(pipeline);
@@ -1065,16 +1074,6 @@ impl Primitive for ScenePrimitive {
                 0..atmosphere_pipeline.n_vertices,
                 0..atmosphere_pipeline.n_instances,
             );
-        }
-
-        if let Some(pipeline) = storage.get::<EarthPipeline>() {
-            if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
-                pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
-                pass.set_pipeline(&pipeline.pipeline);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
-            }
         }
 
         if let Some(pipeline) = storage.get::<MoonPipeline>() {
