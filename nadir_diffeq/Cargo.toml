@@ -7,5 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 csv.workspace = true
+rand.workspace = true
 serde.workspace = true
 tolerance.workspace = true
+uncertainty.workspace = true

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::{error::Error, fmt::Debug};
 
-/// Submodules for core ODE system components.
 pub mod events;
+pub mod monte_carlo;
 pub mod rk;
 pub mod saving;
 pub mod solvers;
@@ -19,6 +19,7 @@ use crate::stepping::FixedStepControl;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use saving::{MemoryResult, ResultStorage, SaveMethod};
 use state::OdeState;
+use uncertainty::Uncertainty;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
 ///
@@ -42,8 +43,9 @@ where
     Model: OdeModel<State = State>,
     State: OdeState,
 {
-    model: Model,
     events: EventManager<Model, State>,
+    model: Model,
+    monte_carlo: Option<usize>,
     save_folder: Option<PathBuf>,
 }
 
@@ -52,15 +54,12 @@ where
     Model: OdeModel<State = State>,
     State: OdeState,
 {
-    /// Creates a new `OdeProblem` instance with the specified configuration.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an adaptive step method is used with `Rk4`, which does not support adaptivity.
+    /// Creates a new `OdeProblem` instance with the specified configuration.    
     pub fn new(model: Model) -> Self {
         Self {
             model,
             events: EventManager::new(),
+            monte_carlo: None,
             save_folder: None,
         }
     }
@@ -239,5 +238,17 @@ where
         // Finalize and return the results
         result.truncate()?;
         Ok(result)
+    }
+}
+
+/// In order to run a monte carlo simulation, the model must implement Uncertainty
+impl<Model, State> OdeProblem<Model, State>
+where
+    Model: OdeModel<State = State> + Uncertainty,
+    State: OdeState,
+{
+    pub fn with_monte_carlo(mut self, n: usize) -> Self {
+        self.monte_carlo = Some(n);
+        self
     }
 }

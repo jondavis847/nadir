@@ -40,10 +40,7 @@ impl StateVector {
     ///
     /// * `n` - usize for the number of elements.
     pub fn with_capacity(n: usize) -> Self {
-        Self {
-            value: Vec::with_capacity(n),
-            n,
-        }
+        Self { value: Vec::with_capacity(n), n }
     }
 }
 

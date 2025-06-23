@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use nalgebra::Vector3;
 use rand::rngs::SmallRng;
 use rand_distr::{Distribution, Normal as RNormal, NormalError, uniform::Error as UniformError};
@@ -37,7 +39,7 @@ impl Normal {
 
 pub trait Uncertainty {
     type Output;
-    type Error;
+    type Error: Debug;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error>;
 }
 
@@ -49,10 +51,7 @@ pub struct SimValue {
 
 impl SimValue {
     pub fn new(nominal: f64) -> Self {
-        Self {
-            nominal,
-            dispersion: None,
-        }
+        Self { nominal, dispersion: None }
     }
 
     pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> f64 {
