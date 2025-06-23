@@ -11,13 +11,13 @@ pub mod stepping;
 pub mod tableau;
 
 use crate::events::{PostSimEvent, PreSimEvent, SaveEvent};
-use crate::saving::WriterManager;
+use crate::saving::{SaveMethods, WriterManager};
 use crate::solvers::Solver;
 use crate::state::Adaptive;
 use crate::stepping::AdaptiveStepControl;
 use crate::stepping::FixedStepControl;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
-use saving::{MemoryResult, ResultStorage, SaveMethod};
+use saving::{MemoryResult, ResultStorage};
 use state::OdeState;
 use uncertainty::Uncertainty;
 
@@ -47,6 +47,7 @@ where
     model: Model,
     monte_carlo: Option<usize>,
     save_folder: Option<PathBuf>,
+    solver: Solver,
 }
 
 impl<Model, State> OdeProblem<Model, State>
@@ -61,6 +62,7 @@ where
             events: EventManager::new(),
             monte_carlo: None,
             save_folder: None,
+            solver: Solver::default(),
         }
     }
 
@@ -103,13 +105,18 @@ where
         }
     }
 
+    pub fn with_solver(mut self, solver: Solver) -> Self {
+        self.solver = solver;
+        self
+    }
+
     pub fn solve_adaptive(
         &mut self,
         x0: &State,
         tspan: (f64, f64),
         mut step_control: AdaptiveStepControl,
         solver: Solver,
-        save_method: SaveMethod,
+        save_method: SaveMethods,
     ) -> Result<ResultStorage<State>, Box<dyn Error>>
     where
         State: Adaptive,

@@ -14,7 +14,7 @@ use crate::state::OdeState;
 /// - `Memory`: Save all state data in memory for postprocessing.
 /// - `File`: Write state data incrementally to a file via a `StateWriterBuilder`.
 /// - `None`: Disables solver-side saving (user handles it via the model).
-pub enum SaveMethod {
+pub enum SaveMethods {
     /// Save state data in memory using `MemoryResult`.
     Memory,
     /// Save state data to disk using a configured `StateWriterBuilder`.
@@ -36,7 +36,9 @@ where
     /// In-memory vector storage of `(time, state)` tuples.
     Memory(MemoryResult<State>),
     /// File writer to stream output incrementally.
-    File { writers: Vec<StateWriter> },
+    File {
+        writers: Vec<StateWriter>,
+    },
     /// No output storage.
     None,
 }
@@ -152,11 +154,7 @@ pub struct StateWriterBuilder {
 
 impl StateWriterBuilder {
     pub fn new(ncols: usize, relative_file_path: PathBuf) -> Self {
-        Self {
-            relative_file_path,
-            headers: None,
-            ncols,
-        }
+        Self { relative_file_path, headers: None, ncols }
     }
 
     pub fn with_headers(mut self, headers: &[&str]) -> Result<Self, Box<dyn Error>> {
@@ -168,7 +166,10 @@ impl StateWriterBuilder {
             )
             .into());
         }
-        let headers = headers.iter().map(|header| header.to_string()).collect();
+        let headers = headers
+            .iter()
+            .map(|header| header.to_string())
+            .collect();
         self.headers = Some(headers);
         Ok(self)
     }
@@ -197,11 +198,7 @@ impl StateWriter {
         if let Some(headers) = &builder.headers {
             writer.write_record(headers)?;
         }
-        Ok(Self {
-            float_buffer,
-            string_buffer,
-            writer,
-        })
+        Ok(Self { float_buffer, string_buffer, writer })
     }
 
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
@@ -211,7 +208,9 @@ impl StateWriter {
 
     /// Writes the column data stored in the string buffers to the csv record
     pub fn write_record(&mut self) -> Result<(), Box<dyn Error>> {
-        self.string_buffer.iter_mut().for_each(|e| e.clear());
+        self.string_buffer
+            .iter_mut()
+            .for_each(|e| e.clear());
         let state = &self.float_buffer;
 
         // write the whole statevector
@@ -243,7 +242,8 @@ impl WriterManager {
 
     pub fn add_writer(&mut self, writer: StateWriterBuilder) -> WriterId {
         self.id_ctr += 1;
-        self.builders.insert(WriterId(self.id_ctr), writer);
+        self.builders
+            .insert(WriterId(self.id_ctr), writer);
         WriterId(self.id_ctr)
     }
 

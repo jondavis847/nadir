@@ -3,7 +3,7 @@
 /// - `Fixed`: Uses a constant step size throughout integration.
 /// - `Adaptive`: Dynamically adjusts step size based on local error estimates.
 #[derive(Copy, Clone)]
-pub enum StepMethod {
+pub enum StepMethods {
     Fixed(FixedStepControl),
     Adaptive(AdaptiveStepControl),
 }
