@@ -8,6 +8,18 @@ pub enum StepMethods {
     Adaptive(AdaptiveStepControl),
 }
 
+impl From<FixedStepControl> for StepMethods {
+    fn from(value: FixedStepControl) -> Self {
+        Self::Fixed(value)
+    }
+}
+
+impl From<AdaptiveStepControl> for StepMethods {
+    fn from(value: AdaptiveStepControl) -> Self {
+        Self::Adaptive(value)
+    }
+}
+
 /// Fixed-step control configuration.
 ///
 /// This struct specifies the time step `dt` and tracks the next scheduled time

@@ -14,6 +14,7 @@ use crate::state::OdeState;
 /// - `Memory`: Save all state data in memory for postprocessing.
 /// - `File`: Write state data incrementally to a file via a `StateWriterBuilder`.
 /// - `None`: Disables solver-side saving (user handles it via the model).
+#[derive(Clone, Copy)]
 pub enum SaveMethods {
     /// Save state data in memory using `MemoryResult`.
     Memory,

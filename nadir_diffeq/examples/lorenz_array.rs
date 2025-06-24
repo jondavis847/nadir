@@ -1,5 +1,7 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem, saving::SaveMethod, solvers::Solver, state::state_array::StateArray,
+    OdeModel, OdeProblem,
+    solvers::{OdeSolver, RungeKuttaMethods},
+    state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
 use std::error::Error;
@@ -28,22 +30,16 @@ impl OdeModel for Lorenz {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let model = Lorenz {
-        sigma: 10.,
-        rho: 28.,
-        beta: 8. / 3.,
-    };
+    let model = Lorenz { sigma: 10., rho: 28., beta: 8. / 3. };
+    let problem = OdeProblem::new(model);
+    let x0 = StateArray::new([1.0, 0.0, 0.0]);
+    let solver = OdeSolver::new(RungeKuttaMethods::Tsit5.into());
 
-    let mut problem = OdeProblem::new(model);
-
-    let x0 = StateArray::new([1.0, 0.0, 0.0]); // Initial conditions for x, y, z{
-
-    problem.solve_adaptive(
-        &x0,
+    solver.solve_adaptive(
+        problem,
+        x0,
         (0.0, 10.0),
         AdaptiveStepControl::default(),
-        Solver::Tsit5,
-        SaveMethod::Memory,
     )?;
 
     Ok(())

@@ -25,11 +25,7 @@ impl StateConfig {
         if n == 0 {
             panic!("n must be greater than 0 for StateConfig");
         }
-        Self {
-            n,
-            tolerances: vec![None; n],
-            writers: Vec::new(),
-        }
+        Self { n, tolerances: vec![None; n], writers: Vec::new() }
     }
 
     /// sets the tolerances of a single element in the statevector representation of the state

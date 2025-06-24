@@ -3,8 +3,8 @@ use std::{env::current_dir, error::Error};
 use nadir_diffeq::{
     OdeModel, OdeProblem,
     events::SaveEvent,
-    saving::{SaveMethod, StateWriterBuilder, WriterManager},
-    solvers::Solver,
+    saving::{StateWriterBuilder, WriterManager},
+    solvers::{OdeSolver, RungeKuttaMethods},
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
@@ -48,18 +48,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let x0 = StateArray::new([7e6, 0.0, 0.0, 0.0, 7546.053287267836, 0.0]);
 
-    OdeProblem::new(model)
+    let problem = OdeProblem::new(model)
         .with_saving(current_dir()?.join("results"))
-        .with_save_event(SaveEvent::new(init_fn, save_fn))
-        .solve_adaptive(
-            &x0,
-            (0.0, 1472092.8448219472),
-            AdaptiveStepControl::default()
-                .with_abs_tol(1e-14)
-                .with_rel_tol(1e-14),
-            Solver::Verner9,
-            SaveMethod::Memory,
-        )?;
+        .with_save_event(SaveEvent::new(init_fn, save_fn));
+    let solver = OdeSolver::new(RungeKuttaMethods::Verner9.into());
+    solver.solve_adaptive(
+        problem,
+        x0,
+        (0.0, 1472092.8448219472),
+        AdaptiveStepControl::default()
+            .with_abs_tol(1e-14)
+            .with_rel_tol(1e-14),
+    )?;
 
     Ok(())
 }
