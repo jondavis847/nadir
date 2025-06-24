@@ -1,6 +1,7 @@
-use crate::state::Adaptive;
+use crate::{monte_carlo::UncertainState, state::Adaptive};
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
+use uncertainty::{SimValue, Uncertainty};
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
 ///
@@ -122,7 +123,13 @@ impl<const N: usize> Tolerance for StateArrayTolerances<N> {
             let component_error = if let Some(tol) = tol {
                 tol.compute_error(x.0[i], x_prev.0[i], x_tilde.0[i])
             } else {
-                compute_error(x.0[i], x_prev.0[i], x_tilde.0[i], rel_tol, abs_tol)
+                compute_error(
+                    x.0[i],
+                    x_prev.0[i],
+                    x_tilde.0[i],
+                    rel_tol,
+                    abs_tol,
+                )
             };
 
             sum_squared_errors += component_error * component_error;
@@ -136,5 +143,25 @@ impl<const N: usize> Default for StateArrayTolerances<N> {
     /// Creates a new `StateArrayTolerances` with no component-specific tolerances.
     fn default() -> Self {
         Self([None; N])
+    }
+}
+
+pub struct UncertainStateArray<const N: usize>(pub [SimValue; N]);
+impl<const N: usize> UncertainState for UncertainStateArray<N> {
+    type State = StateArray<N>;
+}
+impl<const N: usize> Uncertainty for UncertainStateArray<N> {
+    type Output = StateArray<N>;
+    type Error = ();
+    fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        let mut output = StateArray::new([0.0; N]);
+        for (uncertain_val, out_val) in self.0.iter().zip(output.iter_mut()) {
+            *out_val = uncertain_val.sample(nominal, rng);
+        }
+        Ok(output)
     }
 }
