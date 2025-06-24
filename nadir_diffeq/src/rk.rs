@@ -3,7 +3,7 @@ use std::{array, error::Error, f64::INFINITY, mem::swap};
 use crate::{
     OdeModel,
     events::{ContinuousEvent, EventManager},
-    saving::{ResultStorage, WriterManager},
+    saving::{MemoryResult, WriterManager},
     state::{Adaptive, OdeState},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
@@ -82,7 +82,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>> {
         // Counter to count number of function calls
@@ -96,7 +96,10 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         self.buffers.init(x0);
 
         // Save the true initial state before any processing
-        result.save(t, &self.x)?;
+        if let Some(result) = result {
+            result.insert(t, &self.x);
+        }
+
         if let Some(manager) = writer_manager {
             // run the model function to update internal algebraic/kinematic states
             model.f(t, x0, &mut self.buffers.derivative)?;
@@ -110,7 +113,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         // Process initial events if any are scheduled at t0
         if events.process_periodic_events(model, &mut self.x, t) {
             // If initial events changed state, save the updated state
-            result.save(t, &self.x)?;
+            if let Some(result) = result {
+                result.insert(t, &self.x);
+            }
         };
 
         while t < tspan.1 {
@@ -135,7 +140,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             t += dt;
 
             // Save the memory result state
-            result.save(t, &self.y)?;
+            if let Some(result) = result {
+                result.insert(t, &self.y);
+            }
             if let Some(manager) = writer_manager {
                 // run the model function to update internal algebraic/kinematic states
                 model.f(t, x0, &mut self.buffers.derivative)?;
@@ -149,7 +156,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             // Run any events
             if events.process_periodic_events(model, &mut self.y, t) {
                 // Save the result after events
-                result.save(t, &self.y)?;
+                if let Some(result) = result {
+                    result.insert(t, &self.y);
+                }
             };
 
             // Initialize next loop
@@ -184,7 +193,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -206,7 +215,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         let mut dt = 1e-3; // initial dt
 
         // Save the true initial state before any processing
-        result.save(t, &self.x)?;
+        if let Some(result) = result {
+            result.insert(t, &self.x);
+        }
         if let Some(manager) = writer_manager {
             // run the model function to update any mutable internal algebraic/kinematic states
             model.f(t, x0, &mut self.buffers.derivative)?;
@@ -272,7 +283,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 if continuous_event_occurred {
                     self.interpolate(t, dt, continuous_event_time);
                     // save the result prior to the event action
-                    result.save(continuous_event_time, &self.buffers.interpolant)?;
+                    if let Some(result) = result {
+                        result.insert(continuous_event_time, &self.buffers.interpolant);
+                    }
                     // perform the event actions
                     for i in event_indices {
                         (events.continuous_events[i].action)(
@@ -281,7 +294,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                             continuous_event_time,
                         );
                         // save after each action
-                        result.save(continuous_event_time, &self.buffers.interpolant)?;
+                        if let Some(result) = result {
+                            result.insert(continuous_event_time, &self.buffers.interpolant);
+                        }
                     }
                     // update dt for the continuous event time
                     dt = continuous_event_time - t;
@@ -291,7 +306,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
                 t += dt;
                 // Save the true state before any event processing
-                result.save(t, &self.y)?;
+                if let Some(result) = result {
+                    result.insert(t, &self.y);
+                }
                 if let Some(manager) = writer_manager {
                     // run the model function to update internal algebraic/kinematic states
                     // this unfortunately incurs one more function call
@@ -307,7 +324,9 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 // Process periodic events if any occurred
                 if events.process_periodic_events(model, &mut self.y, t) {
                     // Events changed state, save the updated state
-                    result.save(t, &self.y)?;
+                    if let Some(result) = result {
+                        result.insert(t, &self.y);
+                    }
                     // if let Some(manager) = writer_manager {
                     //     // run the model function to update internal algebraic/kinematic states
                     //     model.f(t, &self.y, &mut self.buffers.derivative)?;

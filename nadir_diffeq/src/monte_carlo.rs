@@ -4,7 +4,7 @@ use uncertainty::Uncertainty;
 
 use crate::{
     OdeModel, OdeProblem,
-    saving::{ResultStorage, SaveMethods},
+    saving::{MemoryResult, SaveMethods},
     solvers::{OdeSolver, SolverMethods},
     state::{Adaptive, OdeState},
     stepping::AdaptiveStepControl,
@@ -40,7 +40,7 @@ impl MonteCarloSolver {
         x0: StateBuilder,
         tspan: (f64, f64),
         controller: AdaptiveStepControl,
-    ) -> Result<Vec<ResultStorage<StateBuilder::Output>>, Box<dyn Error>>
+    ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
     where
         ModelBuilder: UncertainModel,
         StateBuilder:
@@ -48,7 +48,10 @@ impl MonteCarloSolver {
         StateBuilder::State: Adaptive,
     {
         let mut rng = SmallRng::seed_from_u64(problem.seed);
-        let mut results = Vec::with_capacity(problem.nruns);
+        let mut results = match self.save_method {
+            SaveMethods::Memory => Some(Vec::with_capacity(problem.nruns)),
+            SaveMethods::None => None,
+        };
         for i in 0..problem.nruns {
             let solver = OdeSolver::new(self.solver_method);
             let model = problem
@@ -57,7 +60,10 @@ impl MonteCarloSolver {
                 .unwrap();
             let state = x0.sample(false, &mut rng).unwrap();
             let problem = OdeProblem::new(model);
-            results[i] = solver.solve_adaptive(problem, state, tspan, controller)?;
+            let result = solver.solve_adaptive(problem, state, tspan, controller)?;
+            if let (Some(results), Some(result)) = (&mut results, result) {
+                results.insert(i, result);
+            }
         }
         Ok(results)
     }
@@ -68,14 +74,17 @@ impl MonteCarloSolver {
         x0: StateBuilder,
         tspan: (f64, f64),
         dt: f64,
-    ) -> Result<Vec<ResultStorage<StateBuilder::Output>>, Box<dyn Error>>
+    ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
     where
         ModelBuilder: UncertainModel,
         StateBuilder:
             UncertainState<State = <<ModelBuilder as UncertainModel>::Model as OdeModel>::State>,
     {
         let mut rng = SmallRng::seed_from_u64(problem.seed);
-        let mut results = Vec::with_capacity(problem.nruns);
+        let mut results = match self.save_method {
+            SaveMethods::Memory => Some(Vec::with_capacity(problem.nruns)),
+            SaveMethods::None => None,
+        };
         for i in 0..problem.nruns {
             let solver = OdeSolver::new(self.solver_method);
             let model = problem
@@ -84,7 +93,10 @@ impl MonteCarloSolver {
                 .unwrap();
             let state = x0.sample(false, &mut rng).unwrap();
             let problem = OdeProblem::new(model);
-            results[i] = solver.solve_fixed(problem, state, tspan, dt)?;
+            let result = solver.solve_fixed(problem, state, tspan, dt)?;
+            if let (Some(results), Some(result)) = (&mut results, result) {
+                results.insert(i, result);
+            }
         }
         Ok(results)
     }

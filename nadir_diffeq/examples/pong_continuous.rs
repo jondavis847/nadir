@@ -3,7 +3,6 @@ use std::error::Error;
 use nadir_diffeq::{
     OdeModel, OdeProblem,
     events::ContinuousEvent,
-    saving::ResultStorage,
     solvers::{OdeSolver, RungeKuttaMethods},
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
@@ -42,23 +41,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     ));
     let solver = OdeSolver::new(RungeKuttaMethods::Tsit5.into());
 
-    let result = solver.solve_adaptive(
-        problem,
-        x0,
-        (0.0, 10.0),
-        AdaptiveStepControl::default(),
-    )?;
+    let result = solver
+        .solve_adaptive(
+            problem,
+            x0,
+            (0.0, 10.0),
+            AdaptiveStepControl::default(),
+        )?
+        .unwrap();
 
-    match result {
-        ResultStorage::Memory(result) => {
-            for i in 0..result.t.len() {
-                println!(
-                    "{:10.6}     {:10.6} ",
-                    result.t[i], result.y[i][0]
-                );
-            }
-        }
-        _ => {}
+    for i in 0..result.t.len() {
+        println!(
+            "{:10.6}     {:10.6} ",
+            result.t[i], result.y[i][0]
+        );
     }
+
     Ok(())
 }

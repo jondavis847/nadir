@@ -24,72 +24,6 @@ pub enum SaveMethods {
     None,
 }
 
-/// Runtime storage for solver results, selected based on the `SaveMethod`.
-///
-/// - `Memory`: Accumulates states in RAM.
-/// - `File`: Writes each step to a file.
-/// - `None`: Performs no saving.
-#[derive(Debug)]
-pub enum ResultStorage<State>
-where
-    State: OdeState,
-{
-    /// In-memory vector storage of `(time, state)` tuples.
-    Memory(MemoryResult<State>),
-    /// File writer to stream output incrementally.
-    File {
-        writers: Vec<StateWriter>,
-    },
-    /// No output storage.
-    None,
-}
-
-impl<State> ResultStorage<State>
-where
-    State: OdeState,
-{
-    /// Save a `(time, state)` pair to the result store.
-    ///
-    /// No-op if storage is `None`.
-    pub fn save(&mut self, t: f64, y: &State) -> Result<(), Box<dyn Error>> {
-        match self {
-            ResultStorage::Memory(result) => {
-                result.insert(t, y);
-                Ok(())
-            }
-            // ResultStorage::File { writers } => {
-            //     // model just populates the string buffers
-            //     for writer in writers.iter_mut() {
-            //         y.write_vector(&mut writer.float_buffer);
-            //         writer.write_record(t)?;
-            //     }
-
-            //     Ok(())
-            // }
-            _ => Ok(()),
-        }
-    }
-
-    /// Finalize and flush result storage.
-    ///
-    /// For `Memory`, this truncates unused buffer capacity.
-    /// For `File`, this flushes the buffered writer.
-    pub fn truncate(&mut self) -> Result<(), Box<dyn Error>> {
-        match self {
-            ResultStorage::Memory(result) => {
-                result.truncate();
-            }
-            ResultStorage::File { writers } => {
-                for writer in writers {
-                    writer.flush()?;
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-}
-
 /// A preallocated and growable result container used for in-memory storage
 /// of ODE solver outputs. Each entry stores the time and state value at that time.
 #[derive(Debug)]
@@ -119,7 +53,7 @@ where
     }
 
     /// Inserts a new result `(t, x)` into the buffer. Automatically grows if full.
-    fn insert(&mut self, t: f64, x: &State) {
+    pub fn insert(&mut self, t: f64, x: &State) {
         if self.i == self.t.len() - 1 {
             self.extend();
         }
@@ -129,18 +63,18 @@ where
     }
 
     /// Returns the total capacity of the buffer (not the number of saved entries).
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.t.len()
     }
 
     /// Doubles the size of the buffer to accommodate more entries.
-    fn extend(&mut self) {
+    pub fn extend(&mut self) {
         self.t.extend(vec![0.0; self.len()]);
         self.y.extend(vec![State::default(); self.len()]);
     }
 
     /// Truncates the buffer to contain only the filled entries.
-    fn truncate(&mut self) {
+    pub fn truncate(&mut self) {
         self.t.truncate(self.i);
         self.y.truncate(self.i);
     }

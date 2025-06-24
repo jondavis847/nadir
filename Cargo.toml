@@ -73,6 +73,7 @@ quote = "1.0.40"
 pest = "2.8.0"
 pest_derive = "2.7.15"
 phf = { version = "0.11.2", features = ["macros"] }
+plotters = "0.3.7"
 rand = { version = "0.9.0", features = ["serde", "small_rng"] }
 rand_distr = { version = "0.5.1", features = ["serde"] }
 rayon = "1.10.0"
@@ -82,6 +83,7 @@ rotations = {path = "rotations"}
 rustyline = {version = "15.0.0", features = ["with-file-history"]}
 rustyline-derive = "0.11.0"
 serde = {version = "1.0.215" , features = ["derive", "rc"]}
+show-image = "0.14.1"
 spatial_algebra = {path = "spatial_algebra"} 
 spherical_harmonics = {path = "spherical_harmonics"}
 spice = {path = "spice"}

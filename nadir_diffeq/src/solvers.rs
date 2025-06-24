@@ -4,7 +4,7 @@ use crate::{
     OdeModel, OdeProblem,
     events::EventManager,
     rk::RungeKutta,
-    saving::{MemoryResult, ResultStorage, SaveMethods, WriterManager},
+    saving::{MemoryResult, SaveMethods, WriterManager},
     state::{Adaptive, OdeState},
     stepping::{AdaptiveStepControl, FixedStepControl},
     tableau::ButcherTableau,
@@ -38,7 +38,7 @@ impl OdeSolver {
         x0: State,
         tspan: (f64, f64),
         mut controller: AdaptiveStepControl,
-    ) -> Result<ResultStorage<State>, Box<dyn Error>> {
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
         // handle inappropriate combos
         match &self.solver_method {
             SolverMethods::Explicit(method) => match method {
@@ -78,7 +78,9 @@ impl OdeSolver {
         }
 
         // Finalize and return the results
-        result.truncate()?;
+        if let Some(result) = &mut result {
+            result.truncate();
+        }
 
         Ok(result)
     }
@@ -89,7 +91,7 @@ impl OdeSolver {
         x0: State,
         tspan: (f64, f64),
         dt: f64,
-    ) -> Result<ResultStorage<State>, Box<dyn Error>> {
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
         let mut controller = FixedStepControl::new(dt);
         // Initialize the manager for writing results to a file
         let mut writer_manager = self.initialize_writer(&mut problem, &x0)?;
@@ -117,7 +119,9 @@ impl OdeSolver {
         }
 
         // Finalize and return the results
-        result.truncate()?;
+        if let Some(result) = &mut result {
+            result.truncate();
+        }
 
         Ok(result)
     }
@@ -148,7 +152,7 @@ impl OdeSolver {
         _x0: &State,
         tspan: &(f64, f64),
         controller: &AdaptiveStepControl,
-    ) -> ResultStorage<State>
+    ) -> Option<MemoryResult<State>>
     where
         State: OdeState,
     {
@@ -161,9 +165,9 @@ impl OdeSolver {
                     // Default conservative allocation: 1 save per second
                     (tspan.1 - tspan.0).ceil() as usize
                 };
-                ResultStorage::Memory(MemoryResult::new(n))
+                Some(MemoryResult::new(n))
             }
-            _ => ResultStorage::None,
+            _ => None,
         }
     }
 
@@ -172,7 +176,7 @@ impl OdeSolver {
         _x0: &State,
         tspan: &(f64, f64),
         controller: &FixedStepControl,
-    ) -> ResultStorage<State>
+    ) -> Option<MemoryResult<State>>
     where
         State: OdeState,
     {
@@ -180,9 +184,9 @@ impl OdeSolver {
         match self.save_method {
             SaveMethods::Memory => {
                 let n = ((tspan.1 - tspan.0) / controller.dt).ceil() as usize;
-                ResultStorage::Memory(MemoryResult::new(n))
+                Some(MemoryResult::new(n))
             }
-            _ => ResultStorage::None,
+            _ => None,
         }
     }
 }
@@ -214,7 +218,7 @@ impl SolverMethods {
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -241,7 +245,7 @@ impl SolverMethods {
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -282,7 +286,7 @@ impl ExplicitMethods {
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -309,7 +313,7 @@ impl ExplicitMethods {
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -355,7 +359,7 @@ impl RungeKuttaMethods {
         tspan: (f64, f64),
         controller: &mut FixedStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where
@@ -445,7 +449,7 @@ impl RungeKuttaMethods {
         tspan: (f64, f64),
         controller: &mut AdaptiveStepControl,
         events: &mut EventManager<Model, State>,
-        result: &mut ResultStorage<State>,
+        result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
     ) -> Result<(), Box<dyn Error>>
     where

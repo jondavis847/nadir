@@ -1,6 +1,5 @@
 use nadir_diffeq::{
     OdeModel, OdeProblem,
-    saving::ResultStorage,
     solvers::{OdeSolver, RungeKuttaMethods},
     state::Adaptive,
     stepping::AdaptiveStepControl,
@@ -70,25 +69,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x0 = LorenzState { x: 1.0, y: 0.0, z: 0.0 };
     let solver = OdeSolver::new(RungeKuttaMethods::DoPri45.into());
 
-    let result = solver.solve_adaptive(
-        problem,
-        x0,
-        (0.0, 1.0),
-        AdaptiveStepControl::default(),
-    )?;
+    let result = solver
+        .solve_adaptive(
+            problem,
+            x0,
+            (0.0, 1.0),
+            AdaptiveStepControl::default(),
+        )?
+        .unwrap();
 
-    match result {
-        ResultStorage::Memory(result) => {
-            for i in 0..result.t.len() {
-                if result.t[i].rem_euclid(1.0) < 1e-3 {
-                    println!(
-                        "{:10.6}     {:10.6} {:10.6} {:10.6}",
-                        result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
-                    );
-                }
-            }
+    for i in 0..result.t.len() {
+        if result.t[i].rem_euclid(1.0) < 1e-3 {
+            println!(
+                "{:10.6}     {:10.6} {:10.6} {:10.6}",
+                result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
+            );
         }
-        _ => {}
     }
+
     Ok(())
 }
