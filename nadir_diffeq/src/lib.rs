@@ -19,7 +19,7 @@ use uncertainty::Uncertainty;
 ///
 /// Types implementing this trait must define how to compute the derivative (or RHS function)
 /// of the ODE at a given time and state.
-pub trait OdeModel: Debug {
+pub trait OdeModel: Debug + Send + Sync {
     type State: OdeState;
     /// Compute the derivative at time `t` and state `state`, storing the result in `derivative`.
     fn f(
@@ -60,25 +60,29 @@ where
 
     /// Adds a periodic event to the simulation.
     pub fn with_periodic_event(mut self, event: PeriodicEvent<Model, State>) -> Self {
-        self.events.add_periodic(event);
+        self.events
+            .add_periodic(event);
         self
     }
 
     // Adds a presim event to the simulation.
     pub fn with_presim_event(mut self, event: PreSimEvent<Model, State>) -> Self {
-        self.events.add_presim(event);
+        self.events
+            .add_presim(event);
         self
     }
 
     /// Adds a postsim event to the simulation.
     pub fn with_postsim_event(mut self, event: PostSimEvent<Model>) -> Self {
-        self.events.add_postsim(event);
+        self.events
+            .add_postsim(event);
         self
     }
 
     /// Adds a continuous event to the simulation.
     pub fn with_continuous_event(mut self, event: ContinuousEvent<Model, State>) -> Self {
-        self.events.add_continuous(event);
+        self.events
+            .add_continuous(event);
         self
     }
 
@@ -90,8 +94,12 @@ where
 
     /// Adds a continuous event to the simulation.
     pub fn with_save_event(mut self, event: SaveEvent<Model, State>) -> Self {
-        if self.save_folder.is_some() {
-            self.events.add_save(event);
+        if self
+            .save_folder
+            .is_some()
+        {
+            self.events
+                .add_save(event);
             self
         } else {
             panic!("need to call with_saving() before with_save_event() to enable saving")

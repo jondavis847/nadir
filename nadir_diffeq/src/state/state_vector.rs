@@ -1,6 +1,7 @@
 use crate::state::Adaptive;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 use tolerance::compute_error;
+use uncertainty::{SimValue, Uncertainty};
 
 /// A dynamic-sized vector type for use in ODE solvers.
 ///
@@ -30,8 +31,11 @@ impl StateVector {
     ///
     /// * `n` - usize for the number of elements.
     pub fn extend(&mut self, other: &Self) {
-        self.value.extend_from_slice(&other.value);
-        self.n = self.value.len();
+        self.value
+            .extend_from_slice(&other.value);
+        self.n = self
+            .value
+            .len();
     }
 
     /// Constructs a new `StateVector` with preallocated capcity.
@@ -148,3 +152,32 @@ impl Adaptive for StateVector {
 //         Self(tolerances)
 //     }
 // }
+
+pub struct UncertainStateVector(pub Vec<SimValue>);
+
+impl UncertainStateVector {
+    pub fn len(&self) -> usize {
+        self.0
+            .len()
+    }
+}
+
+impl Uncertainty for UncertainStateVector {
+    type Output = StateVector;
+    type Error = ();
+    fn sample(
+        &self,
+        nominal: bool,
+        rng: &mut rand::prelude::SmallRng,
+    ) -> Result<Self::Output, Self::Error> {
+        let mut output = StateVector::new(vec![0.0; self.len()]);
+        for (uncertain_val, out_val) in self
+            .0
+            .iter()
+            .zip(output.iter_mut())
+        {
+            *out_val = uncertain_val.sample(nominal, rng);
+        }
+        Ok(output)
+    }
+}

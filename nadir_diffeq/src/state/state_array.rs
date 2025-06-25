@@ -1,4 +1,4 @@
-use crate::{monte_carlo::UncertainState, state::Adaptive};
+use crate::state::Adaptive;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
 use uncertainty::{SimValue, Uncertainty};
@@ -147,9 +147,7 @@ impl<const N: usize> Default for StateArrayTolerances<N> {
 }
 
 pub struct UncertainStateArray<const N: usize>(pub [SimValue; N]);
-impl<const N: usize> UncertainState for UncertainStateArray<N> {
-    type State = StateArray<N>;
-}
+
 impl<const N: usize> Uncertainty for UncertainStateArray<N> {
     type Output = StateArray<N>;
     type Error = ();

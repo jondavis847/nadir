@@ -1,6 +1,6 @@
 use nadir_diffeq::{
     OdeModel,
-    monte_carlo::{MonteCarloProblem, MonteCarloSolver, UncertainModel},
+    monte_carlo::{MonteCarloProblem, MonteCarloSolver},
     saving::MemoryResult,
     solvers::RungeKuttaMethods,
     state::state_array::{StateArray, UncertainStateArray},
@@ -36,9 +36,6 @@ struct UncertainDampedOscillator {
     damping: SimValue,
 }
 
-impl UncertainModel for UncertainDampedOscillator {
-    type Model = DampedOscillator;
-}
 impl Uncertainty for UncertainDampedOscillator {
     type Output = DampedOscillator;
     type Error = ();
@@ -48,8 +45,12 @@ impl Uncertainty for UncertainDampedOscillator {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(DampedOscillator {
-            spring_constant: self.spring_constant.sample(nominal, rng),
-            damping: self.damping.sample(nominal, rng),
+            spring_constant: self
+                .spring_constant
+                .sample(nominal, rng),
+            damping: self
+                .damping
+                .sample(nominal, rng),
         })
     }
 }
@@ -88,8 +89,11 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
     // Create an in-memory bitmap
     let mut buffer = vec![0u8; width * height * 3];
     {
-        let root = BitMapBackend::with_buffer(&mut buffer, (width as u32, height as u32))
-            .into_drawing_area();
+        let root = BitMapBackend::with_buffer(
+            &mut buffer,
+            (width as u32, height as u32),
+        )
+        .into_drawing_area();
         root.fill(&WHITE)?;
 
         // Find the overall min/max across all results
@@ -100,10 +104,16 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
 
         // Get the ranges from all results
         for result in &results {
-            if let Some(first_t) = result.t.first() {
+            if let Some(first_t) = result
+                .t
+                .first()
+            {
                 t_min = t_min.min(*first_t);
             }
-            if let Some(last_t) = result.t.last() {
+            if let Some(last_t) = result
+                .t
+                .last()
+            {
                 t_max = t_max.max(*last_t);
             }
 
@@ -121,7 +131,10 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
         let pos_range = (pos_min - pos_margin)..(pos_max + pos_margin);
 
         let mut chart = ChartBuilder::on(&root)
-            .caption("Damped Oscillator - Monte Carlo", ("Arial", 30))
+            .caption(
+                "Damped Oscillator - Monte Carlo",
+                ("Arial", 30),
+            )
             .margin(20)
             .x_label_area_size(40)
             .y_label_area_size(60)
@@ -148,12 +161,23 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
         ];
 
         // Draw each result with a different color
-        for (i, result) in results.iter().enumerate() {
+        for (i, result) in results
+            .iter()
+            .enumerate()
+        {
             let color_idx = i % color_palette.len();
             let color = color_palette[color_idx].stroke_width(2);
 
-            let times: Vec<f64> = result.t.iter().copied().collect();
-            let positions: Vec<f64> = result.y.iter().map(|state| state[0]).collect();
+            let times: Vec<f64> = result
+                .t
+                .iter()
+                .copied()
+                .collect();
+            let positions: Vec<f64> = result
+                .y
+                .iter()
+                .map(|state| state[0])
+                .collect();
 
             let label = if i == 0 {
                 "Nominal"
@@ -172,9 +196,19 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
                         BLACK.stroke_width(3)
                     } else {
                         // Use semi-transparent colors for Monte Carlo runs
-                        RGBColor(color.color.0, color.color.1, color.color.2)
-                            .mix(0.4)
-                            .stroke_width(1)
+                        RGBColor(
+                            color
+                                .color
+                                .0,
+                            color
+                                .color
+                                .1,
+                            color
+                                .color
+                                .2,
+                        )
+                        .mix(0.4)
+                        .stroke_width(1)
                     },
                 ))?
                 .label(label);
@@ -195,20 +229,25 @@ fn plot(results: Vec<MemoryResult<StateArray<2>>>) -> Result<(), Box<dyn Error>>
     }
 
     // Use run_context with a closure that displays the image
-    run_context(move || -> Result<(), Box<dyn Error>> {
-        let window = create_window("Monte Carlo Simulation", Default::default())?;
+    run_context(
+        move || -> Result<(), Box<dyn Error>> {
+            let window = create_window(
+                "Monte Carlo Simulation",
+                Default::default(),
+            )?;
 
-        window.set_image(
-            "plot",
-            ImageView::new(
-                ImageInfo::rgb8(width as u32, height as u32),
-                &buffer,
-            ),
-        )?;
+            window.set_image(
+                "plot",
+                ImageView::new(
+                    ImageInfo::rgb8(width as u32, height as u32),
+                    &buffer,
+                ),
+            )?;
 
-        // Wait for window to be closed
-        window.wait_until_destroyed()?;
+            // Wait for window to be closed
+            window.wait_until_destroyed()?;
 
-        Ok(())
-    });
+            Ok(())
+        },
+    );
 }

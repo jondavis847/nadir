@@ -32,10 +32,16 @@ impl<State: OdeState, const STAGES: usize> RKBuffers<State, STAGES> {
     }
 
     pub fn init(&mut self, x0: &State) {
-        self.state.clone_from(x0);
-        self.derivative.clone_from(x0);
-        self.interpolant.clone_from(x0);
-        for buffer in &mut self.stage.k {
+        self.state
+            .clone_from(x0);
+        self.derivative
+            .clone_from(x0);
+        self.interpolant
+            .clone_from(x0);
+        for buffer in &mut self
+            .stage
+            .k
+        {
             buffer.clone_from(x0);
         }
     }
@@ -90,10 +96,14 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         let mut t = tspan.0;
 
         // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
-        self.x.clone_from(x0);
-        self.y.clone_from(x0);
-        self.y_tilde.clone_from(x0);
-        self.buffers.init(x0);
+        self.x
+            .clone_from(x0);
+        self.y
+            .clone_from(x0);
+        self.y_tilde
+            .clone_from(x0);
+        self.buffers
+            .init(x0);
 
         // Save the true initial state before any processing
         if let Some(result) = result {
@@ -102,9 +112,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
         if let Some(manager) = writer_manager {
             // run the model function to update internal algebraic/kinematic states
-            model.f(t, x0, &mut self.buffers.derivative)?;
+            model.f(
+                t,
+                x0,
+                &mut self
+                    .buffers
+                    .derivative,
+            )?;
             for event in &mut events.save_events {
-                if event.options.every_step {
+                if event
+                    .options
+                    .every_step
+                {
                     (event.save_fn)(model, &self.x, t, manager);
                 }
             }
@@ -134,7 +153,13 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
 
             // Take a step
-            self.step(model, t, dt, false, &mut function_calls)?;
+            self.step(
+                model,
+                t,
+                dt,
+                false,
+                &mut function_calls,
+            )?;
 
             // Update time based on dt
             t += dt;
@@ -145,9 +170,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
             if let Some(manager) = writer_manager {
                 // run the model function to update internal algebraic/kinematic states
-                model.f(t, x0, &mut self.buffers.derivative)?;
+                model.f(
+                    t,
+                    x0,
+                    &mut self
+                        .buffers
+                        .derivative,
+                )?;
                 for event in &mut events.save_events {
-                    if event.options.every_step {
+                    if event
+                        .options
+                        .every_step
+                    {
                         (event.save_fn)(model, &self.x, t, manager);
                     }
                 }
@@ -162,19 +196,33 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             };
 
             // Initialize next loop
-            self.x.clone_from(&self.y);
+            self.x
+                .clone_from(&self.y);
 
-            if self.tableau.fsal {
+            if self
+                .tableau
+                .fsal
+            {
                 // Reuse last stage from previous step as first stage
-                let (k0, ks) = self.buffers.stage.k.split_at_mut(1);
-                k0[0].clone_from(ks.last().unwrap());
+                let (k0, ks) = self
+                    .buffers
+                    .stage
+                    .k
+                    .split_at_mut(1);
+                k0[0].clone_from(
+                    ks.last()
+                        .unwrap(),
+                );
             }
         }
 
         // write the last state
         if let Some(manager) = writer_manager {
             for event in &mut events.save_events {
-                if event.options.every_step {
+                if event
+                    .options
+                    .every_step
+                {
                     (event.save_fn)(model, &self.x, t, manager);
                 }
             }
@@ -207,10 +255,14 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         let mut t = tspan.0;
 
         // Copy initial state to all buffers to make sure length matches initial size of dynamically sized State
-        self.x.clone_from(x0);
-        self.y.clone_from(x0);
-        self.y_tilde.clone_from(x0);
-        self.buffers.init(x0);
+        self.x
+            .clone_from(x0);
+        self.y
+            .clone_from(x0);
+        self.y_tilde
+            .clone_from(x0);
+        self.buffers
+            .init(x0);
 
         let mut dt = 1e-3; // initial dt
 
@@ -220,9 +272,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         }
         if let Some(manager) = writer_manager {
             // run the model function to update any mutable internal algebraic/kinematic states
-            model.f(t, x0, &mut self.buffers.derivative)?;
+            model.f(
+                t,
+                x0,
+                &mut self
+                    .buffers
+                    .derivative,
+            )?;
             for event in &mut events.save_events {
-                if event.options.every_step {
+                if event
+                    .options
+                    .every_step
+                {
                     (event.save_fn)(model, &self.x, t, manager);
                 }
             }
@@ -248,18 +309,43 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
 
             // Trial step
-            self.step(model, t, dt, true, &mut function_calls)?;
+            self.step(
+                model,
+                t,
+                dt,
+                true,
+                &mut function_calls,
+            )?;
 
             // Calculate error
-            let error = self.y.compute_error(
-                &self.x,
-                &self.y_tilde,
-                controller.abs_tol,
-                controller.rel_tol,
-            );
+            let error = self
+                .y
+                .compute_error(
+                    &self.x,
+                    &self.y_tilde,
+                    controller.abs_tol,
+                    controller.rel_tol,
+                );
 
             // Calculate new step size based on dt
-            let new_dt = controller.step(dt, error, ORDER);
+            let mut new_dt = controller.step(dt, error, ORDER);
+
+            // Apply controller limits
+            if let Some(max_dt) = controller.max_dt {
+                if new_dt > max_dt {
+                    new_dt = max_dt;
+                }
+            }
+
+            if let Some(min_dt) = controller.min_dt {
+                if new_dt < min_dt {
+                    new_dt = min_dt;
+                    eprintln!(
+                        "WARNING: Required a dt smaller than min_dt ({:.3e}). Continuing but accuracy will be reduced.",
+                        min_dt
+                    );
+                }
+            }
 
             // Check if step is accepted
             if error <= 1.0 {
@@ -269,7 +355,11 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 let mut continuous_event_occurred = false;
                 let mut continuous_event_time = INFINITY;
                 let mut event_indices = Vec::new();
-                for (i, event) in events.continuous_events.iter_mut().enumerate() {
+                for (i, event) in events
+                    .continuous_events
+                    .iter_mut()
+                    .enumerate()
+                {
                     let (event_occurred, event_time) = self.continuous_event_occurred(t, dt, event);
                     if event_occurred {
                         continuous_event_occurred = true;
@@ -284,26 +374,42 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     self.interpolate(t, dt, continuous_event_time);
                     // save the result prior to the event action
                     if let Some(result) = result {
-                        result.insert(continuous_event_time, &self.buffers.interpolant);
+                        result.insert(
+                            continuous_event_time,
+                            &self
+                                .buffers
+                                .interpolant,
+                        );
                     }
                     // perform the event actions
                     for i in event_indices {
                         (events.continuous_events[i].action)(
                             model,
-                            &mut self.buffers.interpolant,
+                            &mut self
+                                .buffers
+                                .interpolant,
                             continuous_event_time,
                         );
                         // save after each action
                         if let Some(result) = result {
-                            result.insert(continuous_event_time, &self.buffers.interpolant);
+                            result.insert(
+                                continuous_event_time,
+                                &self
+                                    .buffers
+                                    .interpolant,
+                            );
                         }
                     }
                     // update dt for the continuous event time
                     dt = continuous_event_time - t;
                     // update state for the interpolated state after all events have occurred
-                    self.y.clone_from(&self.buffers.interpolant);
+                    self.y
+                        .clone_from(
+                            &self
+                                .buffers
+                                .interpolant,
+                        );
                 }
-
                 t += dt;
                 // Save the true state before any event processing
                 if let Some(result) = result {
@@ -313,9 +419,18 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     // run the model function to update internal algebraic/kinematic states
                     // this unfortunately incurs one more function call
                     // TODO: could put this in the step method after the first stage call to avoid extra function call
-                    model.f(t, &self.y, &mut self.buffers.derivative)?;
+                    model.f(
+                        t,
+                        &self.y,
+                        &mut self
+                            .buffers
+                            .derivative,
+                    )?;
                     for event in &mut events.save_events {
-                        if event.options.every_step {
+                        if event
+                            .options
+                            .every_step
+                        {
                             (event.save_fn)(model, &self.y, t, manager);
                         }
                     }
@@ -338,15 +453,26 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     // }
                 };
 
-                self.x.clone_from(&self.y);
+                self.x
+                    .clone_from(&self.y);
                 dt = new_dt;
 
                 accept_counter += 1;
 
-                if self.tableau.fsal {
+                if self
+                    .tableau
+                    .fsal
+                {
                     // Reuse last stage from previous step as first stage
-                    let (k0, ks) = self.buffers.stage.k.split_at_mut(1);
-                    k0[0].clone_from(ks.last().unwrap());
+                    let (k0, ks) = self
+                        .buffers
+                        .stage
+                        .k
+                        .split_at_mut(1);
+                    k0[0].clone_from(
+                        ks.last()
+                            .unwrap(),
+                    );
                 }
             } else {
                 // Step REJECTED: try again with reduced step size
@@ -376,7 +502,10 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         // write the last state
         if let Some(manager) = writer_manager {
             for event in &mut events.save_events {
-                if event.options.every_step {
+                if event
+                    .options
+                    .every_step
+                {
                     (event.save_fn)(model, &self.x, t, manager);
                 }
             }
@@ -403,9 +532,15 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         Model: OdeModel<State = State>,
         State: OdeState,
     {
-        let k = &mut self.buffers.stage.k;
+        let k = &mut self
+            .buffers
+            .stage
+            .k;
 
-        if self.tableau.fsal {
+        if self
+            .tableau
+            .fsal
+        {
             // FSAL method implementation
             if self.first_step {
                 model.f(t, &self.x, &mut k[0])?;
@@ -415,33 +550,62 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
             // Compute intermediate stages k1 through k[STAGES-2]
             for s in 1..STAGES - 1 {
-                self.buffers.state *= 0.0;
+                self.buffers
+                    .state *= 0.0;
                 for i in 0..s {
-                    self.buffers.derivative.clone_from(&k[i]);
-                    self.buffers.derivative *= self.tableau.a[s][i];
-                    self.buffers.state += &self.buffers.derivative;
+                    self.buffers
+                        .derivative
+                        .clone_from(&k[i]);
+                    self.buffers
+                        .derivative *= self
+                        .tableau
+                        .a[s][i];
+                    self.buffers
+                        .state += &self
+                        .buffers
+                        .derivative;
                 }
-                self.buffers.state *= h;
-                self.buffers.state += &self.x;
+                self.buffers
+                    .state *= h;
+                self.buffers
+                    .state += &self.x;
 
                 model.f(
-                    t + self.tableau.c[s] * h,
-                    &self.buffers.state,
+                    t + self
+                        .tableau
+                        .c[s]
+                        * h,
+                    &self
+                        .buffers
+                        .state,
                     &mut k[s],
                 )?;
                 *function_calls += 1;
             }
 
             // Calculate solution using stages 0 through STAGES-2
-            self.y.clone_from(&self.x);
+            self.y
+                .clone_from(&self.x);
             for s in 0..STAGES - 1 {
-                self.buffers.derivative.clone_from(&k[s]);
-                self.buffers.derivative *= self.tableau.b[s] * h;
-                self.y += &self.buffers.derivative;
+                self.buffers
+                    .derivative
+                    .clone_from(&k[s]);
+                self.buffers
+                    .derivative *= self
+                    .tableau
+                    .b[s]
+                    * h;
+                self.y += &self
+                    .buffers
+                    .derivative;
             }
 
             // Calculate final stage at new solution point
-            model.f(t + h, &self.y, &mut k[STAGES - 1])?;
+            model.f(
+                t + h,
+                &self.y,
+                &mut k[STAGES - 1],
+            )?;
             *function_calls += 1;
         } else {
             // Standard (non-FSAL) method implementation
@@ -449,39 +613,77 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             *function_calls += 1;
 
             for s in 1..STAGES {
-                self.buffers.state *= 0.0;
+                self.buffers
+                    .state *= 0.0;
                 for i in 0..s {
-                    self.buffers.derivative.clone_from(&k[i]);
-                    self.buffers.derivative *= self.tableau.a[s][i];
-                    self.buffers.state += &self.buffers.derivative;
+                    self.buffers
+                        .derivative
+                        .clone_from(&k[i]);
+                    self.buffers
+                        .derivative *= self
+                        .tableau
+                        .a[s][i];
+                    self.buffers
+                        .state += &self
+                        .buffers
+                        .derivative;
                 }
-                self.buffers.state *= h;
-                self.buffers.state += &self.x;
+                self.buffers
+                    .state *= h;
+                self.buffers
+                    .state += &self.x;
 
                 model.f(
-                    t + self.tableau.c[s] * h,
-                    &self.buffers.state,
+                    t + self
+                        .tableau
+                        .c[s]
+                        * h,
+                    &self
+                        .buffers
+                        .state,
                     &mut k[s],
                 )?;
                 *function_calls += 1;
             }
 
-            self.y.clone_from(&self.x);
+            self.y
+                .clone_from(&self.x);
             for s in 0..STAGES {
-                self.buffers.derivative.clone_from(&k[s]);
-                self.buffers.derivative *= self.tableau.b[s] * h;
-                self.y += &self.buffers.derivative;
+                self.buffers
+                    .derivative
+                    .clone_from(&k[s]);
+                self.buffers
+                    .derivative *= self
+                    .tableau
+                    .b[s]
+                    * h;
+                self.y += &self
+                    .buffers
+                    .derivative;
             }
         }
 
         // Adaptive error estimation - same for both methods
-        if adaptive && self.tableau.b_tilde.is_some() {
-            let b_tilde = self.tableau.b_tilde.unwrap();
+        if adaptive
+            && self
+                .tableau
+                .b_tilde
+                .is_some()
+        {
+            let b_tilde = self
+                .tableau
+                .b_tilde
+                .unwrap();
             self.y_tilde *= 0.0; //reset
             for s in 0..STAGES {
-                self.buffers.derivative.clone_from(&k[s]);
-                self.buffers.derivative *= b_tilde[s];
-                self.y_tilde += &self.buffers.derivative;
+                self.buffers
+                    .derivative
+                    .clone_from(&k[s]);
+                self.buffers
+                    .derivative *= b_tilde[s];
+                self.y_tilde += &self
+                    .buffers
+                    .derivative;
             }
             self.y_tilde *= h;
         }
@@ -494,13 +696,17 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
     ///
     /// Panics if interpolation coefficients are not available or if `t` is outside `[t0, t0+dt]`.
     pub fn interpolate(&mut self, t0: f64, dt: f64, t: f64) {
-        if let Some(bi) = &self.tableau.bi {
+        if let Some(bi) = &self
+            .tableau
+            .bi
+        {
             if t < t0 || t > t0 + dt {
                 panic!("t out of range for interpolation - todo extrapolation?");
             }
 
             // Reset interpolant buffer
-            self.buffers.interpolant *= 0.0;
+            self.buffers
+                .interpolant *= 0.0;
 
             // Calculate theta
             let theta = (t - t0) / dt;
@@ -518,14 +724,25 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 // Scale and accumulate interpolant
                 self.buffers
                     .derivative
-                    .clone_from(&self.buffers.stage.k[s]);
-                self.buffers.derivative *= b;
-                self.buffers.interpolant += &self.buffers.derivative;
+                    .clone_from(
+                        &self
+                            .buffers
+                            .stage
+                            .k[s],
+                    );
+                self.buffers
+                    .derivative *= b;
+                self.buffers
+                    .interpolant += &self
+                    .buffers
+                    .derivative;
             }
 
             // Final interpolated value: x + dt * sum(b_s * k_s)
-            self.buffers.interpolant *= dt;
-            self.buffers.interpolant += &self.x;
+            self.buffers
+                .interpolant *= dt;
+            self.buffers
+                .interpolant += &self.x;
         } else {
             panic!("No interpolation coefficients for solver");
         }
@@ -578,7 +795,12 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                 panic!("max iters reached on brents method for continuous event interpolation")
             }
             self.interpolate(t0, dt, c);
-            let fc = (event.condition)(&self.buffers.interpolant, c);
+            let fc = (event.condition)(
+                &self
+                    .buffers
+                    .interpolant,
+                c,
+            );
             let mut s = if fa != fc && fb != fc {
                 // inverse quadratic interpolation
                 a * fb * fc / ((fa - fb) * (fa - fc))
@@ -604,17 +826,32 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
             self.interpolate(t0, dt, s);
 
-            fs = (event.condition)(&self.buffers.interpolant, s);
+            fs = (event.condition)(
+                &self
+                    .buffers
+                    .interpolant,
+                s,
+            );
             d = c;
             c = b;
             if fa * fs < 0.0 {
                 b = s;
                 // already interped with s above
-                fb = (event.condition)(&self.buffers.interpolant, b);
+                fb = (event.condition)(
+                    &self
+                        .buffers
+                        .interpolant,
+                    b,
+                );
             } else {
                 a = s;
                 // already interped with s above
-                fa = (event.condition)(&self.buffers.interpolant, a);
+                fa = (event.condition)(
+                    &self
+                        .buffers
+                        .interpolant,
+                    a,
+                );
             }
 
             if fa.abs() < fb.abs() {

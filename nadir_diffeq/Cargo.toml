@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 csv.workspace = true
 rand.workspace = true
+rayon.workspace = true
 serde.workspace = true
 tolerance.workspace = true
 uncertainty.workspace = true

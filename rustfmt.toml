@@ -1,6 +1,16 @@
-max_width = 100               # or whatever you normally prefer
-use_small_heuristics = "Off" # disables “keep it on one line” heuristics
+# .rustfmt.toml
+max_width = 100
+use_small_heuristics = "Off"
 
-chain_width = 50              # break method chains sooner
-fn_call_width = 50            # break long function calls sooner
-struct_lit_width = 50         # break struct literals sooner
+# Force method chains to break
+chain_width = 1               # This will make .with_distribution() go to next line
+
+# But allow function calls to stay on one line if they're short
+fn_call_width = 30            # Let Normal::new(1.0, 0.1) stay on one line 
+
+# Control struct literals behavior
+struct_lit_width = 60         # Adjust based on your preference for struct literals
+
+# Other settings
+empty_item_single_line = true
+trailing_comma = "Vertical"

@@ -62,7 +62,8 @@ impl StateConfig {
     }
 }
 
-pub trait OdeState: Debug + Clone + Default + Clone + Sized + MulAssign<f64> + 'static
+pub trait OdeState:
+    Debug + Clone + Default + Clone + Sized + MulAssign<f64> + Send + Sync + 'static
 where
     for<'a> Self: AddAssign<&'a Self>,
 {
@@ -70,7 +71,7 @@ where
 
 impl<T> OdeState for T
 where
-    T: Debug + Clone + Default + Sized + MulAssign<f64> + 'static,
+    T: Debug + Clone + Default + Sized + MulAssign<f64> + Send + Sync + 'static,
     for<'a> T: AddAssign<&'a T>,
 {
 }

@@ -3441,6 +3441,7 @@ dependencies = [
  "image 0.25.6",
  "plotters",
  "rand 0.9.0",
+ "rayon",
  "serde",
  "show-image",
  "tolerance",
