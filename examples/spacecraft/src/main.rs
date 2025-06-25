@@ -20,6 +20,7 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PeriodicEvent, PostSimEvent, SaveEvent},
+    monte_carlo::{MonteCarloProblem, MonteCarloSolver},
     solvers::OdeSolver,
     state::state_vector::StateVector,
     stepping::AdaptiveStepControl,
@@ -189,7 +190,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut imu = SensorBuilder::new(
         "imu",
         RateGyroBuilder::new()
-            //.with_noise_normal(0.0, 1.0e-3 * PI / 180.0)
+            .with_noise_normal(0.0, 1.0e-3 * PI / 180.0)
             .with_delay(0.1)
             .into(),
     );
@@ -352,10 +353,36 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_actuator_indices(vec![0, 1, 2, 3])
         .with_sensor_indices(vec![0, 1, 2, 3]);
     sys.add_software(software);
+    // let problem = OdeProblem::new(sys)
+    //     .with_periodic_event(PeriodicEvent::new(
+    //         0.1,
+    //         0.0,
+    //         |sys: &mut MultibodySystem, _x: &mut StateVector, _t| {
+    //             sys.software[0]
+    //                 .step(
+    //                     &sys.sensors,
+    //                     &mut sys.actuators,
+    //                 )
+    //                 .unwrap();
+    //         },
+    //     ))
+    //     .with_saving(current_dir()?.join("results"))
+    //     .with_save_event(SaveEvent::new(
+    //         MultibodySystem::init_fn,
+    //         MultibodySystem::save_fn,
+    //     ))
+    //     .with_postsim_event(PostSimEvent::new(
+    //         MultibodySystem::post_sim_fn,
+    //     ));
+    // let solver = OdeSolver::default();
+    // solver.solve_adaptive(
+    //     problem,
+    //     x0,
+    //     (0.0, 1000.0),
+    //     AdaptiveStepControl::default(),
+    // )?;
 
-    let mut sys = sys.nominal()?;
-    let x0 = sys.initial_state();
-    let problem = OdeProblem::new(sys)
+    let problem = MonteCarloProblem::new(sys, 10)
         .with_periodic_event(PeriodicEvent::new(
             0.1,
             0.0,
@@ -376,7 +403,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_postsim_event(PostSimEvent::new(
             MultibodySystem::post_sim_fn,
         ));
-    let solver = OdeSolver::default();
+    let solver = MonteCarloSolver::default();
+
     solver.solve_adaptive(
         problem,
         x0,

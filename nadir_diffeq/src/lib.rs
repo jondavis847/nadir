@@ -13,7 +13,6 @@ pub mod tableau;
 use crate::events::{PostSimEvent, PreSimEvent, SaveEvent};
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use state::OdeState;
-use uncertainty::Uncertainty;
 
 /// Trait for defining a dynamical system model that can be numerically integrated.
 ///
@@ -39,7 +38,6 @@ where
 {
     events: EventManager<Model, State>,
     model: Model,
-    monte_carlo: Option<usize>,
     save_folder: Option<PathBuf>,
 }
 
@@ -50,12 +48,7 @@ where
 {
     /// Creates a new `OdeProblem` instance with the specified configuration.    
     pub fn new(model: Model) -> Self {
-        Self {
-            model,
-            events: EventManager::new(),
-            monte_carlo: None,
-            save_folder: None,
-        }
+        Self { model, events: EventManager::new(), save_folder: None }
     }
 
     /// Adds a periodic event to the simulation.
@@ -104,17 +97,5 @@ where
         } else {
             panic!("need to call with_saving() before with_save_event() to enable saving")
         }
-    }
-}
-
-/// In order to run a monte carlo simulation, the model must implement Uncertainty
-impl<Model, State> OdeProblem<Model, State>
-where
-    Model: OdeModel<State = State> + Uncertainty,
-    State: OdeState,
-{
-    pub fn with_monte_carlo(mut self, n: usize) -> Self {
-        self.monte_carlo = Some(n);
-        self
     }
 }

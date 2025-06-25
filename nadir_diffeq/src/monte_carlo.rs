@@ -1,12 +1,13 @@
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 use uncertainty::Uncertainty;
 
 use crate::{
     OdeModel, OdeProblem,
+    events::{ContinuousEvent, EventManager, PeriodicEvent, PostSimEvent, PreSimEvent, SaveEvent},
     saving::{MemoryResult, SaveMethods},
-    solvers::{OdeSolver, SolverMethods},
+    solvers::{OdeSolver, RungeKuttaMethods, SolverMethods},
     state::{Adaptive, OdeState},
     stepping::AdaptiveStepControl,
 };
@@ -15,6 +16,15 @@ use crate::{
 pub struct MonteCarloSolver {
     save_method: SaveMethods,
     solver_method: SolverMethods,
+}
+
+impl Default for MonteCarloSolver {
+    fn default() -> Self {
+        Self {
+            save_method: SaveMethods::Memory,
+            solver_method: RungeKuttaMethods::Tsit5.into(),
+        }
+    }
 }
 
 impl MonteCarloSolver {
@@ -195,8 +205,10 @@ where
     ModelBuilder: Uncertainty,
     ModelBuilder::Output: OdeModel,
 {
+    events: EventManager<ModelBuilder::Output, <ModelBuilder::Output as OdeModel>::State>,
     model_builder: ModelBuilder,
     nruns: usize,
+    save_folder: Option<PathBuf>,
     seed: u64,
 }
 
@@ -209,7 +221,73 @@ where
     pub fn new(model_builder: ModelBuilder, nruns: usize) -> Self {
         let mut thread_rng = rand::rng(); // Use a fast non-deterministic RNG
         let seed = thread_rng.random::<u64>(); // Generate a random seed
-        Self { model_builder, nruns, seed }
+        Self {
+            model_builder,
+            nruns,
+            seed,
+            save_folder: None,
+            events: EventManager::new(),
+        }
+    }
+
+    /// Adds a periodic event to the simulation.
+    pub fn with_periodic_event(
+        mut self,
+        event: PeriodicEvent<ModelBuilder::Output, <ModelBuilder::Output as OdeModel>::State>,
+    ) -> Self {
+        self.events
+            .add_periodic(event);
+        self
+    }
+
+    // Adds a presim event to the simulation.
+    pub fn with_presim_event(
+        mut self,
+        event: PreSimEvent<ModelBuilder::Output, <ModelBuilder::Output as OdeModel>::State>,
+    ) -> Self {
+        self.events
+            .add_presim(event);
+        self
+    }
+
+    /// Adds a postsim event to the simulation.
+    pub fn with_postsim_event(mut self, event: PostSimEvent<ModelBuilder::Output>) -> Self {
+        self.events
+            .add_postsim(event);
+        self
+    }
+
+    /// Adds a continuous event to the simulation.
+    pub fn with_continuous_event(
+        mut self,
+        event: ContinuousEvent<ModelBuilder::Output, <ModelBuilder::Output as OdeModel>::State>,
+    ) -> Self {
+        self.events
+            .add_continuous(event);
+        self
+    }
+
+    /// Adds the ability to save results to a folder on disk
+    pub fn with_saving(mut self, save_folder: PathBuf) -> Self {
+        self.save_folder = Some(save_folder);
+        self
+    }
+
+    /// Adds a continuous event to the simulation.
+    pub fn with_save_event(
+        mut self,
+        event: SaveEvent<ModelBuilder::Output, <ModelBuilder::Output as OdeModel>::State>,
+    ) -> Self {
+        if self
+            .save_folder
+            .is_some()
+        {
+            self.events
+                .add_save(event);
+            self
+        } else {
+            panic!("need to call with_saving() before with_save_event() to enable saving")
+        }
     }
 }
 
