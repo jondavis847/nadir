@@ -1,8 +1,8 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
+    OdeModel,
     monte_carlo::{MonteCarloProblem, MonteCarloSolver, UncertainModel},
     saving::MemoryResult,
-    solvers::{OdeSolver, RungeKuttaMethods},
+    solvers::RungeKuttaMethods,
     state::state_array::{StateArray, UncertainStateArray},
     stepping::AdaptiveStepControl,
 };
