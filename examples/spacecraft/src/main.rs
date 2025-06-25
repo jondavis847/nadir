@@ -20,8 +20,7 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PeriodicEvent, PostSimEvent, SaveEvent},
-    saving::SaveMethod,
-    solvers::Solver,
+    solvers::OdeSolver,
     state::state_vector::StateVector,
     stepping::AdaptiveStepControl,
 };
@@ -49,10 +48,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .with_gravity(Gravity::Egm(
                     EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
                 ))
-                .with_magnetic_field(MagneticField::Igrf(Igrf::new(13, 13, &epoch)?)),
+                .with_magnetic_field(MagneticField::Igrf(
+                    Igrf::new(13, 13, &epoch)?,
+                )),
         )?
-        .with_body(CelestialBodyBuilder::new(CelestialBodies::Moon))?;
-    sys.base.set_celestial(celestial);
+        .with_body(CelestialBodyBuilder::new(
+            CelestialBodies::Moon,
+        ))?;
+    sys.base
+        .set_celestial(celestial);
 
     // Create the Floating joint that represents the kinematics between the base and the spacecraft
     // A with_orbit() method is provided for Floating joints
@@ -73,7 +77,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             0.3607613756444451,
             0.6081631639526958,
         )?)
-        .with_angular_rate(0.0, -0.0010471975511965976, 0.0)
+        .with_angular_rate(
+            0.0,
+            -0.0010471975511965976,
+            0.0,
+        )
         .with_orbit(orbit.into());
     let mut j = sys.new_joint("f", f.into())?;
 
@@ -87,7 +95,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             .with_izz(1000.0)?,
     );
     bus.set_geometry_cuboid(3.0, 2.0, 2.0)?;
-    bus.set_material_phong(Color::new(0.5, 0.5, 0.5, 1.0), 32.0);
+    bus.set_material_phong(
+        Color::new(0.5, 0.5, 0.5, 1.0),
+        32.0,
+    );
 
     // Create the solar array panels of the spacecraft
     // solar array 1
@@ -100,7 +111,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             .with_izz(100.0)?,
     );
     sa1.set_geometry_cuboid(2.0, 2.0, 0.1)?;
-    sa1.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
+    sa1.set_material_phong(
+        Color::new(0.05, 0.05, 0.05, 1.0),
+        32.0,
+    );
 
     // solar array 2
     let mut sa2 = sys.new_body("sa2")?;
@@ -112,7 +126,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             .with_izz(100.0)?,
     );
     sa2.set_geometry_cuboid(2.0, 2.0, 0.1)?;
-    sa2.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
+    sa2.set_material_phong(
+        Color::new(0.05, 0.05, 0.05, 1.0),
+        32.0,
+    );
 
     // solar array 3
     let mut sa3 = sys.new_body("sa3")?;
@@ -124,7 +141,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             .with_izz(100.0)?,
     );
     sa3.set_geometry_cuboid(2.0, 2.0, 0.1)?;
-    sa3.set_material_phong(Color::new(0.05, 0.05, 0.05, 1.0), 32.0);
+    sa3.set_material_phong(
+        Color::new(0.05, 0.05, 0.05, 1.0),
+        32.0,
+    );
 
     // create solar array hinges
     // hinge 1
@@ -160,7 +180,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Add a star tracker model
     let mut st = SensorBuilder::new(
         "st",
-        StarTrackerBuilder::new().with_delay(0.1).into(),
+        StarTrackerBuilder::new()
+            .with_delay(0.1)
+            .into(),
     );
 
     // Add a rate gyro model
@@ -215,9 +237,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         CoordinateSystem::ZERO,
     );
     // wheel axis default is z axis, so no rotation needed
-    let rw3_transform = Transform::new(Rotation::IDENTITY, CoordinateSystem::ZERO);
+    let rw3_transform = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::ZERO,
+    );
     // not using rw4 yet. zero'd out in calcs
-    let rw4_transform = Transform::new(Rotation::IDENTITY, CoordinateSystem::ZERO);
+    let rw4_transform = Transform::new(
+        Rotation::IDENTITY,
+        CoordinateSystem::ZERO,
+    );
 
     rw1.connect_body(bus.id, rw1_transform);
     rw2.connect_body(bus.id, rw2_transform);
@@ -305,7 +333,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         _ => "libsoftware.so", //Linux
     };
 
-    let lib_path = format!("../../target/release/{}", lib_name);
+    let lib_path = format!(
+        "../../target/release/{}",
+        lib_name
+    );
     let lib_path_ref = Path::new(&lib_path);
 
     if !lib_path_ref.exists() {
@@ -324,13 +355,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut sys = sys.nominal()?;
     let x0 = sys.initial_state();
-    let mut problem = OdeProblem::new(sys)
+    let problem = OdeProblem::new(sys)
         .with_periodic_event(PeriodicEvent::new(
             0.1,
             0.0,
             |sys: &mut MultibodySystem, _x: &mut StateVector, _t| {
                 sys.software[0]
-                    .step(&sys.sensors, &mut sys.actuators)
+                    .step(
+                        &sys.sensors,
+                        &mut sys.actuators,
+                    )
                     .unwrap();
             },
         ))
@@ -339,14 +373,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             MultibodySystem::init_fn,
             MultibodySystem::save_fn,
         ))
-        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
-
-    problem.solve_adaptive(
-        &x0,
+        .with_postsim_event(PostSimEvent::new(
+            MultibodySystem::post_sim_fn,
+        ));
+    let solver = OdeSolver::default();
+    solver.solve_adaptive(
+        problem,
+        x0,
         (0.0, 1000.0),
         AdaptiveStepControl::default(),
-        Solver::Tsit5,
-        SaveMethod::None,
     )?;
 
     Ok(())
