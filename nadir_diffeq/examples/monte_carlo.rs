@@ -31,6 +31,7 @@ impl OdeModel for DampedOscillator {
     }
 }
 
+#[derive(Clone)]
 struct UncertainDampedOscillator {
     spring_constant: SimValue,
     damping: SimValue,

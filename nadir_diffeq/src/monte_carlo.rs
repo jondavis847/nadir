@@ -36,10 +36,10 @@ impl MonteCarloSolver {
         solve_fn: F,
     ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
     where
-        ModelBuilder: Uncertainty,
+        ModelBuilder: Uncertainty + Clone + Send + Sync, // Need Send + Sync to share across threads
         ModelBuilder::Output: OdeModel<State = State>,
-        StateBuilder: Uncertainty<Output = State>,
-        State: OdeState,
+        StateBuilder: Uncertainty<Output = State> + Clone + Send + Sync, // Need Send + Sync to share
+        State: OdeState + Send + Sync,
         F: Fn(
                 &OdeSolver,
                 OdeProblem<ModelBuilder::Output, State>,
@@ -49,56 +49,65 @@ impl MonteCarloSolver {
             + Send
             + Sync,
     {
-        // Create our RNG with the specified seed
-        let mut rng = SmallRng::seed_from_u64(problem.seed);
-
-        // Sample all models and states sequentially
-        let mut models = Vec::with_capacity(problem.nruns);
-        let mut states = Vec::with_capacity(problem.nruns);
-
-        for _ in 0..problem.nruns {
-            // Sample model
-            let model = problem
-                .model_builder
-                .sample(false, &mut rng)
-                .map_err(|e| {
-                    Box::<dyn Error>::from(format!(
-                        "Model sampling error: {:?}",
-                        e
-                    ))
-                })?;
-            models.push(model);
-
-            // Sample initial state
-            let state = x0
-                .sample(false, &mut rng)
-                .map_err(|e| {
-                    Box::<dyn Error>::from(format!(
-                        "State sampling error: {:?}",
-                        e
-                    ))
-                })?;
-            states.push(state);
-        }
-
         // Decide if we're saving results
         let should_save = matches!(
             self.save_method,
             SaveMethods::Memory
         );
 
-        // Solve each problem in parallel
-        let results: Vec<_> = models
-            .into_iter()
-            .zip(states)
-            .enumerate()
-            .par_bridge() // Convert to parallel iterator
-            .map(|(i, (model, state))| {
+        // Create indices for parallel processing
+        let indices: Vec<_> = (0..problem.nruns).collect();
+        let seed = problem.seed;
+
+        // Create a reference to the model builder and state builder for use in threads
+        let model_builder = &problem.model_builder;
+        let state_builder = &x0;
+
+        // Process each run in parallel, but sampling occurs on each thread
+        let results: Vec<_> = indices
+            .into_par_iter()
+            .map(move |i| {
+                // Each thread gets its own RNG with deterministic seed based on run index
+                let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
+
+                // Clone builders and sample on this thread
+                let model_builder = model_builder.clone();
+                let model = model_builder
+                    .sample(false, &mut thread_rng)
+                    .map_err(|e| {
+                        Box::<dyn Error>::from(format!(
+                            "Run {}: Model sampling error: {:?}",
+                            i, e
+                        ))
+                    })?;
+
+                let state_builder = state_builder.clone();
+                let state = state_builder
+                    .sample(false, &mut thread_rng)
+                    .map_err(|e| {
+                        Box::<dyn Error>::from(format!(
+                            "Run {}: State sampling error: {:?}",
+                            i, e
+                        ))
+                    })?;
+
+                // Create solver and problem on this thread
                 let solver = OdeSolver::new(self.solver_method);
-                let problem = OdeProblem::new(model);
+                let ode_problem = OdeProblem::new(model);
 
                 // Call the provided solver function
-                let result = solve_fn(&solver, problem, state, tspan)?;
+                let result = solve_fn(
+                    &solver,
+                    ode_problem,
+                    state,
+                    tspan,
+                )
+                .map_err(|e| {
+                    Box::<dyn Error>::from(format!(
+                        "Run {}: Solver error: {:?}",
+                        i, e
+                    ))
+                })?;
 
                 // Only return results if we need to save them
                 Ok((
@@ -114,23 +123,19 @@ impl MonteCarloSolver {
 
         // If we're saving results, assemble them in the correct order
         if should_save {
-            // Initialize an empty vector with the right capacity
-            let mut ordered_results = Vec::with_capacity(problem.nruns);
-
-            // Pre-fill with None values
-            for _ in 0..problem.nruns {
-                ordered_results.push(None);
-            }
-
-            // Insert each result at its original index position
-            for (idx, result) in results {
-                ordered_results[idx] = result;
-            }
-
-            // Filter out None values
-            let final_results = ordered_results
+            // Sort the results by index
+            let mut result_pairs: Vec<(usize, MemoryResult<State>)> = results
                 .into_iter()
-                .flatten()
+                .filter_map(|(idx, result_opt)| result_opt.map(|r| (idx, r)))
+                .collect();
+
+            // Sort by run index
+            result_pairs.sort_by_key(|(idx, _)| *idx);
+
+            // Extract just the results in correct order
+            let final_results = result_pairs
+                .into_iter()
+                .map(|(_, r)| r)
                 .collect();
             Ok(Some(final_results))
         } else {
@@ -146,10 +151,10 @@ impl MonteCarloSolver {
         controller: AdaptiveStepControl,
     ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
     where
-        ModelBuilder: Uncertainty,
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
         ModelBuilder::Output: OdeModel<State = State>,
-        StateBuilder: Uncertainty<Output = State>,
-        State: OdeState + Adaptive,
+        StateBuilder: Uncertainty<Output = State> + Clone + Send + Sync,
+        State: OdeState + Adaptive + Send + Sync,
     {
         self.solve_monte_carlo(
             problem,
@@ -171,10 +176,10 @@ impl MonteCarloSolver {
         dt: f64,
     ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
     where
-        ModelBuilder: Uncertainty,
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
         ModelBuilder::Output: OdeModel<State = State>,
-        StateBuilder: Uncertainty<Output = State>,
-        State: OdeState,
+        StateBuilder: Uncertainty<Output = State> + Clone + Send + Sync,
+        State: OdeState + Send + Sync,
     {
         self.solve_monte_carlo(
             problem,

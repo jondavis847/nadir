@@ -62,7 +62,9 @@ impl<const N: usize> Adaptive for StateArray<N> {
     fn compute_error(&self, x_prev: &Self, x_tilde: &Self, abs_tol: f64, rel_tol: f64) -> f64 {
         let mut accum_error = 0.0;
         for i in 0..N {
-            let error = compute_error(self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol);
+            let error = compute_error(
+                self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol,
+            );
             accum_error += error * error;
         }
         (accum_error / N as f64).sqrt()
@@ -119,9 +121,17 @@ impl<const N: usize> Tolerance for StateArrayTolerances<N> {
 
         let mut sum_squared_errors = 0.0;
 
-        for (i, tol) in self.0.iter().enumerate() {
+        for (i, tol) in self
+            .0
+            .iter()
+            .enumerate()
+        {
             let component_error = if let Some(tol) = tol {
-                tol.compute_error(x.0[i], x_prev.0[i], x_tilde.0[i])
+                tol.compute_error(
+                    x.0[i],
+                    x_prev.0[i],
+                    x_tilde.0[i],
+                )
             } else {
                 compute_error(
                     x.0[i],
@@ -146,6 +156,7 @@ impl<const N: usize> Default for StateArrayTolerances<N> {
     }
 }
 
+#[derive(Clone)]
 pub struct UncertainStateArray<const N: usize>(pub [SimValue; N]);
 
 impl<const N: usize> Uncertainty for UncertainStateArray<N> {
@@ -157,7 +168,11 @@ impl<const N: usize> Uncertainty for UncertainStateArray<N> {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let mut output = StateArray::new([0.0; N]);
-        for (uncertain_val, out_val) in self.0.iter().zip(output.iter_mut()) {
+        for (uncertain_val, out_val) in self
+            .0
+            .iter()
+            .zip(output.iter_mut())
+        {
             *out_val = uncertain_val.sample(nominal, rng);
         }
         Ok(output)

@@ -9,8 +9,8 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PostSimEvent, SaveEvent},
-    saving::SaveMethod,
-    solvers::Solver,
+    solvers::OdeSolver,
+    stepping::AdaptiveStepControl,
 };
 use rotations::Rotation;
 use transforms::{Transform, prelude::Cartesian};
@@ -68,20 +68,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let x0 = sys.initial_state();
 
     // run the simulation
-    let mut problem = OdeProblem::new(sys)
+    let problem = OdeProblem::new(sys)
         .with_saving(current_dir()?.join("results"))
         .with_save_event(SaveEvent::new(
             MultibodySystem::init_fn,
             MultibodySystem::save_fn,
         ))
-        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+        .with_postsim_event(PostSimEvent::new(
+            MultibodySystem::post_sim_fn,
+        ));
 
-    problem.solve_fixed(
-        &x0,
+    let solver = OdeSolver::default();
+    solver.solve_adaptive(
+        problem,
+        x0,
         (0.0, 10.0),
-        0.1,
-        Solver::Tsit5,
-        SaveMethod::None,
+        AdaptiveStepControl::default(),
     )?;
 
     Ok(())

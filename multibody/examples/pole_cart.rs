@@ -10,8 +10,8 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PostSimEvent, SaveEvent},
-    saving::SaveMethod,
-    solvers::Solver,
+    solvers::OdeSolver,
+    stepping::AdaptiveStepControl,
 };
 use rotations::{
     Rotation,
@@ -39,13 +39,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the joints
     let mut hinge = sys.new_joint(
         "hinge",
-        RevoluteBuilder::new().with_angle(0.05).into(),
+        RevoluteBuilder::new()
+            .with_angle(0.05)
+            .into(),
     )?;
-    let mut prismatic = sys.new_joint("prismatic", PrismaticBuilder::new().into())?;
+    let mut prismatic = sys.new_joint(
+        "prismatic",
+        PrismaticBuilder::new().into(),
+    )?;
 
     // Create the actuators
-    let mut left_thruster =
-        ActuatorBuilder::new("left_thruster", ThrusterBuilder::new(1.0)?.into());
+    let mut left_thruster = ActuatorBuilder::new(
+        "left_thruster",
+        ThrusterBuilder::new(1.0)?.into(),
+    );
     let mut right_thruster = ActuatorBuilder::new(
         "right_thruster",
         ThrusterBuilder::new(1.0)?.into(),
@@ -53,7 +60,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // connect the system
     sys.base
-        .connect_outer_joint(&mut prismatic, Transform::IDENTITY)?;
+        .connect_outer_joint(
+            &mut prismatic,
+            Transform::IDENTITY,
+        )?;
     cart.connect_inner_joint(
         &mut prismatic,
         Transform::new(
@@ -110,20 +120,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let x0 = sys.initial_state();
 
     // run the simulation
-    let mut problem = OdeProblem::new(sys)
+    let problem = OdeProblem::new(sys)
         .with_saving(current_dir()?.join("results"))
         .with_save_event(SaveEvent::new(
             MultibodySystem::init_fn,
             MultibodySystem::save_fn,
         ))
-        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+        .with_postsim_event(PostSimEvent::new(
+            MultibodySystem::post_sim_fn,
+        ));
 
-    problem.solve_fixed(
-        &x0,
+    let solver = OdeSolver::default();
+    solver.solve_adaptive(
+        problem,
+        x0,
         (0.0, 10.0),
-        0.1,
-        Solver::Tsit5,
-        SaveMethod::None,
+        AdaptiveStepControl::default(),
     )?;
 
     Ok(())

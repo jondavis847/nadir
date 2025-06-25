@@ -7,8 +7,7 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PostSimEvent, SaveEvent},
-    saving::SaveMethod,
-    solvers::Solver,
+    solvers::OdeSolver,
     stepping::AdaptiveStepControl,
 };
 use std::{env::current_dir, error::Error};
@@ -37,20 +36,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut sys = sys.nominal()?;
     let x0 = sys.initial_state();
-    let mut problem = OdeProblem::new(sys)
+    let problem = OdeProblem::new(sys)
         .with_saving(current_dir()?.join("results"))
         .with_save_event(SaveEvent::new(
             MultibodySystem::init_fn,
             MultibodySystem::save_fn,
         ))
-        .with_postsim_event(PostSimEvent::new(MultibodySystem::post_sim_fn));
+        .with_postsim_event(PostSimEvent::new(
+            MultibodySystem::post_sim_fn,
+        ));
 
-    problem.solve_adaptive(
-        &x0,
+    let solver = OdeSolver::default();
+
+    solver.solve_adaptive(
+        problem,
+        x0,
         (0.0, 10.0),
         AdaptiveStepControl::default(),
-        Solver::Tsit5,
-        SaveMethod::None,
     )?;
 
     // Run the simulation

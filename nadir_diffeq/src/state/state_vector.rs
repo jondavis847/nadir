@@ -96,7 +96,9 @@ impl Adaptive for StateVector {
     fn compute_error(&self, x_prev: &Self, x_tilde: &Self, abs_tol: f64, rel_tol: f64) -> f64 {
         let mut accum_error = 0.0;
         for i in 0..self.len() {
-            let error = compute_error(self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol);
+            let error = compute_error(
+                self[i], x_prev[i], x_tilde[i], rel_tol, abs_tol,
+            );
             accum_error += error * error;
         }
         (accum_error / self.len() as f64).sqrt()
@@ -153,6 +155,7 @@ impl Adaptive for StateVector {
 //     }
 // }
 
+#[derive(Clone)]
 pub struct UncertainStateVector(pub Vec<SimValue>);
 
 impl UncertainStateVector {

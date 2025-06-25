@@ -19,7 +19,7 @@ use uncertainty::Uncertainty;
 ///
 /// Types implementing this trait must define how to compute the derivative (or RHS function)
 /// of the ODE at a given time and state.
-pub trait OdeModel: Debug + Send + Sync {
+pub trait OdeModel: Debug {
     type State: OdeState;
     /// Compute the derivative at time `t` and state `state`, storing the result in `derivative`.
     fn f(
