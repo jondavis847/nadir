@@ -13,7 +13,7 @@ use nadir_diffeq::saving::StateWriter;
 use rotations::prelude::{QuaternionErrors, UnitQuaternion, UnitQuaternionBuilder};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uncertainty::{SimValue, Uncertainty, UncertaintyErrors};
+use uncertainty::{UncertainValue, Uncertainty, UncertaintyErrors};
 
 #[derive(Debug, Error)]
 pub enum StarTrackerErrors {
@@ -30,7 +30,7 @@ pub enum StarTrackerErrors {
 /// noise_(x,y,z) - noise in arcseconds for each axis
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct StarTrackerParametersBuilder {
-    delay: Option<SimValue>,
+    delay: Option<UncertainValue>,
     misalignment: Option<UnitQuaternionBuilder>,
     noise: Option<QuaternioNoiseBuilder>,
 }
@@ -88,7 +88,7 @@ impl StarTrackerBuilder {
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
-        self.parameters.delay = Some(SimValue::new(delay));
+        self.parameters.delay = Some(UncertainValue::new(delay));
         self
     }
 

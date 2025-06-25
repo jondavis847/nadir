@@ -44,12 +44,12 @@ pub trait Uncertainty {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SimValue {
+pub struct UncertainValue {
     pub nominal: f64,
     pub dispersion: Option<Dispersion>,
 }
 
-impl SimValue {
+impl UncertainValue {
     pub fn new(nominal: f64) -> Self {
         Self { nominal, dispersion: None }
     }
@@ -120,9 +120,9 @@ impl Dispersion {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SimVector3 {
-    pub x: SimValue,
-    pub y: SimValue,
-    pub z: SimValue,
+    pub x: UncertainValue,
+    pub y: UncertainValue,
+    pub z: UncertainValue,
 }
 
 impl Uncertainty for SimVector3 {

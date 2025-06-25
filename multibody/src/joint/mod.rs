@@ -25,7 +25,7 @@ use spatial_algebra::{Acceleration, Force, Momentum, SpatialInertia, Velocity};
 use std::{cell::RefCell, fmt::Debug, path::PathBuf, rc::Rc};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 #[derive(Debug, Error)]
 pub enum JointErrors {
@@ -458,10 +458,10 @@ pub struct JointParameters {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JointParametersBuilder {
-    constant_force: SimValue,
-    damping: SimValue,
-    equilibrium: SimValue,
-    spring_constant: SimValue,
+    constant_force: UncertainValue,
+    damping: UncertainValue,
+    equilibrium: UncertainValue,
+    spring_constant: UncertainValue,
 }
 
 impl JointParametersBuilder {

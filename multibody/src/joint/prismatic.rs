@@ -15,7 +15,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
+use uncertainty::{Normal, UncertainValue, Uncertainty, UncertaintyErrors, Uniform};
 
 use super::{JointCache, JointErrors, JointModel, JointParametersBuilder, JointRef};
 
@@ -27,8 +27,8 @@ pub enum PrismaticErrors {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PrismaticStateBuilder {
-    pub position: SimValue,
-    pub velocity: SimValue,
+    pub position: UncertainValue,
+    pub velocity: UncertainValue,
 }
 
 impl Uncertainty for PrismaticStateBuilder {
@@ -96,12 +96,12 @@ impl PrismaticBuilder {
 
     /// Sets the nominal initial position state
     pub fn set_position(&mut self, position: f64) {
-        self.state.position = SimValue::new(position);
+        self.state.position = UncertainValue::new(position);
     }
 
     /// Sets the nominal initial velocity state
     pub fn set_velocity(&mut self, velocity: f64) {
-        self.state.velocity = SimValue::new(velocity);
+        self.state.velocity = UncertainValue::new(velocity);
     }
 
     /// Sets the joint damping parameter
@@ -274,13 +274,13 @@ impl PrismaticBuilder {
 
     /// Builder method to set the initial position state
     pub fn with_position(mut self, position: f64) -> Self {
-        self.state.position = SimValue::new(position);
+        self.state.position = UncertainValue::new(position);
         self
     }
 
     /// Builder method to set the initial velocity state
     pub fn with_velocity(mut self, velocity: f64) -> Self {
-        self.state.velocity = SimValue::new(velocity);
+        self.state.velocity = UncertainValue::new(velocity);
         self
     }
 

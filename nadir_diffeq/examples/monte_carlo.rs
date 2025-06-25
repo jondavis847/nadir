@@ -8,7 +8,7 @@ use nadir_diffeq::{
 };
 use show_image::{ImageInfo, ImageView, run_context};
 use std::error::Error;
-use uncertainty::{Normal, SimValue, Uncertainty};
+use uncertainty::{Normal, UncertainValue, Uncertainty};
 
 #[derive(Debug)]
 struct DampedOscillator {
@@ -33,8 +33,8 @@ impl OdeModel for DampedOscillator {
 
 #[derive(Clone)]
 struct UncertainDampedOscillator {
-    spring_constant: SimValue,
-    damping: SimValue,
+    spring_constant: UncertainValue,
+    damping: UncertainValue,
 }
 
 impl Uncertainty for UncertainDampedOscillator {
@@ -58,14 +58,15 @@ impl Uncertainty for UncertainDampedOscillator {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let model = UncertainDampedOscillator {
-        spring_constant: SimValue::new(1.0).with_distribution(Normal::new(1.0, 0.1)?.into())?,
-        damping: SimValue::new(0.1).with_distribution(Normal::new(0.1, 0.1)?.into())?,
+        spring_constant: UncertainValue::new(1.0)
+            .with_distribution(Normal::new(1.0, 0.1)?.into())?,
+        damping: UncertainValue::new(0.1).with_distribution(Normal::new(0.1, 0.1)?.into())?,
     };
     let problem = MonteCarloProblem::new(model, 10);
     let solver = MonteCarloSolver::new(RungeKuttaMethods::Tsit5.into());
     let x0 = UncertainStateArray([
-        SimValue::new(1.0).with_distribution(Normal::new(1.0, 0.1)?.into())?,
-        SimValue::new(0.0),
+        UncertainValue::new(1.0).with_distribution(Normal::new(1.0, 0.1)?.into())?,
+        UncertainValue::new(0.0),
     ]);
 
     let result = solver.solve_adaptive(

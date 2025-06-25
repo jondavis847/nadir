@@ -2,7 +2,7 @@ use nalgebra::{Matrix3, Vector3};
 use rand::rngs::SmallRng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
+use uncertainty::{Normal, UncertainValue, Uncertainty, UncertaintyErrors, Uniform};
 
 #[derive(Debug, Error)]
 pub enum MassPropertiesErrors {
@@ -22,31 +22,31 @@ pub enum MassPropertiesErrors {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MassPropertiesBuilder {
-    mass: SimValue,
-    cmx: SimValue,
-    cmy: SimValue,
-    cmz: SimValue,
-    ixx: SimValue,
-    iyy: SimValue,
-    izz: SimValue,
-    ixy: SimValue,
-    ixz: SimValue,
-    iyz: SimValue,
+    mass: UncertainValue,
+    cmx: UncertainValue,
+    cmy: UncertainValue,
+    cmz: UncertainValue,
+    ixx: UncertainValue,
+    iyy: UncertainValue,
+    izz: UncertainValue,
+    ixy: UncertainValue,
+    ixz: UncertainValue,
+    iyz: UncertainValue,
 }
 
 impl MassPropertiesBuilder {
     pub fn new() -> Self {
         Self {
-            mass: SimValue::new(1.0),
-            cmx: SimValue::new(0.0),
-            cmy: SimValue::new(0.0),
-            cmz: SimValue::new(0.0),
-            ixx: SimValue::new(1.0),
-            iyy: SimValue::new(1.0),
-            izz: SimValue::new(1.0),
-            ixy: SimValue::new(0.0),
-            ixz: SimValue::new(0.0),
-            iyz: SimValue::new(0.0),
+            mass: UncertainValue::new(1.0),
+            cmx: UncertainValue::new(0.0),
+            cmy: UncertainValue::new(0.0),
+            cmz: UncertainValue::new(0.0),
+            ixx: UncertainValue::new(1.0),
+            iyy: UncertainValue::new(1.0),
+            izz: UncertainValue::new(1.0),
+            ixy: UncertainValue::new(0.0),
+            ixz: UncertainValue::new(0.0),
+            iyz: UncertainValue::new(0.0),
         }
     }
 

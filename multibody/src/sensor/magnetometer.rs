@@ -10,7 +10,7 @@ use nalgebra::Vector3;
 use rotations::RotationTrait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors};
+use uncertainty::{Normal, UncertainValue, Uncertainty, UncertaintyErrors};
 
 use super::{
     SensorErrors,
@@ -27,7 +27,7 @@ pub enum MagnetometerErrors {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct MagnetometerParametersBuilder {
-    delay: Option<SimValue>,
+    delay: Option<UncertainValue>,
     noise: Option<[NoiseBuilder; 3]>,
 }
 
@@ -85,7 +85,7 @@ impl MagnetometerBuilder {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay
         } else {
-            self.parameters.delay = Some(SimValue::new(delay));
+            self.parameters.delay = Some(UncertainValue::new(delay));
         }
         self
     }
@@ -99,7 +99,7 @@ impl MagnetometerBuilder {
         if let Some(delay) = &mut self.parameters.delay {
             delay.set_distribution(dist.into())?;
         } else {
-            self.parameters.delay = Some(SimValue::new(mean).with_distribution(dist.into())?);
+            self.parameters.delay = Some(UncertainValue::new(mean).with_distribution(dist.into())?);
         }
         Ok(self)
     }

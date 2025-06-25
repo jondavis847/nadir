@@ -10,7 +10,7 @@ use rotations::{
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
 use thiserror::Error;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 use super::ActuatorErrors;
 
@@ -37,9 +37,9 @@ impl ThrusterCommand {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct ThrusterParametersBuilder {
-    delay: Option<SimValue>, //sec
+    delay: Option<UncertainValue>, //sec
     misalignment: Option<UnitQuaternionBuilder>,
-    force: SimValue,
+    force: UncertainValue,
 }
 
 impl ThrusterParametersBuilder {
@@ -47,7 +47,7 @@ impl ThrusterParametersBuilder {
         Ok(Self {
             delay: None,
             misalignment: None,
-            force: SimValue::new(force),
+            force: UncertainValue::new(force),
         })
     }
 
@@ -110,7 +110,7 @@ impl ThrusterBuilder {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(SimValue::new(delay));
+            self.parameters.delay = Some(UncertainValue::new(delay));
         }
         Ok(())
     }
@@ -122,7 +122,7 @@ impl ThrusterBuilder {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(SimValue::new(delay));
+            self.parameters.delay = Some(UncertainValue::new(delay));
         }
         Ok(self)
     }

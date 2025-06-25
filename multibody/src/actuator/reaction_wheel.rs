@@ -10,7 +10,7 @@ use rotations::{
 use serde::{Deserialize, Serialize};
 use spatial_algebra::Force;
 use thiserror::Error;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 use super::ActuatorErrors;
 
@@ -56,8 +56,8 @@ impl ReactionWheelCommand {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct TorqueSpeedCurveBuilder {
-    knee_speed: SimValue,
-    max_speed: SimValue,
+    knee_speed: UncertainValue,
+    max_speed: UncertainValue,
 }
 
 impl TorqueSpeedCurveBuilder {
@@ -66,8 +66,8 @@ impl TorqueSpeedCurveBuilder {
             return Err(ReactionWheelErrors::KneeGreaterThanMax);
         }
         Ok(Self {
-            knee_speed: SimValue::new(knee_speed),
-            max_speed: SimValue::new(max_speed),
+            knee_speed: UncertainValue::new(knee_speed),
+            max_speed: UncertainValue::new(max_speed),
         })
     }
 
@@ -98,11 +98,11 @@ impl TorqueSpeedCurve {
 }
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct ReactionWheelFrictionBuilder {
-    stiction: SimValue,
-    stiction_threshold: SimValue,
-    coulomb: SimValue,
-    viscous: SimValue,
-    windage: SimValue,
+    stiction: UncertainValue,
+    stiction_threshold: UncertainValue,
+    coulomb: UncertainValue,
+    viscous: UncertainValue,
+    windage: UncertainValue,
 }
 
 impl ReactionWheelFrictionBuilder {
@@ -136,12 +136,12 @@ impl ReactionWheelFriction {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct ReactionWheelParametersBuilder {
-    delay: Option<SimValue>, //sec
+    delay: Option<UncertainValue>, //sec
     friction: ReactionWheelFrictionBuilder,
-    inertia: SimValue, // kg-m^2
+    inertia: UncertainValue, // kg-m^2
     misalignment: Option<UnitQuaternionBuilder>,
-    torque_constant: SimValue,
-    torque_max: Option<SimValue>,
+    torque_constant: UncertainValue,
+    torque_max: Option<UncertainValue>,
     torque_speed_curve: Option<TorqueSpeedCurveBuilder>,
 }
 
@@ -153,9 +153,9 @@ impl ReactionWheelParametersBuilder {
         Ok(Self {
             delay: None,
             friction: ReactionWheelFrictionBuilder::default(),
-            inertia: SimValue::new(inertia),
+            inertia: UncertainValue::new(inertia),
             misalignment: None,
-            torque_constant: SimValue::new(torque_constant),
+            torque_constant: UncertainValue::new(torque_constant),
             torque_max: None,
             torque_speed_curve: None,
         })
@@ -232,14 +232,14 @@ impl ReactionWheelState {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ReactionWheelBuilder {
     parameters: ReactionWheelParametersBuilder,
-    initial_speed: SimValue,
+    initial_speed: UncertainValue,
 }
 
 impl ReactionWheelBuilder {
     pub fn new(inertia: f64, torque_constant: f64) -> Result<Self, ReactionWheelErrors> {
         Ok(Self {
             parameters: ReactionWheelParametersBuilder::new(inertia, torque_constant)?,
-            initial_speed: SimValue::default(),
+            initial_speed: UncertainValue::default(),
         })
     }
 
@@ -266,7 +266,7 @@ impl ReactionWheelBuilder {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(SimValue::new(delay));
+            self.parameters.delay = Some(UncertainValue::new(delay));
         }
         Ok(())
     }
@@ -278,7 +278,7 @@ impl ReactionWheelBuilder {
         if let Some(selfdelay) = &mut self.parameters.delay {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(SimValue::new(delay));
+            self.parameters.delay = Some(UncertainValue::new(delay));
         }
         Ok(self)
     }
@@ -352,7 +352,7 @@ impl ReactionWheelBuilder {
         if let Some(simval) = &mut self.parameters.torque_max {
             simval.nominal = torque_max;
         } else {
-            self.parameters.torque_max = Some(SimValue::new(torque_max));
+            self.parameters.torque_max = Some(UncertainValue::new(torque_max));
         }
         Ok(())
     }
@@ -364,7 +364,7 @@ impl ReactionWheelBuilder {
         if let Some(simval) = &mut self.parameters.torque_max {
             simval.nominal = torque_max;
         } else {
-            self.parameters.torque_max = Some(SimValue::new(torque_max));
+            self.parameters.torque_max = Some(UncertainValue::new(torque_max));
         }
         Ok(self)
     }

@@ -1,7 +1,7 @@
 use crate::state::Adaptive;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign};
 use tolerance::compute_error;
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 /// A dynamic-sized vector type for use in ODE solvers.
 ///
@@ -156,7 +156,7 @@ impl Adaptive for StateVector {
 // }
 
 #[derive(Clone)]
-pub struct UncertainStateVector(pub Vec<SimValue>);
+pub struct UncertainStateVector(pub Vec<UncertainValue>);
 
 impl UncertainStateVector {
     pub fn len(&self) -> usize {

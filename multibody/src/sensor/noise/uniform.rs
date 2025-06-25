@@ -1,21 +1,21 @@
 use rand::rngs::SmallRng;
 use rand_distr::{Distribution, Uniform};
 use serde::{Deserialize, Serialize};
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 use super::{NoiseErrors, NoiseTrait};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UniformBuilder {
-    low: SimValue,
-    high: SimValue,
+    low: UncertainValue,
+    high: UncertainValue,
 }
 
 impl UniformBuilder {
     pub fn new(low: f64, high: f64) -> Self {
         Self {
-            low: SimValue::new(low),
-            high: SimValue::new(high),
+            low: UncertainValue::new(low),
+            high: UncertainValue::new(high),
         }
     }
 }

@@ -16,7 +16,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{Normal, SimValue, Uncertainty, UncertaintyErrors, Uniform};
+use uncertainty::{Normal, UncertainValue, Uncertainty, UncertaintyErrors, Uniform};
 
 use super::{JointCache, JointErrors, JointParametersBuilder, JointRef};
 #[derive(Debug, Error)]
@@ -27,8 +27,8 @@ pub enum RevoluteErrors {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RevoluteStateBuilder {
-    pub angle: SimValue,
-    pub angular_rate: SimValue,
+    pub angle: UncertainValue,
+    pub angular_rate: UncertainValue,
 }
 
 impl Uncertainty for RevoluteStateBuilder {

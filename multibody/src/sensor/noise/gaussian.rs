@@ -1,21 +1,21 @@
 use rand::rngs::SmallRng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 use super::{NoiseErrors, NoiseTrait};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GaussianBuilder {
-    mean: SimValue,
-    sigma: SimValue,
+    mean: UncertainValue,
+    sigma: UncertainValue,
 }
 
 impl GaussianBuilder {
     pub fn new(mean: f64, sigma: f64) -> Self {
         Self {
-            mean: SimValue::new(mean),
-            sigma: SimValue::new(sigma),
+            mean: UncertainValue::new(mean),
+            sigma: UncertainValue::new(sigma),
         }
     }
 }

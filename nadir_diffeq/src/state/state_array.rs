@@ -1,7 +1,7 @@
 use crate::state::Adaptive;
 use std::ops::{AddAssign, Deref, DerefMut, MulAssign, SubAssign};
 use tolerance::{Tolerance, Tolerances, compute_error};
-use uncertainty::{SimValue, Uncertainty};
+use uncertainty::{UncertainValue, Uncertainty};
 
 /// A fixed-size array wrapper representing a generic state vector with `N` f64 components.
 ///
@@ -157,7 +157,7 @@ impl<const N: usize> Default for StateArrayTolerances<N> {
 }
 
 #[derive(Clone)]
-pub struct UncertainStateArray<const N: usize>(pub [SimValue; N]);
+pub struct UncertainStateArray<const N: usize>(pub [UncertainValue; N]);
 
 impl<const N: usize> Uncertainty for UncertainStateArray<N> {
     type Output = StateArray<N>;
