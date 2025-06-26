@@ -1,0 +1,28 @@
+[package]
+name = "multiple_spacecraft"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aerospace.workspace = true
+celestial.workspace = true
+color.workspace = true
+csv.workspace = true
+gravity.workspace = true
+magnetics.workspace = true
+mass_properties.workspace = true
+multibody.workspace = true
+nadir_3d.workspace = true
+nadir_diffeq.workspace = true
+nadir_result.workspace = true
+nalgebra.workspace = true
+rotations.workspace = true 
+ron.workspace = true
+serde.workspace = true
+spatial_algebra.workspace = true
+spice.workspace = true
+time.workspace = true
+thiserror.workspace = true
+transforms.workspace = true
+typetag.workspace = true
+utilities.workspace = true

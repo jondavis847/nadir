@@ -709,17 +709,17 @@ impl MultibodySystem {
             ),
         );
 
+        // bodies
+        for body in &model.bodies {
+            let mut body = body.borrow_mut();
+            body.writer_init_fn(manager);
+        }
+
         // joints
         for joint in &model.joints {
             joint
                 .borrow_mut()
                 .writer_init_fn(manager);
-        }
-
-        // bodies
-        for body in &model.bodies {
-            let mut body = body.borrow_mut();
-            body.writer_init_fn(manager);
         }
 
         // sensors
@@ -763,7 +763,7 @@ impl MultibodySystem {
                 .writer_save_fn(manager);
         }
 
-        // bodies
+        // joints
         for joint in &self.joints {
             joint
                 .borrow()
@@ -802,63 +802,6 @@ impl MultibodySystem {
             actuator.state_vector_read(states);
         }
     }
-
-    // pub fn simulate(
-    //     &mut self,
-    //     options: &SimOptions,
-    //     result_path: &PathBuf,
-    //     progress_bars: Option<Arc<MultiProgress>>,
-    // ) -> Result<(), MultibodyErrors> {
-    //     let start_time = Instant::now();
-    //     let mut results = self.initialize_writers(result_path);
-
-    //     // initialize the components initial conditions and secondary states
-    //     for jointref in &self.joints {
-    //         let mut joint = jointref.borrow_mut();
-    //         joint.update_transforms();
-    //         joint.calculate_joint_inertia();
-    //         joint.calculate_vj();
-    //         joint.aba_first_pass(); //to calculate cache.v, which bodies use to update initial body velocity
-    //     }
-
-    //     self.update_body_states();
-    //     self.update_sensors();
-
-    //     let prob = OdeProblem::new(
-
-    //     );
-    //     // solve the multibody system
-    //     solve_fixed_rk4(
-    //         self,
-    //         options.tstart,
-    //         options.tstop,
-    //         options.dt,
-    //         &mut results,
-    //         progress_bars,
-    //     )?;
-
-    //     // save the body meshes to the result
-    //     let mut meshes = HashMap::new();
-    //     for body in &self.bodies {
-    //         let body = body.borrow();
-    //         if let Some(mesh) = &body.mesh {
-    //             meshes.insert(body.name.clone(), mesh.clone());
-    //         }
-    //     }
-
-    //     let sim_duration = start_time.elapsed();
-    //     let sim_duration_str = utilities::format_duration(sim_duration);
-
-    //     // only print sim  time info if not a monte carlo, otherwise it gets ugly
-    //     if self.run_id.is_none() {
-    //         println!(
-    //             "Simulation '{}' completed in {sim_duration_str}.",
-    //             options.sim_name
-    //         );
-    //     }
-
-    //     Ok(())
-    // }
 
     fn update_actuators(&mut self) -> Result<(), MultibodyErrors> {
         self.actuators
@@ -1003,7 +946,7 @@ impl MultibodySystem {
 impl OdeModel for MultibodySystem {
     type State = StateVector;
     fn f(&mut self, t: f64, x: &StateVector, dx: &mut StateVector) -> Result<(), Box<dyn Error>> {
-        self.update_state(x); // write the integrated states back in to the joints
+        self.update_state(x); // write the integrated states back in to the joints actuators and sensors
         self.update_base(t); // update epoch based celestial states based on new time
         self.update_joints(); // update joint state based quantities like transforms
         self.update_body_states(); // need to update the body position for gravity calcs prior to update_forces

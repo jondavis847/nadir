@@ -12,6 +12,7 @@ members = [
     "coordinate_systems",     
     "examples/*",
     "examples/spacecraft/src/software",
+    "examples/multiple_spacecraft/src/multi_software",
     "gravity",
     "legendre", 
     "magnetics", 

@@ -3343,6 +3343,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "multi_software"
+version = "0.1.0"
+dependencies = [
+ "aerospace",
+ "bytemuck",
+ "celestial",
+ "multibody",
+ "nadir_result",
+ "nalgebra",
+ "rotations",
+ "time 0.0.1",
+]
+
+[[package]]
 name = "multibody"
 version = "0.0.1"
 dependencies = [
@@ -3378,6 +3392,34 @@ dependencies = [
  "transforms",
  "typetag",
  "uncertainty",
+ "utilities",
+]
+
+[[package]]
+name = "multiple_spacecraft"
+version = "0.0.1"
+dependencies = [
+ "aerospace",
+ "celestial",
+ "color",
+ "csv",
+ "gravity",
+ "magnetics",
+ "mass_properties",
+ "multibody",
+ "nadir_3d",
+ "nadir_diffeq",
+ "nadir_result",
+ "nalgebra",
+ "ron",
+ "rotations",
+ "serde",
+ "spatial_algebra",
+ "spice",
+ "thiserror 2.0.12",
+ "time 0.0.1",
+ "transforms",
+ "typetag",
  "utilities",
 ]
 
