@@ -64,11 +64,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.add_joint(j1);
     sys.add_joint(j2);
 
-    let mut sys = sys.nominal()?;
-    let x0 = sys.initial_state();
-
     // run the simulation
-    let problem = OdeProblem::new(sys)
+    let problem = OdeProblem::new(sys.nominal()?)
         .with_saving(current_dir()?.join("results"))
         .with_save_event(SaveEvent::new(
             MultibodySystem::init_fn,
@@ -79,9 +76,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     let solver = OdeSolver::default();
-    solver.solve_adaptive(
+    solver.solve_model_adaptive_mut(
         problem,
-        x0,
         (0.0, 10.0),
         AdaptiveStepControl::default(),
     )?;

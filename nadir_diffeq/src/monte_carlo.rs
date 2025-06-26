@@ -1,11 +1,13 @@
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
+use std::clone::Clone;
 use std::{error::Error, path::PathBuf};
 use uncertainty::Uncertainty;
 
 use crate::{
     OdeModel, OdeProblem,
     events::{ContinuousEvent, EventManager, PeriodicEvent, PostSimEvent, PreSimEvent, SaveEvent},
+    model::{StateFromModel, StateFromModelMut},
     saving::{MemoryResult, SaveMethods},
     solvers::{OdeSolver, RungeKuttaMethods, SolverMethods},
     state::{Adaptive, OdeState},
@@ -44,7 +46,7 @@ impl MonteCarloSolver {
         x0: StateBuilder,
         tspan: (f64, f64),
         solve_fn: F,
-    ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
     where
         ModelBuilder: Uncertainty + Clone + Send + Sync, // Need Send + Sync to share across threads
         ModelBuilder::Output: OdeModel<State = State>,
@@ -103,7 +105,15 @@ impl MonteCarloSolver {
 
                 // Create solver and problem on this thread
                 let solver = OdeSolver::new(self.solver_method);
-                let ode_problem = OdeProblem::new(model);
+                let mut ode_problem = OdeProblem::new(model).with_events(
+                    problem
+                        .events
+                        .clone(),
+                );
+                // If there are saving events, update the result folder path with the run number
+                if let Some(save_folder) = &problem.save_folder {
+                    ode_problem = ode_problem.with_saving(save_folder.join(format!("run{i}")));
+                }
 
                 // Call the provided solver function
                 let result = solve_fn(
@@ -153,13 +163,221 @@ impl MonteCarloSolver {
         }
     }
 
+    // Private helper method that handles the common logic
+    fn solve_model_monte_carlo<ModelBuilder, State, F>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        solve_fn: F,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync, // Need Send + Sync to share across threads
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModel<State = State>,
+        State: OdeState + Send + Sync,
+        F: Fn(
+                &OdeSolver,
+                OdeProblem<ModelBuilder::Output, State>,
+                (f64, f64),
+            ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+            + Send
+            + Sync,
+    {
+        // Decide if we're saving results
+        let should_save = matches!(
+            self.save_method,
+            SaveMethods::Memory
+        );
+
+        // Create indices for parallel processing
+        let indices: Vec<_> = (0..problem.nruns).collect();
+        let seed = problem.seed;
+
+        // Create a reference to the model builder and state builder for use in threads
+        let model_builder = &problem.model_builder;
+
+        // Process each run in parallel, but sampling occurs on each thread
+        let results: Vec<_> = indices
+            .into_par_iter()
+            .map(move |i| {
+                // Each thread gets its own RNG with deterministic seed based on run index
+                let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
+
+                // Clone builders and sample on this thread
+                let model_builder = model_builder.clone();
+                let model = model_builder
+                    .sample(false, &mut thread_rng)
+                    .map_err(|e| {
+                        Box::<dyn Error>::from(format!(
+                            "Run {}: Model sampling error: {:?}",
+                            i, e
+                        ))
+                    })?;
+
+                // Create solver and problem on this thread
+                let solver = OdeSolver::new(self.solver_method);
+                let mut ode_problem = OdeProblem::new(model).with_events(
+                    problem
+                        .events
+                        .clone(),
+                );
+                // If there are saving events, update the result folder path with the run number
+                if let Some(save_folder) = &problem.save_folder {
+                    ode_problem = ode_problem.with_saving(save_folder.join(format!("run{i}")));
+                }
+
+                // Call the provided solver function
+                let result = solve_fn(&solver, ode_problem, tspan).map_err(|e| {
+                    Box::<dyn Error>::from(format!(
+                        "Run {}: Solver error: {:?}",
+                        i, e
+                    ))
+                })?;
+
+                // Only return results if we need to save them
+                Ok((
+                    i,
+                    if should_save {
+                        result
+                    } else {
+                        None
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, MonteCarloError>>()?;
+
+        // If we're saving results, assemble them in the correct order
+        if should_save {
+            // Sort the results by index
+            let mut result_pairs: Vec<(usize, MemoryResult<State>)> = results
+                .into_iter()
+                .filter_map(|(idx, result_opt)| result_opt.map(|r| (idx, r)))
+                .collect();
+
+            // Sort by run index
+            result_pairs.sort_by_key(|(idx, _)| *idx);
+
+            // Extract just the results in correct order
+            let final_results = result_pairs
+                .into_iter()
+                .map(|(_, r)| r)
+                .collect();
+            Ok(Some(final_results))
+        } else {
+            Ok(None)
+        }
+    }
+
+    // Private helper method that handles the common logic
+    fn solve_model_monte_carlo_mut<ModelBuilder, State, F>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        solve_fn: F,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync, // Need Send + Sync to share across threads
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModelMut,
+        State: OdeState + Send + Sync,
+        F: Fn(
+                &OdeSolver,
+                OdeProblem<ModelBuilder::Output, State>,
+                (f64, f64),
+            ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+            + Send
+            + Sync,
+    {
+        // Decide if we're saving results
+        let should_save = matches!(
+            self.save_method,
+            SaveMethods::Memory
+        );
+
+        // Create indices for parallel processing
+        let indices: Vec<_> = (0..problem.nruns).collect();
+        let seed = problem.seed;
+
+        // Create a reference to the model builder and state builder for use in threads
+        let model_builder = &problem.model_builder;
+
+        // Process each run in parallel, but sampling occurs on each thread
+        let results: Vec<_> = indices
+            .into_par_iter()
+            .map(move |i| {
+                // Each thread gets its own RNG with deterministic seed based on run index
+                let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
+
+                // Clone builders and sample on this thread
+                let model_builder = model_builder.clone();
+                let model = model_builder
+                    .sample(false, &mut thread_rng)
+                    .map_err(|e| {
+                        Box::<dyn Error>::from(format!(
+                            "Run {}: Model sampling error: {:?}",
+                            i, e
+                        ))
+                    })?;
+
+                // Create solver and problem on this thread
+                let solver = OdeSolver::new(self.solver_method);
+                let mut ode_problem = OdeProblem::new(model).with_events(
+                    problem
+                        .events
+                        .clone(),
+                );
+                // If there are saving events, update the result folder path with the run number
+                if let Some(save_folder) = &problem.save_folder {
+                    ode_problem = ode_problem.with_saving(save_folder.join(format!("run{i}")));
+                }
+
+                // Call the provided solver function
+                let result = solve_fn(&solver, ode_problem, tspan).map_err(|e| {
+                    Box::<dyn Error>::from(format!(
+                        "Run {}: Solver error: {:?}",
+                        i, e
+                    ))
+                })?;
+
+                // Only return results if we need to save them
+                Ok((
+                    i,
+                    if should_save {
+                        result
+                    } else {
+                        None
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, MonteCarloError>>()?;
+
+        // If we're saving results, assemble them in the correct order
+        if should_save {
+            // Sort the results by index
+            let mut result_pairs: Vec<(usize, MemoryResult<State>)> = results
+                .into_iter()
+                .filter_map(|(idx, result_opt)| result_opt.map(|r| (idx, r)))
+                .collect();
+
+            // Sort by run index
+            result_pairs.sort_by_key(|(idx, _)| *idx);
+
+            // Extract just the results in correct order
+            let final_results = result_pairs
+                .into_iter()
+                .map(|(_, r)| r)
+                .collect();
+            Ok(Some(final_results))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn solve_adaptive<ModelBuilder, StateBuilder, State>(
         &self,
         problem: MonteCarloProblem<ModelBuilder>,
         x0: StateBuilder,
         tspan: (f64, f64),
         controller: AdaptiveStepControl,
-    ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
     where
         ModelBuilder: Uncertainty + Clone + Send + Sync,
         ModelBuilder::Output: OdeModel<State = State>,
@@ -178,13 +396,59 @@ impl MonteCarloSolver {
         )
     }
 
+    pub fn solve_model_adaptive<ModelBuilder, State>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        controller: AdaptiveStepControl,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModel<State = State>,
+        State: OdeState + Adaptive + Send + Sync,
+    {
+        self.solve_model_monte_carlo(
+            problem,
+            tspan,
+            move |solver, problem, tspan| {
+                let x0 = problem
+                    .model
+                    .initial_state();
+                solver.solve_adaptive(problem, x0, tspan, controller)
+            },
+        )
+    }
+
+    pub fn solve_model_adaptive_mut<ModelBuilder, State>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        controller: AdaptiveStepControl,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModelMut<State = State>,
+        State: OdeState + Adaptive + Send + Sync,
+    {
+        self.solve_model_monte_carlo_mut(
+            problem,
+            tspan,
+            move |solver, mut problem, tspan| {
+                let x0 = problem
+                    .model
+                    .initial_state();
+                solver.solve_adaptive(problem, x0, tspan, controller)
+            },
+        )
+    }
+
     pub fn solve_fixed<ModelBuilder, StateBuilder, State>(
         &self,
         problem: MonteCarloProblem<ModelBuilder>,
         x0: StateBuilder,
         tspan: (f64, f64),
         dt: f64,
-    ) -> Result<Option<Vec<MemoryResult<StateBuilder::Output>>>, Box<dyn Error>>
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
     where
         ModelBuilder: Uncertainty + Clone + Send + Sync,
         ModelBuilder::Output: OdeModel<State = State>,
@@ -196,6 +460,52 @@ impl MonteCarloSolver {
             x0,
             tspan,
             move |solver, problem, state, tspan| solver.solve_fixed(problem, state, tspan, dt),
+        )
+    }
+
+    pub fn solve_model_fixed<ModelBuilder, State>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        dt: f64,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModel<State = State>,
+        State: OdeState + Send + Sync,
+    {
+        self.solve_model_monte_carlo(
+            problem,
+            tspan,
+            move |solver, problem, tspan| {
+                let x0 = problem
+                    .model
+                    .initial_state();
+                solver.solve_fixed(problem, x0, tspan, dt)
+            },
+        )
+    }
+
+    pub fn solve_model_fixed_mut<ModelBuilder, State>(
+        &self,
+        problem: MonteCarloProblem<ModelBuilder>,
+        tspan: (f64, f64),
+        dt: f64,
+    ) -> Result<Option<Vec<MemoryResult<State>>>, Box<dyn Error>>
+    where
+        ModelBuilder: Uncertainty + Clone + Send + Sync,
+        ModelBuilder::Output: OdeModel<State = State> + StateFromModelMut<State = State>,
+        State: OdeState + Send + Sync,
+    {
+        self.solve_model_monte_carlo_mut(
+            problem,
+            tspan,
+            move |solver, mut problem, tspan| {
+                let x0 = problem
+                    .model
+                    .initial_state();
+                solver.solve_fixed(problem, x0, tspan, dt)
+            },
         )
     }
 }

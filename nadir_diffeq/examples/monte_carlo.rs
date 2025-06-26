@@ -1,5 +1,5 @@
 use nadir_diffeq::{
-    OdeModel,
+    model::OdeModel,
     monte_carlo::{MonteCarloProblem, MonteCarloSolver},
     saving::MemoryResult,
     solvers::RungeKuttaMethods,
@@ -10,7 +10,7 @@ use show_image::{ImageInfo, ImageView, run_context};
 use std::error::Error;
 use uncertainty::{Normal, UncertainValue, Uncertainty};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DampedOscillator {
     spring_constant: f64,
     damping: f64,

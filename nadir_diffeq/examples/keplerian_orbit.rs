@@ -1,15 +1,16 @@
 use std::{env::current_dir, error::Error};
 
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
+    OdeProblem,
     events::SaveEvent,
+    model::OdeModel,
     saving::{StateWriterBuilder, WriterManager},
     solvers::{OdeSolver, RungeKuttaMethods},
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct KeplerianOrbit {
     mu: f64,
 }
@@ -50,7 +51,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let problem = OdeProblem::new(model)
         .with_saving(current_dir()?.join("results"))
-        .with_save_event(SaveEvent::new(init_fn, save_fn));
+        .with_save_event(SaveEvent::new(
+            init_fn, save_fn,
+        ));
     let solver = OdeSolver::new(RungeKuttaMethods::Verner9.into());
     solver.solve_adaptive(
         problem,
@@ -73,11 +76,17 @@ fn init_fn(_model: &mut KeplerianOrbit, _state: &StateArray<6>, manager: &mut Wr
 }
 
 fn save_fn(_model: &KeplerianOrbit, state: &StateArray<6>, t: f64, manager: &mut WriterManager) {
-    if let Some((_, writer)) = manager.writers.iter_mut().next() {
+    if let Some((_, writer)) = manager
+        .writers
+        .iter_mut()
+        .next()
+    {
         writer.float_buffer[0] = t;
         for i in 0..6 {
             writer.float_buffer[i + 1] = state[i];
         }
-        writer.write_record().unwrap();
+        writer
+            .write_record()
+            .unwrap();
     }
 }

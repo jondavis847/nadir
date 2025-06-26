@@ -1,7 +1,6 @@
 use std::path::PathBuf;
-use std::{error::Error, fmt::Debug};
-
 pub mod events;
+pub mod model;
 pub mod monte_carlo;
 pub mod rk;
 pub mod saving;
@@ -11,23 +10,9 @@ pub mod stepping;
 pub mod tableau;
 
 use crate::events::{PostSimEvent, PreSimEvent, SaveEvent};
+use crate::model::OdeModel;
 use events::{ContinuousEvent, EventManager, PeriodicEvent};
 use state::OdeState;
-
-/// Trait for defining a dynamical system model that can be numerically integrated.
-///
-/// Types implementing this trait must define how to compute the derivative (or RHS function)
-/// of the ODE at a given time and state.
-pub trait OdeModel: Debug {
-    type State: OdeState;
-    /// Compute the derivative at time `t` and state `state`, storing the result in `derivative`.
-    fn f(
-        &mut self,
-        t: f64,
-        state: &Self::State,
-        derivative: &mut Self::State,
-    ) -> Result<(), Box<dyn Error>>;
-}
 
 /// Container for a complete ODE simulation problem, including model, solver configuration,
 /// step size control, result saving strategy, and event handling.
@@ -49,6 +34,15 @@ where
     /// Creates a new `OdeProblem` instance with the specified configuration.    
     pub fn new(model: Model) -> Self {
         Self { model, events: EventManager::new(), save_folder: None }
+    }
+
+    /// Sets the events of the OdeProblem
+    /// This will override any existing events!
+    /// This is mostly just used for example in monte carlo to clone events from the builder to the instances
+    /// You probably don't want to use this, just use the individualized event methods like with_periodic_events, etc.
+    pub fn with_events(mut self, events: EventManager<Model, State>) -> Self {
+        self.events = events;
+        self
     }
 
     /// Adds a periodic event to the simulation.

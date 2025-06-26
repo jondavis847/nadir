@@ -1,12 +1,13 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
+    OdeProblem,
+    model::OdeModel,
     solvers::{OdeSolver, RungeKuttaMethods},
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Lorenz {
     sigma: f64,
     rho: f64,

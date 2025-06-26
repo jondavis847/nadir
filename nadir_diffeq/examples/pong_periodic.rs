@@ -1,14 +1,15 @@
 use std::error::Error;
 
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
+    OdeProblem,
     events::PeriodicEvent,
+    model::OdeModel,
     solvers::{OdeSolver, RungeKuttaMethods},
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Pong {
     speed: f64,
 }
@@ -50,7 +51,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?
         .unwrap();
 
-    for i in 0..result.t.len() {
+    for i in 0..result
+        .t
+        .len()
+    {
         println!(
             "{:10.6}     {:10.6} ",
             result.t[i], result.y[i][0]

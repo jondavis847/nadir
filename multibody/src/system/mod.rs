@@ -12,9 +12,9 @@ use crate::{
 use core::fmt;
 use gravity::{Gravity, constant::ConstantGravity, newtonian::NewtonianGravity};
 use nadir_diffeq::{
-    OdeModel,
+    model::{OdeModel, StateFromModelMut},
     saving::{StateWriterBuilder, WriterId, WriterManager},
-    state::state_vector::{StateVector, UncertainStateVector},
+    state::state_vector::StateVector,
 };
 
 use rand::{Rng, SeedableRng, rngs::SmallRng};
@@ -516,19 +516,6 @@ impl MultibodySystemBuilder {
         Ok(sys)
     }
 
-    pub fn initial_state(&mut self) -> UncertainStateVector {
-        let mut x0 = UncertainStateVector::new(Vec::new());
-        for (_, joint) in &self.joints {
-            joint.model.
-                .borrow_mut()
-                .state_vector_init(&mut x0);
-        }
-        for actuator in &mut self.actuators {
-            actuator.state_vector_init(&mut x0);
-        }
-        x0
-    }
-
     pub fn validate(&self) -> Result<(), MultibodyErrors> {
         // check that the base has an outer joint
         let base_outer_joints = &self
@@ -712,19 +699,6 @@ pub struct MultibodySystem {
 }
 
 impl MultibodySystem {
-    pub fn initial_state(&mut self) -> StateVector {
-        let mut x0 = StateVector::new(Vec::new());
-        for joint in &self.joints {
-            joint
-                .borrow_mut()
-                .state_vector_init(&mut x0);
-        }
-        for actuator in &mut self.actuators {
-            actuator.state_vector_init(&mut x0);
-        }
-        x0
-    }
-
     pub fn init_fn(model: &mut Self, _state: &StateVector, manager: &mut WriterManager) {
         // sim_time
         model.sim_time_id = Some(
@@ -1134,6 +1108,22 @@ impl OdeModel for MultibodySystem {
         self.write_derivative(dx);
 
         Ok(())
+    }
+}
+
+impl StateFromModelMut for MultibodySystem {
+    type State = StateVector;
+    fn initial_state(&mut self) -> StateVector {
+        let mut x0 = StateVector::new(Vec::new());
+        for joint in &self.joints {
+            joint
+                .borrow_mut()
+                .state_vector_init(&mut x0);
+        }
+        for actuator in &mut self.actuators {
+            actuator.state_vector_init(&mut x0);
+        }
+        x0
     }
 }
 

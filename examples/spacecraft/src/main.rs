@@ -405,9 +405,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         ));
     let solver = MonteCarloSolver::default();
 
-    solver.solve_adaptive(
+    solver.solve_model_adaptive_mut(
         problem,
-        x0,
         (0.0, 1000.0),
         AdaptiveStepControl::default(),
     )?;

@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::{
     OdeModel, OdeProblem,
     events::EventManager,
+    model::{StateFromModel, StateFromModelMut},
     rk::RungeKutta,
     saving::{MemoryResult, SaveMethods, WriterManager},
     state::{Adaptive, OdeState},
@@ -58,23 +59,38 @@ impl OdeSolver {
         let mut result = self.initialize_adaptive_result(&x0, &tspan, &controller);
 
         // process any presim events
-        for event in &problem.events.presim_events {
-            (event.f)(&mut problem.model, &x0, tspan.0, &writer_manager)?;
+        for event in &problem
+            .events
+            .presim_events
+        {
+            (event.f)(
+                &mut problem.model,
+                &x0,
+                tspan.0,
+                &writer_manager,
+            )?;
         }
 
-        self.solver_method.solve_adaptive(
-            &mut problem.model,
-            &x0,
-            tspan,
-            &mut controller,
-            &mut problem.events,
-            &mut result,
-            &mut writer_manager,
-        )?;
+        self.solver_method
+            .solve_adaptive(
+                &mut problem.model,
+                &x0,
+                tspan,
+                &mut controller,
+                &mut problem.events,
+                &mut result,
+                &mut writer_manager,
+            )?;
 
         // process any postsim events
-        for event in &problem.events.postsim_events {
-            (event.f)(&mut problem.model, &writer_manager);
+        for event in &problem
+            .events
+            .postsim_events
+        {
+            (event.f)(
+                &mut problem.model,
+                &writer_manager,
+            );
         }
 
         // Finalize and return the results
@@ -99,23 +115,38 @@ impl OdeSolver {
         let mut result = self.initialize_fixed_result(&x0, &tspan, &controller);
 
         // process any presim events
-        for event in &problem.events.presim_events {
-            (event.f)(&mut problem.model, &x0, tspan.0, &writer_manager)?;
+        for event in &problem
+            .events
+            .presim_events
+        {
+            (event.f)(
+                &mut problem.model,
+                &x0,
+                tspan.0,
+                &writer_manager,
+            )?;
         }
 
-        self.solver_method.solve_fixed(
-            &mut problem.model,
-            &x0,
-            tspan,
-            &mut controller,
-            &mut problem.events,
-            &mut result,
-            &mut writer_manager,
-        )?;
+        self.solver_method
+            .solve_fixed(
+                &mut problem.model,
+                &x0,
+                tspan,
+                &mut controller,
+                &mut problem.events,
+                &mut result,
+                &mut writer_manager,
+            )?;
 
         // process any postsim events
-        for event in &problem.events.postsim_events {
-            (event.f)(&mut problem.model, &writer_manager);
+        for event in &problem
+            .events
+            .postsim_events
+        {
+            (event.f)(
+                &mut problem.model,
+                &writer_manager,
+            );
         }
 
         // Finalize and return the results
@@ -124,6 +155,76 @@ impl OdeSolver {
         }
 
         Ok(result)
+    }
+
+    /// Solves the ODE problem, but with the initial state coming from the model rather than provided directly
+    pub fn solve_model_adaptive<Model, State>(
+        &self,
+        problem: OdeProblem<Model, State>,
+        tspan: (f64, f64),
+        controller: AdaptiveStepControl,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+    where
+        Model: OdeModel<State = State> + StateFromModel<State = State>,
+        State: OdeState + Adaptive,
+    {
+        let x0 = problem
+            .model
+            .initial_state();
+        self.solve_adaptive(problem, x0, tspan, controller)
+    }
+
+    /// Solves the ODE problem, but with the initial state coming from the model rather than provided directly
+    /// Mutability allows the user to store indices of submodel state vector elements in the model, for example
+    pub fn solve_model_adaptive_mut<Model, State>(
+        &self,
+        mut problem: OdeProblem<Model, State>,
+        tspan: (f64, f64),
+        controller: AdaptiveStepControl,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+    where
+        Model: OdeModel<State = State> + StateFromModelMut<State = State>,
+        State: OdeState + Adaptive,
+    {
+        let x0 = problem
+            .model
+            .initial_state();
+        self.solve_adaptive(problem, x0, tspan, controller)
+    }
+
+    /// Solves the ODE problem, but with the initial state coming from the model rather than provided directly
+    pub fn solve_model_fixed<Model, State>(
+        &self,
+        problem: OdeProblem<Model, State>,
+        tspan: (f64, f64),
+        dt: f64,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+    where
+        Model: OdeModel<State = State> + StateFromModel<State = State>,
+        State: OdeState,
+    {
+        let x0 = problem
+            .model
+            .initial_state();
+        self.solve_fixed(problem, x0, tspan, dt)
+    }
+
+    /// Solves the ODE problem, but with the initial state coming from the model rather than provided directly
+    /// Mutability allows the user to store indices of submodel state vector elements in the model, for example
+    pub fn solve_model_fixed_mut<Model, State>(
+        &self,
+        mut problem: OdeProblem<Model, State>,
+        tspan: (f64, f64),
+        dt: f64,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
+    where
+        Model: OdeModel<State = State> + StateFromModelMut<State = State>,
+        State: OdeState,
+    {
+        let x0 = problem
+            .model
+            .initial_state();
+        self.solve_fixed(problem, x0, tspan, dt)
     }
 
     fn initialize_writer<Model: OdeModel<State = State>, State: OdeState>(
@@ -135,8 +236,15 @@ impl OdeSolver {
         let writer = if let Some(save_folder) = &problem.save_folder {
             let mut writer_manager = WriterManager::new();
             // Initialize the manager with the user provided builders
-            for event in &mut problem.events.save_events {
-                (event.init_fn)(&mut problem.model, x0, &mut writer_manager);
+            for event in &mut problem
+                .events
+                .save_events
+            {
+                (event.init_fn)(
+                    &mut problem.model,
+                    x0,
+                    &mut writer_manager,
+                );
             }
             // Initialize the writers from the builders
             writer_manager.initialize(save_folder)?;
@@ -206,7 +314,9 @@ impl From<ExplicitMethods> for SolverMethods {
 
 impl From<RungeKuttaMethods> for SolverMethods {
     fn from(value: RungeKuttaMethods) -> Self {
-        Self::Explicit(ExplicitMethods::RungeKutta(value))
+        Self::Explicit(ExplicitMethods::RungeKutta(
+            value,
+        ))
     }
 }
 

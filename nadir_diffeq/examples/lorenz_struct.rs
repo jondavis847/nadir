@@ -1,5 +1,6 @@
 use nadir_diffeq::{
-    OdeModel, OdeProblem,
+    OdeProblem,
+    model::OdeModel,
     solvers::{OdeSolver, RungeKuttaMethods},
     state::Adaptive,
     stepping::AdaptiveStepControl,
@@ -10,7 +11,7 @@ use std::{
 };
 use tolerance::compute_error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Lorenz {
     sigma: f64,
     rho: f64,
@@ -44,9 +45,18 @@ impl Adaptive for LorenzState {
     fn compute_error(&self, x_prev: &Self, x_tilde: &Self, rel_tol: f64, abs_tol: f64) -> f64 {
         let mut sum_squared_errors = 0.0;
         // Calculate squared error for each component
-        sum_squared_errors += compute_error(self.x, x_prev.x, x_tilde.x, rel_tol, abs_tol).powi(2);
-        sum_squared_errors += compute_error(self.y, x_prev.y, x_tilde.y, rel_tol, abs_tol).powi(2);
-        sum_squared_errors += compute_error(self.z, x_prev.z, x_tilde.z, rel_tol, abs_tol).powi(2);
+        sum_squared_errors += compute_error(
+            self.x, x_prev.x, x_tilde.x, rel_tol, abs_tol,
+        )
+        .powi(2);
+        sum_squared_errors += compute_error(
+            self.y, x_prev.y, x_tilde.y, rel_tol, abs_tol,
+        )
+        .powi(2);
+        sum_squared_errors += compute_error(
+            self.z, x_prev.z, x_tilde.z, rel_tol, abs_tol,
+        )
+        .powi(2);
         // Return RMS error
         (sum_squared_errors / 3.0).sqrt()
     }
@@ -78,7 +88,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?
         .unwrap();
 
-    for i in 0..result.t.len() {
+    for i in 0..result
+        .t
+        .len()
+    {
         if result.t[i].rem_euclid(1.0) < 1e-3 {
             println!(
                 "{:10.6}     {:10.6} {:10.6} {:10.6}",
