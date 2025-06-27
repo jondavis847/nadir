@@ -3481,6 +3481,7 @@ version = "0.0.1"
 dependencies = [
  "csv",
  "image 0.25.6",
+ "indicatif",
  "plotters",
  "rand 0.9.0",
  "rayon",

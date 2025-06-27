@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     solver.solve_adaptive(
         problem,
         x0,
-        (0.0, 10.0),
+        (0.0, 10000.0),
         AdaptiveStepControl::default(),
     )?;
 

@@ -1,5 +1,7 @@
 use std::{array, error::Error, f64::INFINITY, mem::swap};
 
+use indicatif::ProgressBar;
+
 use crate::{
     OdeModel,
     events::{ContinuousEvent, EventManager},
@@ -90,6 +92,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>> {
         // Counter to count number of function calls
         let mut function_calls = 0;
@@ -163,6 +166,10 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
 
             // Update time based on dt
             t += dt;
+
+            // Increment progress bar
+            let percent_complete = ((t - tspan.0) / (tspan.1 - tspan.0) * 100.0).floor() as u64;
+            progress_bar.set_position(percent_complete);
 
             // Save the memory result state
             if let Some(result) = result {
@@ -243,13 +250,14 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
         State: OdeState + Adaptive,
     {
-        let mut accept_counter = 0;
-        let mut reject_counter = 0;
+        let mut _accept_counter = 0;
+        let mut _reject_counter = 0;
         let mut function_calls = 0;
 
         let mut t = tspan.0;
@@ -411,6 +419,11 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                         );
                 }
                 t += dt;
+
+                // Increment progress bar
+                let percent_complete = ((t - tspan.0) / (tspan.1 - tspan.0) * 100.0).floor() as u64;
+                progress_bar.set_position(percent_complete);
+
                 // Save the true state before any event processing
                 if let Some(result) = result {
                     result.insert(t, &self.y);
@@ -457,7 +470,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     .clone_from(&self.y);
                 dt = new_dt;
 
-                accept_counter += 1;
+                _accept_counter += 1;
 
                 if self
                     .tableau
@@ -487,7 +500,7 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
                     }
                 }
 
-                reject_counter += 1;
+                _reject_counter += 1;
             }
             // Add a constant minimum step size regardless of min_dt parameter
             const EMERGENCY_MIN_DT: f64 = 1e-10;
@@ -511,10 +524,10 @@ impl<State: OdeState, const ORDER: usize, const STAGES: usize> RungeKutta<State,
             }
         }
 
-        println!(
-            "Adaptive step size: accepted {} steps, rejected {} steps, function calls: {}",
-            accept_counter, reject_counter, function_calls
-        );
+        // println!(
+        //     "Adaptive step size: accepted {} steps, rejected {} steps, function calls: {}",
+        //     accept_counter, reject_counter, function_calls
+        // );
         Ok(())
     }
     /// Performs a single integration step using the configured Butcher tableau.

@@ -9,7 +9,7 @@ use magnetics::{MagneticField, igrf::Igrf};
 use mass_properties::MassPropertiesBuilder;
 use multibody::{
     actuator::{ActuatorBuilder, reaction_wheel::ReactionWheelBuilder},
-    joint::{floating::FloatingBuilder, revolute::RevoluteBuilder},
+    joint::floating::FloatingBuilder,
     sensor::{
         SensorBuilder, gps::GpsBuilder, magnetometer::MagnetometerBuilder,
         rate_gyro::RateGyroBuilder, star_tracker::StarTrackerBuilder,
@@ -20,21 +20,17 @@ use multibody::{
 use nadir_diffeq::{
     OdeProblem,
     events::{PeriodicEvent, PostSimEvent, SaveEvent},
-    monte_carlo::{MonteCarloProblem, MonteCarloSolver},
     solvers::OdeSolver,
     state::state_vector::StateVector,
     stepping::AdaptiveStepControl,
 };
 use rotations::{
     Rotation,
-    prelude::{AlignedAxes, Axis, AxisPair, UnitQuaternion},
+    prelude::{AlignedAxes, Axis, AxisPair},
 };
-use std::{env::current_dir, error::Error, f64::consts::PI, path::Path};
+use std::{env::current_dir, error::Error, path::Path};
 use time::Time;
-use transforms::{
-    Transform,
-    prelude::{Cartesian, CoordinateSystem},
-};
+use transforms::{Transform, prelude::CoordinateSystem};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut sys = MultibodySystemBuilder::new();
@@ -46,10 +42,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let celestial = CelestialSystemBuilder::new(epoch)?
         .with_body(
             CelestialBodyBuilder::new(CelestialBodies::Earth)
-                // .with_gravity(Gravity::Egm(
-                //     EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
-                // ))
-                .with_gravity_newtonian()
+                .with_gravity(Gravity::Egm(
+                    EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
+                ))
                 .with_magnetic_field(MagneticField::Igrf(
                     Igrf::new(13, 13, &epoch)?,
                 )),
@@ -322,8 +317,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         problem,
         (0.0, 1000.0),
         AdaptiveStepControl::default()
-            .with_abs_tol(1e-9)
-            .with_rel_tol(1e-9),
+            .with_abs_tol(1e-10)
+            .with_rel_tol(1e-10),
     )?;
 
     Ok(())

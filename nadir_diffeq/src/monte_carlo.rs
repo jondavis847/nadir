@@ -1,6 +1,10 @@
+use indicatif::ProgressBar;
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 use std::clone::Clone;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use std::{error::Error, path::PathBuf};
 use uncertainty::Uncertainty;
 
@@ -57,10 +61,17 @@ impl MonteCarloSolver {
                 OdeProblem<ModelBuilder::Output, State>,
                 State,
                 (f64, f64),
+                &mut ProgressBar,
             ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
             + Send
             + Sync,
     {
+        use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+        use rand::SeedableRng;
+        use rand::rngs::SmallRng;
+        use rayon::prelude::*;
+        use std::sync::{Arc, Mutex};
+
         // Decide if we're saving results
         let should_save = matches!(
             self.save_method,
@@ -75,71 +86,171 @@ impl MonteCarloSolver {
         let model_builder = &problem.model_builder;
         let state_builder = &x0;
 
-        // Process each run in parallel, but sampling occurs on each thread
+        // Create progress bars
+        let bars = MultiProgress::new();
+
+        // Add overall progress bar at the top
+        let overall_pb = bars.add(ProgressBar::new(
+            problem.nruns as u64,
+        ));
+        overall_pb.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] Monte Carlo: {pos}/{len} [{wide_bar:.cyan/blue}] {percent}% (ETA: {eta})",
+            )
+            .unwrap()
+            .progress_chars("##-"),
+        );
+        overall_pb.set_message("Monte Carlo Simulation");
+
+        let mut pb = Vec::new();
+        let num_threads = rayon::current_num_threads();
+
+        for _ in 0..num_threads {
+            pb.push(Arc::new(Mutex::new(
+                bars.add(
+                    ProgressBar::new(100).with_style(
+                        ProgressStyle::with_template(
+                            "[{elapsed_precise}] Thread: {msg} [{wide_bar:.cyan/blue}] {percent}%",
+                        )
+                        .unwrap()
+                        .progress_chars("##-"),
+                    ),
+                ),
+            )));
+        }
+
+        let bars_in_use = Arc::new(Mutex::new(vec![
+            false;
+            num_threads
+        ]));
+        let completed_runs = Arc::new(AtomicUsize::new(0));
+
+        // Process each run in parallel
         let results: Vec<_> = indices
             .into_par_iter()
-            .map(move |i| {
-                // Each thread gets its own RNG with deterministic seed based on run index
-                let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
+            .map(
+                |i| -> Result<
+                    (
+                        usize,
+                        Option<MemoryResult<State>>,
+                    ),
+                    MonteCarloError,
+                > {
+                    // Acquire a progress bar
+                    let bar_index = {
+                        let mut bars_in_use = bars_in_use
+                            .lock()
+                            .unwrap();
+                        let mut found_index = None;
+                        for (idx, in_use) in bars_in_use
+                            .iter_mut()
+                            .enumerate()
+                        {
+                            if !*in_use {
+                                *in_use = true;
+                                found_index = Some(idx);
+                                break;
+                            }
+                        }
+                        found_index.expect("No progress bar available - this should not happen!")
+                    };
 
-                // Clone builders and sample on this thread
-                let model_builder = model_builder.clone();
-                let model = model_builder
-                    .sample(false, &mut thread_rng)
+                    // Use the progress bar
+                    let progress_bar = pb[bar_index].clone();
+                    let progress_bar = &mut *progress_bar
+                        .lock()
+                        .unwrap();
+                    {
+                        progress_bar.reset();
+                        progress_bar.set_message(format!(
+                            "{} Run: {}",
+                            bar_index,
+                            i + 1
+                        ));
+                        progress_bar.set_length(100); // You may want to adjust this based on your actual work
+                    }
+
+                    // Each thread gets its own RNG with deterministic seed based on run index
+                    let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
+
+                    // Clone builders and sample on this thread
+                    let model_builder = model_builder.clone();
+                    let model = model_builder
+                        .sample(false, &mut thread_rng)
+                        .map_err(|e| {
+                            Box::<dyn Error>::from(format!(
+                                "Run {}: Model sampling error: {:?}",
+                                i, e
+                            ))
+                        })?;
+
+                    let state_builder = state_builder.clone();
+                    let state = state_builder
+                        .sample(false, &mut thread_rng)
+                        .map_err(|e| {
+                            Box::<dyn Error>::from(format!(
+                                "Run {}: State sampling error: {:?}",
+                                i, e
+                            ))
+                        })?;
+
+                    // Create solver and problem on this thread
+                    let solver = OdeSolver::new(self.solver_method);
+                    let mut ode_problem = OdeProblem::new(model).with_events(
+                        problem
+                            .events
+                            .clone(),
+                    );
+
+                    // If there are saving events, update the result folder path with the run number
+                    if let Some(save_folder) = &problem.save_folder {
+                        ode_problem =
+                            ode_problem.with_saving(save_folder.join(format!("run{}", i)));
+                    }
+
+                    // Call the provided solver function
+                    let result = solve_fn(
+                        &solver,
+                        ode_problem,
+                        state,
+                        tspan,
+                        progress_bar,
+                    )
                     .map_err(|e| {
                         Box::<dyn Error>::from(format!(
-                            "Run {}: Model sampling error: {:?}",
+                            "Run {}: Solver error: {:?}",
                             i, e
                         ))
                     })?;
 
-                let state_builder = state_builder.clone();
-                let state = state_builder
-                    .sample(false, &mut thread_rng)
-                    .map_err(|e| {
-                        Box::<dyn Error>::from(format!(
-                            "Run {}: State sampling error: {:?}",
-                            i, e
-                        ))
-                    })?;
+                    // Release the progress bar and mark as completed
+                    progress_bar.finish();
 
-                // Create solver and problem on this thread
-                let solver = OdeSolver::new(self.solver_method);
-                let mut ode_problem = OdeProblem::new(model).with_events(
-                    problem
-                        .events
-                        .clone(),
-                );
-                // If there are saving events, update the result folder path with the run number
-                if let Some(save_folder) = &problem.save_folder {
-                    ode_problem = ode_problem.with_saving(save_folder.join(format!("run{i}")));
-                }
+                    let completed = completed_runs.fetch_add(1, Ordering::Relaxed) + 1;
+                    overall_pb.set_position(completed as u64);
 
-                // Call the provided solver function
-                let result = solve_fn(
-                    &solver,
-                    ode_problem,
-                    state,
-                    tspan,
-                )
-                .map_err(|e| {
-                    Box::<dyn Error>::from(format!(
-                        "Run {}: Solver error: {:?}",
-                        i, e
+                    // Release the progress bar for next use
+                    {
+                        let mut bars_in_use = bars_in_use
+                            .lock()
+                            .unwrap();
+                        bars_in_use[bar_index] = false;
+                    }
+
+                    // Only return results if we need to save them
+                    Ok((
+                        i,
+                        if should_save {
+                            result
+                        } else {
+                            None
+                        },
                     ))
-                })?;
-
-                // Only return results if we need to save them
-                Ok((
-                    i,
-                    if should_save {
-                        result
-                    } else {
-                        None
-                    },
-                ))
-            })
+                },
+            )
             .collect::<Result<Vec<_>, MonteCarloError>>()?;
+
+        overall_pb.finish_with_message("Monte Carlo simulation completed!");
 
         // If we're saving results, assemble them in the correct order
         if should_save {
@@ -388,9 +499,13 @@ impl MonteCarloSolver {
             problem,
             x0,
             tspan,
-            move |solver, problem, state, tspan| {
-                solver.solve_adaptive(
-                    problem, state, tspan, controller,
+            move |solver, problem, state, tspan, progress_bar| {
+                solver.solve_adaptive_progress(
+                    problem,
+                    state,
+                    tspan,
+                    controller,
+                    progress_bar,
                 )
             },
         )
@@ -459,7 +574,15 @@ impl MonteCarloSolver {
             problem,
             x0,
             tspan,
-            move |solver, problem, state, tspan| solver.solve_fixed(problem, state, tspan, dt),
+            move |solver, problem, state, tspan, progress_bar| {
+                solver.solve_fixed_progress(
+                    problem,
+                    state,
+                    tspan,
+                    dt,
+                    progress_bar,
+                )
+            },
         )
     }
 

@@ -1,4 +1,6 @@
-use std::error::Error;
+use std::{error::Error, fmt::Write};
+
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
 use crate::{
     OdeModel, OdeProblem,
@@ -35,10 +37,52 @@ impl OdeSolver {
 
     pub fn solve_adaptive<Model: OdeModel<State = State>, State: OdeState + Adaptive>(
         &self,
+        problem: OdeProblem<Model, State>,
+        x0: State,
+        tspan: (f64, f64),
+        controller: AdaptiveStepControl,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
+        // Create progress bar
+        let mut progress_bar = ProgressBar::new(100);
+        progress_bar.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] [{wide_bar:.cyan/blue}] %{percent} ({eta})",
+            )
+            .unwrap()
+            .with_key(
+                "eta",
+                |state: &ProgressState, w: &mut dyn Write| {
+                    write!(
+                        w,
+                        "{:.1}s",
+                        state
+                            .eta()
+                            .as_secs_f64()
+                    )
+                    .unwrap()
+                },
+            )
+            .progress_chars("##-"),
+        );
+
+        let result = self.solve_adaptive_progress(
+            problem,
+            x0,
+            tspan,
+            controller,
+            &mut progress_bar,
+        )?;
+
+        Ok(result)
+    }
+
+    pub fn solve_adaptive_progress<Model: OdeModel<State = State>, State: OdeState + Adaptive>(
+        &self,
         mut problem: OdeProblem<Model, State>,
         x0: State,
         tspan: (f64, f64),
         mut controller: AdaptiveStepControl,
+        progress_bar: &mut ProgressBar,
     ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
         // handle inappropriate combos
         match &self.solver_method {
@@ -57,6 +101,8 @@ impl OdeSolver {
         let mut writer_manager = self.initialize_writer(&mut problem, &x0)?;
         // Preallocate memory for result storage if needed
         let mut result = self.initialize_adaptive_result(&x0, &tspan, &controller);
+
+        progress_bar.set_position(0);
 
         // process any presim events
         for event in &problem
@@ -80,6 +126,7 @@ impl OdeSolver {
                 &mut problem.events,
                 &mut result,
                 &mut writer_manager,
+                progress_bar,
             )?;
 
         // process any postsim events
@@ -98,15 +145,58 @@ impl OdeSolver {
             result.truncate();
         }
 
+        progress_bar.finish();
+
         Ok(result)
     }
 
     pub fn solve_fixed<Model: OdeModel<State = State>, State: OdeState>(
         &self,
+        problem: OdeProblem<Model, State>,
+        x0: State,
+        tspan: (f64, f64),
+        dt: f64,
+    ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
+        // Create progress bar
+        let mut progress_bar = ProgressBar::new(100);
+        progress_bar.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] [{wide_bar:.cyan/blue}] %{percent} ({eta})",
+            )
+            .unwrap()
+            .with_key(
+                "eta",
+                |state: &ProgressState, w: &mut dyn Write| {
+                    write!(
+                        w,
+                        "{:.1}s",
+                        state
+                            .eta()
+                            .as_secs_f64()
+                    )
+                    .unwrap()
+                },
+            )
+            .progress_chars("##-"),
+        );
+        let result = self.solve_fixed_progress(
+            problem,
+            x0,
+            tspan,
+            dt,
+            &mut progress_bar,
+        )?;
+
+        Ok(result)
+    }
+
+    pub fn solve_fixed_progress<Model: OdeModel<State = State>, State: OdeState>(
+        &self,
         mut problem: OdeProblem<Model, State>,
         x0: State,
         tspan: (f64, f64),
         dt: f64,
+        progress_bar: &mut ProgressBar,
     ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>> {
         let mut controller = FixedStepControl::new(dt);
         // Initialize the manager for writing results to a file
@@ -136,6 +226,7 @@ impl OdeSolver {
                 &mut problem.events,
                 &mut result,
                 &mut writer_manager,
+                progress_bar,
             )?;
 
         // process any postsim events
@@ -330,6 +421,7 @@ impl SolverMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -344,6 +436,7 @@ impl SolverMethods {
                 events,
                 result,
                 writer_manager,
+                progress_bar,
             ),
             _ => todo!(),
         }
@@ -357,6 +450,7 @@ impl SolverMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -371,6 +465,7 @@ impl SolverMethods {
                 events,
                 result,
                 writer_manager,
+                progress_bar,
             ),
             _ => todo!(),
         }
@@ -398,6 +493,7 @@ impl ExplicitMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -412,6 +508,7 @@ impl ExplicitMethods {
                 events,
                 result,
                 writer_manager,
+                progress_bar,
             ),
         }
     }
@@ -425,6 +522,7 @@ impl ExplicitMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -439,6 +537,7 @@ impl ExplicitMethods {
                 events,
                 result,
                 writer_manager,
+                progress_bar,
             ),
         }
     }
@@ -471,6 +570,7 @@ impl RungeKuttaMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -487,6 +587,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::New45 => {
@@ -499,6 +600,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Rk4 => {
@@ -511,6 +613,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Tsit5 => {
@@ -523,6 +626,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Verner6 => {
@@ -535,6 +639,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Verner9 => {
@@ -547,6 +652,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
         }
@@ -561,6 +667,7 @@ impl RungeKuttaMethods {
         events: &mut EventManager<Model, State>,
         result: &mut Option<MemoryResult<State>>,
         writer_manager: &mut Option<WriterManager>,
+        progress_bar: &mut ProgressBar,
     ) -> Result<(), Box<dyn Error>>
     where
         Model: OdeModel<State = State>,
@@ -577,6 +684,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::New45 => {
@@ -589,6 +697,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Rk4 => {
@@ -604,6 +713,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Verner6 => {
@@ -616,6 +726,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
             RungeKuttaMethods::Verner9 => {
@@ -628,6 +739,7 @@ impl RungeKuttaMethods {
                     events,
                     result,
                     writer_manager,
+                    progress_bar,
                 )
             }
         }

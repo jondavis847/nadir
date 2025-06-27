@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .with_distribution(Normal::new(1.0, 0.1)?.into())?,
         damping: UncertainValue::new(0.1).with_distribution(Normal::new(0.1, 0.1)?.into())?,
     };
-    let problem = MonteCarloProblem::new(model, 10);
+    let problem = MonteCarloProblem::new(model, 1000);
     let solver = MonteCarloSolver::new(RungeKuttaMethods::Tsit5.into());
     let x0 = UncertainStateArray([
         UncertainValue::new(1.0).with_distribution(Normal::new(1.0, 0.1)?.into())?,
