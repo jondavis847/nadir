@@ -52,9 +52,12 @@ pub struct ReactionWheelFsw {
 impl ReactionWheelFsw {
     pub fn run(&mut self, control: &ControlFsw) {
         // wheel torque commands need to be equal and oppositie of body torque commmands, so negative sign
-
-        let wheel_torque_commands =
-            self.parameters.body_to_wheel * (-control.state.torque_cmd_body);
+        let wheel_torque_commands = self
+            .parameters
+            .body_to_wheel
+            * (-control
+                .state
+                .torque_cmd_body);
 
         // Find the maximum absolute wheel torque
         let max_torque = {
@@ -68,14 +71,21 @@ impl ReactionWheelFsw {
         };
 
         // Determine if scaling is needed to maintain body torque direction
-        let scaling_factor = if max_torque > self.parameters.max_torque {
-            self.parameters.max_torque / max_torque
+        let scaling_factor = if max_torque
+            > self
+                .parameters
+                .max_torque
+        {
+            self.parameters
+                .max_torque
+                / max_torque
         } else {
             1.0
         };
 
         for i in 0..4 {
-            self.state.command[i] = ReactionWheelCommand {
+            self.state
+                .command[i] = ReactionWheelCommand {
                 command: ReactionWheelCommand::TORQUE,
                 value: scaling_factor * wheel_torque_commands[i],
                 _padding: [0; 7],
@@ -84,7 +94,12 @@ impl ReactionWheelFsw {
     }
 
     pub fn write_buffer(&self, buffer: &mut [HardwareBuffer]) {
-        for (i, rw) in self.state.command.iter().enumerate() {
+        for (i, rw) in self
+            .state
+            .command
+            .iter()
+            .enumerate()
+        {
             buffer[i].write(rw)
         }
     }
@@ -93,7 +108,9 @@ impl ReactionWheelFsw {
 impl NadirResult for ReactionWheelFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -111,7 +128,11 @@ impl NadirResult for ReactionWheelFsw {
             "wheel_command_value[2]",
             "wheel_command_value[3]",
         ];
-        let id = results.new_writer("fsw_rw", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_rw",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -120,14 +141,38 @@ impl NadirResult for ReactionWheelFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.command[0].command.to_string(),
-                    self.state.command[1].command.to_string(),
-                    self.state.command[2].command.to_string(),
-                    self.state.command[3].command.to_string(),
-                    self.state.command[0].value.to_string(),
-                    self.state.command[1].value.to_string(),
-                    self.state.command[2].value.to_string(),
-                    self.state.command[3].value.to_string(),
+                    self.state
+                        .command[0]
+                        .command
+                        .to_string(),
+                    self.state
+                        .command[1]
+                        .command
+                        .to_string(),
+                    self.state
+                        .command[2]
+                        .command
+                        .to_string(),
+                    self.state
+                        .command[3]
+                        .command
+                        .to_string(),
+                    self.state
+                        .command[0]
+                        .value
+                        .to_string(),
+                    self.state
+                        .command[1]
+                        .value
+                        .to_string(),
+                    self.state
+                        .command[2]
+                        .value
+                        .to_string(),
+                    self.state
+                        .command[3]
+                        .value
+                        .to_string(),
                 ],
             );
         }
