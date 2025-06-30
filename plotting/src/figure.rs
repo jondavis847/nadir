@@ -20,8 +20,18 @@ impl Figure {
     pub fn add_axes(&mut self, row: usize, col: usize) -> Result<(), PlotErrors> {
         // check if there's an axes already in that position
         for axes in &self.axes {
-            let axes = axes.lock().unwrap();
-            if axes.location.0 == row && axes.location.1 == col {
+            let axes = axes
+                .lock()
+                .unwrap();
+            if axes
+                .location
+                .0
+                == row
+                && axes
+                    .location
+                    .1
+                    == col
+            {
                 return Err(PlotErrors::AxesAlreadyInThatPosition);
             }
         }
@@ -35,11 +45,19 @@ impl Figure {
             self.ncols = col + 1
         }
 
-        let axes = Arc::new(Mutex::new(Axes::new((row, col), self.id)));
-        self.axes.push(axes);
+        let axes = Arc::new(Mutex::new(Axes::new(
+            (row, col),
+            self.id,
+        )));
+        self.axes
+            .push(axes);
         for axes in &self.axes {
-            let mut axes = axes.lock().unwrap();
-            axes.update_bounds(self.size, self.nrows, self.ncols);
+            let mut axes = axes
+                .lock()
+                .unwrap();
+            axes.update_bounds(
+                self.size, self.nrows, self.ncols,
+            );
         }
         Ok(())
     }
@@ -47,7 +65,9 @@ impl Figure {
     pub fn animation_tick(&mut self, dt: f32) -> bool {
         let mut clear = false;
         for axes in &self.axes {
-            let mut axes = axes.lock().unwrap();
+            let mut axes = axes
+                .lock()
+                .unwrap();
             let request_clear = axes.animation_tick(dt);
             if request_clear {
                 clear = true;
@@ -58,32 +78,60 @@ impl Figure {
 
     pub fn cursor_moved(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.cursor_moved(point);
         }
     }
 
     pub fn delete_axes(&mut self, i: usize) {
-        if i >= self.axes.len() {
+        if i >= self
+            .axes
+            .len()
+        {
             return;
         }
 
         // update # of rows and cols
-        self.axes.remove(i);
+        self.axes
+            .remove(i);
         self.nrows = 1;
         self.ncols = 1;
         for axes in &self.axes {
-            let axes = axes.lock().unwrap();
-            if axes.location.0 + 1 > self.nrows {
-                self.nrows = axes.location.0 + 1;
+            let axes = axes
+                .lock()
+                .unwrap();
+            if axes
+                .location
+                .0
+                + 1
+                > self.nrows
+            {
+                self.nrows = axes
+                    .location
+                    .0
+                    + 1;
             }
-            if axes.location.1 + 1 > self.ncols {
-                self.ncols = axes.location.1 + 1;
+            if axes
+                .location
+                .1
+                + 1
+                > self.ncols
+            {
+                self.ncols = axes
+                    .location
+                    .1
+                    + 1;
             }
         }
         for axes in &mut self.axes {
-            let mut axes = axes.lock().unwrap();
-            axes.update_bounds(self.size, self.nrows, self.ncols);
+            let mut axes = axes
+                .lock()
+                .unwrap();
+            axes.update_bounds(
+                self.size, self.nrows, self.ncols,
+            );
         }
     }
 
@@ -94,13 +142,20 @@ impl Figure {
         // });
 
         for axes in &self.axes {
-            let axes = axes.lock().unwrap();
+            let axes = axes
+                .lock()
+                .unwrap();
             axes.draw(frame, theme);
         }
     }
 
     pub fn get_axes(&mut self, index: usize) -> Result<Arc<Mutex<Axes>>, PlotErrors> {
-        if index > self.axes.len() - 1 {
+        if index
+            > self
+                .axes
+                .len()
+                - 1
+        {
             return Err(PlotErrors::AxesIndexOOB);
         }
         Ok(self.axes[index].clone())
@@ -127,68 +182,90 @@ impl Figure {
     }
     pub fn mouse_double_clicked(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.mouse_double_clicked(point);
         }
     }
     pub fn mouse_left_clicked(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.mouse_left_clicked(point);
         }
     }
 
     pub fn mouse_left_released(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.mouse_left_released(point);
         }
     }
 
     pub fn mouse_middle_clicked(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.mouse_middle_clicked(point);
         }
     }
 
     pub fn mouse_middle_released(&mut self, point: Point) {
         for axes in &mut self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.mouse_middle_released(point);
         }
     }
 
     pub fn set_height(&mut self, height: f32) {
-        self.size.height = height;
+        self.size
+            .height = height;
     }
 
     pub fn set_width(&mut self, width: f32) {
-        self.size.width = width;
+        self.size
+            .width = width;
     }
 
     pub fn set_window_id(&mut self, id: Id) {
         self.id = Some(id);
         for axes in &self.axes {
-            let axes = &mut *axes.lock().unwrap();
+            let axes = &mut *axes
+                .lock()
+                .unwrap();
             axes.set_figure_id(id);
         }
     }
 
     pub fn wheel_scrolled(&mut self, point: Point, delta: ScrollDelta) {
         for axes in &self.axes {
-            let mut axes = axes.lock().unwrap();
+            let mut axes = axes
+                .lock()
+                .unwrap();
             axes.wheel_scrolled(delta, point);
         }
     }
 
     pub fn window_resized(&mut self, window_size: Size) {
-        self.size.width = window_size.width;
-        self.size.height = window_size.height;
+        self.size
+            .width = window_size.width;
+        self.size
+            .height = window_size.height;
 
         for axes in &self.axes {
-            let mut axes = axes.lock().unwrap();
-            axes.update_bounds(self.size, self.nrows, self.ncols);
+            let mut axes = axes
+                .lock()
+                .unwrap();
+            axes.update_bounds(
+                self.size, self.nrows, self.ncols,
+            );
         }
     }
 }
@@ -203,18 +280,29 @@ impl fmt::Debug for Figure {
         };
         writeln!(f, "id: {},", id)?;
 
-        if self.axes.is_empty() {
+        if self
+            .axes
+            .is_empty()
+        {
             writeln!(f, "axes: [],")?;
         } else {
             writeln!(f, "axes: [")?;
-            for (i, axes) in self.axes.iter().enumerate() {
-                let axes = axes.lock().unwrap();
+            for (i, axes) in self
+                .axes
+                .iter()
+                .enumerate()
+            {
+                let axes = axes
+                    .lock()
+                    .unwrap();
                 writeln!(
                     f,
                     "     {} Axes({},{}),",
                     &i.to_string(),
-                    axes.location.0,
-                    axes.location.1
+                    axes.location
+                        .0,
+                    axes.location
+                        .1
                 )?;
             }
             writeln!(f, "   ],")?;

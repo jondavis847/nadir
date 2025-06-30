@@ -20,10 +20,12 @@ use std::{
 use thiserror::Error;
 use time::{Time, TimeFormat, TimeSystem};
 
-use crate::plotting::{axes::Axes, figure::Figure, line::Line};
+use plotting::{axes::Axes, figure::Figure, line::Line};
 
 pub fn label(s: &str) -> String {
-    ansi_term::Colour::Fixed(237).paint(s).to_string()
+    ansi_term::Colour::Fixed(237)
+        .paint(s)
+        .to_string()
 }
 
 #[derive(Debug, Error)]
@@ -99,7 +101,10 @@ impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::f64(v) => {
-                if v.fract().abs() < std::f64::EPSILON {
+                if v.fract()
+                    .abs()
+                    < std::f64::EPSILON
+                {
                     // Print with one decimal place (appending ".0")
                     writeln!(f, "{} {:.1}", label("f64"), v)
                 } else {
@@ -110,54 +115,101 @@ impl std::fmt::Debug for Value {
             Value::i64(v) => writeln!(f, "{} {}", label("i64"), v),
             Value::bool(v) => writeln!(f, "{} {}", label("bool"), v),
             Value::Axes(p) => {
-                let axes = &*p.lock().unwrap();
+                let axes = &*p
+                    .lock()
+                    .unwrap();
                 writeln!(f, "{}", label("Axes"))?;
                 writeln!(f, "axis: Axis,")?;
-                writeln!(f, "figure_id: {:?},", axes.figure_id)?;
-                writeln!(f, "bounds: {:?},", axes.bounds)?;
+                writeln!(
+                    f,
+                    "figure_id: {:?},",
+                    axes.figure_id
+                )?;
+                writeln!(
+                    f,
+                    "bounds: {:?},",
+                    axes.bounds
+                )?;
                 writeln!(f, "legend: Legend,")?;
-                writeln!(f, "location: {:?},", axes.location)?;
-                writeln!(f, "padding: {:?},", axes.padding)?;
+                writeln!(
+                    f,
+                    "location: {:?},",
+                    axes.location
+                )?;
+                writeln!(
+                    f,
+                    "padding: {:?},",
+                    axes.padding
+                )?;
                 writeln!(f, "xlim: {:?},", axes.xlim)?;
                 writeln!(f, "ylim: {:?},", axes.ylim)?;
-                if axes.lines.is_empty() {
+                if axes
+                    .lines
+                    .is_empty()
+                {
                     writeln!(f, "lines: [],")?;
                 } else {
                     writeln!(f, "lines: [ ")?;
-                    for (i, _line) in axes.lines.iter().enumerate() {
-                        writeln!(f, "     {} Line,", label(&i.to_string()),)?;
+                    for (i, _line) in axes
+                        .lines
+                        .iter()
+                        .enumerate()
+                    {
+                        writeln!(
+                            f,
+                            "     {} Line,",
+                            label(&i.to_string()),
+                        )?;
                     }
                     writeln!(f, "   ],")?;
                 }
                 Ok(())
             }
             Value::CelestialBodies(c) => {
-                writeln!(f, "{}{:?}", label("CelestialBodies::"), c)
+                writeln!(
+                    f,
+                    "{}{:?}",
+                    label("CelestialBodies::"),
+                    c
+                )
             }
             Value::DateTime(dt) => {
                 writeln!(f, "{:?}", dt)
             }
             Value::Event(e) => writeln!(f, "{:?}", e),
             Value::Figure(p) => {
-                let figure = p.lock().unwrap();
+                let figure = p
+                    .lock()
+                    .unwrap();
                 writeln!(f, "{}", label("Figure"))?;
                 let id = &match figure.get_id() {
                     Some(id) => id.to_string(),
                     None => "None".to_string(),
                 };
                 writeln!(f, "id: {},", id)?;
-                if figure.axes.is_empty() {
+                if figure
+                    .axes
+                    .is_empty()
+                {
                     writeln!(f, "axes: [],")?;
                 } else {
                     writeln!(f, "axes: [ ")?;
-                    for (i, axes) in figure.axes.iter().enumerate() {
-                        let axes = &*axes.lock().unwrap();
+                    for (i, axes) in figure
+                        .axes
+                        .iter()
+                        .enumerate()
+                    {
+                        let axes = &*axes
+                            .lock()
+                            .unwrap();
                         writeln!(
                             f,
                             "     {} Axes({},{}),",
                             label(&i.to_string()),
-                            axes.location.0,
-                            axes.location.1
+                            axes.location
+                                .0,
+                            axes.location
+                                .1
                         )?;
                     }
                     writeln!(f, "   ],")?;
@@ -166,18 +218,32 @@ impl std::fmt::Debug for Value {
             }
             Value::KeplerianElements(ke) => writeln!(f, "{:#?}", ke),
             Value::Line(line) => {
-                let line = line.lock().unwrap();
+                let line = line
+                    .lock()
+                    .unwrap();
                 writeln!(f, "{}", label("Line"))?;
                 writeln!(f, "color: {:?}", line.color)?;
                 writeln!(f, "width: {:?}", line.width)?;
-                writeln!(f, "data: Vector<f64,{}>", line.data.len())
+                writeln!(
+                    f,
+                    "data: Vector<f64,{}>",
+                    line.data
+                        .len()
+                )
             }
             Value::Map(m) => {
                 writeln!(f, "Map")?;
-                let map = &m.lock().unwrap().0;
+                let map = &m
+                    .lock()
+                    .unwrap()
+                    .0;
 
                 // Find the length of the longest key
-                let max_key_length = map.keys().map(|key| key.len()).max().unwrap_or(0);
+                let max_key_length = map
+                    .keys()
+                    .map(|key| key.len())
+                    .max()
+                    .unwrap_or(0);
 
                 // Format each key-value pair with aligned keys
                 for (key, value) in map {
@@ -192,7 +258,9 @@ impl std::fmt::Debug for Value {
                 Ok(())
             }
             Value::Matrix(m) => {
-                let m = m.lock().unwrap();
+                let m = m
+                    .lock()
+                    .unwrap();
                 writeln!(
                     f,
                     "{}",
@@ -209,22 +277,52 @@ impl std::fmt::Debug for Value {
                 write!(f, "         ")?; // Space for row index alignment
                 for j in 0..m.ncols() {
                     let header = label(&j.to_string()); // Apply color formatting
-                    let header_width: usize = UnicodeWidthStr::width(j.to_string().as_str()); // Get actual width
+                    let header_width: usize = UnicodeWidthStr::width(
+                        j.to_string()
+                            .as_str(),
+                    ); // Get actual width
                     let padding: usize = col_width.saturating_sub(header_width); // Explicitly declare as usize
 
-                    write!(f, "{}{:width$} ", header, "", width = padding)?; // Corrected alignment
+                    write!(
+                        f,
+                        "{}{:width$} ",
+                        header,
+                        "",
+                        width = padding
+                    )?; // Corrected alignment
                 }
                 writeln!(f)?; // New line after header
 
                 // Print matrix rows with row indices
-                for (i, row) in m.row_iter().enumerate() {
-                    write!(f, "{:>3} ", label(&i.to_string()))?; // Print row index with spacing
+                for (i, row) in m
+                    .row_iter()
+                    .enumerate()
+                {
+                    write!(
+                        f,
+                        "{:>3} ",
+                        label(&i.to_string())
+                    )?; // Print row index with spacing
 
                     for &value in row.iter() {
-                        if value.fract().abs() < 1e-6 {
-                            write!(f, "{:width$.1} ", value, width = col_width)?;
+                        if value
+                            .fract()
+                            .abs()
+                            < 1e-6
+                        {
+                            write!(
+                                f,
+                                "{:width$.1} ",
+                                value,
+                                width = col_width
+                            )?;
                         } else {
-                            write!(f, "{:width$.5} ", value, width = col_width)?;
+                            write!(
+                                f,
+                                "{:width$.5} ",
+                                value,
+                                width = col_width
+                            )?;
                         }
                     }
                     writeln!(f)?;
@@ -262,19 +360,38 @@ impl std::fmt::Debug for Value {
                     value: f64,
                 ) -> std::fmt::Result {
                     // Check if the fractional part is effectively 0
-                    if value.fract().abs() < std::f64::EPSILON {
+                    if value
+                        .fract()
+                        .abs()
+                        < std::f64::EPSILON
+                    {
                         // Print with one decimal place (appending ".0")
-                        writeln!(f, "{} {:.1}", label(&index.to_string()), value)
+                        writeln!(
+                            f,
+                            "{} {:.1}",
+                            label(&index.to_string()),
+                            value
+                        )
                     } else {
                         // Print the full decimal representation
-                        writeln!(f, "{} {}", label(&index.to_string()), value)
+                        writeln!(
+                            f,
+                            "{} {}",
+                            label(&index.to_string()),
+                            value
+                        )
                     }
                 }
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 writeln!(
                     f,
                     "{}",
-                    label(&format!("Vector<f64,{}>", v.len()))
+                    label(&format!(
+                        "Vector<f64,{}>",
+                        v.len()
+                    ))
                 )?;
 
                 // Determine how many entries to display
@@ -282,7 +399,10 @@ impl std::fmt::Debug for Value {
 
                 if len <= 20 {
                     // For smaller vectors, display all elements
-                    for (i, e) in v.iter().enumerate() {
+                    for (i, e) in v
+                        .iter()
+                        .enumerate()
+                    {
                         format_vector_element(f, i, *e)?;
                     }
                 } else {
@@ -305,37 +425,67 @@ impl std::fmt::Debug for Value {
                 Ok(())
             }
             Value::VectorUsize(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 writeln!(
                     f,
                     "{}",
-                    label(&format!("Vector<usize,{}>", v.len()))
+                    label(&format!(
+                        "Vector<usize,{}>",
+                        v.len()
+                    ))
                 )?;
-                for (i, e) in v.iter().enumerate() {
-                    writeln!(f, "{} {}", label(&i.to_string()), e)?;
+                for (i, e) in v
+                    .iter()
+                    .enumerate()
+                {
+                    writeln!(
+                        f,
+                        "{} {}",
+                        label(&i.to_string()),
+                        e
+                    )?;
                 }
                 Ok(())
             }
             Value::VectorBool(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 writeln!(
                     f,
                     "{}",
-                    label(&format!("Vector<bool,{}>", v.len()))
+                    label(&format!(
+                        "Vector<bool,{}>",
+                        v.len()
+                    ))
                 )?;
-                for (i, e) in v.iter().enumerate() {
-                    writeln!(f, "{} {}", label(&i.to_string()), e)?;
+                for (i, e) in v
+                    .iter()
+                    .enumerate()
+                {
+                    writeln!(
+                        f,
+                        "{} {}",
+                        label(&i.to_string()),
+                        e
+                    )?;
                 }
                 Ok(())
             }
 
             Value::String(s) => {
-                let s = s.lock().unwrap();
+                let s = s
+                    .lock()
+                    .unwrap();
                 writeln!(f, "{}", label("String"))?;
                 writeln!(f, "{}", s)
             }
             Value::Quaternion(q) => {
-                let q = q.lock().unwrap();
+                let q = q
+                    .lock()
+                    .unwrap();
                 writeln!(f, "{}", label("Quaternion"))?;
                 writeln!(f, "{} {}", label("x"), q.x)?;
                 writeln!(f, "{} {}", label("y"), q.y)?;
@@ -343,7 +493,9 @@ impl std::fmt::Debug for Value {
                 writeln!(f, "{} {}", label("w"), q.w)
             }
             Value::Time(t) => {
-                let t = t.lock().unwrap();
+                let t = t
+                    .lock()
+                    .unwrap();
                 let time_label = match t.system {
                     TimeSystem::GPS => "Time<GPS>",
                     TimeSystem::TAI => "Time<TAI>",
@@ -352,20 +504,38 @@ impl std::fmt::Debug for Value {
                     TimeSystem::TT => "Time<TT>",
                 };
                 // Default to always showing the datetime, and using methods for other values
-                let value = t.get_datetime().to_string();
+                let value = t
+                    .get_datetime()
+                    .to_string();
 
                 writeln!(f, "{}", label(time_label))?;
                 writeln!(f, "{value}")
             }
             Value::TimeFormat(t) => {
-                writeln!(f, "{}{:?}", label("TimeFormat::"), t)
+                writeln!(
+                    f,
+                    "{}{:?}",
+                    label("TimeFormat::"),
+                    t
+                )
             }
             Value::TimeSystem(t) => {
-                writeln!(f, "{}{:?}", label("TimeSystem::"), t)
+                writeln!(
+                    f,
+                    "{}{:?}",
+                    label("TimeSystem::"),
+                    t
+                )
             }
             Value::UnitQuaternion(q) => {
-                let q = q.lock().unwrap();
-                writeln!(f, "{}", label("UnitQuaternion"))?;
+                let q = q
+                    .lock()
+                    .unwrap();
+                writeln!(
+                    f,
+                    "{}",
+                    label("UnitQuaternion")
+                )?;
                 writeln!(f, "{} {}", label("x"), q.0.x)?;
                 writeln!(f, "{} {}", label("y"), q.0.y)?;
                 writeln!(f, "{} {}", label("z"), q.0.z)?;
@@ -391,25 +561,45 @@ impl Value {
             Value::MultibodySystemBuilder(_) => "MultibodySystemBuilder".into(),
             Value::Figure(_) => "Figure".into(),
             Value::Vector(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 let length = v.len();
-                String::from(format!("Vector<f64,{}>", length))
+                String::from(format!(
+                    "Vector<f64,{}>",
+                    length
+                ))
             }
             Value::VectorUsize(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 let length = v.len();
-                String::from(format!("Vector<usize,{}>", length))
+                String::from(format!(
+                    "Vector<usize,{}>",
+                    length
+                ))
             }
             Value::VectorBool(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 let length = v.len();
-                String::from(format!("Vector<bool,{}>", length))
+                String::from(format!(
+                    "Vector<bool,{}>",
+                    length
+                ))
             }
             Value::Matrix(v) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 let rows = v.nrows();
                 let cols = v.ncols();
-                String::from(format!("Matrix<f64,{},{}>", rows, cols))
+                String::from(format!(
+                    "Matrix<f64,{},{}>",
+                    rows, cols
+                ))
             }
             Value::Time(_) => "Time".into(),
             Value::TimeFormat(_) => "TimeFormat".into(),
@@ -454,9 +644,11 @@ impl Value {
                 } else if *v == 1.0 {
                     Ok(true)
                 } else {
-                    Err(ValueErrors::CannotConvertToBool(
-                        "f64 must be 0.0 or 1.0 to convert to bool".to_string(),
-                    ))
+                    Err(
+                        ValueErrors::CannotConvertToBool(
+                            "f64 must be 0.0 or 1.0 to convert to bool".to_string(),
+                        ),
+                    )
                 }
             }
 
@@ -466,16 +658,20 @@ impl Value {
                 } else if *v == 1 {
                     Ok(true)
                 } else {
-                    Err(ValueErrors::CannotConvertToBool(
-                        "i64 must be 0 or 1 to convert to bool".to_string(),
-                    ))
+                    Err(
+                        ValueErrors::CannotConvertToBool(
+                            "i64 must be 0 or 1 to convert to bool".to_string(),
+                        ),
+                    )
                 }
             }
 
-            _ => Err(ValueErrors::CannotConvertToBool(format!(
-                "cannot convert type {} to bool",
-                self.to_string()
-            ))),
+            _ => Err(
+                ValueErrors::CannotConvertToBool(format!(
+                    "cannot convert type {} to bool",
+                    self.to_string()
+                )),
+            ),
         }
     }
 
@@ -515,13 +711,25 @@ impl Value {
         match self {
             Value::i64(v) => {
                 if *v < 0 {
-                    return Err(ValueErrors::NegativeIndex(v.to_string()));
+                    return Err(ValueErrors::NegativeIndex(
+                        v.to_string(),
+                    ));
                 }
                 Ok(IndexStyle::Usize(*v as usize))
             }
-            Value::VectorBool(v) => Ok(IndexStyle::VecBool(v.lock().unwrap().clone())),
-            Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(v.lock().unwrap().clone())),
-            _ => Err(ValueErrors::NonIndexType(self.to_string())),
+            Value::VectorBool(v) => Ok(IndexStyle::VecBool(
+                v.lock()
+                    .unwrap()
+                    .clone(),
+            )),
+            Value::VectorUsize(v) => Ok(IndexStyle::VecUsize(
+                v.lock()
+                    .unwrap()
+                    .clone(),
+            )),
+            _ => Err(ValueErrors::NonIndexType(
+                self.to_string(),
+            )),
         }
     }
 
@@ -569,7 +777,10 @@ impl Value {
         match self {
             Value::f64(v) => Ok(v.to_string()),
             Value::i64(v) => Ok(v.to_string()),
-            Value::String(v) => Ok(v.lock().unwrap().clone()),
+            Value::String(v) => Ok(v
+                .lock()
+                .unwrap()
+                .clone()),
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
                 "String".to_string(),
@@ -620,8 +831,13 @@ impl Value {
 
     pub fn as_quaternion(&self) -> Result<Quaternion, ValueErrors> {
         match self {
-            Value::Quaternion(v) => Ok(*v.lock().unwrap()),
-            Value::UnitQuaternion(v) => Ok(Quaternion::from(&*v.lock().unwrap())),
+            Value::Quaternion(v) => Ok(*v
+                .lock()
+                .unwrap()),
+            Value::UnitQuaternion(v) => Ok(Quaternion::from(
+                &*v.lock()
+                    .unwrap(),
+            )),
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
                 "Quaternion".to_string(),
@@ -631,8 +847,13 @@ impl Value {
 
     pub fn as_unit_quaternion(&self) -> Result<UnitQuaternion, ValueErrors> {
         match self {
-            Value::Quaternion(v) => Ok(UnitQuaternion::try_from(&*v.lock().unwrap())?),
-            Value::UnitQuaternion(v) => Ok(*v.lock().unwrap()),
+            Value::Quaternion(v) => Ok(UnitQuaternion::try_from(
+                &*v.lock()
+                    .unwrap(),
+            )?),
+            Value::UnitQuaternion(v) => Ok(*v
+                .lock()
+                .unwrap()),
             _ => Err(ValueErrors::CannotConvert(
                 self.to_string(),
                 "UnitQuaternion".to_string(),
@@ -658,51 +879,79 @@ impl Value {
             }
             (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a + b)),
             (Value::f64(a), Value::Vector(v)) | (Value::Vector(v), Value::f64(a)) => {
-                let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.add_scalar(*a),
-                ))))
+                let v = v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.add_scalar(*a)),
+                )))
             }
             (Value::Matrix(m), Value::f64(f)) | (Value::f64(f), Value::Matrix(m)) => {
-                let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.add_scalar(*f),
-                ))))
+                let m = m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.add_scalar(*f)),
+                )))
             }
             (Value::i64(a), Value::Vector(v)) | (Value::Vector(v), Value::i64(a)) => {
-                let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.add_scalar(*a as f64),
-                ))))
+                let v = v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.add_scalar(*a as f64)),
+                )))
             }
             (Value::Matrix(m), Value::i64(f)) | (Value::i64(f), Value::Matrix(m)) => {
-                let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.add_scalar(*f as f64),
-                ))))
+                let m = m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.add_scalar(*f as f64)),
+                )))
             }
             (Value::Vector(v1), Value::Vector(v2)) => {
-                let v1 = v1.lock().unwrap();
-                let v2 = v2.lock().unwrap();
+                let v1 = v1
+                    .lock()
+                    .unwrap();
+                let v2 = v2
+                    .lock()
+                    .unwrap();
                 if v1.len() != v2.len() {
                     return Err(ValueErrors::SizeMismatch(
-                        v1.len().to_string(),
-                        v2.len().to_string(),
+                        v1.len()
+                            .to_string(),
+                        v2.len()
+                            .to_string(),
                     ));
                 }
                 let mut v3 = v1.clone();
                 for i in 0..v1.len() {
                     v3[i] = v1[i] + v2[i];
                 }
-                Ok(Value::Vector(Arc::new(Mutex::new(v3))))
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v3),
+                )))
             }
             (Value::Matrix(v1), Value::Matrix(v2)) => {
-                let v1 = v1.lock().unwrap();
-                let v2 = v2.lock().unwrap();
+                let v1 = v1
+                    .lock()
+                    .unwrap();
+                let v2 = v2
+                    .lock()
+                    .unwrap();
                 if v1.nrows() != v2.nrows() || v1.ncols() != v2.ncols() {
                     return Err(ValueErrors::SizeMismatch(
-                        format!("{}x{}", v1.nrows(), v1.ncols()),
-                        format!("{}x{}", v2.nrows(), v2.ncols()),
+                        format!(
+                            "{}x{}",
+                            v1.nrows(),
+                            v1.ncols()
+                        ),
+                        format!(
+                            "{}x{}",
+                            v2.nrows(),
+                            v2.ncols()
+                        ),
                     ));
                 }
                 let mut v3 = v1.clone();
@@ -711,15 +960,20 @@ impl Value {
                         v3[(i, j)] = v1[(i, j)] + v2[(i, j)];
                     }
                 }
-                Ok(Value::Matrix(Arc::new(Mutex::new(v3))))
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(v3),
+                )))
             }
             (Value::String(a), Value::String(b)) => {
-                let a = a.lock().unwrap();
-                let b = b.lock().unwrap();
-                Ok(Value::String(Arc::new(Mutex::new(format!(
-                    "{}{}",
-                    a, b
-                )))))
+                let a = a
+                    .lock()
+                    .unwrap();
+                let b = b
+                    .lock()
+                    .unwrap();
+                Ok(Value::String(Arc::new(
+                    Mutex::new(format!("{}{}", a, b)),
+                )))
             }
             _ => Err(ValueErrors::CannotAddTypes(
                 other.to_string(),
@@ -763,57 +1017,71 @@ impl Value {
                 }
             }
             (Value::Vector(v), Value::f64(a)) => {
-                let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.scale(1.0 / *a),
-                )))) // This will produce inf or NaN elements for division by zero
+                let v = v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.scale(1.0 / *a)),
+                ))) // This will produce inf or NaN elements for division by zero
             }
             (Value::Matrix(m), Value::f64(f)) => {
-                let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.scale(1.0 / *f),
-                )))) // This will produce inf or NaN elements for division by zero
+                let m = m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.scale(1.0 / *f)),
+                ))) // This will produce inf or NaN elements for division by zero
             }
             (Value::Vector(v), Value::i64(a)) => {
-                let v = v.lock().unwrap();
+                let v = v
+                    .lock()
+                    .unwrap();
                 if *a == 0 {
-                    Ok(Value::Vector(Arc::new(Mutex::new(v.map(|x| {
-                        if x == 0.0 {
-                            NAN
-                        } else if x > 0.0 {
-                            INFINITY
-                        } else {
-                            -INFINITY
-                        }
-                    })))))
+                    Ok(Value::Vector(Arc::new(
+                        Mutex::new(v.map(|x| {
+                            if x == 0.0 {
+                                NAN
+                            } else if x > 0.0 {
+                                INFINITY
+                            } else {
+                                -INFINITY
+                            }
+                        })),
+                    )))
                 } else {
-                    Ok(Value::Vector(Arc::new(Mutex::new(
-                        v.scale(1.0 / *a as f64),
-                    ))))
+                    Ok(Value::Vector(Arc::new(
+                        Mutex::new(v.scale(1.0 / *a as f64)),
+                    )))
                 }
             }
             (Value::Matrix(m), Value::i64(f)) => {
-                let m = m.lock().unwrap();
+                let m = m
+                    .lock()
+                    .unwrap();
                 if *f == 0 {
-                    Ok(Value::Matrix(Arc::new(Mutex::new(m.map(|x| {
-                        if x == 0.0 {
-                            NAN
-                        } else if x > 0.0 {
-                            INFINITY
-                        } else {
-                            -INFINITY
-                        }
-                    })))))
+                    Ok(Value::Matrix(Arc::new(
+                        Mutex::new(m.map(|x| {
+                            if x == 0.0 {
+                                NAN
+                            } else if x > 0.0 {
+                                INFINITY
+                            } else {
+                                -INFINITY
+                            }
+                        })),
+                    )))
                 } else {
-                    Ok(Value::Matrix(Arc::new(Mutex::new(
-                        m.scale(1.0 / *f as f64),
-                    ))))
+                    Ok(Value::Matrix(Arc::new(
+                        Mutex::new(m.scale(1.0 / *f as f64)),
+                    )))
                 }
             }
-            _ => Err(ValueErrors::CannotDivideTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotDivideTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -840,10 +1108,12 @@ impl Value {
             (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 > *b)),
             (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a > *b as f64)),
             (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a > b)),
-            _ => Err(ValueErrors::CannotCompareTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotCompareTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -853,10 +1123,12 @@ impl Value {
             (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 >= *b)),
             (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a >= *b as f64)),
             (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a >= b)),
-            _ => Err(ValueErrors::CannotCompareTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotCompareTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -866,10 +1138,12 @@ impl Value {
             (Value::i64(a), Value::f64(b)) => Ok(Value::bool((*a as f64) < *b)),
             (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a < *b as f64)),
             (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a < b)),
-            _ => Err(ValueErrors::CannotCompareTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotCompareTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -879,10 +1153,12 @@ impl Value {
             (Value::i64(a), Value::f64(b)) => Ok(Value::bool(*a as f64 <= *b)),
             (Value::f64(a), Value::i64(b)) => Ok(Value::bool(*a <= *b as f64)),
             (Value::i64(a), Value::i64(b)) => Ok(Value::bool(a <= b)),
-            _ => Err(ValueErrors::CannotCompareTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotCompareTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -894,73 +1170,123 @@ impl Value {
             }
             (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a * b)),
             (Value::f64(a), Value::Vector(v)) | (Value::Vector(v), Value::f64(a)) => {
-                let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(v.scale(*a)))))
+                let v = v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.scale(*a)),
+                )))
             }
             (Value::Matrix(m), Value::f64(f)) | (Value::f64(f), Value::Matrix(m)) => {
-                let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(m.scale(*f)))))
+                let m = m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.scale(*f)),
+                )))
             }
             (Value::i64(a), Value::Vector(v)) | (Value::Vector(v), Value::i64(a)) => {
-                let v = v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.scale(*a as f64),
-                ))))
+                let v = v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.scale(*a as f64)),
+                )))
             }
             (Value::Matrix(m), Value::i64(f)) | (Value::i64(f), Value::Matrix(m)) => {
-                let m = m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.scale(*f as f64),
-                ))))
+                let m = m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.scale(*f as f64)),
+                )))
             }
             (Value::Matrix(a), Value::Vector(b)) => {
-                let a = &*a.lock().unwrap();
-                let b = &*b.lock().unwrap();
+                let a = &*a
+                    .lock()
+                    .unwrap();
+                let b = &*b
+                    .lock()
+                    .unwrap();
 
                 // Check that the matrix and vector dimensions are compatible.
                 // (For a multiplication a * b to work, the number of columns of 'a' must equal the number of rows of 'b',
                 // which is equivalent to b.len() for a column vector.)
                 if a.ncols() == b.len() {
                     let result: DVector<f64> = a * b;
-                    Ok(Value::Vector(Arc::new(Mutex::new(result))))
+                    Ok(Value::Vector(Arc::new(
+                        Mutex::new(result),
+                    )))
                 } else {
                     Err(ValueErrors::SizeMismatch(
-                        a.ncols().to_string(),
-                        b.len().to_string(),
+                        a.ncols()
+                            .to_string(),
+                        b.len()
+                            .to_string(),
                     ))
                 }
             }
             (Value::Matrix(a), Value::Matrix(b)) => {
-                let a = &*a.lock().unwrap();
-                let b = &*b.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(a * b))))
+                let a = &*a
+                    .lock()
+                    .unwrap();
+                let b = &*b
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(a * b),
+                )))
             }
             (Value::Quaternion(q1), Value::Quaternion(q2)) => {
-                let q1 = *q1.lock().unwrap();
-                let q2 = *q2.lock().unwrap();
-                Ok(Value::Quaternion(Arc::new(Mutex::new(q1 * q2))))
+                let q1 = *q1
+                    .lock()
+                    .unwrap();
+                let q2 = *q2
+                    .lock()
+                    .unwrap();
+                Ok(Value::Quaternion(Arc::new(
+                    Mutex::new(q1 * q2),
+                )))
             }
             (Value::UnitQuaternion(q1), Value::UnitQuaternion(q2)) => {
-                let q1 = *q1.lock().unwrap();
-                let q2 = *q2.lock().unwrap();
-                Ok(Value::UnitQuaternion(Arc::new(Mutex::new(
-                    q1 * q2,
-                ))))
+                let q1 = *q1
+                    .lock()
+                    .unwrap();
+                let q2 = *q2
+                    .lock()
+                    .unwrap();
+                Ok(Value::UnitQuaternion(
+                    Arc::new(Mutex::new(q1 * q2)),
+                ))
             }
             (Value::UnitQuaternion(q1), Value::Quaternion(q2)) => {
-                let q1 = *q1.lock().unwrap();
-                let q2 = *q2.lock().unwrap();
-                Ok(Value::Quaternion(Arc::new(Mutex::new(q1.0 * q2))))
+                let q1 = *q1
+                    .lock()
+                    .unwrap();
+                let q2 = *q2
+                    .lock()
+                    .unwrap();
+                Ok(Value::Quaternion(Arc::new(
+                    Mutex::new(q1.0 * q2),
+                )))
             }
             (Value::Quaternion(q1), Value::UnitQuaternion(q2)) => {
-                let q1 = *q1.lock().unwrap();
-                let q2 = *q2.lock().unwrap();
-                Ok(Value::Quaternion(Arc::new(Mutex::new(q1 * q2.0))))
+                let q1 = *q1
+                    .lock()
+                    .unwrap();
+                let q2 = *q2
+                    .lock()
+                    .unwrap();
+                Ok(Value::Quaternion(Arc::new(
+                    Mutex::new(q1 * q2.0),
+                )))
             }
-            _ => Err(ValueErrors::CannotMultiplyTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotMultiplyTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -969,22 +1295,40 @@ impl Value {
             Value::f64(v) => Ok(Value::f64(-v)),
             Value::i64(v) => Ok(Value::i64(-v)),
             Value::Vector(v) => {
-                let v = &*v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(-v))))
+                let v = &*v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(-v),
+                )))
             }
             Value::Matrix(v) => {
-                let v = &*v.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(-v))))
+                let v = &*v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(-v),
+                )))
             }
             Value::Quaternion(v) => {
-                let v = *v.lock().unwrap();
-                Ok(Value::Quaternion(Arc::new(Mutex::new(-v))))
+                let v = *v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Quaternion(Arc::new(
+                    Mutex::new(-v),
+                )))
             }
             Value::UnitQuaternion(v) => {
-                let v = *v.lock().unwrap();
-                Ok(Value::UnitQuaternion(Arc::new(Mutex::new(-v))))
+                let v = *v
+                    .lock()
+                    .unwrap();
+                Ok(Value::UnitQuaternion(
+                    Arc::new(Mutex::new(-v)),
+                ))
             }
-            _ => Err(ValueErrors::CannotNegType(self.to_string())),
+            _ => Err(ValueErrors::CannotNegType(
+                self.to_string(),
+            )),
         }
     }
 
@@ -992,17 +1336,25 @@ impl Value {
         match (self, exponent) {
             (Value::i64(base), Value::i64(exp)) => {
                 if *exp >= 0 {
-                    Ok(Value::i64(base.pow(*exp as u32)))
+                    Ok(Value::i64(
+                        base.pow(*exp as u32),
+                    ))
                 } else {
                     Ok(Value::f64(
                         (base.pow(-*exp as u32) as f64).recip(),
                     ))
                 }
             }
-            (Value::f64(base), Value::i64(exp)) => Ok(Value::f64(base.powi(*exp as i32))),
-            (Value::i64(base), Value::f64(exp)) => Ok(Value::f64((*base as f64).powf(*exp))),
+            (Value::f64(base), Value::i64(exp)) => Ok(Value::f64(
+                base.powi(*exp as i32),
+            )),
+            (Value::i64(base), Value::f64(exp)) => Ok(Value::f64(
+                (*base as f64).powf(*exp),
+            )),
             (Value::f64(base), Value::f64(exp)) => Ok(Value::f64(base.powf(*exp))),
-            _ => Err(ValueErrors::CannotPowType(self.to_string())),
+            _ => Err(ValueErrors::CannotPowType(
+                self.to_string(),
+            )),
         }
     }
 
@@ -1013,48 +1365,66 @@ impl Value {
             (Value::f64(a), Value::i64(b)) => Ok(Value::f64(a - *b as f64)),
             (Value::i64(a), Value::i64(b)) => Ok(Value::i64(a - b)),
             (Value::Vector(v), Value::f64(a)) => {
-                let v = &*v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.add_scalar(-*a),
-                ))))
+                let v = &*v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.add_scalar(-*a)),
+                )))
             }
             (Value::Vector(v), Value::i64(a)) => {
-                let v = &*v.lock().unwrap();
-                Ok(Value::Vector(Arc::new(Mutex::new(
-                    v.add_scalar(-(*a as f64)),
-                ))))
+                let v = &*v
+                    .lock()
+                    .unwrap();
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v.add_scalar(-(*a as f64))),
+                )))
             }
             (Value::Vector(v1), Value::Vector(v2)) => {
-                let v1 = v1.lock().unwrap();
-                let v2 = v2.lock().unwrap();
+                let v1 = v1
+                    .lock()
+                    .unwrap();
+                let v2 = v2
+                    .lock()
+                    .unwrap();
                 if v1.len() != v2.len() {
                     return Err(ValueErrors::SizeMismatch(
-                        v1.len().to_string(),
-                        v2.len().to_string(),
+                        v1.len()
+                            .to_string(),
+                        v2.len()
+                            .to_string(),
                     ));
                 }
                 let mut v3 = v1.clone();
                 for i in 0..v1.len() {
                     v3[i] = v1[i] - v2[i];
                 }
-                Ok(Value::Vector(Arc::new(Mutex::new(v3))))
+                Ok(Value::Vector(Arc::new(
+                    Mutex::new(v3),
+                )))
             }
             (Value::Matrix(m), Value::f64(f)) => {
-                let m = &*m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.add_scalar(-*f),
-                ))))
+                let m = &*m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.add_scalar(-*f)),
+                )))
             }
             (Value::Matrix(m), Value::i64(f)) => {
-                let m = &*m.lock().unwrap();
-                Ok(Value::Matrix(Arc::new(Mutex::new(
-                    m.add_scalar(-(*f as f64)),
-                ))))
+                let m = &*m
+                    .lock()
+                    .unwrap();
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(m.add_scalar(-(*f as f64))),
+                )))
             }
-            _ => Err(ValueErrors::CannotSubtractTypes(
-                other.to_string(),
-                self.to_string(),
-            )),
+            _ => Err(
+                ValueErrors::CannotSubtractTypes(
+                    other.to_string(),
+                    self.to_string(),
+                ),
+            ),
         }
     }
 
@@ -1065,30 +1435,54 @@ impl Value {
     ) -> Result<Value, ValueErrors> {
         match self {
             Value::Matrix(m) => {
-                let m = &*m.lock().unwrap();
+                let m = &*m
+                    .lock()
+                    .unwrap();
                 let (rows, cols) = (m.nrows(), m.ncols());
 
                 // Convert IndexStyle to actual row and column indices
                 let row_indices = match row_index {
                     IndexStyle::All => (0..rows).collect(),
                     IndexStyle::Usize(r) if r < rows => vec![r],
-                    IndexStyle::Usize(r) => return Err(ValueErrors::OutOfBoundsIndex(r, rows)),
+                    IndexStyle::Usize(r) => {
+                        return Err(ValueErrors::OutOfBoundsIndex(
+                            r, rows,
+                        ));
+                    }
                     IndexStyle::Range(r) => {
-                        let start = r.start.unwrap_or(0);
-                        let stop = r.stop.unwrap_or(rows);
+                        let start = r
+                            .start
+                            .unwrap_or(0);
+                        let stop = r
+                            .stop
+                            .unwrap_or(rows);
                         if stop > rows {
-                            return Err(ValueErrors::OutOfBoundsIndex(stop, rows));
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                stop, rows,
+                            ));
                         }
                         (start..stop)
-                            .step_by(r.step.unwrap_or(1))
+                            .step_by(
+                                r.step
+                                    .unwrap_or(1),
+                            )
                             .collect()
                     }
                     IndexStyle::VecUsize(indices) => {
-                        let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
+                        let indices_vec = indices
+                            .iter()
+                            .copied()
+                            .collect::<Vec<usize>>(); // Convert DVector to Vec
 
-                        if indices_vec.iter().any(|&r| r >= rows) {
+                        if indices_vec
+                            .iter()
+                            .any(|&r| r >= rows)
+                        {
                             return Err(ValueErrors::OutOfBoundsIndex(
-                                *indices_vec.iter().max().unwrap(),
+                                *indices_vec
+                                    .iter()
+                                    .max()
+                                    .unwrap(),
                                 rows,
                             ));
                         }
@@ -1098,34 +1492,59 @@ impl Value {
                     IndexStyle::VecBool(mask) => {
                         if mask.len() != rows {
                             return Err(ValueErrors::SizeMismatch(
-                                mask.len().to_string(),
+                                mask.len()
+                                    .to_string(),
                                 rows.to_string(),
                             ));
                         }
-                        (0..rows).filter(|&i| mask[i]).collect()
+                        (0..rows)
+                            .filter(|&i| mask[i])
+                            .collect()
                     }
                 };
 
                 let col_indices = match col_index {
                     IndexStyle::All => (0..cols).collect(),
                     IndexStyle::Usize(c) if c < cols => vec![c],
-                    IndexStyle::Usize(c) => return Err(ValueErrors::OutOfBoundsIndex(c, cols)),
+                    IndexStyle::Usize(c) => {
+                        return Err(ValueErrors::OutOfBoundsIndex(
+                            c, cols,
+                        ));
+                    }
                     IndexStyle::Range(r) => {
-                        let start = r.start.unwrap_or(0);
-                        let stop = r.stop.unwrap_or(cols);
+                        let start = r
+                            .start
+                            .unwrap_or(0);
+                        let stop = r
+                            .stop
+                            .unwrap_or(cols);
                         if stop > cols {
-                            return Err(ValueErrors::OutOfBoundsIndex(stop, cols));
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                stop, cols,
+                            ));
                         }
                         (start..stop)
-                            .step_by(r.step.unwrap_or(1))
+                            .step_by(
+                                r.step
+                                    .unwrap_or(1),
+                            )
                             .collect()
                     }
                     IndexStyle::VecUsize(indices) => {
-                        let indices_vec = indices.iter().copied().collect::<Vec<usize>>(); // Convert DVector to Vec
+                        let indices_vec = indices
+                            .iter()
+                            .copied()
+                            .collect::<Vec<usize>>(); // Convert DVector to Vec
 
-                        if indices.iter().any(|&c| c >= cols) {
+                        if indices
+                            .iter()
+                            .any(|&c| c >= cols)
+                        {
                             return Err(ValueErrors::OutOfBoundsIndex(
-                                *indices.iter().max().unwrap(),
+                                *indices
+                                    .iter()
+                                    .max()
+                                    .unwrap(),
                                 cols,
                             ));
                         }
@@ -1134,31 +1553,46 @@ impl Value {
                     IndexStyle::VecBool(mask) => {
                         if mask.len() != cols {
                             return Err(ValueErrors::SizeMismatch(
-                                mask.len().to_string(),
+                                mask.len()
+                                    .to_string(),
                                 cols.to_string(),
                             ));
                         }
-                        (0..cols).filter(|&i| mask[i]).collect()
+                        (0..cols)
+                            .filter(|&i| mask[i])
+                            .collect()
                     }
                 };
 
                 // Single Element Case
                 if row_indices.len() == 1 && col_indices.len() == 1 {
-                    return Ok(Value::f64(m[(row_indices[0], col_indices[0])]));
+                    return Ok(Value::f64(
+                        m[(row_indices[0], col_indices[0])],
+                    ));
                 }
 
                 // Single Row or Column Case (Returns a Vector)
                 if row_indices.len() == 1 {
                     let row = m.row(row_indices[0]);
-                    return Ok(Value::Vector(Arc::new(Mutex::new(
-                        DVector::from_vec(col_indices.iter().map(|&c| row[c]).collect()),
-                    ))));
+                    return Ok(Value::Vector(Arc::new(
+                        Mutex::new(DVector::from_vec(
+                            col_indices
+                                .iter()
+                                .map(|&c| row[c])
+                                .collect(),
+                        )),
+                    )));
                 }
                 if col_indices.len() == 1 {
                     let col = m.column(col_indices[0]);
-                    return Ok(Value::Vector(Arc::new(Mutex::new(
-                        DVector::from_vec(row_indices.iter().map(|&r| col[r]).collect()),
-                    ))));
+                    return Ok(Value::Vector(Arc::new(
+                        Mutex::new(DVector::from_vec(
+                            row_indices
+                                .iter()
+                                .map(|&r| col[r])
+                                .collect(),
+                        )),
+                    )));
                 }
 
                 // General Case (Returns a Submatrix)
@@ -1174,46 +1608,71 @@ impl Value {
                     col_indices.len(),
                     submatrix_data,
                 );
-                Ok(Value::Matrix(Arc::new(Mutex::new(submatrix))))
+                Ok(Value::Matrix(Arc::new(
+                    Mutex::new(submatrix),
+                )))
             }
-            _ => Err(ValueErrors::CannotIndexType(self.to_string())),
+            _ => Err(ValueErrors::CannotIndexType(
+                self.to_string(),
+            )),
         }
     }
 
     pub fn try_vector_index(&self, index: IndexStyle) -> Result<Value, ValueErrors> {
         match self {
             Value::Vector(v) => {
-                let v = &*v.lock().unwrap();
+                let v = &*v
+                    .lock()
+                    .unwrap();
                 match index {
-                    IndexStyle::All => Ok(Value::Vector(Arc::new(Mutex::new(v.clone())))),
+                    IndexStyle::All => Ok(Value::Vector(Arc::new(
+                        Mutex::new(v.clone()),
+                    ))),
                     IndexStyle::Range(r) => {
-                        let start = r.start.unwrap_or(0);
-                        let stop = r.stop.unwrap_or(v.len());
+                        let start = r
+                            .start
+                            .unwrap_or(0);
+                        let stop = r
+                            .stop
+                            .unwrap_or(v.len());
 
                         if stop > v.len() {
-                            return Err(ValueErrors::OutOfBoundsIndex(stop, v.len()));
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                stop,
+                                v.len(),
+                            ));
                         }
                         // Generate row indices based on step size
                         let v2 = if let Some(step) = r.step {
-                            let indices: Vec<usize> = (start..stop).step_by(step).collect();
+                            let indices: Vec<usize> = (start..stop)
+                                .step_by(step)
+                                .collect();
                             v.select_rows(&indices) // Efficiently selects stepped elements
                         } else {
-                            v.rows(start, stop - start).into() // Standard range without stepping
+                            v.rows(start, stop - start)
+                                .into() // Standard range without stepping
                         };
 
-                        Ok(Value::Vector(Arc::new(Mutex::new(v2))))
+                        Ok(Value::Vector(Arc::new(
+                            Mutex::new(v2),
+                        )))
                     }
                     IndexStyle::Usize(u) => {
                         if u > v.len() {
-                            return Err(ValueErrors::OutOfBoundsIndex(u, v.len()));
+                            return Err(ValueErrors::OutOfBoundsIndex(
+                                u,
+                                v.len(),
+                            ));
                         }
                         Ok(Value::f64(v[u]))
                     }
                     IndexStyle::VecBool(vb) => {
                         if vb.len() != v.len() {
                             return Err(ValueErrors::SizeMismatch(
-                                vb.len().to_string(),
-                                v.len().to_string(),
+                                vb.len()
+                                    .to_string(),
+                                v.len()
+                                    .to_string(),
                             ));
                         }
                         let mut v2 = Vec::new();
@@ -1222,9 +1681,9 @@ impl Value {
                                 v2.push(v[i]);
                             }
                         }
-                        Ok(Value::Vector(Arc::new(Mutex::new(
-                            DVector::from(v2),
-                        ))))
+                        Ok(Value::Vector(Arc::new(
+                            Mutex::new(DVector::from(v2)),
+                        )))
                     }
                     IndexStyle::VecUsize(vu) => {
                         let mut v2 = Vec::new();
@@ -1233,17 +1692,21 @@ impl Value {
                             if vu[i] < vl {
                                 v2.push(v[vu[i]]);
                             } else {
-                                return Err(ValueErrors::OutOfBoundsIndex(vu[i], vl));
+                                return Err(ValueErrors::OutOfBoundsIndex(
+                                    vu[i], vl,
+                                ));
                             }
                         }
 
-                        Ok(Value::Vector(Arc::new(Mutex::new(
-                            DVector::from(v2),
-                        ))))
+                        Ok(Value::Vector(Arc::new(
+                            Mutex::new(DVector::from(v2)),
+                        )))
                     }
                 }
             }
-            _ => Err(ValueErrors::CannotIndexType(self.to_string())),
+            _ => Err(ValueErrors::CannotIndexType(
+                self.to_string(),
+            )),
         }
     }
 }
@@ -1308,7 +1771,11 @@ impl Linspace {
         let mut v = Vec::with_capacity(n);
         v.push(self.start);
         for _ in 1..=n {
-            v.push(v.last().unwrap() + self.step);
+            v.push(
+                v.last()
+                    .unwrap()
+                    + self.step,
+            );
         }
         // add an extra point if we didn't quite make it to stop
         if v[n] < self.stop {
@@ -1331,6 +1798,7 @@ impl Map {
     }
 
     pub fn insert(&mut self, key: String, value: Value) {
-        self.0.insert(key, value);
+        self.0
+            .insert(key, value);
     }
 }

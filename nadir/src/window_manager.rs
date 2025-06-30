@@ -1,3 +1,7 @@
+use crate::{
+    DaemonToRepl, ReplToSubscription,
+    animation::{AnimationMessage, AnimationProgram},
+};
 use iced::{
     Element, Length, Point, Size, Subscription, Task, Vector,
     futures::{
@@ -12,18 +16,13 @@ use iced::{
     widget::{canvas, center, column},
     window::{self, Id, icon},
 };
+use plotting::{Message as PlotMessage, PlotProgram, figure::Figure};
 use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 use uuid::Uuid;
-
-use crate::{
-    DaemonToRepl, ReplToSubscription,
-    animation::{AnimationMessage, AnimationProgram},
-    plotting::{PlotMessage, PlotProgram, figure::Figure},
-};
 
 struct WindowManagerChannels {
     daemon_to_repl: Sender<DaemonToRepl>,
@@ -67,6 +66,12 @@ pub enum Message {
     WindowUnFocused(Id),
 }
 
+impl From<PlotMessage> for Message {
+    fn from(value: PlotMessage) -> Self {
+        Self::PlotMessage(value)
+    }
+}
+
 impl WindowManager {
     pub fn new(daemon_to_repl: Sender<DaemonToRepl>) -> (Self, Task<Message>) {
         (
@@ -84,7 +89,10 @@ impl WindowManager {
         match message {
             Message::AnimationMessage(message) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.process_animation_message(message);
                     }
                 }
@@ -92,22 +100,36 @@ impl WindowManager {
             }
             Message::AnimationTick(instant) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.animation_tick(&instant);
                     }
                 }
                 Task::none()
             }
             Message::CancelRequest(request_id) => {
-                self.window_requests.lock().unwrap().remove(&request_id);
+                self.window_requests
+                    .lock()
+                    .unwrap()
+                    .remove(&request_id);
                 Task::none()
             }
             Message::CheckRequestReady(request_id) => {
                 // First just check status without removing
                 let ready = {
-                    let window_requests = self.window_requests.lock().unwrap();
+                    let window_requests = self
+                        .window_requests
+                        .lock()
+                        .unwrap();
                     if let Some(request) = window_requests.get(&request_id) {
-                        request.id.is_some() && request.program.is_some()
+                        request
+                            .id
+                            .is_some()
+                            && request
+                                .program
+                                .is_some()
                     } else {
                         false
                     }
@@ -115,25 +137,37 @@ impl WindowManager {
 
                 if ready {
                     // Now we know it's ready, remove it and process
-                    let mut window_requests = self.window_requests.lock().unwrap();
+                    let mut window_requests = self
+                        .window_requests
+                        .lock()
+                        .unwrap();
                     if let Some(mut window_request) = window_requests.remove(&request_id) {
                         // These unwraps are safe because we already checked above
-                        let id = window_request.id.unwrap();
-                        let program = window_request.program.take().unwrap();
+                        let id = window_request
+                            .id
+                            .unwrap();
+                        let program = window_request
+                            .program
+                            .take()
+                            .unwrap();
 
                         let mut window = NadirWindow::new(id, program);
                         match &mut window.program {
                             NadirProgram::Animation(animation) => animation.set_window_id(id),
                             NadirProgram::Plot(plot) => plot.set_window_id(id),
                         }
-                        self.windows.insert(id, window);
+                        self.windows
+                            .insert(id, window);
                     }
                 }
 
                 Task::none()
             }
             Message::ClearCache(id) => {
-                if let Some(window) = self.windows.get_mut(&id) {
+                if let Some(window) = self
+                    .windows
+                    .get_mut(&id)
+                {
                     match &mut window.program {
                         NadirProgram::Animation(_) => {
                             unreachable!("animation program should not send clear cache message")
@@ -146,7 +180,10 @@ impl WindowManager {
 
             Message::CloseAllFigures => {
                 // If no windows are open, just return a no-op task
-                if self.windows.is_empty() {
+                if self
+                    .windows
+                    .is_empty()
+                {
                     return Task::none();
                 }
 
@@ -168,14 +205,20 @@ impl WindowManager {
             }
             Message::CursorMoved(point) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.cursor_moved(point);
                     }
                 }
                 Task::none()
             }
             Message::EscapePressed(id) => {
-                if let Some(window) = self.windows.get_mut(&id) {
+                if let Some(window) = self
+                    .windows
+                    .get_mut(&id)
+                {
                     window.escape_pressed();
                 }
                 Task::none()
@@ -183,24 +226,38 @@ impl WindowManager {
             Message::LoadAnimation(request_id, result_path) => {
                 match AnimationProgram::new(result_path) {
                     Ok(animation) => {
-                        if let Some(request) =
-                            self.window_requests.lock().unwrap().get_mut(&request_id)
+                        if let Some(request) = self
+                            .window_requests
+                            .lock()
+                            .unwrap()
+                            .get_mut(&request_id)
                         {
-                            request.program = Some(NadirProgram::Animation(animation));
-                            Task::done(Message::CheckRequestReady(request_id))
+                            request.program = Some(NadirProgram::Animation(
+                                animation,
+                            ));
+                            Task::done(Message::CheckRequestReady(
+                                request_id,
+                            ))
                         } else {
-                            Task::done(Message::CancelRequest(request_id)) //Todo maybe this doesnt make sense since we didnt find the request id?
+                            Task::done(Message::CancelRequest(
+                                request_id,
+                            )) //Todo maybe this doesnt make sense since we didnt find the request id?
                         }
                     }
                     Err(e) => {
                         eprintln!("{e}");
-                        Task::done(Message::CancelRequest(request_id))
+                        Task::done(Message::CancelRequest(
+                            request_id,
+                        ))
                     }
                 }
             }
             Message::MouseMiddlePressed(point) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.mouse_middle_pressed(point);
                     }
                 }
@@ -208,7 +265,10 @@ impl WindowManager {
             }
             Message::MouseMiddleReleased(point) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.mouse_middle_released(point);
                     }
                 }
@@ -219,36 +279,59 @@ impl WindowManager {
                 self.window_requests
                     .lock()
                     .unwrap()
-                    .insert(request_id, NadirWindowRequest::default());
+                    .insert(
+                        request_id,
+                        NadirWindowRequest::default(),
+                    );
 
                 Task::batch([
-                    Task::done(Message::LoadAnimation(request_id, result_path)),
-                    Task::done(Message::OpenWindow(request_id, Size::new(1280.0, 720.0))),
+                    Task::done(Message::LoadAnimation(
+                        request_id,
+                        result_path,
+                    )),
+                    Task::done(Message::OpenWindow(
+                        request_id,
+                        Size::new(1280.0, 720.0),
+                    )),
                 ])
             }
             Message::NewFigure(plot) => {
                 let request_id = Uuid::new_v4();
                 let mut window_request = NadirWindowRequest::default();
-                window_request.program = Some(NadirProgram::Plot(PlotProgram::new(plot)));
+                window_request.program = Some(NadirProgram::Plot(
+                    PlotProgram::new(plot),
+                ));
                 self.window_requests
                     .lock()
                     .unwrap()
                     .insert(request_id, window_request);
 
-                Task::done(Message::OpenWindow(request_id, Size::new(720.0, 480.0)))
+                Task::done(Message::OpenWindow(
+                    request_id,
+                    Size::new(720.0, 480.0),
+                ))
             }
             Message::OpenWindow(request_id, size) => {
                 // Create a task that will open a window
-                let position = if let Some(last_window) = self.windows.keys().last() {
+                let position = if let Some(last_window) = self
+                    .windows
+                    .keys()
+                    .last()
+                {
                     // If we have a previous window, position relative to it
                     window::get_position(*last_window).map(|maybe_position| {
-                        maybe_position.map_or(window::Position::Default, |last_position| {
-                            window::Position::Specific(last_position + Vector::new(20.0, 20.0))
-                        })
+                        maybe_position.map_or(
+                            window::Position::Default,
+                            |last_position| {
+                                window::Position::Specific(last_position + Vector::new(20.0, 20.0))
+                            },
+                        )
                     })
                 } else {
                     // No previous window, use default position
-                    Task::perform(async {}, |_| window::Position::Default)
+                    Task::perform(async {}, |_| {
+                        window::Position::Default
+                    })
                 };
                 // Chain the window opening after we determine the position
                 position
@@ -261,10 +344,19 @@ impl WindowManager {
                                 .into_rgba8();
 
                             let (width, height) = image.dimensions();
-                            (image.into_raw(), width, height)
+                            (
+                                image.into_raw(),
+                                width,
+                                height,
+                            )
                         };
 
-                        let icon = icon::from_rgba(icon_rgba, icon_width, icon_height).unwrap();
+                        let icon = icon::from_rgba(
+                            icon_rgba,
+                            icon_width,
+                            icon_height,
+                        )
+                        .unwrap();
 
                         let (_id, open) = window::open(window::Settings {
                             position,
@@ -274,11 +366,18 @@ impl WindowManager {
                         });
                         open
                     })
-                    .then(move |id| Task::done(Message::WindowOpened(request_id, id)))
+                    .then(move |id| {
+                        Task::done(Message::WindowOpened(
+                            request_id, id,
+                        ))
+                    })
             }
             Message::PlotMessage(message) => {
                 if let Some(id) = &self.active_window {
-                    if let Some(window) = self.windows.get_mut(id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(id)
+                    {
                         window.process_plot_message(message);
                     }
                 }
@@ -299,7 +398,10 @@ impl WindowManager {
             Message::RightButtonReleased(_id, _point) => Task::none(),
             Message::WheelScrolled(point, scroll_delta) => {
                 if let Some(active_id) = self.active_window {
-                    if let Some(window) = self.windows.get_mut(&active_id) {
+                    if let Some(window) = self
+                        .windows
+                        .get_mut(&active_id)
+                    {
                         window.wheel_scolled(point, scroll_delta);
                     }
                 }
@@ -307,16 +409,26 @@ impl WindowManager {
                 Task::none()
             }
             Message::WindowOpened(request_id, id) => {
-                if let Some(request) = self.window_requests.lock().unwrap().get_mut(&request_id) {
+                if let Some(request) = self
+                    .window_requests
+                    .lock()
+                    .unwrap()
+                    .get_mut(&request_id)
+                {
                     request.id = Some(id);
                     self.active_window = Some(id);
-                    Task::done(Message::CheckRequestReady(request_id))
+                    Task::done(Message::CheckRequestReady(
+                        request_id,
+                    ))
                 } else {
-                    Task::done(Message::CancelRequest(request_id))
+                    Task::done(Message::CancelRequest(
+                        request_id,
+                    ))
                 }
             }
             Message::WindowClosed(id) => {
-                self.windows.remove(&id);
+                self.windows
+                    .remove(&id);
                 Task::none()
             }
             Message::WindowFocused(id) => {
@@ -324,7 +436,10 @@ impl WindowManager {
                 Task::none()
             }
             Message::WindowResized(id, size) => {
-                if let Some(window) = self.windows.get_mut(&id) {
+                if let Some(window) = self
+                    .windows
+                    .get_mut(&id)
+                {
                     match &mut window.program {
                         NadirProgram::Animation(animation) => animation.window_resized(size), // window events handled inside the animation program
                         NadirProgram::Plot(plot) => plot.window_resized(size),
@@ -344,7 +459,10 @@ impl WindowManager {
     }
 
     pub fn view(&self, window_id: window::Id) -> Element<Message> {
-        if let Some(window) = self.windows.get(&window_id) {
+        if let Some(window) = self
+            .windows
+            .get(&window_id)
+        {
             center(window.view()).into()
         } else {
             // not sure why we get into this, view outpacing the storage into self.windows?
@@ -358,7 +476,9 @@ impl WindowManager {
                 window::Event::Closed => Some(Message::WindowClosed(id)),
                 window::Event::Focused => Some(Message::WindowFocused(id)),
                 window::Event::Unfocused => Some(Message::WindowUnFocused(id)),
-                window::Event::Resized(size) => Some(Message::WindowResized(id, size)),
+                window::Event::Resized(size) => Some(Message::WindowResized(
+                    id, size,
+                )),
                 _ => None,
             },
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. }) => match key {
@@ -376,7 +496,11 @@ impl WindowManager {
         let plot_commands = Subscription::run(plot_subscription);
 
         // Combine both subscriptions
-        Subscription::batch(vec![iced_events, plot_commands, animation_tick])
+        Subscription::batch(vec![
+            iced_events,
+            plot_commands,
+            animation_tick,
+        ])
     }
 
     pub fn title(&self, id: window::Id) -> String {
@@ -395,17 +519,24 @@ fn plot_subscription() -> impl Stream<Item = Message> {
 
         // Send the sender back to the application
         output
-            .send(Message::ReplToSubscription(repl_to_subscription_tx))
+            .send(Message::ReplToSubscription(
+                repl_to_subscription_tx,
+            ))
             .await
             .expect("error sending subscription tx to repl");
 
         loop {
             // read from repl
-            if let Some(input) = repl_to_subscription_rx.next().await {
+            if let Some(input) = repl_to_subscription_rx
+                .next()
+                .await
+            {
                 match input {
                     ReplToSubscription::Animate(result_path) => {
                         output
-                            .send(Message::NewAnimation(result_path))
+                            .send(Message::NewAnimation(
+                                result_path,
+                            ))
                             .await
                             .expect("error sending Animate from subscription to daemon");
                     }
@@ -518,9 +649,12 @@ impl NadirWindow {
     fn view(&self) -> Element<Message> {
         match &self.program {
             NadirProgram::Animation(animation) => animation.content(),
-            NadirProgram::Plot(plot) => {
-                column![canvas(plot).height(Length::Fill).width(Length::Fill)].into()
-            }
+            NadirProgram::Plot(plot) => column![
+                canvas(plot)
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+            ]
+            .into(),
         }
     }
 

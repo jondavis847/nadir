@@ -3450,6 +3450,7 @@ dependencies = [
  "nalgebra",
  "pest",
  "pest_derive",
+ "plotting",
  "rand 0.9.0",
  "rand_distr",
  "ron",
@@ -4529,6 +4530,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670"
 dependencies = [
  "plotters-backend",
+]
+
+[[package]]
+name = "plotting"
+version = "0.0.1"
+dependencies = [
+ "iced",
+ "image 0.25.6",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

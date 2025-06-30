@@ -23,6 +23,7 @@ nadir_3d.workspace = true
 nalgebra.workspace = true
 pest.workspace = true
 pest_derive.workspace = true
+plotting.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
 ron.workspace = true

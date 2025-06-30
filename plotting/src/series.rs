@@ -1,7 +1,5 @@
-use iced::Point;
-use nalgebra::DVector;
-
 use super::PlotErrors;
+use iced::Point;
 
 #[derive(Debug, Clone)]
 pub struct Series {
@@ -15,34 +13,43 @@ pub struct Series {
 }
 
 impl Series {
-    pub fn new(xdata: &DVector<f64>, ydata: &DVector<f64>) -> Result<Self, PlotErrors> {
+    pub fn new(xdata: &[f64], ydata: &[f64]) -> Result<Self, PlotErrors> {
         if xdata.len() != ydata.len() {
             return Err(PlotErrors::DataSizeMismatch);
         }
 
-        let xmin = xdata.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let xmax = xdata.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-        let ymin = ydata.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let ymax = ydata.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        let xmin = xdata
+            .iter()
+            .fold(f64::INFINITY, |a, &b| {
+                a.min(b)
+            });
+        let xmax = xdata
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, &b| {
+                a.max(b)
+            });
+        let ymin = ydata
+            .iter()
+            .fold(f64::INFINITY, |a, &b| {
+                a.min(b)
+            });
+        let ymax = ydata
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, &b| {
+                a.max(b)
+            });
 
         let points = xdata
             .iter()
             .zip(ydata.into_iter())
             .map(|(x, y)| PlotPoint::new(*x, *y))
             .collect();
-        Ok(Self {
-            xname: None,
-            yname: None,
-            points,
-            xmin,
-            xmax,
-            ymin,
-            ymax,
-        })
+        Ok(Self { xname: None, yname: None, points, xmin, xmax, ymin, ymax })
     }
 
     pub fn len(&self) -> usize {
-        self.points.len()
+        self.points
+            .len()
     }
     pub fn set_x_name(&mut self, name: String) {
         self.xname = Some(name);
