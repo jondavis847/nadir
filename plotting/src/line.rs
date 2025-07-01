@@ -22,7 +22,7 @@ pub struct Line {
 impl Line {
     pub fn new(xdata: &[f64], ydata: &[f64]) -> Result<Self, PlotErrors> {
         let data = Series::new(xdata, ydata)?;
-        Ok(Self { data, color: None, legend: true, width: 1.0 })
+        Ok(Self { data, color: None, legend: true, width: 1.5 })
     }
 
     pub fn delete_xname(&mut self) {
@@ -91,6 +91,18 @@ impl Line {
     ) {
         let mut path = Builder::new();
         let mut last_inbounds = false;
+        let mut path_started = false;
+
+        // Handle the case when all points are outside but line crosses visible area
+        if self
+            .data
+            .points
+            .len()
+            < 2
+        {
+            return; // Nothing to draw
+        }
+
         for i in 0..self
             .data
             .points
@@ -99,23 +111,30 @@ impl Line {
             let plotpoint = &self
                 .data
                 .points[i];
+            let current_inbounds = point_in_bounds_inclusive(
+                plotpoint.canvas_position,
+                axis_bounds,
+            );
+
             if i == 0 {
-                // find the first point in bounds
-                if axis_bounds.contains(plotpoint.canvas_position) {
+                // Handle the first point
+                if current_inbounds {
                     path.move_to(plotpoint.canvas_position);
+                    path_started = true;
                     last_inbounds = true;
                 }
+                // Don't skip first point if out of bounds - we'll need it for intersection
             } else {
-                // handle the rest of the points after first
-                let current_inbounds = axis_bounds.contains(plotpoint.canvas_position);
+                // Handle all subsequent points
+                let lastpoint = &self
+                    .data
+                    .points[i - 1];
 
                 if last_inbounds && current_inbounds {
-                    path.line_to(plotpoint.canvas_position)
+                    // Simple case: both points in bounds
+                    path.line_to(plotpoint.canvas_position);
                 } else {
-                    // we'll need to find intersections
-                    let lastpoint = &self
-                        .data
-                        .points[i - 1];
+                    // At least one point is out of bounds
                     let boundary_points = calculate_boundary_points(
                         lastpoint.canvas_position,
                         plotpoint.canvas_position,
@@ -123,28 +142,79 @@ impl Line {
                     );
 
                     match boundary_points {
-                        None => {} // no intersections, continue
-                        Some((first, None)) => {
-                            // one intersection
+                        None => {
+                            // No intersections with bounds
+                            // If both points are outside but on different sides, we might need to draw
+                            // through the visible area
+                        }
+                        Some((entry_point, None)) => {
                             if last_inbounds && !current_inbounds {
-                                // was in but is now out, draw line to boundary
-                                path.line_to(first);
-                                last_inbounds = false;
-                            }
-                            if !last_inbounds && current_inbounds {
-                                // was out but is now in, draw line from boundary
-                                path.move_to(first);
+                                // Going from inside to outside
+                                path.line_to(entry_point);
+                            } else if !last_inbounds && current_inbounds {
+                                // Going from outside to inside
+                                if !path_started {
+                                    path.move_to(entry_point);
+                                    path_started = true;
+                                } else {
+                                    path.move_to(entry_point);
+                                }
                                 path.line_to(plotpoint.canvas_position);
-                                last_inbounds = true;
                             }
                         }
-                        Some((first, Some(second))) => {
-                            // intersected twice
-                            path.move_to(first);
-                            path.line_to(second);
-                            last_inbounds = false;
+                        Some((entry_point, Some(exit_point))) => {
+                            // Line crosses through the bounds
+                            if !path_started {
+                                path.move_to(entry_point);
+                                path_started = true;
+                            } else {
+                                path.move_to(entry_point);
+                            }
+                            path.line_to(exit_point);
                         }
                     }
+                }
+
+                last_inbounds = current_inbounds;
+            }
+        }
+
+        // Special case for last point being out of bounds but line extends to edge
+        if !last_inbounds
+            && self
+                .data
+                .points
+                .len()
+                >= 2
+        {
+            let last_idx = self
+                .data
+                .points
+                .len()
+                - 1;
+            let lastpoint = &self
+                .data
+                .points[last_idx - 1];
+            let endpoint = &self
+                .data
+                .points[last_idx];
+
+            // Check if the line between the last two points intersects any boundary
+            let boundary_points = calculate_boundary_points(
+                lastpoint.canvas_position,
+                endpoint.canvas_position,
+                axis_bounds,
+            );
+
+            if let Some((entry_point, _)) = boundary_points {
+                // Only draw if the last visible point was the entry point
+                // (meaning the line was exiting the visible area)
+                if lastpoint
+                    .canvas_position
+                    .x
+                    < entry_point.x
+                {
+                    path.line_to(entry_point);
                 }
             }
         }
@@ -199,6 +269,14 @@ enum Boundary {
     Left,
     Right,
     Top,
+}
+
+// Helper function to check if point is in bounds (inclusive of all edges) since bounds.contains is exclusive
+fn point_in_bounds_inclusive(point: Point, bounds: &Rectangle) -> bool {
+    point.x >= bounds.x
+        && point.x <= bounds.x + bounds.width
+        && point.y >= bounds.y
+        && point.y <= bounds.y + bounds.height
 }
 
 /// Calculates the intersection points of a line segment with a rectangle boundary.

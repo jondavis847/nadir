@@ -218,7 +218,38 @@ impl Axes {
         self.cursor_position = point;
 
         if let Some(start) = self.click_start {
-            let delta = point - start;
+            // Clamp the current point to axis bounds
+            let clamped_point = Point::new(
+                point
+                    .x
+                    .clamp(
+                        self.axis
+                            .bounds
+                            .x,
+                        self.axis
+                            .bounds
+                            .x
+                            + self
+                                .axis
+                                .bounds
+                                .width,
+                    ),
+                point
+                    .y
+                    .clamp(
+                        self.axis
+                            .bounds
+                            .y,
+                        self.axis
+                            .bounds
+                            .y
+                            + self
+                                .axis
+                                .bounds
+                                .height,
+                    ),
+            );
+            let delta = clamped_point - start;
             match (
                 delta
                     .x
@@ -393,104 +424,99 @@ impl Axes {
         }
     }
 
-    pub fn mouse_left_released(&mut self, point: Point) {
-        if self
-            .axis
-            .bounds
-            .contains(point)
-        {
-            if let Some(zoom_rectangle) = &self.zoom_rectangle {
-                let sx_start = (zoom_rectangle.x
-                    - self
-                        .axis
-                        .bounds
-                        .x)
-                    / self
-                        .axis
-                        .bounds
-                        .width;
-                let sx_end = (zoom_rectangle.x + zoom_rectangle.width
-                    - self
-                        .axis
-                        .bounds
-                        .x)
-                    / self
-                        .axis
-                        .bounds
-                        .width;
-
-                let new_xlim_0 = sx_start
-                    * (self
-                        .xlim
-                        .1
-                        - self
-                            .xlim
-                            .0)
-                    + self
-                        .xlim
-                        .0;
-                let new_xlim_1 = sx_end
-                    * (self
-                        .xlim
-                        .1
-                        - self
-                            .xlim
-                            .0)
-                    + self
-                        .xlim
-                        .0;
-                self.xlim = (new_xlim_0, new_xlim_1);
-
-                let sy_start = (self
+    pub fn mouse_left_released(&mut self, _point: Point) {
+        if let Some(zoom_rectangle) = &self.zoom_rectangle {
+            let sx_start = (zoom_rectangle.x
+                - self
                     .axis
                     .bounds
-                    .y
-                    + self
-                        .axis
-                        .bounds
-                        .height
-                    - (zoom_rectangle.y + zoom_rectangle.height))
-                    / self
-                        .axis
-                        .bounds
-                        .height;
-                let sy_end = (self
+                    .x)
+                / self
                     .axis
                     .bounds
-                    .y
-                    + self
-                        .axis
-                        .bounds
-                        .height
-                    - zoom_rectangle.y)
-                    / self
-                        .axis
-                        .bounds
-                        .height;
+                    .width;
+            let sx_end = (zoom_rectangle.x + zoom_rectangle.width
+                - self
+                    .axis
+                    .bounds
+                    .x)
+                / self
+                    .axis
+                    .bounds
+                    .width;
 
-                let new_ylim_0 = sy_start
-                    * (self
+            let new_xlim_0 = sx_start
+                * (self
+                    .xlim
+                    .1
+                    - self
+                        .xlim
+                        .0)
+                + self
+                    .xlim
+                    .0;
+            let new_xlim_1 = sx_end
+                * (self
+                    .xlim
+                    .1
+                    - self
+                        .xlim
+                        .0)
+                + self
+                    .xlim
+                    .0;
+            self.xlim = (new_xlim_0, new_xlim_1);
+
+            let sy_start = (self
+                .axis
+                .bounds
+                .y
+                + self
+                    .axis
+                    .bounds
+                    .height
+                - (zoom_rectangle.y + zoom_rectangle.height))
+                / self
+                    .axis
+                    .bounds
+                    .height;
+            let sy_end = (self
+                .axis
+                .bounds
+                .y
+                + self
+                    .axis
+                    .bounds
+                    .height
+                - zoom_rectangle.y)
+                / self
+                    .axis
+                    .bounds
+                    .height;
+
+            let new_ylim_0 = sy_start
+                * (self
+                    .ylim
+                    .1
+                    - self
                         .ylim
-                        .1
-                        - self
-                            .ylim
-                            .0)
-                    + self
+                        .0)
+                + self
+                    .ylim
+                    .0;
+            let new_ylim_1 = sy_end
+                * (self
+                    .ylim
+                    .1
+                    - self
                         .ylim
-                        .0;
-                let new_ylim_1 = sy_end
-                    * (self
-                        .ylim
-                        .1
-                        - self
-                            .ylim
-                            .0)
-                    + self
-                        .ylim
-                        .0;
-                self.ylim = (new_ylim_0, new_ylim_1);
-            }
+                        .0)
+                + self
+                    .ylim
+                    .0;
+            self.ylim = (new_ylim_0, new_ylim_1);
         }
+
         if self.is_selecting {
             for line in &self.lines {
                 let mut line = line
