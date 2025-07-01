@@ -13,10 +13,14 @@ use uncertainty::Uncertainty;
 
 use crate::{
     BufferError, HardwareBuffer,
+    actuator::magnetic_torquer_bar::{
+        MagneticTorquer, MagneticTorquerBuilder, MagneticTorquerErrors,
+    },
     body::{BodyConnection, BodyConnectionBuilder},
     system::Id,
 };
 
+pub mod magnetic_torquer_bar;
 pub mod reaction_wheel;
 pub mod thruster;
 
@@ -67,6 +71,8 @@ pub enum ActuatorErrors {
     AlreadyConnectedToThisBody(String),
     #[error("{0}")]
     BufferError(#[from] BufferError),
+    #[error("{0}")]
+    MagneticTorquerErrors(#[from] MagneticTorquerErrors),
     #[error("{0}")]
     ReactionWheelErrors(#[from] ReactionWheelErrors),
     #[error("{0}")]
@@ -160,6 +166,7 @@ impl Actuator {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ActuatorModelBuilders {
+    MagneticTorquer(MagneticTorquerBuilder),
     ReactionWheel(ReactionWheelBuilder),
     Thruster(ThrusterBuilder),
 }
@@ -171,6 +178,9 @@ impl ActuatorModelBuilders {
         rng: &mut SmallRng,
     ) -> Result<ActuatorModels, ActuatorErrors> {
         match self {
+            ActuatorModelBuilders::MagneticTorquer(builder) => {
+                Ok(ActuatorModels::MagneticTorquer(builder.sample(nominal, rng)?))
+            }
             ActuatorModelBuilders::ReactionWheel(builder) => Ok(ActuatorModels::ReactionWheel(
                 builder.sample(nominal, rng)?,
             )),
@@ -178,6 +188,12 @@ impl ActuatorModelBuilders {
                 builder.sample(nominal, rng)?,
             )),
         }
+    }
+}
+
+impl From<MagneticTorquerBuilder> for ActuatorModelBuilders {
+    fn from(builder: MagneticTorquerBuilder) -> Self {
+        ActuatorModelBuilders::MagneticTorquer(builder)
     }
 }
 
@@ -195,6 +211,7 @@ impl From<ThrusterBuilder> for ActuatorModelBuilders {
 
 #[derive(Debug)]
 pub enum ActuatorModels {
+    MagneticTorquer(MagneticTorquer),
     ReactionWheel(ReactionWheel),
     Thruster(Thruster),
 }
@@ -202,6 +219,7 @@ pub enum ActuatorModels {
 impl ActuatorModel for ActuatorModels {
     fn writer_save_fn(&self, writer: &mut StateWriter) {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.writer_save_fn(writer),
             ActuatorModels::ReactionWheel(act) => act.writer_save_fn(writer),
             ActuatorModels::Thruster(act) => act.writer_save_fn(writer),
         }
@@ -209,6 +227,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn writer_headers(&self) -> &[&str] {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.writer_headers(),
             ActuatorModels::ReactionWheel(act) => act.writer_headers(),
             ActuatorModels::Thruster(act) => act.writer_headers(),
         }
@@ -216,6 +235,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn state_derivative(&self, derivative: &mut [f64]) {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.state_derivative(derivative),
             ActuatorModels::ReactionWheel(act) => act.state_derivative(derivative),
             ActuatorModels::Thruster(act) => act.state_derivative(derivative),
         }
@@ -223,6 +243,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn state_vector_init(&self) -> StateVector {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.state_vector_init(),
             ActuatorModels::ReactionWheel(act) => act.state_vector_init(),
             ActuatorModels::Thruster(act) => act.state_vector_init(),
         }
@@ -230,6 +251,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn state_vector_read(&mut self, state: &[f64]) {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.state_vector_read(state),
             ActuatorModels::ReactionWheel(act) => act.state_vector_read(state),
             ActuatorModels::Thruster(act) => act.state_vector_read(state),
         }
@@ -237,6 +259,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.update(connection),
             ActuatorModels::ReactionWheel(act) => act.update(connection),
             ActuatorModels::Thruster(act) => act.update(connection),
         }
@@ -244,6 +267,7 @@ impl ActuatorModel for ActuatorModels {
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
         match self {
+            ActuatorModels::MagneticTorquer(act) => act.read_command(cmd),
             ActuatorModels::ReactionWheel(act) => act.read_command(cmd),
             ActuatorModels::Thruster(act) => act.read_command(cmd),
         }
