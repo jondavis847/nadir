@@ -26,7 +26,7 @@ pub mod legend;
 pub mod line;
 mod note_bar;
 pub mod series;
-mod theme;
+pub mod theme;
 mod title_bar;
 
 #[derive(Debug, Error)]

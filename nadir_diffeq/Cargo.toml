@@ -15,7 +15,4 @@ tolerance.workspace = true
 uncertainty.workspace = true
 
 [dev-dependencies]
-image.workspace = true
-plotters.workspace = true
-show-image.workspace = true
-
+plotting.workspace = true

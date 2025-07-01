@@ -5,6 +5,7 @@ use nadir_diffeq::{
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
+use plotting::{QuickPlot, figure::Figure, line::Line};
 use std::error::Error;
 
 #[derive(Debug, Clone)]
@@ -36,12 +37,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x0 = StateArray::new([1.0, 0.0, 0.0]);
     let solver = OdeSolver::new(RungeKuttaMethods::Tsit5.into());
 
-    solver.solve_adaptive(
-        problem,
-        x0,
-        (0.0, 10000.0),
-        AdaptiveStepControl::default(),
-    )?;
+    let result = solver
+        .solve_adaptive(
+            problem,
+            x0,
+            (0.0, 100.0),
+            AdaptiveStepControl::default(),
+        )?
+        .unwrap();
+
+    let mut f = Figure::new();
+    let a = f.get_axes(0)?;
+    let y: Vec<f64> = result
+        .y
+        .iter()
+        .map(|x| x[0])
+        .collect();
+
+    a.add_line(Line::new(&result.t, &y)?);
+
+    QuickPlot::plot(f)?;
 
     Ok(())
 }

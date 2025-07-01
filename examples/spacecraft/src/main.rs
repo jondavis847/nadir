@@ -386,7 +386,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //     AdaptiveStepControl::default(),
     // )?;
 
-    let problem = MonteCarloProblem::new(sys, 10)
+    let problem = MonteCarloProblem::new(sys, 16)
         .with_periodic_event(PeriodicEvent::new(
             0.1,
             0.0,

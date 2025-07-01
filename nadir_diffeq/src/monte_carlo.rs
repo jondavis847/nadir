@@ -1,13 +1,3 @@
-use indicatif::ProgressBar;
-use rand::{Rng, SeedableRng, rngs::SmallRng};
-use rayon::prelude::*;
-use std::clone::Clone;
-
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use std::{error::Error, path::PathBuf};
-use uncertainty::Uncertainty;
-
 use crate::{
     OdeModel, OdeProblem,
     events::{ContinuousEvent, EventManager, PeriodicEvent, PostSimEvent, PreSimEvent, SaveEvent},
@@ -17,6 +7,15 @@ use crate::{
     state::{Adaptive, OdeState},
     stepping::AdaptiveStepControl,
 };
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rayon::prelude::*;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::{clone::Clone, time::Duration};
+use std::{error::Error, path::PathBuf};
+use uncertainty::Uncertainty;
 
 #[derive(Clone, Copy)]
 pub struct MonteCarloSolver {
@@ -66,12 +65,6 @@ impl MonteCarloSolver {
             + Send
             + Sync,
     {
-        use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-        use rand::SeedableRng;
-        use rand::rngs::SmallRng;
-        use rayon::prelude::*;
-        use std::sync::{Arc, Mutex};
-
         // Decide if we're saving results
         let should_save = matches!(
             self.save_method,
@@ -168,6 +161,7 @@ impl MonteCarloSolver {
                             i + 1
                         ));
                         progress_bar.set_length(100); // You may want to adjust this based on your actual work
+                        progress_bar.enable_steady_tick(Duration::from_millis(200));
                     }
 
                     // Each thread gets its own RNG with deterministic seed based on run index
@@ -289,6 +283,7 @@ impl MonteCarloSolver {
                 &OdeSolver,
                 OdeProblem<ModelBuilder::Output, State>,
                 (f64, f64),
+                &mut ProgressBar,
             ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
             + Send
             + Sync,
@@ -306,10 +301,83 @@ impl MonteCarloSolver {
         // Create a reference to the model builder and state builder for use in threads
         let model_builder = &problem.model_builder;
 
+        // Create progress bars
+        let bars = MultiProgress::new();
+
+        // Add overall progress bar at the top
+        let overall_pb = bars.add(ProgressBar::new(
+            problem.nruns as u64,
+        ));
+        overall_pb.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] Monte Carlo: {pos}/{len} [{wide_bar:.cyan/blue}] {percent}% (ETA: {eta})",
+            )
+            .unwrap()
+            .progress_chars("##-"),
+        );
+        overall_pb.set_message("Monte Carlo Simulation");
+
+        let mut pb = Vec::new();
+        let num_threads = rayon::current_num_threads();
+
+        for _ in 0..num_threads {
+            pb.push(Arc::new(Mutex::new(
+                bars.add(
+                    ProgressBar::new(100).with_style(
+                        ProgressStyle::with_template(
+                            "[{elapsed_precise}] Thread: {msg} [{wide_bar:.cyan/blue}] {percent}%",
+                        )
+                        .unwrap()
+                        .progress_chars("##-"),
+                    ),
+                ),
+            )));
+        }
+
+        let bars_in_use = Arc::new(Mutex::new(vec![
+            false;
+            num_threads
+        ]));
+        let completed_runs = Arc::new(AtomicUsize::new(0));
+
         // Process each run in parallel, but sampling occurs on each thread
         let results: Vec<_> = indices
             .into_par_iter()
             .map(move |i| {
+                // Acquire a progress bar
+                let bar_index = {
+                    let mut bars_in_use = bars_in_use
+                        .lock()
+                        .unwrap();
+                    let mut found_index = None;
+                    for (idx, in_use) in bars_in_use
+                        .iter_mut()
+                        .enumerate()
+                    {
+                        if !*in_use {
+                            *in_use = true;
+                            found_index = Some(idx);
+                            break;
+                        }
+                    }
+                    found_index.expect("No progress bar available - this should not happen!")
+                };
+
+                // Use the progress bar
+                let progress_bar = pb[bar_index].clone();
+                let mut progress_bar = progress_bar
+                    .lock()
+                    .unwrap();
+                {
+                    progress_bar.reset();
+                    progress_bar.set_message(format!(
+                        "{} Run: {}",
+                        bar_index,
+                        i + 1
+                    ));
+                    progress_bar.set_length(100); // You may want to adjust this based on your actual work
+                }
+
                 // Each thread gets its own RNG with deterministic seed based on run index
                 let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
 
@@ -337,12 +405,32 @@ impl MonteCarloSolver {
                 }
 
                 // Call the provided solver function
-                let result = solve_fn(&solver, ode_problem, tspan).map_err(|e| {
+                let result = solve_fn(
+                    &solver,
+                    ode_problem,
+                    tspan,
+                    &mut progress_bar,
+                )
+                .map_err(|e| {
                     Box::<dyn Error>::from(format!(
                         "Run {}: Solver error: {:?}",
                         i, e
                     ))
                 })?;
+
+                // Release the progress bar and mark as completed
+                progress_bar.finish();
+
+                let completed = completed_runs.fetch_add(1, Ordering::Relaxed) + 1;
+                overall_pb.set_position(completed as u64);
+
+                // Release the progress bar for next use
+                {
+                    let mut bars_in_use = bars_in_use
+                        .lock()
+                        .unwrap();
+                    bars_in_use[bar_index] = false;
+                }
 
                 // Only return results if we need to save them
                 Ok((
@@ -393,6 +481,7 @@ impl MonteCarloSolver {
                 &OdeSolver,
                 OdeProblem<ModelBuilder::Output, State>,
                 (f64, f64),
+                &mut ProgressBar,
             ) -> Result<Option<MemoryResult<State>>, Box<dyn Error>>
             + Send
             + Sync,
@@ -410,10 +499,84 @@ impl MonteCarloSolver {
         // Create a reference to the model builder and state builder for use in threads
         let model_builder = &problem.model_builder;
 
+        // Create progress bars
+        let bars = MultiProgress::new();
+
+        // Add overall progress bar at the top
+        let overall_pb = bars.add(ProgressBar::new(
+            problem.nruns as u64,
+        ));
+        overall_pb.set_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] Monte Carlo: {pos}/{len} [{wide_bar:.cyan/blue}] {percent}% (ETA: {eta})",
+            )
+            .unwrap()
+            .progress_chars("##-"),
+        );
+        overall_pb.set_message("Monte Carlo Simulation");
+
+        let mut pb = Vec::new();
+        let num_threads = rayon::current_num_threads();
+
+        for _ in 0..num_threads {
+            pb.push(Arc::new(Mutex::new(
+                bars.add(
+                    ProgressBar::new(100).with_style(
+                        ProgressStyle::with_template(
+                            "[{elapsed_precise}] Thread: {msg} [{wide_bar:.cyan/blue}] {percent}%",
+                        )
+                        .unwrap()
+                        .progress_chars("##-"),
+                    ),
+                ),
+            )));
+        }
+
+        let bars_in_use = Arc::new(Mutex::new(vec![
+            false;
+            num_threads
+        ]));
+        let completed_runs = Arc::new(AtomicUsize::new(0));
+
         // Process each run in parallel, but sampling occurs on each thread
         let results: Vec<_> = indices
             .into_par_iter()
             .map(move |i| {
+                // Acquire a progress bar
+                let bar_index = {
+                    let mut bars_in_use = bars_in_use
+                        .lock()
+                        .unwrap();
+                    let mut found_index = None;
+                    for (idx, in_use) in bars_in_use
+                        .iter_mut()
+                        .enumerate()
+                    {
+                        if !*in_use {
+                            *in_use = true;
+                            found_index = Some(idx);
+                            break;
+                        }
+                    }
+                    found_index.expect("No progress bar available - this should not happen!")
+                };
+
+                // Use the progress bar
+                let progress_bar = pb[bar_index].clone();
+                let mut progress_bar = progress_bar
+                    .lock()
+                    .unwrap();
+                {
+                    progress_bar.reset();
+                    progress_bar.set_message(format!(
+                        "{} Run: {}",
+                        bar_index,
+                        i + 1
+                    ));
+                    progress_bar.set_length(100);
+                    progress_bar.enable_steady_tick(Duration::from_millis(200));
+                }
+
                 // Each thread gets its own RNG with deterministic seed based on run index
                 let mut thread_rng = SmallRng::seed_from_u64(seed.wrapping_add(i as u64));
 
@@ -441,12 +604,32 @@ impl MonteCarloSolver {
                 }
 
                 // Call the provided solver function
-                let result = solve_fn(&solver, ode_problem, tspan).map_err(|e| {
+                let result = solve_fn(
+                    &solver,
+                    ode_problem,
+                    tspan,
+                    &mut progress_bar,
+                )
+                .map_err(|e| {
                     Box::<dyn Error>::from(format!(
                         "Run {}: Solver error: {:?}",
                         i, e
                     ))
                 })?;
+
+                // Release the progress bar and mark as completed
+                progress_bar.finish();
+
+                let completed = completed_runs.fetch_add(1, Ordering::Relaxed) + 1;
+                overall_pb.set_position(completed as u64);
+
+                // Release the progress bar for next use
+                {
+                    let mut bars_in_use = bars_in_use
+                        .lock()
+                        .unwrap();
+                    bars_in_use[bar_index] = false;
+                }
 
                 // Only return results if we need to save them
                 Ok((
@@ -525,11 +708,17 @@ impl MonteCarloSolver {
         self.solve_model_monte_carlo(
             problem,
             tspan,
-            move |solver, problem, tspan| {
+            move |solver, problem, tspan, progress_bar| {
                 let x0 = problem
                     .model
                     .initial_state();
-                solver.solve_adaptive(problem, x0, tspan, controller)
+                solver.solve_adaptive_progress(
+                    problem,
+                    x0,
+                    tspan,
+                    controller,
+                    progress_bar,
+                )
             },
         )
     }
@@ -548,11 +737,17 @@ impl MonteCarloSolver {
         self.solve_model_monte_carlo_mut(
             problem,
             tspan,
-            move |solver, mut problem, tspan| {
+            move |solver, mut problem, tspan, progress_bar| {
                 let x0 = problem
                     .model
                     .initial_state();
-                solver.solve_adaptive(problem, x0, tspan, controller)
+                solver.solve_adaptive_progress(
+                    problem,
+                    x0,
+                    tspan,
+                    controller,
+                    progress_bar,
+                )
             },
         )
     }
@@ -600,11 +795,17 @@ impl MonteCarloSolver {
         self.solve_model_monte_carlo(
             problem,
             tspan,
-            move |solver, problem, tspan| {
+            move |solver, problem, tspan, progress_bar| {
                 let x0 = problem
                     .model
                     .initial_state();
-                solver.solve_fixed(problem, x0, tspan, dt)
+                solver.solve_fixed_progress(
+                    problem,
+                    x0,
+                    tspan,
+                    dt,
+                    progress_bar,
+                )
             },
         )
     }
@@ -623,11 +824,17 @@ impl MonteCarloSolver {
         self.solve_model_monte_carlo_mut(
             problem,
             tspan,
-            move |solver, mut problem, tspan| {
+            move |solver, mut problem, tspan, progress_bar| {
                 let x0 = problem
                     .model
                     .initial_state();
-                solver.solve_fixed(problem, x0, tspan, dt)
+                solver.solve_fixed_progress(
+                    problem,
+                    x0,
+                    tspan,
+                    dt,
+                    progress_bar,
+                )
             },
         )
     }

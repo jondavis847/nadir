@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     solver.solve_adaptive(
         problem,
         x0,
-        (0.0, 1472092.8448219472),
+        (0.0, 7200.0),
         AdaptiveStepControl::default()
             .with_abs_tol(1e-14)
             .with_rel_tol(1e-14),

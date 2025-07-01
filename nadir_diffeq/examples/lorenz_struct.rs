@@ -5,6 +5,7 @@ use nadir_diffeq::{
     state::Adaptive,
     stepping::AdaptiveStepControl,
 };
+use plotting::{QuickPlot, figure::Figure, line::Line};
 use std::{
     error::Error,
     ops::{AddAssign, MulAssign},
@@ -83,22 +84,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         .solve_adaptive(
             problem,
             x0,
-            (0.0, 1.0),
+            (0.0, 100.0),
             AdaptiveStepControl::default(),
         )?
         .unwrap();
 
-    for i in 0..result
-        .t
-        .len()
-    {
-        if result.t[i].rem_euclid(1.0) < 1e-3 {
-            println!(
-                "{:10.6}     {:10.6} {:10.6} {:10.6}",
-                result.t[i], result.y[i].x, result.y[i].y, result.y[i].z
-            );
-        }
-    }
+    let mut f = Figure::new();
+    let a = f.get_axes(0)?;
+    let y: Vec<f64> = result
+        .y
+        .iter()
+        .map(|x| x.x)
+        .collect();
+
+    a.add_line(Line::new(&result.t, &y)?);
+
+    QuickPlot::plot(f)?;
 
     Ok(())
 }

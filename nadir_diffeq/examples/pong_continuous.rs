@@ -8,6 +8,7 @@ use nadir_diffeq::{
     state::state_array::StateArray,
     stepping::AdaptiveStepControl,
 };
+use plotting::{QuickPlot, figure::Figure, line::Line};
 
 #[derive(Debug, Clone)]
 struct Pong {
@@ -47,19 +48,23 @@ fn main() -> Result<(), Box<dyn Error>> {
             problem,
             x0,
             (0.0, 10.0),
-            AdaptiveStepControl::default(),
+            AdaptiveStepControl::default()
+                .with_abs_tol(1e-6)
+                .with_rel_tol(1e-6),
         )?
         .unwrap();
 
-    for i in 0..result
-        .t
-        .len()
-    {
-        println!(
-            "{:10.6}     {:10.6} ",
-            result.t[i], result.y[i][0]
-        );
-    }
+    let mut f = Figure::new();
+    let a = f.get_axes(0)?;
+    let y: Vec<f64> = result
+        .y
+        .iter()
+        .map(|x| x[0])
+        .collect();
+
+    a.add_line(Line::new(&result.t, &y)?);
+
+    QuickPlot::plot(f)?;
 
     Ok(())
 }
