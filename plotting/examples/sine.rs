@@ -1,34 +1,32 @@
-use plotting::{QuickPlot, figure::Figure, line::Line, series::Series};
-use std::sync::{Arc, Mutex};
+use plotting::{QuickPlot, figure::Figure, line::Line};
+use std::error::Error;
 
-fn main() -> iced::Result {
+fn main() -> Result<(), Box<dyn Error>> {
     // Create data for sine wave
-    let mut x_data = Vec::new();
-    let mut y_data = Vec::new();
+    let mut t = Vec::new();
+    let mut sin = Vec::new();
+    let mut cos = Vec::new();
 
     for i in 0..100 {
-        let x = i as f64 * 0.1; // 0 to 10 with 0.1 step
-        x_data.push(x);
-        y_data.push(x.sin());
+        t.push(i as f64 * 0.1);
+        sin.push(t[i].sin());
+        cos.push(t[i].cos());
     }
 
-    // Create a series from the data
-    let series = Series::new(&x_data, &y_data).expect("Failed to create series");
+    // Create a line
+    let sin_line = Line::new(&t, &sin)?.with_yname("sin");
+    let cos_line = Line::new(&t, &cos)?.with_yname("cos");
 
-    // Create a line from the series
-    let line = Arc::new(Mutex::new(Line::new(series)));
-
-    // Create a figure and add the line
+    // Create the figure
     let mut figure = Figure::new();
-    let axes = figure
-        .get_axes(0)
-        .expect("Failed to get axes");
-    let mut axes_guard = axes
-        .lock()
-        .unwrap();
-    axes_guard.add_line(line);
-    drop(axes_guard); // Release the lock
 
-    // Plot it!
-    QuickPlot::plot(figure)
+    // Figure comes with default axes at index 0, grab it
+    let axes = figure.get_axes(0)?;
+    axes.add_line(sin_line);
+    axes.add_line(cos_line);
+
+    // use QuickPlot to immediately open a program blocking window with the plot
+    QuickPlot::plot(figure)?;
+
+    Ok(())
 }

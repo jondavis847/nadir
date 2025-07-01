@@ -1,14 +1,13 @@
+use crate::line::LineHandle;
+
 use super::datatip::Datatip;
 use super::legend::Legend;
 use super::theme::PlotTheme;
-use super::{
-    // legend::{Legend, LegendEntry},
-    line::Line,
-};
 use iced::mouse::ScrollDelta;
 use iced::window::Id;
 use iced::{Color, Padding};
 use iced::{Point, Rectangle, Size, widget::canvas::Frame};
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
 use super::axis::Axis;
@@ -20,7 +19,7 @@ pub struct Axes {
     datatip: Option<Datatip>,
     pub figure_id: Option<Id>,
     pub legend: Option<Legend>,
-    pub lines: Vec<Arc<Mutex<Line>>>,
+    pub lines: Vec<LineHandle>,
     pub location: (usize, usize),
     pub padding: Padding,
     pub xlim: (f32, f32),
@@ -41,9 +40,9 @@ pub struct Axes {
 }
 
 impl Axes {
-    pub fn add_line(&mut self, line: Arc<Mutex<Line>>) {
+    pub fn add_line(&mut self, line: impl Into<LineHandle>) {
         self.lines
-            .push(line);
+            .push(line.into());
 
         //update xlim and ylim based on line data
         let (xlim, ylim) = get_global_lims(&self.lines);
@@ -853,11 +852,11 @@ impl Axes {
     }
 }
 
-fn get_global_lims(lines: &Vec<Arc<Mutex<Line>>>) -> ((f32, f32), (f32, f32)) {
+fn get_global_lims(lines: &Vec<LineHandle>) -> ((f32, f32), (f32, f32)) {
     let mut xmin = if let Some(xmin) = lines
         .iter()
         .map(|line| {
-            let line = &*line
+            let line = line
                 .lock()
                 .unwrap();
             line.data
@@ -940,4 +939,37 @@ fn get_global_lims(lines: &Vec<Arc<Mutex<Line>>>) -> ((f32, f32), (f32, f32)) {
         (xmin as f32, xmax as f32),
         (ymin as f32, ymax as f32),
     )
+}
+
+#[derive(Debug, Clone)]
+pub struct AxesHandle(Arc<Mutex<Axes>>);
+
+impl AxesHandle {
+    pub fn add_line(&self, line: impl Into<LineHandle>) {
+        let mut axes = self
+            .0
+            .lock()
+            .unwrap();
+        axes.add_line(line);
+    }
+}
+
+impl From<Axes> for AxesHandle {
+    fn from(value: Axes) -> Self {
+        Self(Arc::new(Mutex::new(value)))
+    }
+}
+
+impl From<Arc<Mutex<Axes>>> for AxesHandle {
+    fn from(value: Arc<Mutex<Axes>>) -> Self {
+        Self(value)
+    }
+}
+
+impl Deref for AxesHandle {
+    type Target = Arc<Mutex<Axes>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }

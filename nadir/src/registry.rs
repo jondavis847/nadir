@@ -3,7 +3,7 @@ use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
-use plotting::{PlotErrors, figure::Figure, line::Line, series::Series};
+use plotting::{PlotErrors, figure::Figure, line::Line};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
@@ -314,8 +314,6 @@ impl Registry {
                 let file_name = file.file_stem();
 
                 for (yname, y) in ydata {
-                    let mut series = Series::new(&x, &y)?;
-                    series.set_x_name(xname.clone());
                     let yname = if let Some(file_name) = &file_name {
                         format!(
                             "{}::{}",
@@ -325,8 +323,11 @@ impl Registry {
                     } else {
                         yname
                     };
-                    series.set_y_name(yname);
-                    let l = Arc::new(Mutex::new(Line::new(series)));
+                    let line = Line::new(&x, &y)?
+                        .with_xname(&xname)
+                        .with_yname(&yname);
+
+                    let l = Arc::new(Mutex::new(line));
                     axes.add_line(l);
                 }
 
@@ -532,7 +533,7 @@ impl Registry {
                     let y_data = y_data
                         .lock()
                         .unwrap();
-                    let series = match Series::new(
+                    let line = match Line::new(
                         x_data.as_slice(),
                         y_data.as_slice(),
                     ) {
@@ -543,10 +544,8 @@ impl Registry {
                             ));
                         }
                     };
-                    let line = Line::new(series);
-                    Ok(Value::Line(Arc::new(
-                        Mutex::new(line),
-                    )))
+
+                    Ok(Value::Line(line.into()))
                 },
             )],
         );
@@ -572,11 +571,11 @@ impl Registry {
                     yname
                 };
 
-                let mut series = Series::new(&x, &y)?;
-                series.set_x_name(xname);
-                series.set_y_name(yname);
-                let l = Arc::new(Mutex::new(Line::new(series)));
-                Ok(Value::Line(l))
+                let line = Line::new(&x, &y)?
+                    .with_xname(&xname)
+                    .with_yname(&yname);
+
+                Ok(Value::Line(line.into()))
             })],
         );
         let line_instance_methods = HashMap::new();

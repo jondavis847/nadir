@@ -37,6 +37,8 @@ pub enum PlotErrors {
     AxesIndexOOB,
     #[error("x data and y data lengths must match")]
     DataSizeMismatch,
+    #[error("line width must be > 0.0")]
+    SmallLineWidth,
 }
 
 #[derive(Debug, Clone)]
@@ -168,7 +170,7 @@ impl PlotProgram {
 
     // these are just from canvas events
     // there are additional events handled at the application level
-    pub fn update(&mut self, message: Message) {
+    pub fn process_message(&mut self, message: Message) {
         match message {
             Message::CursorMoved(point) => self.cursor_moved(point),
             Message::MouseLeftPressed(point) => self.mouse_left_clicked(point),
@@ -176,8 +178,8 @@ impl PlotProgram {
             Message::MouseMiddlePressed(point) => self.mouse_middle_clicked(point),
             Message::MouseMiddleReleased(point) => self.mouse_middle_released(point),
             Message::WheelScrolled(position, delta) => self.wheel_scrolled(position, delta),
-            Message::WindowResized(_) => {} // handled by subscriptions at the application level
-            Message::Tick(_) => {}          // handled by subscriptions at the application level
+            Message::WindowResized(size) => self.window_resized(size),
+            Message::Tick(instant) => self.tick(instant),
         }
     }
 
@@ -387,15 +389,8 @@ impl QuickPlot {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::Tick(instant) => self
-                .program
-                .tick(instant),
-            Message::WindowResized(size) => self
-                .program
-                .window_resized(size),
-            _ => {}
-        }
+        self.program
+            .process_message(message);
         Task::none()
     }
 

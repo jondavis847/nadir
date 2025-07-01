@@ -51,13 +51,6 @@ impl Series {
         self.points
             .len()
     }
-    pub fn set_x_name(&mut self, name: String) {
-        self.xname = Some(name);
-    }
-
-    pub fn set_y_name(&mut self, name: String) {
-        self.yname = Some(name);
-    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,15 +1,13 @@
-use core::fmt;
-use std::sync::{Arc, Mutex};
-
-use iced::{Point, Size, mouse::ScrollDelta, widget::canvas::Frame, window::Id};
-
 use super::{PlotErrors, axes::Axes, note_bar::NoteBar, theme::PlotTheme, title_bar::TitleBar};
+use crate::axes::AxesHandle;
+use core::fmt;
+use iced::{Point, Size, mouse::ScrollDelta, widget::canvas::Frame, window::Id};
 
 #[derive(Clone)]
 pub struct Figure {
     id: Option<Id>,
     size: Size,
-    pub axes: Vec<Arc<Mutex<Axes>>>,
+    pub axes: Vec<AxesHandle>,
     title_bar: Option<TitleBar>,
     note_bar: Option<NoteBar>,
     nrows: usize,
@@ -45,12 +43,9 @@ impl Figure {
             self.ncols = col + 1
         }
 
-        let axes = Arc::new(Mutex::new(Axes::new(
-            (row, col),
-            self.id,
-        )));
+        let axes = Axes::new((row, col), self.id);
         self.axes
-            .push(axes);
+            .push(axes.into());
         for axes in &self.axes {
             let mut axes = axes
                 .lock()
@@ -149,7 +144,7 @@ impl Figure {
         }
     }
 
-    pub fn get_axes(&mut self, index: usize) -> Result<Arc<Mutex<Axes>>, PlotErrors> {
+    pub fn get_axes(&mut self, index: usize) -> Result<AxesHandle, PlotErrors> {
         if index
             > self
                 .axes

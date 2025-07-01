@@ -605,7 +605,7 @@ impl NadirWindow {
             NadirProgram::Animation(_) => unreachable!(
                 "plots should not send animation messages, or the active window got messed up"
             ),
-            NadirProgram::Plot(plot) => plot.update(message),
+            NadirProgram::Plot(plot) => plot.process_message(message),
         }
     }
 

@@ -20,7 +20,11 @@ use std::{
 use thiserror::Error;
 use time::{Time, TimeFormat, TimeSystem};
 
-use plotting::{axes::Axes, figure::Figure, line::Line};
+use plotting::{
+    axes::{Axes, AxesHandle},
+    figure::Figure,
+    line::{Line, LineHandle},
+};
 
 pub fn label(s: &str) -> String {
     ansi_term::Colour::Fixed(237)
@@ -74,12 +78,12 @@ pub enum Value {
     f64(f64),
     i64(i64),
     bool(bool),
-    Axes(Arc<Mutex<Axes>>),
+    Axes(AxesHandle),
     CelestialBodies(CelestialBodies),
     DateTime(NaiveDateTime),
     Event(Event),
     KeplerianElements(KeplerianElements),
-    Line(Arc<Mutex<Line>>),
+    Line(LineHandle),
     Matrix(Arc<Mutex<DMatrix<f64>>>),
     MultibodySystemBuilder(Arc<Mutex<MultibodySystemBuilder>>),
     Map(Arc<Mutex<Map>>),

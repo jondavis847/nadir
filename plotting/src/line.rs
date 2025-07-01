@@ -1,3 +1,10 @@
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
+
+use crate::PlotErrors;
+
 use super::{series::Series, theme::PlotTheme};
 use iced::{
     Color, Point, Rectangle,
@@ -13,17 +20,66 @@ pub struct Line {
 }
 
 impl Line {
-    pub fn new(data: Series) -> Self {
-        Self {
-            data,
-            color: None,
-            legend: true,
-            width: 1.0,
-        }
+    pub fn new(xdata: &[f64], ydata: &[f64]) -> Result<Self, PlotErrors> {
+        let data = Series::new(xdata, ydata)?;
+        Ok(Self { data, color: None, legend: true, width: 1.0 })
+    }
+
+    pub fn delete_xname(&mut self) {
+        self.data
+            .xname = None;
+    }
+
+    pub fn delete_yname(&mut self) {
+        self.data
+            .yname = None;
     }
 
     pub fn set_color(&mut self, color: Color) {
         self.color = Some(color);
+    }
+
+    pub fn set_width(&mut self, width: f32) -> Result<(), PlotErrors> {
+        if width <= 0.0 {
+            return Err(PlotErrors::SmallLineWidth);
+        }
+        self.width = width;
+        Ok(())
+    }
+
+    pub fn set_xname(&mut self, name: &str) {
+        self.data
+            .xname = Some(name.into());
+    }
+
+    pub fn set_yname(&mut self, name: &str) {
+        self.data
+            .yname = Some(name.into());
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    pub fn with_xname(mut self, name: &str) -> Self {
+        self.data
+            .xname = Some(name.into());
+        self
+    }
+
+    pub fn with_yname(mut self, name: &str) -> Self {
+        self.data
+            .yname = Some(name.into());
+        self
+    }
+
+    pub fn with_width(mut self, width: f32) -> Result<Self, PlotErrors> {
+        if width <= 0.0 {
+            return Err(PlotErrors::SmallLineWidth);
+        }
+        self.width = width;
+        Ok(self)
     }
 
     pub fn draw(
@@ -35,8 +91,14 @@ impl Line {
     ) {
         let mut path = Builder::new();
         let mut last_inbounds = false;
-        for i in 0..self.data.points.len() {
-            let plotpoint = &self.data.points[i];
+        for i in 0..self
+            .data
+            .points
+            .len()
+        {
+            let plotpoint = &self
+                .data
+                .points[i];
             if i == 0 {
                 // find the first point in bounds
                 if axis_bounds.contains(plotpoint.canvas_position) {
@@ -51,7 +113,9 @@ impl Line {
                     path.line_to(plotpoint.canvas_position)
                 } else {
                     // we'll need to find intersections
-                    let lastpoint = &self.data.points[i - 1];
+                    let lastpoint = &self
+                        .data
+                        .points[i - 1];
                     let boundary_points = calculate_boundary_points(
                         lastpoint.canvas_position,
                         plotpoint.canvas_position,
@@ -91,11 +155,7 @@ impl Line {
             theme.line_colors[index]
         };
 
-        let stroke = Stroke {
-            style: color.into(),
-            width: self.width,
-            ..Stroke::default()
-        };
+        let stroke = Stroke { style: color.into(), width: self.width, ..Stroke::default() };
 
         frame.stroke(&path.build(), stroke);
     }
@@ -107,12 +167,27 @@ impl Line {
         ylim: &(f32, f32),
     ) {
         let axis_bottom = axis_bounds.y + axis_bounds.height;
-        for plotpoint in &mut self.data.points {
-            let u = (plotpoint.data.x as f32 - xlim.0) / (xlim.1 - xlim.0);
-            let v = (plotpoint.data.y as f32 - ylim.0) / (ylim.1 - ylim.0);
+        for plotpoint in &mut self
+            .data
+            .points
+        {
+            let u = (plotpoint
+                .data
+                .x as f32
+                - xlim.0)
+                / (xlim.1 - xlim.0);
+            let v = (plotpoint
+                .data
+                .y as f32
+                - ylim.0)
+                / (ylim.1 - ylim.0);
 
-            plotpoint.canvas_position.x = u * axis_bounds.width + axis_bounds.x;
-            plotpoint.canvas_position.y = axis_bottom - v * axis_bounds.height;
+            plotpoint
+                .canvas_position
+                .x = u * axis_bounds.width + axis_bounds.x;
+            plotpoint
+                .canvas_position
+                .y = axis_bottom - v * axis_bounds.height;
         }
     }
 }
@@ -282,8 +357,34 @@ fn calculate_boundary_points(
     }
 
     // Return the intersections
-    match (first_intersection, second_intersection) {
+    match (
+        first_intersection,
+        second_intersection,
+    ) {
         (Some(first), second) => Some((first, second)),
         _ => None,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LineHandle(Arc<Mutex<Line>>);
+
+impl From<Line> for LineHandle {
+    fn from(value: Line) -> Self {
+        Self(Arc::new(Mutex::new(value)))
+    }
+}
+
+impl From<Arc<Mutex<Line>>> for LineHandle {
+    fn from(value: Arc<Mutex<Line>>) -> Self {
+        Self(value)
+    }
+}
+
+impl Deref for LineHandle {
+    type Target = Arc<Mutex<Line>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
