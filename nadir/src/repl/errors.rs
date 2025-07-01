@@ -7,7 +7,7 @@ use time::TimeErrors;
 pub enum ReplErrors {
     CantParseMatrix,
     EmptyValue,
-    InvalidEnum(String, String),
+    // InvalidEnum(String, String),
     InvalidField(String, String, String),
     MatrixRowLengthMismatch,
     NameReserved(&'static str),
@@ -48,9 +48,9 @@ impl fmt::Display for ReplErrors {
         let error_message = match self {
             ReplErrors::CantParseMatrix => "could not parse matrix".to_string(),
             ReplErrors::EmptyValue => format!("pest parsing value was empty"),
-            ReplErrors::InvalidEnum(name, variant) => {
-                format!("invalid enum {name}::{variant}")
-            }
+            // ReplErrors::InvalidEnum(name, variant) => {
+            //     format!("invalid enum {name}::{variant}")
+            // }
             ReplErrors::InvalidField(instance, field, type_name) => {
                 format!("invalid field {field} for variable {instance} of type {type_name}")
             }
