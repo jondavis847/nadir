@@ -649,11 +649,13 @@ impl NadirWindow {
     fn view(&self) -> Element<Message> {
         match &self.program {
             NadirProgram::Animation(animation) => animation.content(),
-            NadirProgram::Plot(plot) => column![
+            NadirProgram::Plot(plot) => column![Element::map(
                 canvas(plot)
                     .height(Length::Fill)
                     .width(Length::Fill)
-            ]
+                    .into(),
+                Message::PlotMessage
+            )]
             .into(),
         }
     }
