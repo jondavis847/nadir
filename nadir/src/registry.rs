@@ -2,11 +2,13 @@ use aerospace::orbit::{KeplerianElements, OrbitErrors};
 use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
 use iced::color;
+use indicatif::{ProgressBar, ProgressStyle};
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
 use plotting::{PlotErrors, figure::Figure, line::Line};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use rotations::prelude::{Quaternion, QuaternionErrors, UnitQuaternion};
 use std::{
     collections::HashMap,
@@ -2037,55 +2039,71 @@ fn load_single_column_mc(
         &file_stem,
     );
 
-    // Now load the same column from all run folders
-    let mut all_run_data = Vec::new();
+    // Create progress spinner
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} Loading Monte Carlo data...")
+            .unwrap(),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
 
-    for (i, run_folder) in run_folders
-        .iter()
+    // Pre-allocate vector with None values
+    let results: Vec<Option<Vec<f64>>> = vec![None; run_folders.len()];
+    let results = Arc::new(Mutex::new(results));
+
+    // Parallel loading with direct index insertion
+    run_folders
+        .par_iter()
         .enumerate()
-    {
-        let run_file_path = mc_dir
-            .join(run_folder)
-            .join(&relative_file_path);
+        .for_each(|(i, run_folder)| {
+            let run_file_path = mc_dir
+                .join(run_folder)
+                .join(&relative_file_path);
 
-        // Check if file exists in this run folder
-        if !run_file_path.exists() {
-            eprintln!(
-                "Warning: File '{}' not found in {}, skipping...",
-                relative_file_path.display(),
-                run_folder
-            );
-            continue;
-        }
-
-        // Load the specific column from this run
-        match load_column_data(
-            &run_file_path,
-            column_idx,
-            headers.is_some(),
-            delimiter,
-        ) {
-            Ok(data) => {
-                all_run_data.push(data);
-                println!(
-                    "Loaded {} values from {} (run {}/{})",
-                    all_run_data
-                        .last()
-                        .unwrap()
-                        .len(),
-                    run_folder,
-                    i + 1,
-                    run_folders.len()
-                );
-            }
-            Err(e) => {
+            // Check if file exists in this run folder
+            if !run_file_path.exists() {
                 eprintln!(
-                    "Warning: Failed to load data from {}: {}",
-                    run_folder, e
+                    "Warning: File '{}' not found in {}, skipping...",
+                    relative_file_path.display(),
+                    run_folder
                 );
+                return;
             }
-        }
-    }
+
+            // Load the specific column from this run
+            match load_column_data(
+                &run_file_path,
+                column_idx,
+                headers.is_some(),
+                delimiter,
+            ) {
+                Ok(data) => {
+                    let mut results_guard = results
+                        .lock()
+                        .unwrap();
+                    results_guard[i] = Some(data);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to load data from {}: {}",
+                        run_folder, e
+                    );
+                }
+            }
+        });
+
+    pb.finish_and_clear();
+
+    // Extract successful results while maintaining order
+    let results = Arc::try_unwrap(results)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    let all_run_data: Vec<Vec<f64>> = results
+        .into_iter()
+        .filter_map(|opt| opt)
+        .collect();
 
     if all_run_data.is_empty() {
         return Err("No data could be loaded from any run folders".into());
