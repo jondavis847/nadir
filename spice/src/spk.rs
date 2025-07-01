@@ -1,8 +1,8 @@
 use super::{
-    daf::{DafData, Segment},
     SpiceErrors,
+    daf::{DafData, Segment},
 };
-use crate::{check_naif, SpiceBodies, SpiceFileTypes};
+use crate::{SpiceBodies, SpiceFileTypes, check_naif};
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 
@@ -17,7 +17,11 @@ impl SpiceSpk {
         "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp";
 
     pub fn check_naif(&self) -> Result<bool, SpiceErrors> {
-        check_naif(SpiceSpk::SPK_BPC, self.last_modified.clone())
+        check_naif(
+            SpiceSpk::SPK_BPC,
+            self.last_modified
+                .clone(),
+        )
     }
 
     pub fn get_segment(
@@ -25,13 +29,16 @@ impl SpiceSpk {
         body: &SpiceBodies,
         t: f64,
     ) -> Result<Option<&mut Segment>, SpiceErrors> {
-        self.daf.get_segment(body, t)
+        self.daf
+            .get_segment(body, t)
     }
 
     pub fn from_naif() -> Result<Self, SpiceErrors> {
         let start = std::time::Instant::now();
         print!("Getting latest spk file from naif website...");
-        io::stdout().flush().expect("spice could not flush io");
+        io::stdout()
+            .flush()
+            .expect("spice could not flush io");
         let response = reqwest::blocking::get(SpiceSpk::SPK_BPC)
             .expect("spice could not make http get request");
 
@@ -39,17 +46,25 @@ impl SpiceSpk {
         let last_modified = response
             .headers()
             .get("Last-Modified")
-            .and_then(|val| val.to_str().ok())
+            .and_then(|val| {
+                val.to_str()
+                    .ok()
+            })
             .map(String::from)
             .ok_or(SpiceErrors::HeaderNotFound)?;
 
-        let eop_bytes = response.bytes().expect("spice could not get eop bytes");
-        let daf_data = DafData::new(&eop_bytes, SpiceFileTypes::Spk)?;
+        let eop_bytes = response
+            .bytes()
+            .expect("spice could not get eop bytes");
+        let daf_data = DafData::new(
+            &eop_bytes,
+            SpiceFileTypes::Spk,
+        )?;
         let duration = start.elapsed();
-        println!("Done! in {} sec.", duration.as_secs_f32());
-        Ok(Self {
-            daf: daf_data,
-            last_modified,
-        })
+        println!(
+            "Done! in {} sec.",
+            duration.as_secs_f32()
+        );
+        Ok(Self { daf: daf_data, last_modified })
     }
 }

@@ -44,36 +44,96 @@ pub struct State {
 impl ControlFsw {
     pub fn run(&mut self, nav: &NavigationFsw, guid: &GuidanceFsw) {
         // Ensure quaternions are normalized
-        let current_attitude = nav.ad.state.attitude;
-        let target_attitude = guid.state.target_attitude;
+        let current_attitude = nav
+            .ad
+            .state
+            .attitude;
+        let target_attitude = guid
+            .state
+            .target_attitude;
 
         // Compute the error quaternion: q_error = q_current.inv() * q_target
         let q_error = current_attitude * target_attitude.inv();
 
         // Ensure the scalar part is non-negative to represent the shortest rotation
-        let q_error = if q_error.0.w < 0.0 { -q_error } else { q_error };
+        let q_error = if q_error
+            .0
+            .w
+            < 0.0
+        {
+            -q_error
+        } else {
+            q_error
+        };
 
         // Compute the attitude error vector (scaled by 2 for small angles)
-        self.state.attitude_error = Vector3::new(q_error.0.x, q_error.0.y, q_error.0.z);
+        self.state
+            .attitude_error = Vector3::new(
+            q_error
+                .0
+                .x,
+            q_error
+                .0
+                .y,
+            q_error
+                .0
+                .z,
+        );
 
         // Rate Error
-        self.state.rate_error = nav.ad.state.rates - guid.state.target_rate;
+        self.state
+            .rate_error = nav
+            .ad
+            .state
+            .rates
+            - guid
+                .state
+                .target_rate;
 
         // Integral Error
         for i in 0..3 {
-            if self.state.attitude_error[i].abs() < self.parameters.anti_windup {
-                self.state.integral_error[i] += self.state.attitude_error[i];
+            if self
+                .state
+                .attitude_error[i]
+                .abs()
+                < self
+                    .parameters
+                    .anti_windup
+            {
+                self.state
+                    .integral_error[i] += self
+                    .state
+                    .attitude_error[i];
             } else {
-                self.state.integral_error[i] = 0.0;
+                self.state
+                    .integral_error[i] = 0.0;
             }
         }
 
         // Torque Command
         for i in 0..3 {
-            self.state.torque_cmd_body[i] = self.parameters.moi[i]
-                * (-self.parameters.k_p * self.state.attitude_error[i]
-                    - self.parameters.k_i * self.state.integral_error[i]
-                    - self.parameters.k_d * self.state.rate_error[i]);
+            self.state
+                .torque_cmd_body[i] = self
+                .parameters
+                .moi[i]
+                * (-self
+                    .parameters
+                    .k_p
+                    * self
+                        .state
+                        .attitude_error[i]
+                    - self
+                        .parameters
+                        .k_i
+                        * self
+                            .state
+                            .integral_error[i]
+                    - self
+                        .parameters
+                        .k_d
+                        * self
+                            .state
+                            .rate_error[i]);
         }
     }
 }
@@ -81,7 +141,9 @@ impl ControlFsw {
 impl NadirResult for ControlFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -103,7 +165,11 @@ impl NadirResult for ControlFsw {
             "torque_cmd_body[y]",
             "torque_cmd_body[z]",
         ];
-        let id = results.new_writer("fsw_ctrl", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_ctrl",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -112,18 +178,42 @@ impl NadirResult for ControlFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.attitude_error[0].to_string(),
-                    self.state.attitude_error[1].to_string(),
-                    self.state.attitude_error[2].to_string(),
-                    self.state.rate_error[0].to_string(),
-                    self.state.rate_error[1].to_string(),
-                    self.state.rate_error[2].to_string(),
-                    self.state.integral_error[0].to_string(),
-                    self.state.integral_error[1].to_string(),
-                    self.state.integral_error[2].to_string(),
-                    self.state.torque_cmd_body[0].to_string(),
-                    self.state.torque_cmd_body[1].to_string(),
-                    self.state.torque_cmd_body[2].to_string(),
+                    self.state
+                        .attitude_error[0]
+                        .to_string(),
+                    self.state
+                        .attitude_error[1]
+                        .to_string(),
+                    self.state
+                        .attitude_error[2]
+                        .to_string(),
+                    self.state
+                        .rate_error[0]
+                        .to_string(),
+                    self.state
+                        .rate_error[1]
+                        .to_string(),
+                    self.state
+                        .rate_error[2]
+                        .to_string(),
+                    self.state
+                        .integral_error[0]
+                        .to_string(),
+                    self.state
+                        .integral_error[1]
+                        .to_string(),
+                    self.state
+                        .integral_error[2]
+                        .to_string(),
+                    self.state
+                        .torque_cmd_body[0]
+                        .to_string(),
+                    self.state
+                        .torque_cmd_body[1]
+                        .to_string(),
+                    self.state
+                        .torque_cmd_body[2]
+                        .to_string(),
                 ],
             );
         }

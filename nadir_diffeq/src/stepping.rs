@@ -194,9 +194,15 @@ impl StepPIDControl {
         self.err_now = err_now;
 
         const EPS: f64 = 1e-14;
-        let e0 = self.err_now.max(EPS);
-        let e1 = self.err_prev.max(EPS);
-        let e2 = self.err_prevprev.max(EPS);
+        let e0 = self
+            .err_now
+            .max(EPS);
+        let e1 = self
+            .err_prev
+            .max(EPS);
+        let e2 = self
+            .err_prevprev
+            .max(EPS);
 
         let mut factor = e0.powf(self.kp) * (e0 / e1).powf(self.kd) * (e1 / e2).powf(self.ki);
 

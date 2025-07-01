@@ -13,13 +13,19 @@ pub struct Uniforms {
 
 impl Uniforms {
     pub fn new(scene: &Scene, bounds: Rectangle) -> Self {
-        let camera_proj = scene.camera.build_view_proj_matrix(bounds);
+        let camera_proj = scene
+            .camera
+            .build_view_proj_matrix(bounds);
 
-        let light_color = scene.light_color.into_linear();
+        let light_color = scene
+            .light_color
+            .into_linear();
 
         Self {
             camera_proj,
-            camera_pos: scene.camera.position(),
+            camera_pos: scene
+                .camera
+                .position(),
             light_color: glam::Vec4::new(
                 light_color[0] as f32,
                 light_color[1] as f32,

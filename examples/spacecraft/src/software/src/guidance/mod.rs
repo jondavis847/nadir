@@ -30,11 +30,23 @@ pub struct State {
 
 impl GuidanceFsw {
     pub fn run(&mut self, nav: &NavigationFsw) {
-        self.state.target_attitude = match self.state.target_mode {
+        self.state
+            .target_attitude = match self
+            .state
+            .target_mode
+        {
             TargetMode::Nadir => {
                 // create frame for x in velocity vector, z nadir, y completes
-                let x = nav.od.state.velocity.normalize();
-                let z = -nav.od.state.position.normalize();
+                let x = nav
+                    .od
+                    .state
+                    .velocity
+                    .normalize();
+                let z = -nav
+                    .od
+                    .state
+                    .position
+                    .normalize();
                 let y = z.cross(&x);
                 let m = match RotationMatrix::from_cols(x, y, z) {
                     Ok(m) => m,
@@ -45,7 +57,11 @@ impl GuidanceFsw {
             _ => unimplemented!("implement other targeting modes"),
         };
 
-        self.state.target_rate = match self.state.target_mode {
+        self.state
+            .target_rate = match self
+            .state
+            .target_mode
+        {
             TargetMode::Nadir => {
                 // for our spacecraft, orbit rate is about the -y-axis in the body frame
                 let earth_rate = 2.0 * std::f64::consts::PI / (100.0 * 60.0);
@@ -59,7 +75,9 @@ impl GuidanceFsw {
 impl NadirResult for GuidanceFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -76,7 +94,11 @@ impl NadirResult for GuidanceFsw {
             "target_rate[y]",
             "target_rate[z]",
         ];
-        let id = results.new_writer("fsw_guid", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_guid",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -85,13 +107,35 @@ impl NadirResult for GuidanceFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.target_attitude.0.x.to_string(),
-                    self.state.target_attitude.0.y.to_string(),
-                    self.state.target_attitude.0.z.to_string(),
-                    self.state.target_attitude.0.w.to_string(),
-                    self.state.target_rate[0].to_string(),
-                    self.state.target_rate[1].to_string(),
-                    self.state.target_rate[2].to_string(),
+                    self.state
+                        .target_attitude
+                        .0
+                        .x
+                        .to_string(),
+                    self.state
+                        .target_attitude
+                        .0
+                        .y
+                        .to_string(),
+                    self.state
+                        .target_attitude
+                        .0
+                        .z
+                        .to_string(),
+                    self.state
+                        .target_attitude
+                        .0
+                        .w
+                        .to_string(),
+                    self.state
+                        .target_rate[0]
+                        .to_string(),
+                    self.state
+                        .target_rate[1]
+                        .to_string(),
+                    self.state
+                        .target_rate[2]
+                        .to_string(),
                 ],
             );
         }

@@ -32,7 +32,9 @@ impl ActuatorBuilder {
         Self { name: name.to_string(), model, connection: None }
     }
     pub fn connect_body(&mut self, body: Id, transform: Transform) {
-        self.connection = Some(BodyConnectionBuilder::new(body, transform));
+        self.connection = Some(BodyConnectionBuilder::new(
+            body, transform,
+        ));
     }
 
     pub fn sample(
@@ -41,9 +43,13 @@ impl ActuatorBuilder {
         rng: &mut SmallRng,
         connection: BodyConnection,
     ) -> Result<Actuator, ActuatorErrors> {
-        let model = self.model.sample(nominal, rng)?;
+        let model = self
+            .model
+            .sample(nominal, rng)?;
         Ok(Actuator {
-            name: self.name.clone(),
+            name: self
+                .name
+                .clone(),
             model,
             connection,
             writer_id: None,
@@ -95,34 +101,44 @@ pub struct Actuator {
 
 impl Actuator {
     pub fn update(&mut self) -> Result<(), ActuatorErrors> {
-        self.model.update(&self.connection)
+        self.model
+            .update(&self.connection)
     }
 
     pub fn state_vector_init(&mut self, x0: &mut StateVector) {
         self.state_start = x0.len();
-        x0.extend(&self.model.state_vector_init());
+        x0.extend(
+            &self
+                .model
+                .state_vector_init(),
+        );
         self.state_end = x0.len();
     }
 
     pub fn state_vector_read(&mut self, x0: &StateVector) {
         let state = &x0[self.state_start..self.state_end];
-        self.model.state_vector_read(state);
+        self.model
+            .state_vector_read(state);
     }
 
     pub fn state_derivative(&self, x0: &mut StateVector) {
         let derivative = &mut x0[self.state_start..self.state_end];
-        self.model.state_derivative(derivative);
+        self.model
+            .state_derivative(derivative);
     }
 
     pub fn read_command(&mut self, buffer: &HardwareBuffer) -> Result<(), ActuatorErrors> {
-        self.model.read_command(buffer)
+        self.model
+            .read_command(buffer)
     }
 
     pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
         let rel_path = PathBuf::new()
             .join("actuators")
             .join(format!("{}.csv", &self.name));
-        let headers = self.model.writer_headers();
+        let headers = self
+            .model
+            .writer_headers();
         let writer = StateWriterBuilder::new(headers.len(), rel_path)
             .with_headers(headers)
             .unwrap();
@@ -131,8 +147,12 @@ impl Actuator {
 
     pub fn writer_save_fn(&self, manager: &mut WriterManager) {
         if let Some(id) = &self.writer_id {
-            if let Some(writer) = manager.writers.get_mut(id) {
-                self.model.writer_save_fn(writer);
+            if let Some(writer) = manager
+                .writers
+                .get_mut(id)
+            {
+                self.model
+                    .writer_save_fn(writer);
             }
         }
     }

@@ -17,10 +17,7 @@ pub struct AxisAngle {
 }
 
 impl AxisAngle {
-    const IDENTITY: Self = Self {
-        angle: 0.0,
-        axis: Vector3::new(1.0, 0.0, 0.0),
-    };
+    const IDENTITY: Self = Self { angle: 0.0, axis: Vector3::new(1.0, 0.0, 0.0) };
 
     pub fn new(angle: f64, axis: Vector3<f64>) -> Result<Self, AxisAngleErrors> {
         if axis.norm() < 1e-12 {
@@ -43,10 +40,7 @@ impl RotationTrait for AxisAngle {
     }
 
     fn inv(&self) -> Self {
-        Self {
-            angle: -self.angle,
-            axis: self.axis,
-        }
+        Self { angle: -self.angle, axis: self.axis }
     }
 
     fn identity() -> Self {

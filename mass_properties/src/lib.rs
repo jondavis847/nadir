@@ -54,23 +54,27 @@ impl MassPropertiesBuilder {
         if mass < std::f64::EPSILON {
             Err(MassPropertiesErrors::MassLessThanOrEqualToZero)
         } else {
-            self.mass.nominal = mass;
+            self.mass
+                .nominal = mass;
             Ok(self)
         }
     }
 
     pub fn with_cmx(mut self, cmx: f64) -> Self {
-        self.cmx.nominal = cmx;
+        self.cmx
+            .nominal = cmx;
         self
     }
 
     pub fn with_cmy(mut self, cmy: f64) -> Self {
-        self.cmy.nominal = cmy;
+        self.cmy
+            .nominal = cmy;
         self
     }
 
     pub fn with_cmz(mut self, cmz: f64) -> Self {
-        self.cmz.nominal = cmz;
+        self.cmz
+            .nominal = cmz;
         self
     }
 
@@ -78,7 +82,8 @@ impl MassPropertiesBuilder {
         if ixx < std::f64::EPSILON {
             Err(MassPropertiesErrors::IxxLessThanOrEqualToZero)
         } else {
-            self.ixx.nominal = ixx;
+            self.ixx
+                .nominal = ixx;
             Ok(self)
         }
     }
@@ -87,7 +92,8 @@ impl MassPropertiesBuilder {
         if iyy < std::f64::EPSILON {
             Err(MassPropertiesErrors::IyyLessThanOrEqualToZero)
         } else {
-            self.iyy.nominal = iyy;
+            self.iyy
+                .nominal = iyy;
             Ok(self)
         }
     }
@@ -96,23 +102,27 @@ impl MassPropertiesBuilder {
         if izz < std::f64::EPSILON {
             Err(MassPropertiesErrors::IzzLessThanOrEqualToZero)
         } else {
-            self.izz.nominal = izz;
+            self.izz
+                .nominal = izz;
             Ok(self)
         }
     }
 
     pub fn with_ixy(mut self, ixy: f64) -> Self {
-        self.ixy.nominal = ixy;
+        self.ixy
+            .nominal = ixy;
         self
     }
 
     pub fn with_ixz(mut self, ixz: f64) -> Self {
-        self.ixz.nominal = ixz;
+        self.ixz
+            .nominal = ixz;
         self
     }
 
     pub fn with_iyz(mut self, iyz: f64) -> Self {
-        self.iyz.nominal = iyz;
+        self.iyz
+            .nominal = iyz;
         self
     }
 
@@ -124,7 +134,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Normal::new(mean, std)?;
-        self.mass = self.mass.with_distribution(dist.into())?;
+        self.mass = self
+            .mass
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -135,43 +147,57 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Uniform::new(low, high)?;
-        self.mass = self.mass.with_distribution(dist.into())?;
+        self.mass = self
+            .mass
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmx_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.cmx = self.cmx.with_distribution(dist.into())?;
+        self.cmx = self
+            .cmx
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmx_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.cmx = self.cmx.with_distribution(dist.into())?;
+        self.cmx = self
+            .cmx
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.cmy = self.cmy.with_distribution(dist.into())?;
+        self.cmy = self
+            .cmy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.cmy = self.cmy.with_distribution(dist.into())?;
+        self.cmy = self
+            .cmy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.cmz = self.cmz.with_distribution(dist.into())?;
+        self.cmz = self
+            .cmz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_cmz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.cmz = self.cmz.with_distribution(dist.into())?;
+        self.cmz = self
+            .cmz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -183,7 +209,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Normal::new(mean, std)?;
-        self.ixx = self.ixx.with_distribution(dist.into())?;
+        self.ixx = self
+            .ixx
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -194,7 +222,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Uniform::new(low, high)?;
-        self.ixx = self.ixx.with_distribution(dist.into())?;
+        self.ixx = self
+            .ixx
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -206,7 +236,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Normal::new(mean, std)?;
-        self.iyy = self.iyy.with_distribution(dist.into())?;
+        self.iyy = self
+            .iyy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -217,7 +249,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Uniform::new(low, high)?;
-        self.iyy = self.iyy.with_distribution(dist.into())?;
+        self.iyy = self
+            .iyy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -229,7 +263,9 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Normal::new(mean, std)?;
-        self.izz = self.izz.with_distribution(dist.into())?;
+        self.izz = self
+            .izz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -240,43 +276,57 @@ impl MassPropertiesBuilder {
         }
 
         let dist = Uniform::new(low, high)?;
-        self.izz = self.izz.with_distribution(dist.into())?;
+        self.izz = self
+            .izz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_ixy_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.ixy = self.ixy.with_distribution(dist.into())?;
+        self.ixy = self
+            .ixy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_ixy_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.ixy = self.ixy.with_distribution(dist.into())?;
+        self.ixy = self
+            .ixy
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_ixz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.ixz = self.ixz.with_distribution(dist.into())?;
+        self.ixz = self
+            .ixz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_ixz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.ixz = self.ixz.with_distribution(dist.into())?;
+        self.ixz = self
+            .ixz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_iyz_normal(mut self, mean: f64, std: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Normal::new(mean, std)?;
-        self.iyz = self.iyz.with_distribution(dist.into())?;
+        self.iyz = self
+            .iyz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 
     pub fn with_iyz_uniform(mut self, low: f64, high: f64) -> Result<Self, MassPropertiesErrors> {
         let dist = Uniform::new(low, high)?;
-        self.iyz = self.iyz.with_distribution(dist.into())?;
+        self.iyz = self
+            .iyz
+            .with_distribution(dist.into())?;
         Ok(self)
     }
 }
@@ -291,16 +341,36 @@ impl Uncertainty for MassPropertiesBuilder {
         rng: &mut SmallRng,
     ) -> Result<Self::Output, MassPropertiesErrors> {
         Ok(MassProperties {
-            mass: self.mass.sample(nominal, rng),
-            cmx: self.cmx.sample(nominal, rng),
-            cmy: self.cmy.sample(nominal, rng),
-            cmz: self.cmz.sample(nominal, rng),
-            ixx: self.ixx.sample(nominal, rng),
-            iyy: self.iyy.sample(nominal, rng),
-            izz: self.izz.sample(nominal, rng),
-            ixy: self.ixy.sample(nominal, rng),
-            ixz: self.ixz.sample(nominal, rng),
-            iyz: self.iyz.sample(nominal, rng),
+            mass: self
+                .mass
+                .sample(nominal, rng),
+            cmx: self
+                .cmx
+                .sample(nominal, rng),
+            cmy: self
+                .cmy
+                .sample(nominal, rng),
+            cmz: self
+                .cmz
+                .sample(nominal, rng),
+            ixx: self
+                .ixx
+                .sample(nominal, rng),
+            iyy: self
+                .iyy
+                .sample(nominal, rng),
+            izz: self
+                .izz
+                .sample(nominal, rng),
+            ixy: self
+                .ixy
+                .sample(nominal, rng),
+            ixz: self
+                .ixz
+                .sample(nominal, rng),
+            iyz: self
+                .iyz
+                .sample(nominal, rng),
         })
     }
 }

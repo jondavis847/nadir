@@ -53,11 +53,13 @@ impl Highlighter for NadirHelper {
     }
 
     fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
-        self.highlighter.highlight(line, pos)
+        self.highlighter
+            .highlight(line, pos)
     }
 
     fn highlight_char(&self, line: &str, pos: usize, kind: CmdKind) -> bool {
-        self.highlighter.highlight_char(line, pos, kind)
+        self.highlighter
+            .highlight_char(line, pos, kind)
     }
 }
 
@@ -73,11 +75,7 @@ impl FunctionCompleter {
         storage: Arc<Mutex<Storage>>,
         current_dir: Arc<Mutex<PathBuf>>,
     ) -> Self {
-        Self {
-            registry,
-            storage,
-            current_dir,
-        }
+        Self { registry, storage, current_dir }
     }
 
     /// Helper to complete enums
@@ -101,8 +99,14 @@ impl FunctionCompleter {
         };
 
         // Look up the enum information in the registry.
-        let registry = self.registry.lock().unwrap();
-        let enum_info = match registry.enums.get(enum_name) {
+        let registry = self
+            .registry
+            .lock()
+            .unwrap();
+        let enum_info = match registry
+            .enums
+            .get(enum_name)
+        {
             Some(info) => info,
             None => return Vec::new(),
         };
@@ -115,7 +119,10 @@ impl FunctionCompleter {
             .filter_map(|(name, _)| {
                 if name.starts_with(variant_prefix) {
                     // Return the full path including enum name
-                    Some(format!("{}::{}", enum_name, name))
+                    Some(format!(
+                        "{}::{}",
+                        enum_name, name
+                    ))
                 } else {
                     None
                 }
@@ -137,7 +144,10 @@ impl FunctionCompleter {
 
     /// Helper to complete variable names based on prefix
     fn complete_vars(&self, prefix: &str) -> Vec<String> {
-        let storage = self.storage.lock().unwrap();
+        let storage = self
+            .storage
+            .lock()
+            .unwrap();
         let vars = storage.get_names();
         vars.iter()
             .filter(|&s| s.starts_with(prefix))
@@ -154,8 +164,14 @@ impl FunctionCompleter {
         };
 
         // Look up the struct information in the registry.
-        let registry = self.registry.lock().unwrap();
-        let struc = match registry.structs.get(type_name) {
+        let registry = self
+            .registry
+            .lock()
+            .unwrap();
+        let struc = match registry
+            .structs
+            .get(type_name)
+        {
             Some(info) => info,
             None => return Vec::new(),
         };
@@ -166,17 +182,28 @@ impl FunctionCompleter {
             .iter()
             .filter(|(name, _)| name.starts_with(method_prefix))
             .flat_map(|(name, overloads)| {
-                overloads.iter().map(move |method| {
-                    // Build the argument string, e.g. "rows:i64, cols:i64".
-                    let args = method
-                        .args
-                        .iter()
-                        .map(|arg| format!("{}:{}", arg.name, crate::value::label(arg.type_name)))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    // Assemble the complete method signature.
-                    format!("{}::{}({})", type_name, name, args)
-                })
+                overloads
+                    .iter()
+                    .map(move |method| {
+                        // Build the argument string, e.g. "rows:i64, cols:i64".
+                        let args = method
+                            .args
+                            .iter()
+                            .map(|arg| {
+                                format!(
+                                    "{}:{}",
+                                    arg.name,
+                                    crate::value::label(arg.type_name)
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        // Assemble the complete method signature.
+                        format!(
+                            "{}::{}({})",
+                            type_name, name, args
+                        )
+                    })
             })
             .collect()
     }
@@ -194,7 +221,11 @@ impl FunctionCompleter {
         };
 
         // Look up the variable in storage, returning early if not found.
-        let value = match storage.lock().unwrap().get(var_name) {
+        let value = match storage
+            .lock()
+            .unwrap()
+            .get(var_name)
+        {
             Ok(val) => val,
             Err(_) => return Vec::new(),
         };
@@ -202,8 +233,14 @@ impl FunctionCompleter {
         let type_name = value.to_string();
 
         // Look up the struct information using the type name.
-        let registry = self.registry.lock().unwrap();
-        let struct_info = match registry.structs.get(type_name.as_str()) {
+        let registry = self
+            .registry
+            .lock()
+            .unwrap();
+        let struct_info = match registry
+            .structs
+            .get(type_name.as_str())
+        {
             Some(info) => info,
             None => return Vec::new(),
         };
@@ -215,17 +252,28 @@ impl FunctionCompleter {
             .iter()
             .filter(|(name, _)| name.starts_with(method_prefix))
             .flat_map(|(name, overloads)| {
-                overloads.iter().map(move |method| {
-                    // Build the argument string (e.g., "rows:i64, cols:i64").
-                    let args = method
-                        .args
-                        .iter()
-                        .map(|arg| format!("{}:{}", arg.name, crate::value::label(arg.type_name)))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    // Combine back into a completion string like "var.method(args)".
-                    format!("{}.{}({})", var_name, name, args)
-                })
+                overloads
+                    .iter()
+                    .map(move |method| {
+                        // Build the argument string (e.g., "rows:i64, cols:i64").
+                        let args = method
+                            .args
+                            .iter()
+                            .map(|arg| {
+                                format!(
+                                    "{}:{}",
+                                    arg.name,
+                                    crate::value::label(arg.type_name)
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        // Combine back into a completion string like "var.method(args)".
+                        format!(
+                            "{}.{}({})",
+                            var_name, name, args
+                        )
+                    })
             })
             .collect()
     }
@@ -233,7 +281,10 @@ impl FunctionCompleter {
     /// Helper to complete functions based on a prefix
     fn complete_functions(&self, prefix: &str) -> Vec<String> {
         // Acquire the registry lock
-        let registry = self.registry.lock().unwrap();
+        let registry = self
+            .registry
+            .lock()
+            .unwrap();
 
         // Iterate over all functions in the registry
         registry
@@ -244,18 +295,25 @@ impl FunctionCompleter {
             // For each matching function, expand its overloads
             .flat_map(|(name, overloads)| {
                 // Create completions for each overload
-                overloads.iter().map(move |function| {
-                    // Format the function arguments
-                    let args = function
-                        .args
-                        .iter()
-                        .map(|arg| format!("{}:{}", arg.name, arg.type_name))
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                overloads
+                    .iter()
+                    .map(move |function| {
+                        // Format the function arguments
+                        let args = function
+                            .args
+                            .iter()
+                            .map(|arg| {
+                                format!(
+                                    "{}:{}",
+                                    arg.name, arg.type_name
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
 
-                    // Build the complete function signature
-                    format!("{}({})", name, args)
-                })
+                        // Build the complete function signature
+                        format!("{}({})", name, args)
+                    })
             })
             .collect()
     }
@@ -272,14 +330,21 @@ impl FunctionCompleter {
 
     // Helper to find the last slash of either type
     fn rfind_any_slash(s: &str) -> Option<usize> {
-        s.rfind('/').or_else(|| s.rfind('\\'))
+        s.rfind('/')
+            .or_else(|| s.rfind('\\'))
     }
 
     // Helper to determine which slash type the user prefers (based on last used)
     fn preferred_slash(path_part: &str) -> char {
-        if path_part.rfind('/').is_some() {
+        if path_part
+            .rfind('/')
+            .is_some()
+        {
             '/'
-        } else if path_part.rfind('\\').is_some() {
+        } else if path_part
+            .rfind('\\')
+            .is_some()
+        {
             '\\'
         } else {
             std::path::MAIN_SEPARATOR
@@ -311,7 +376,9 @@ impl Completer for FunctionCompleter {
         // Check if we need path completion
         if line.starts_with("cd ") || line.starts_with("ls ") {
             // Find where the path argument begins
-            let cmd_end = line.find(' ').unwrap_or(line.len());
+            let cmd_end = line
+                .find(' ')
+                .unwrap_or(line.len());
             let path_start = if cmd_end < line.len() {
                 cmd_end + 1
             } else {
@@ -325,7 +392,11 @@ impl Completer for FunctionCompleter {
             let preferred_slash = Self::preferred_slash(path_part);
 
             // Get the current directory
-            let current = self.current_dir.lock().unwrap().clone();
+            let current = self
+                .current_dir
+                .lock()
+                .unwrap()
+                .clone();
 
             // Find paths that match
             let mut matches = Vec::new();
@@ -338,7 +409,12 @@ impl Completer for FunctionCompleter {
                 // Handle special paths
                 if path_part.starts_with("~")
                     && path_part.len() > 1
-                    && Self::is_any_slash(path_part.chars().nth(1).unwrap_or('\0'))
+                    && Self::is_any_slash(
+                        path_part
+                            .chars()
+                            .nth(1)
+                            .unwrap_or('\0'),
+                    )
                 {
                     if let Some(home) = dirs::home_dir() {
                         full_path = home;
@@ -351,7 +427,12 @@ impl Completer for FunctionCompleter {
                         }
                     }
                 } else if path_part.len() > 0
-                    && Self::is_any_slash(path_part.chars().next().unwrap())
+                    && Self::is_any_slash(
+                        path_part
+                            .chars()
+                            .next()
+                            .unwrap(),
+                    )
                 {
                     // Absolute path
                     #[cfg(unix)]
@@ -365,7 +446,10 @@ impl Completer for FunctionCompleter {
                     #[cfg(windows)]
                     {
                         // On Windows, need to handle drive letters carefully
-                        if let Some(root) = current.components().next() {
+                        if let Some(root) = current
+                            .components()
+                            .next()
+                        {
                             full_path = PathBuf::from(root.as_os_str());
                             if path_part.len() > 1 {
                                 let path_to_add = Self::string_to_pathbuf(&path_part[1..]);
@@ -404,7 +488,10 @@ impl Completer for FunctionCompleter {
             if let Ok(entries) = std::fs::read_dir(&search_dir) {
                 for entry in entries {
                     if let Ok(entry) = entry {
-                        if let Some(name) = entry.file_name().to_str() {
+                        if let Some(name) = entry
+                            .file_name()
+                            .to_str()
+                        {
                             if name.starts_with(name_prefix) {
                                 // Compute the completion text
                                 let base_path = if Self::contains_any_slash(path_part) {
@@ -421,7 +508,11 @@ impl Completer for FunctionCompleter {
                                 let mut completion = format!("{}{}", base_path, name);
 
                                 // Add a trailing slash for directories using the user's preferred slash
-                                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                                if entry
+                                    .file_type()
+                                    .map(|ft| ft.is_dir())
+                                    .unwrap_or(false)
+                                {
                                     completion.push(preferred_slash);
                                 }
 
@@ -436,52 +527,57 @@ impl Completer for FunctionCompleter {
         }
 
         // Find the starting index for the current word being completed
-        let start = line[..pos].rfind(' ').map_or(0, |n| n + 1);
+        let start = line[..pos]
+            .rfind(' ')
+            .map_or(0, |n| n + 1);
         let prefix = &line[start..pos];
 
         // Determine completion strategy based on prefix pattern
-        let matches =
-            if prefix.contains('.') {
-                // Instance method completion (var.method)
-                self.complete_instance_methods(prefix, &self.storage)
-            } else if prefix.contains("::") {
-                let mut completions = Vec::new();
-                // Struct method completion (Struct::method)
-                completions.extend(self.complete_struct_methods(prefix).into_iter().map(
-                    |method| {
-                        let suffix = method.strip_prefix(prefix).unwrap_or("");
+        let matches = if prefix.contains('.') {
+            // Instance method completion (var.method)
+            self.complete_instance_methods(prefix, &self.storage)
+        } else if prefix.contains("::") {
+            let mut completions = Vec::new();
+            // Struct method completion (Struct::method)
+            completions.extend(
+                self.complete_struct_methods(prefix)
+                    .into_iter()
+                    .map(|method| {
+                        let suffix = method
+                            .strip_prefix(prefix)
+                            .unwrap_or("");
                         format!("{prefix}{suffix}")
-                    },
-                ));
+                    }),
+            );
 
-                completions.extend(self.complete_variants(prefix));
-                completions
-            } else {
-                // Try multiple completion types and combine results
-                let mut completions = Vec::new();
+            completions.extend(self.complete_variants(prefix));
+            completions
+        } else {
+            // Try multiple completion types and combine results
+            let mut completions = Vec::new();
 
-                // Enums and variants
-                completions.extend(
-                    self.complete_enums(prefix)
-                        .into_iter()
-                        .map(|s| format!("{}::", s)),
-                );
+            // Enums and variants
+            completions.extend(
+                self.complete_enums(prefix)
+                    .into_iter()
+                    .map(|s| format!("{}::", s)),
+            );
 
-                // Functions
-                completions.extend(self.complete_functions(prefix));
+            // Functions
+            completions.extend(self.complete_functions(prefix));
 
-                // Variables
-                completions.extend(self.complete_vars(prefix));
+            // Variables
+            completions.extend(self.complete_vars(prefix));
 
-                // Struct types (adding :: suffix)
-                completions.extend(
-                    self.complete_structs(prefix)
-                        .into_iter()
-                        .map(|s| format!("{}::", s)),
-                );
+            // Struct types (adding :: suffix)
+            completions.extend(
+                self.complete_structs(prefix)
+                    .into_iter()
+                    .map(|s| format!("{}::", s)),
+            );
 
-                completions
-            };
+            completions
+        };
 
         Ok((start, matches))
     }

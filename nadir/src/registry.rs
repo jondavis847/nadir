@@ -1,6 +1,7 @@
 use aerospace::orbit::{KeplerianElements, OrbitErrors};
 use celestial::CelestialBodies;
 use csv::{ReaderBuilder, StringRecord, Trim};
+use iced::color;
 use inquire::{MultiSelect, Select};
 use nalgebra::{DMatrix, DVector};
 use plotting::{PlotErrors, figure::Figure, line::Line};
@@ -329,6 +330,65 @@ impl Registry {
 
                     let l = Arc::new(Mutex::new(line));
                     axes.add_line(l);
+                }
+
+                Ok(Value::Event(
+                    Event::NewFigure(Arc::new(Mutex::new(figure))),
+                ))
+            })],
+        );
+        // for this method to work you specifically need to be in the nadir_diffeq results folder
+        figure_struct_methods.insert(
+            "from_monte_carlo",
+            vec![StructMethod::new(vec![], |_args, pwd| {
+                let pwd = pwd
+                    .lock()
+                    .unwrap();
+                // Check that this folder is a nadir_diffeq monte carlo with run folders
+                let run_folders = get_sorted_run_folders(&pwd)?;
+                if run_folders.is_empty() {
+                    return Err(RegistryErrors::Error(
+                        "Incompatible results folder: All contents of a monte carlo\
+                     results folders are expected to be directories named like run0."
+                            .into(),
+                    ));
+                }
+
+                // Navigate to first run folder for file selection
+                let first_run_path = pwd.join(&run_folders[0]);
+
+                // Select X data file and column
+                let x_file = navigate_and_select_file(&first_run_path)?;
+                let (xname, x_data) = load_single_column_mc(&pwd, &x_file)?;
+
+                // Select Y data file and column
+                let y_file = navigate_and_select_file(&first_run_path)?;
+                let (yname, y_data) = load_single_column_mc(&pwd, &y_file)?;
+
+                let mut figure = Figure::new();
+                let axes = figure.get_axes(0)?;
+                let axes = &mut *axes
+                    .lock()
+                    .unwrap();
+
+                // Create a line for each Monte Carlo run in reverse order
+                for i in (0..y_data.len()).rev() {
+                    // only add legend and runname on first run
+                    // reduce alpha on mc runs
+                    let mut line = Line::new(&x_data[i], &y_data[i])?;
+                    // since there's only 1 line per plot for mc right now, just default to this
+                    // need to extend this when plotting with themes
+                    if i == 0 {
+                        line.set_xname(&xname);
+                        line.set_yname(&yname);
+                        line.set_color(color!(0x277da1));
+                    } else {
+                        line.set_color(color!(0xf8961e));
+                        line.set_legend(false);
+                        line.set_alpha(0.1);
+                    }
+
+                    axes.add_line(line);
                 }
 
                 Ok(Value::Event(
@@ -1899,7 +1959,150 @@ fn load_single_column(file_path: &Path) -> Result<(String, Vec<f64>), Box<dyn st
     let column_idx = parse_column_index(&column_selection)?;
 
     // Get column name
-    let header_name = if let Some(headers) = &headers {
+    let headers_vec = headers
+        .as_ref()
+        .map(|h| {
+            h.iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+        });
+    let header_name = get_column_name(
+        column_idx,
+        &headers_vec,
+        &file_stem,
+    );
+
+    // Load the data
+    let values = load_column_data(
+        file_path,
+        column_idx,
+        headers.is_some(),
+        delimiter,
+    )?;
+
+    Ok((header_name, values))
+}
+
+/// Modified load_single_column_mc to work with navigate_and_select_file workflow
+fn load_single_column_mc(
+    mc_dir: &Path,
+    selected_file: &Path,
+) -> Result<(String, Vec<Vec<f64>>), Box<dyn std::error::Error>> {
+    // Get sorted run folders
+    let run_folders = get_sorted_run_folders(mc_dir)?;
+
+    if run_folders.is_empty() {
+        return Err("No run folders found in Monte Carlo directory".into());
+    }
+
+    // Get the relative path of the selected file from the first run folder
+    let first_run_path = mc_dir.join(&run_folders[0]);
+    let relative_file_path = selected_file
+        .strip_prefix(&first_run_path)
+        .map_err(|_| "Selected file is not in the expected run folder structure")?;
+
+    // Get column selection from the selected file
+    let (column_options, headers, file_stem, delimiter) = smart_file_utils(selected_file)?;
+
+    if column_options.is_empty() {
+        return Err("No data columns detected in selected file".into());
+    }
+
+    let column_selection = Select::new(
+        "Select a column to load from all runs:",
+        column_options,
+    )
+    .prompt()
+    .map_err(|e| {
+        format!(
+            "Column selection failed: {}",
+            e
+        )
+    })?;
+
+    // Parse column index
+    let column_idx = parse_column_index(&column_selection)?;
+
+    // Get column name for the return value
+    let headers_vec = headers
+        .as_ref()
+        .map(|h| {
+            h.iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+        });
+    let header_name = get_column_name(
+        column_idx,
+        &headers_vec,
+        &file_stem,
+    );
+
+    // Now load the same column from all run folders
+    let mut all_run_data = Vec::new();
+
+    for (i, run_folder) in run_folders
+        .iter()
+        .enumerate()
+    {
+        let run_file_path = mc_dir
+            .join(run_folder)
+            .join(&relative_file_path);
+
+        // Check if file exists in this run folder
+        if !run_file_path.exists() {
+            eprintln!(
+                "Warning: File '{}' not found in {}, skipping...",
+                relative_file_path.display(),
+                run_folder
+            );
+            continue;
+        }
+
+        // Load the specific column from this run
+        match load_column_data(
+            &run_file_path,
+            column_idx,
+            headers.is_some(),
+            delimiter,
+        ) {
+            Ok(data) => {
+                all_run_data.push(data);
+                println!(
+                    "Loaded {} values from {} (run {}/{})",
+                    all_run_data
+                        .last()
+                        .unwrap()
+                        .len(),
+                    run_folder,
+                    i + 1,
+                    run_folders.len()
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to load data from {}: {}",
+                    run_folder, e
+                );
+            }
+        }
+    }
+
+    if all_run_data.is_empty() {
+        return Err("No data could be loaded from any run folders".into());
+    }
+
+    println!(
+        "Successfully loaded data from {}/{} run folders",
+        all_run_data.len(),
+        run_folders.len()
+    );
+
+    Ok((header_name, all_run_data))
+}
+
+/// Helper function to get column name
+fn get_column_name(column_idx: usize, headers: &Option<Vec<String>>, file_stem: &str) -> String {
+    if let Some(headers) = headers {
         headers
             .get(column_idx)
             .map(|h| h.to_string())
@@ -1916,8 +2119,16 @@ fn load_single_column(file_path: &Path) -> Result<(String, Vec<f64>), Box<dyn st
             file_stem,
             column_idx + 1
         )
-    };
+    }
+}
 
+/// Helper function to load a specific column from a file
+fn load_column_data(
+    file_path: &Path,
+    column_idx: usize,
+    has_headers: bool,
+    delimiter: u8,
+) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
     // Filter content to remove comments
     let content = fs::read_to_string(file_path)?;
     let filtered_content: String = content
@@ -1933,12 +2144,12 @@ fn load_single_column(file_path: &Path) -> Result<(String, Vec<f64>), Box<dyn st
     // Create reader with detected settings
     let mut csv_reader = ReaderBuilder::new()
         .delimiter(delimiter)
-        .has_headers(headers.is_some())
+        .has_headers(has_headers)
         .flexible(true)
         .trim(Trim::All)
         .from_reader(filtered_content.as_bytes());
 
-    if headers.is_some() {
+    if has_headers {
         let _ = csv_reader.headers();
     }
 
@@ -1983,7 +2194,68 @@ fn load_single_column(file_path: &Path) -> Result<(String, Vec<f64>), Box<dyn st
         .into());
     }
 
-    Ok((header_name, values))
+    Ok(values)
+}
+
+/// Helper function to get and sort run folders
+fn get_sorted_run_folders(mc_dir: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let mut run_folders: Vec<(u32, String)> = fs::read_dir(mc_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry
+                .path()
+                .is_dir()
+        })
+        .filter_map(|entry| {
+            let folder_name = entry
+                .file_name()
+                .to_string_lossy()
+                .to_string();
+
+            // Parse run folder name
+            if let Some(run_number) = parse_run_folder_name(&folder_name) {
+                Some((run_number, folder_name))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Sort by run number
+    run_folders.sort_by_key(|(num, _)| *num);
+
+    Ok(run_folders
+        .into_iter()
+        .map(|(_, name)| name)
+        .collect())
+}
+
+/// Helper function to parse run folder name (e.g., "run123" -> Some(123))
+fn parse_run_folder_name(folder_name: &str) -> Option<u32> {
+    // Must start with "run"
+    if !folder_name.starts_with("run") {
+        return None;
+    }
+
+    let number_part = &folder_name[3..]; // Skip "run" prefix
+
+    // Must have at least one digit after "run"
+    if number_part.is_empty() {
+        return None;
+    }
+
+    // All remaining characters must be digits
+    if !number_part
+        .chars()
+        .all(|c| c.is_ascii_digit())
+    {
+        return None;
+    }
+
+    // Parse the number
+    number_part
+        .parse::<u32>()
+        .ok()
 }
 
 /// Unified function to load multiple columns from any file type

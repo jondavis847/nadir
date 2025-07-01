@@ -120,9 +120,11 @@ impl Time {
         let float_seconds = (doy - day) * 86400.0;
         let seconds = float_seconds.floor();
         let nanoseconds = ((float_seconds - seconds) * 1e9).round();
-        let time =
-            NaiveTime::from_num_seconds_from_midnight_opt(seconds as u32, nanoseconds as u32)
-                .unwrap();
+        let time = NaiveTime::from_num_seconds_from_midnight_opt(
+            seconds as u32,
+            nanoseconds as u32,
+        )
+        .unwrap();
         let datetime = NaiveDate::from_yo_opt(year, day as u32)
             .unwrap()
             .and_time(time);
@@ -148,7 +150,12 @@ impl Time {
         let nano = ((second - sec) * 1e9).round();
         let dt = NaiveDate::from_ymd_opt(year, month, day)
             .ok_or(TimeErrors::NaiveDateTimeError)?
-            .and_hms_nano_opt(hour, minute, sec as u32, nano as u32)
+            .and_hms_nano_opt(
+                hour,
+                minute,
+                sec as u32,
+                nano as u32,
+            )
             .ok_or(TimeErrors::NaiveDateTimeError)?;
         Time::from_datetime(dt, system)
     }
@@ -190,31 +197,39 @@ impl Time {
             TimeSystem::TAI => tai_value,
         };
 
-        Time {
-            system: target_system,
-            value,
-        }
+        Time { system: target_system, value }
     }
 
     pub fn get_jd(&self) -> f64 {
-        self.value.0 / SEC_PER_DAY + JD_J2000
+        self.value
+            .0
+            / SEC_PER_DAY
+            + JD_J2000
     }
 
     pub fn get_jd_centuries(&self) -> f64 {
-        self.value.0 / SEC_PER_DAY / DAYS_PER_CENTURY
+        self.value
+            .0
+            / SEC_PER_DAY
+            / DAYS_PER_CENTURY
     }
 
     pub fn get_datetime(&self) -> NaiveDateTime {
-        self.value.to_datetime()
+        self.value
+            .to_datetime()
     }
 
     pub fn get_seconds_j2k(&self) -> f64 {
-        self.value.0
+        self.value
+            .0
     }
 }
 
 fn find_leap_seconds_utc(epoch: SecondsSinceJ2000) -> f64 {
-    for &(leap_seconds, leap_epoch) in LEAPSECONDS.iter().rev() {
+    for &(leap_seconds, leap_epoch) in LEAPSECONDS
+        .iter()
+        .rev()
+    {
         if epoch.0 >= leap_epoch {
             return leap_seconds;
         }
@@ -226,7 +241,10 @@ fn find_leap_seconds_utc(epoch: SecondsSinceJ2000) -> f64 {
 pub fn find_leap_seconds_tai(epoch_tai: SecondsSinceJ2000) -> f64 {
     let mut current_leap_seconds;
 
-    for &(leap_seconds, leap_epoch) in LEAPSECONDS.iter().rev() {
+    for &(leap_seconds, leap_epoch) in LEAPSECONDS
+        .iter()
+        .rev()
+    {
         current_leap_seconds = leap_seconds; // Update the number of leap seconds at each step
 
         // Convert the TAI epoch to the corresponding UTC epoch by subtracting the current leap seconds
@@ -245,7 +263,12 @@ impl Add<f64> for Time {
     type Output = Self;
     fn add(self, rhs: f64) -> Self::Output {
         // convert to the lhs system first
-        Time::from_sec_j2k(self.value.0 + rhs, self.system)
+        Time::from_sec_j2k(
+            self.value
+                .0
+                + rhs,
+            self.system,
+        )
     }
 }
 
@@ -254,7 +277,11 @@ impl Sub<Time> for Time {
     fn sub(self, rhs: Time) -> f64 {
         //convert to the left side system first
         rhs.to_system(self.system);
-        self.value.0 - rhs.value.0
+        self.value
+            .0
+            - rhs
+                .value
+                .0
     }
 }
 
@@ -268,7 +295,9 @@ impl SecondsSinceJ2000 {
             .unwrap()
             .and_hms_opt(12, 0, 0)
             .unwrap();
-        let seconds = self.0.floor();
+        let seconds = self
+            .0
+            .floor();
         let nanos = ((self.0 - seconds) * 1e9).round();
         let duration = Duration::new(seconds as u64, nanos as u32);
         j2k + duration
@@ -358,85 +387,242 @@ mod tests {
 
     #[test]
     fn test_jd_from_datetime_utc_0() {
-        let dt = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2000,
+            1,
+            1,
+            12,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
         assert_abs_diff_eq!(jd, 2451545.0, epsilon = 1e-9); //julia Dates
     }
 
     #[test]
     fn test_jd_from_datetime_utc_1() {
-        let dt = Time::from_ymdhms(2024, 1, 31, 6, 16, 30.5, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2024,
+            1,
+            31,
+            6,
+            16,
+            30.5,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2.4603407614641204e6, epsilon = 1e-9); //julia Dates
+        assert_abs_diff_eq!(
+            jd,
+            2.4603407614641204e6,
+            epsilon = 1e-9
+        ); //julia Dates
     }
 
     #[test]
     fn test_jd_from_datetime_utc_2() {
-        let dt = Time::from_ymdhms(2028, 2, 29, 16, 59, 59.999, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2028,
+            2,
+            29,
+            16,
+            59,
+            59.999,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2.461831208333322e6, epsilon = 1e-9); //julia Dates
+        assert_abs_diff_eq!(
+            jd,
+            2.461831208333322e6,
+            epsilon = 1e-9
+        ); //julia Dates
     }
 
     #[test]
     fn test_utc_to_tai_1() {
-        let utc = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
+        let utc = Time::from_ymdhms(
+            2000,
+            1,
+            1,
+            12,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let tai = utc.to_system(TimeSystem::TAI);
-        assert_abs_diff_eq!(tai.value.0, 32.0, epsilon = 1e-9); //julia Dates
+        assert_abs_diff_eq!(
+            tai.value
+                .0,
+            32.0,
+            epsilon = 1e-9
+        ); //julia Dates
     }
 
     #[test]
     fn test_leap_year_2024_feb_29() {
-        let dt = Time::from_ymdhms(2024, 2, 29, 23, 59, 59.999, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2024,
+            2,
+            29,
+            23,
+            59,
+            59.999,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2460370.4999999884, epsilon = 1e-9); // Expected JD
+        assert_abs_diff_eq!(
+            jd,
+            2460370.4999999884,
+            epsilon = 1e-9
+        ); // Expected JD
     }
 
     #[test]
     fn test_non_leap_year_2023_feb_28() {
-        let dt = Time::from_ymdhms(2023, 2, 28, 23, 59, 59.999, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2023,
+            2,
+            28,
+            23,
+            59,
+            59.999,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2.4600044999999884e6, epsilon = 1e-9); // Expected JD
+        assert_abs_diff_eq!(
+            jd,
+            2.4600044999999884e6,
+            epsilon = 1e-9
+        ); // Expected JD
     }
 
     #[test]
     fn test_end_of_january() {
-        let dt = Time::from_ymdhms(2024, 1, 31, 23, 59, 59.999, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2024,
+            1,
+            31,
+            23,
+            59,
+            59.999,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2460341.4999999884, epsilon = 1e-9); // Expected JD
+        assert_abs_diff_eq!(
+            jd,
+            2460341.4999999884,
+            epsilon = 1e-9
+        ); // Expected JD
     }
 
     #[test]
     fn test_end_of_december() {
-        let dt = Time::from_ymdhms(2023, 12, 31, 23, 59, 59.999, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            2023,
+            12,
+            31,
+            23,
+            59,
+            59.999,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2.4603104999999884e6, epsilon = 1e-9); // Expected JD
+        assert_abs_diff_eq!(
+            jd,
+            2.4603104999999884e6,
+            epsilon = 1e-9
+        ); // Expected JD
     }
 
     #[test]
     fn test_utc_to_tai_with_leap_second() {
-        let utc = Time::from_ymdhms(2017, 1, 1, 0, 0, 0.0, TimeSystem::UTC).unwrap();
+        let utc = Time::from_ymdhms(
+            2017,
+            1,
+            1,
+            0,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let tai = utc.to_system(TimeSystem::TAI);
-        assert_abs_diff_eq!(tai.value.0 - utc.value.0, 37.0, epsilon = 1e-9); // 37 leap seconds by 2017
+        assert_abs_diff_eq!(
+            tai.value
+                .0
+                - utc
+                    .value
+                    .0,
+            37.0,
+            epsilon = 1e-9
+        ); // 37 leap seconds by 2017
     }
 
     #[test]
     fn test_tai_to_utc_with_leap_second() {
-        let tai = Time::from_ymdhms(2017, 1, 1, 0, 0, 37.0, TimeSystem::TAI).unwrap();
+        let tai = Time::from_ymdhms(
+            2017,
+            1,
+            1,
+            0,
+            0,
+            37.0,
+            TimeSystem::TAI,
+        )
+        .unwrap();
         let utc = tai.to_system(TimeSystem::UTC);
-        assert_abs_diff_eq!(tai.value.0 - utc.value.0, 37.0, epsilon = 1e-9); // At the moment of leap second correction
+        assert_abs_diff_eq!(
+            tai.value
+                .0
+                - utc
+                    .value
+                    .0,
+            37.0,
+            epsilon = 1e-9
+        ); // At the moment of leap second correction
     }
 
     #[test]
     fn test_far_future_date() {
-        let dt = Time::from_ymdhms(3000, 1, 1, 0, 0, 0.0, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            3000,
+            1,
+            1,
+            0,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
         assert_abs_diff_eq!(jd, 2816787.5, epsilon = 1e-9); // Expected JD in the year 3000
     }
 
     #[test]
     fn test_far_past_date() {
-        let dt = Time::from_ymdhms(1000, 1, 1, 0, 0, 0.0, TimeSystem::UTC).unwrap();
+        let dt = Time::from_ymdhms(
+            1000,
+            1,
+            1,
+            0,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
         let jd = dt.get_jd();
-        assert_abs_diff_eq!(jd, 2.0863025e6, epsilon = 1e-9); // Expected JD in the year 1000
+        assert_abs_diff_eq!(
+            jd,
+            2.0863025e6,
+            epsilon = 1e-9
+        ); // Expected JD in the year 1000
     }
 }

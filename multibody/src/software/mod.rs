@@ -39,7 +39,10 @@ impl Software {
     pub fn new<P: AsRef<Path>>(name: &str, lib_path: P) -> Self {
         Self {
             name: name.to_string(),
-            lib_path: lib_path.as_ref().to_string_lossy().to_string(),
+            lib_path: lib_path
+                .as_ref()
+                .to_string_lossy()
+                .to_string(),
             sensor_indices: Vec::new(),
             actuator_indices: Vec::new(),
         }
@@ -94,7 +97,9 @@ impl SoftwareSim {
             Library::new(lib_path.as_ref()).map_err(|e| {
                 SoftwareErrors::LibraryLoadError(format!(
                     "Failed to load library {}: {}",
-                    lib_path.as_ref().display(),
+                    lib_path
+                        .as_ref()
+                        .display(),
                     e
                 ))
             })?
@@ -102,57 +107,72 @@ impl SoftwareSim {
 
         // Get the initialization function
         let init_fn: Symbol<InitFnC> = unsafe {
-            lib.get(b"initialize_software").map_err(|e| {
-                SoftwareErrors::MissingEntryPoint(format!(
-                    "Missing initialize_software in {}: {}",
-                    lib_path.as_ref().display(),
-                    e
-                ))
-            })?
+            lib.get(b"initialize_software")
+                .map_err(|e| {
+                    SoftwareErrors::MissingEntryPoint(format!(
+                        "Missing initialize_software in {}: {}",
+                        lib_path
+                            .as_ref()
+                            .display(),
+                        e
+                    ))
+                })?
         };
 
         // Get the initialization results function
         let init_results_fn: Symbol<InitResultsFn> = unsafe {
-            lib.get(b"initialize_results").map_err(|e| {
-                SoftwareErrors::MissingEntryPoint(format!(
-                    "Missing initialize_results in {}: {}",
-                    lib_path.as_ref().display(),
-                    e
-                ))
-            })?
+            lib.get(b"initialize_results")
+                .map_err(|e| {
+                    SoftwareErrors::MissingEntryPoint(format!(
+                        "Missing initialize_results in {}: {}",
+                        lib_path
+                            .as_ref()
+                            .display(),
+                        e
+                    ))
+                })?
         };
 
         // Get the write results function
         let write_results_fn: Symbol<WriteResultsFn> = unsafe {
-            lib.get(b"write_results").map_err(|e| {
-                SoftwareErrors::MissingEntryPoint(format!(
-                    "Missing write_results in {}: {}",
-                    lib_path.as_ref().display(),
-                    e
-                ))
-            })?
+            lib.get(b"write_results")
+                .map_err(|e| {
+                    SoftwareErrors::MissingEntryPoint(format!(
+                        "Missing write_results in {}: {}",
+                        lib_path
+                            .as_ref()
+                            .display(),
+                        e
+                    ))
+                })?
         };
 
         // Get the step function
         let step_fn: Symbol<StepFnC> = unsafe {
-            lib.get(b"step_software").map_err(|e| {
-                SoftwareErrors::MissingEntryPoint(format!(
-                    "Missing step_software in {}: {}",
-                    lib_path.as_ref().display(),
-                    e
-                ))
-            })?
+            lib.get(b"step_software")
+                .map_err(|e| {
+                    SoftwareErrors::MissingEntryPoint(format!(
+                        "Missing step_software in {}: {}",
+                        lib_path
+                            .as_ref()
+                            .display(),
+                        e
+                    ))
+                })?
         };
 
         // Get the cleanup function
         let cleanup_fn: Symbol<CleanupFnC> = unsafe {
-            lib.get(b"destroy_software").map_err(|e| {
-                SoftwareErrors::MissingEntryPoint(format!(
-                    "Missing destroy_software in {}: {}",
-                    lib_path.as_ref().display(),
-                    e
-                ))
-            })?
+            lib.get(b"destroy_software")
+                .map_err(|e| {
+                    SoftwareErrors::MissingEntryPoint(format!(
+                        "Missing destroy_software in {}: {}",
+                        lib_path
+                            .as_ref()
+                            .display(),
+                        e
+                    ))
+                })?
         };
 
         // Initialize the software state
@@ -185,15 +205,25 @@ impl SoftwareSim {
         actuators: &mut [Actuator],
     ) -> Result<(), SoftwareErrors> {
         // Check for valid state
-        if self.software_state.is_null() {
+        if self
+            .software_state
+            .is_null()
+        {
             return Err(SoftwareErrors::NullStatePointer);
         }
 
         // Copy sensor telemetry to cache
-        for (cache_idx, &sensor_idx) in self.sensor_indices.iter().enumerate() {
+        for (cache_idx, &sensor_idx) in self
+            .sensor_indices
+            .iter()
+            .enumerate()
+        {
             if sensor_idx < sensors.len() {
-                self.sensor_telemetry_cache[cache_idx]
-                    .write_bytes(sensors[sensor_idx].telemetry_buffer.as_bytes());
+                self.sensor_telemetry_cache[cache_idx].write_bytes(
+                    sensors[sensor_idx]
+                        .telemetry_buffer
+                        .as_bytes(),
+                );
             }
         }
 
@@ -201,10 +231,14 @@ impl SoftwareSim {
         let result = unsafe {
             (self.step_fn)(
                 self.software_state,
-                self.sensor_telemetry_cache.as_ptr(),
-                self.sensor_telemetry_cache.len(),
-                self.actuator_command_cache.as_mut_ptr(),
-                self.actuator_command_cache.len(),
+                self.sensor_telemetry_cache
+                    .as_ptr(),
+                self.sensor_telemetry_cache
+                    .len(),
+                self.actuator_command_cache
+                    .as_mut_ptr(),
+                self.actuator_command_cache
+                    .len(),
             )
         };
 
@@ -214,7 +248,11 @@ impl SoftwareSim {
         }
 
         // Read actuator commands
-        for (cache_idx, &actuator_idx) in self.actuator_indices.iter().enumerate() {
+        for (cache_idx, &actuator_idx) in self
+            .actuator_indices
+            .iter()
+            .enumerate()
+        {
             if actuator_idx < actuators.len() {
                 actuators[actuator_idx].read_command(&self.actuator_command_cache[cache_idx])?;
             }
@@ -225,7 +263,10 @@ impl SoftwareSim {
 
     pub fn initialize_results(&self, results: &mut ResultManager) -> Result<(), SoftwareErrors> {
         // Ensure the software state is valid
-        if self.software_state.is_null() {
+        if self
+            .software_state
+            .is_null()
+        {
             return Err(SoftwareErrors::NullStatePointer);
         }
 
@@ -233,7 +274,12 @@ impl SoftwareSim {
         let results_ptr = results as *mut _ as *mut c_void;
 
         // Call the FFI function
-        let status = unsafe { (self.init_results_fn)(self.software_state, results_ptr) };
+        let status = unsafe {
+            (self.init_results_fn)(
+                self.software_state,
+                results_ptr,
+            )
+        };
 
         if status != 0 {
             Err(SoftwareErrors::ExecutionError(status))
@@ -244,7 +290,10 @@ impl SoftwareSim {
 
     pub fn write_results(&self, results: &mut ResultManager) -> Result<(), SoftwareErrors> {
         // Ensure the software state is valid
-        if self.software_state.is_null() {
+        if self
+            .software_state
+            .is_null()
+        {
             return Err(SoftwareErrors::NullStatePointer);
         }
 
@@ -252,7 +301,12 @@ impl SoftwareSim {
         let results_ptr = results as *mut _ as *mut c_void;
 
         // Call the FFI function
-        let status = unsafe { (self.write_results_fn)(self.software_state, results_ptr) };
+        let status = unsafe {
+            (self.write_results_fn)(
+                self.software_state,
+                results_ptr,
+            )
+        };
 
         if status != 0 {
             Err(SoftwareErrors::ExecutionError(status))
@@ -265,7 +319,10 @@ impl SoftwareSim {
 // Properly clean up resources when SoftwareSim is dropped
 impl Drop for SoftwareSim {
     fn drop(&mut self) {
-        if !self.software_state.is_null() {
+        if !self
+            .software_state
+            .is_null()
+        {
             unsafe { (self.cleanup_fn)(self.software_state) };
             self.software_state = std::ptr::null_mut();
         }
@@ -278,8 +335,10 @@ impl TryFrom<&Software> for SoftwareSim {
     fn try_from(soft: &Software) -> Result<Self, Self::Error> {
         SoftwareSim::new(
             &soft.lib_path,
-            soft.sensor_indices.clone(),
-            soft.actuator_indices.clone(),
+            soft.sensor_indices
+                .clone(),
+            soft.actuator_indices
+                .clone(),
         )
     }
 }

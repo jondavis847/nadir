@@ -37,7 +37,8 @@ impl DelayedValue {
     }
 
     pub fn update(&mut self, time: f64, value: f64) {
-        self.history.push_back(DelayEntry { time, value });
+        self.history
+            .push_back(DelayEntry { time, value });
 
         // Keep extra history based on interpolation method
         let (history_multiplier, min_history_points) = match self.interpolation_method {
@@ -48,11 +49,24 @@ impl DelayedValue {
         };
 
         // Only prune if we have sufficient history AND the data is old enough
-        if self.history.len() > min_history_points {
+        if self
+            .history
+            .len()
+            > min_history_points
+        {
             let cutoff_time = time - self.delay * history_multiplier;
-            while let Some(entry) = self.history.front() {
-                if entry.time < cutoff_time && self.history.len() > min_history_points {
-                    self.history.pop_front();
+            while let Some(entry) = self
+                .history
+                .front()
+            {
+                if entry.time < cutoff_time
+                    && self
+                        .history
+                        .len()
+                        > min_history_points
+                {
+                    self.history
+                        .pop_front();
                 } else {
                     break;
                 }
@@ -61,21 +75,30 @@ impl DelayedValue {
     }
 
     pub fn get_delayed_reading(&self, current_time: f64) -> f64 {
-        if self.history.is_empty() {
+        if self
+            .history
+            .is_empty()
+        {
             return 0.0;
         }
 
         let target_time = current_time - self.delay;
 
         // If target time is before our earliest data, return earliest value
-        if let Some(first) = self.history.front() {
+        if let Some(first) = self
+            .history
+            .front()
+        {
             if target_time <= first.time {
                 return first.value;
             }
         }
 
         // If target time is after our latest data, return latest value
-        if let Some(last) = self.history.back() {
+        if let Some(last) = self
+            .history
+            .back()
+        {
             if target_time >= last.time {
                 return last.value;
             }
@@ -94,7 +117,11 @@ impl DelayedValue {
     }
 
     fn linear_interpolate(&self, target_time: f64) -> f64 {
-        if self.history.len() < 2 {
+        if self
+            .history
+            .len()
+            < 2
+        {
             return self
                 .history
                 .back()
@@ -114,17 +141,33 @@ impl DelayedValue {
             (Some(idx), _) => self.history[idx].value,
             _ => {
                 // return the closest available value
-                if target_time < self.history.front().unwrap().time {
-                    self.history.front().unwrap().value
+                if target_time
+                    < self
+                        .history
+                        .front()
+                        .unwrap()
+                        .time
+                {
+                    self.history
+                        .front()
+                        .unwrap()
+                        .value
                 } else {
-                    self.history.back().unwrap().value
+                    self.history
+                        .back()
+                        .unwrap()
+                        .value
                 }
             }
         }
     }
 
     fn hermite_interpolate(&self, target_time: f64) -> f64 {
-        if self.history.len() < 4 {
+        if self
+            .history
+            .len()
+            < 4
+        {
             return self.linear_interpolate(target_time);
         }
 
@@ -138,7 +181,12 @@ impl DelayedValue {
 
         let points: Vec<(f64, f64)> = indices
             .iter()
-            .map(|&i| (self.history[i].time, self.history[i].value))
+            .map(|&i| {
+                (
+                    self.history[i].time,
+                    self.history[i].value,
+                )
+            })
             .collect();
 
         self.cubic_hermite_interpolation(&points, target_time)
@@ -185,18 +233,28 @@ impl DelayedValue {
     }
 
     fn lagrange_interpolate(&self, target_time: f64) -> f64 {
-        if self.history.len() < 3 {
+        if self
+            .history
+            .len()
+            < 3
+        {
             return self.linear_interpolate(target_time);
         }
 
         // Use up to 4 points for cubic Lagrange
-        let n_points = (self.history.len()).min(4);
+        let n_points = (self
+            .history
+            .len())
+        .min(4);
         let center_idx = self.find_closest_index(target_time);
         let indices = self.get_centered_indices(center_idx, n_points);
 
         let mut result = 0.0;
 
-        for (i, &idx_i) in indices.iter().enumerate() {
+        for (i, &idx_i) in indices
+            .iter()
+            .enumerate()
+        {
             let (t_i, y_i) = (
                 self.history[idx_i].time,
                 self.history[idx_i].value,
@@ -204,7 +262,10 @@ impl DelayedValue {
 
             // Calculate Lagrange basis polynomial L_i(t)
             let mut li = 1.0;
-            for (j, &idx_j) in indices.iter().enumerate() {
+            for (j, &idx_j) in indices
+                .iter()
+                .enumerate()
+            {
                 if i != j {
                     let t_j = self.history[idx_j].time;
                     li *= (target_time - t_j) / (t_i - t_j);
@@ -228,7 +289,11 @@ impl DelayedValue {
         let mut before_idx = None;
         let mut after_idx = None;
 
-        for (i, entry) in self.history.iter().enumerate() {
+        for (i, entry) in self
+            .history
+            .iter()
+            .enumerate()
+        {
             if entry.time <= target_time {
                 before_idx = Some(i);
             }
@@ -256,7 +321,9 @@ impl DelayedValue {
     }
 
     fn get_hermite_indices(&self, center_idx: usize) -> Vec<usize> {
-        let len = self.history.len();
+        let len = self
+            .history
+            .len();
         if len < 4 {
             return Vec::new();
         }
@@ -278,7 +345,9 @@ impl DelayedValue {
     }
 
     fn get_centered_indices(&self, center_idx: usize, n_points: usize) -> Vec<usize> {
-        let len = self.history.len();
+        let len = self
+            .history
+            .len();
         let half = n_points / 2;
 
         let start = if center_idx >= half {
@@ -309,17 +378,31 @@ impl DelayedQuaternion {
     }
 
     pub fn update(&mut self, time: f64, value: UnitQuaternion) {
-        self.history.push_back((time, value));
+        self.history
+            .push_back((time, value));
 
         // Keep extra history based on interpolation method
         let (history_multiplier, min_history_points) = (5.0, 3);
 
         // Only prune if we have sufficient history AND the data is old enough
-        if self.history.len() > min_history_points {
+        if self
+            .history
+            .len()
+            > min_history_points
+        {
             let cutoff_time = time - self.delay * history_multiplier;
-            while let Some(entry) = self.history.front() {
-                if entry.0 < cutoff_time && self.history.len() > min_history_points {
-                    self.history.pop_front();
+            while let Some(entry) = self
+                .history
+                .front()
+            {
+                if entry.0 < cutoff_time
+                    && self
+                        .history
+                        .len()
+                        > min_history_points
+                {
+                    self.history
+                        .pop_front();
                 } else {
                     break;
                 }
@@ -328,21 +411,30 @@ impl DelayedQuaternion {
     }
 
     pub fn get_delayed_reading(&self, current_time: f64) -> UnitQuaternion {
-        if self.history.is_empty() {
+        if self
+            .history
+            .is_empty()
+        {
             return UnitQuaternion::IDENTITY;
         }
 
         let target_time = current_time - self.delay;
 
         // If target time is before our earliest data, return earliest value
-        if let Some(first) = self.history.front() {
+        if let Some(first) = self
+            .history
+            .front()
+        {
             if target_time <= first.0 {
                 return first.1;
             }
         }
 
         // If target time is after our latest data, return latest value
-        if let Some(last) = self.history.back() {
+        if let Some(last) = self
+            .history
+            .back()
+        {
             if target_time >= last.0 {
                 return last.1;
             }
@@ -356,7 +448,11 @@ impl DelayedQuaternion {
     }
 
     fn linear_interpolate(&self, target_time: f64) -> UnitQuaternion {
-        if self.history.len() < 2 {
+        if self
+            .history
+            .len()
+            < 2
+        {
             return self
                 .history
                 .back()
@@ -372,19 +468,39 @@ impl DelayedQuaternion {
                 let after = &self.history[after];
                 let alpha = (target_time - before.0) / (after.0 - before.0);
                 UnitQuaternion(
-                    Quaternion::slerp(&before.1.0, &after.1.0, alpha)
-                        .unwrap()
-                        .normalize()
-                        .unwrap(),
+                    Quaternion::slerp(
+                        &before
+                            .1
+                            .0,
+                        &after
+                            .1
+                            .0,
+                        alpha,
+                    )
+                    .unwrap()
+                    .normalize()
+                    .unwrap(),
                 )
             }
             (Some(idx), _) => self.history[idx].1,
             _ => {
                 // return the closest available value
-                if target_time < self.history.front().unwrap().0 {
-                    self.history.front().unwrap().1
+                if target_time
+                    < self
+                        .history
+                        .front()
+                        .unwrap()
+                        .0
+                {
+                    self.history
+                        .front()
+                        .unwrap()
+                        .1
                 } else {
-                    self.history.back().unwrap().1
+                    self.history
+                        .back()
+                        .unwrap()
+                        .1
                 }
             }
         }
@@ -395,7 +511,11 @@ impl DelayedQuaternion {
         let mut before_idx = None;
         let mut after_idx = None;
 
-        for (i, entry) in self.history.iter().enumerate() {
+        for (i, entry) in self
+            .history
+            .iter()
+            .enumerate()
+        {
             if entry.0 <= target_time {
                 before_idx = Some(i);
             }

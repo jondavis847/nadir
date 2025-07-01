@@ -74,17 +74,37 @@ impl BaseBuilder {
         outer_joint: &mut JointBuilder,
         transform: Transform,
     ) -> Result<(), BaseErrors> {
-        if self.outer_joints.contains(&outer_joint.id) {
+        if self
+            .outer_joints
+            .contains(&outer_joint.id)
+        {
             return Err(BaseErrors::OuterJointExists(
-                self.name.clone(),
-                outer_joint.name.clone(),
+                self.name
+                    .clone(),
+                outer_joint
+                    .name
+                    .clone(),
             ));
         }
-        if outer_joint.connections.inner_body.is_some() {
-            return Err(JointErrors::InnerBodyExists(outer_joint.name.clone()).into());
+        if outer_joint
+            .connections
+            .inner_body
+            .is_some()
+        {
+            return Err(JointErrors::InnerBodyExists(
+                outer_joint
+                    .name
+                    .clone(),
+            )
+            .into());
         }
-        self.outer_joints.push(outer_joint.id);
-        outer_joint.connections.inner_body = Some(BodyConnectionBuilder::new(self.id, transform));
+        self.outer_joints
+            .push(outer_joint.id);
+        outer_joint
+            .connections
+            .inner_body = Some(BodyConnectionBuilder::new(
+            self.id, transform,
+        ));
         Ok(())
     }
 

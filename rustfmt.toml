@@ -10,7 +10,3 @@ fn_call_width = 30            # Let Normal::new(1.0, 0.1) stay on one line
 
 # Control struct literals behavior
 struct_lit_width = 60         # Adjust based on your preference for struct literals
-
-# Other settings
-empty_item_single_line = true
-trailing_comma = "Vertical"

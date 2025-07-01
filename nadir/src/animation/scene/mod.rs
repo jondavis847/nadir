@@ -72,13 +72,18 @@ impl Scene {
         }
     }
     pub fn set_celestial(&mut self) {
-        self.world_target = if !self.body_meshes.is_empty() {
+        self.world_target = if !self
+            .body_meshes
+            .is_empty()
+        {
             Some(0)
         } else {
             None
         };
         let world_target = if let Some(index) = self.world_target {
-            self.body_meshes[index].state.position
+            self.body_meshes[index]
+                .state
+                .position
         } else {
             DVec3::ZERO
         };
@@ -102,7 +107,9 @@ impl Scene {
             .meshes
             .get(&CelestialMeshes::Sun)
             .unwrap();
-        let sun_position = sun.state.position;
+        let sun_position = sun
+            .state
+            .position;
 
         self.light_pos = sun_position.into();
         self.light_color = Color::new(1.0, 1.0, 1.0, 1.0);
@@ -118,10 +125,14 @@ impl Scene {
             10.0 * unit[1] as f32,
             10.0 * unit[2] as f32,
         );
-        self.camera.set_position(camera_position);
-        self.camera.set_target(Vec3::ZERO);
-        self.camera.set_far(1.1e13); //should cover to the heliopause,
-        self.camera.set_fov(45.0);
+        self.camera
+            .set_position(camera_position);
+        self.camera
+            .set_target(Vec3::ZERO);
+        self.camera
+            .set_far(1.1e13); //should cover to the heliopause,
+        self.camera
+            .set_fov(45.0);
     }
 
     pub fn set_window_id(&mut self, id: Id) {
@@ -187,7 +198,9 @@ impl ScenePrimitive {
             .for_each(|mesh| meshes.push(MeshPrimitive::from(mesh)));
 
         let celestial = if let Some(celestial) = &scene.celestial {
-            Some(CelestialPrimitives::from(celestial))
+            Some(CelestialPrimitives::from(
+                celestial,
+            ))
         } else {
             None
         };
@@ -233,8 +246,8 @@ impl Primitive for ScenePrimitive {
         // create and store the uniform bindgroup layout once
         // doesnt need to be updated but is used by other bindgroups
         if !storage.has::<UniformBindGroupLayout>() {
-            let uniform_bind_group_layout =
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            let uniform_bind_group_layout = device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
                     label: Some("uniform.bind.group.layout"),
                     entries: &[wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -246,18 +259,26 @@ impl Primitive for ScenePrimitive {
                         },
                         count: None,
                     }],
-                });
-            storage.store(UniformBindGroupLayout(uniform_bind_group_layout));
+                },
+            );
+            storage.store(UniformBindGroupLayout(
+                uniform_bind_group_layout,
+            ));
         }
 
         //Create and store the uniform bindgroup
         if !storage.has::<UniformBindGroup>() {
-            let uniforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("uniform buffer"),
-                contents: bytemuck::bytes_of(&self.uniforms),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
-            let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
+            let uniforms = device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("uniform buffer"),
+                    contents: bytemuck::bytes_of(&self.uniforms),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                },
+            );
+            let uniform_bind_group_layout = &storage
+                .get::<UniformBindGroupLayout>()
+                .unwrap()
+                .0;
             let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("uniform and texture bind group"),
                 layout: &uniform_bind_group_layout,
@@ -267,7 +288,9 @@ impl Primitive for ScenePrimitive {
                 }],
             });
             storage.store(UniformBuffer(uniforms));
-            storage.store(UniformBindGroup(uniform_bind_group));
+            storage.store(UniformBindGroup(
+                uniform_bind_group,
+            ));
         } else {
             if let Some(uniform_buffer) = storage.get::<UniformBuffer>() {
                 queue.write_buffer(
@@ -318,19 +341,26 @@ impl Primitive for ScenePrimitive {
             });
             let multisampled_texture_view =
                 multisampled_texture.create_view(&wgpu::TextureViewDescriptor::default());
-            storage.store(MultisampleView(multisampled_texture_view));
+            storage.store(MultisampleView(
+                multisampled_texture_view,
+            ));
         }
 
         const MAIN_SHADER: &str = include_str!("../scene/shaders/main.wgsl");
 
         if !storage.has::<PipelineLayout>() {
-            let uniform_bind_group_layout = &storage.get::<UniformBindGroupLayout>().unwrap().0;
+            let uniform_bind_group_layout = &storage
+                .get::<UniformBindGroupLayout>()
+                .unwrap()
+                .0;
             // create all pipelines for each geometry present in meshes
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("pipeline layout"),
-                bind_group_layouts: &[&uniform_bind_group_layout],
-                push_constant_ranges: &[],
-            });
+            let layout = device.create_pipeline_layout(
+                &wgpu::PipelineLayoutDescriptor {
+                    label: Some("pipeline layout"),
+                    bind_group_layouts: &[&uniform_bind_group_layout],
+                    push_constant_ranges: &[],
+                },
+            );
             storage.store(PipelineLayout(layout));
         }
         if let Some(celestial) = &self.celestial {
@@ -340,7 +370,10 @@ impl Primitive for ScenePrimitive {
             {
                 // atmosphere
                 if !storage.has::<AtmospherePipeline>() {
-                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    let layout = &storage
+                        .get::<PipelineLayout>()
+                        .unwrap()
+                        .0;
                     storage.store(AtmospherePipeline::new(
                         device,
                         format,
@@ -357,7 +390,10 @@ impl Primitive for ScenePrimitive {
             }
 
             //earth
-            if let Some(earth) = celestial.meshes.get(&CelestialMeshes::Earth) {
+            if let Some(earth) = celestial
+                .meshes
+                .get(&CelestialMeshes::Earth)
+            {
                 if !storage.has::<EarthPipeline>() {
                     const EARTH_COLOR: &[u8] =
                         include_bytes!("../../../resources/earth_color_8K.tif");
@@ -369,10 +405,30 @@ impl Primitive for ScenePrimitive {
                         include_bytes!("../../../resources/earth_spec_8k.tif");
                     // const EARTH_TOPO: &[u8] = include_bytes!("../../resources/earth_topography_5k.png");
 
-                    let earth_day = load_texture(device, queue, EARTH_COLOR, "earth_color");
-                    let earth_night = load_texture(device, queue, EARTH_NIGHT, "earth_night");
-                    let earth_spec = load_texture(device, queue, EARTH_SPEC, "earth_spec");
-                    let earth_clouds = load_texture(device, queue, EARTH_CLOUDS, "earth_clouds");
+                    let earth_day = load_texture(
+                        device,
+                        queue,
+                        EARTH_COLOR,
+                        "earth_color",
+                    );
+                    let earth_night = load_texture(
+                        device,
+                        queue,
+                        EARTH_NIGHT,
+                        "earth_night",
+                    );
+                    let earth_spec = load_texture(
+                        device,
+                        queue,
+                        EARTH_SPEC,
+                        "earth_spec",
+                    );
+                    let earth_clouds = load_texture(
+                        device,
+                        queue,
+                        EARTH_CLOUDS,
+                        "earth_clouds",
+                    );
                     // let earth_topography = load_texture(device, queue, EARTH_TOPO, "earth_topography");
 
                     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -386,8 +442,8 @@ impl Primitive for ScenePrimitive {
                         ..Default::default()
                     });
 
-                    let earth_bind_group_layout =
-                        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    let earth_bind_group_layout = device.create_bind_group_layout(
+                        &wgpu::BindGroupLayoutDescriptor {
                             label: Some("earth bind group layout"),
                             entries: &[
                                 // sampler
@@ -465,7 +521,8 @@ impl Primitive for ScenePrimitive {
                                 //     count: None,
                                 // },
                             ],
-                        });
+                        },
+                    );
 
                     let earth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("earth.bind.group"),
@@ -498,19 +555,24 @@ impl Primitive for ScenePrimitive {
                         ],
                     });
 
-                    storage.store(EarthBindGroup(earth_bind_group));
+                    storage.store(EarthBindGroup(
+                        earth_bind_group,
+                    ));
 
-                    let uniform_bind_group_layout =
-                        &storage.get::<UniformBindGroupLayout>().unwrap().0;
-                    let earth_layout =
-                        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    let uniform_bind_group_layout = &storage
+                        .get::<UniformBindGroupLayout>()
+                        .unwrap()
+                        .0;
+                    let earth_layout = device.create_pipeline_layout(
+                        &wgpu::PipelineLayoutDescriptor {
                             label: Some("earth.pipeline.layout"),
                             bind_group_layouts: &[
                                 &uniform_bind_group_layout,
                                 &earth_bind_group_layout,
                             ],
                             push_constant_ranges: &[],
-                        });
+                        },
+                    );
 
                     storage.store(EarthPipeline::new(
                         device,
@@ -527,9 +589,15 @@ impl Primitive for ScenePrimitive {
                 }
             }
 
-            if let Some(sun) = celestial.meshes.get(&CelestialMeshes::Sun) {
+            if let Some(sun) = celestial
+                .meshes
+                .get(&CelestialMeshes::Sun)
+            {
                 if !storage.has::<SunPipeline>() {
-                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    let layout = &storage
+                        .get::<PipelineLayout>()
+                        .unwrap()
+                        .0;
                     storage.store(SunPipeline::new(
                         device,
                         format,
@@ -545,9 +613,15 @@ impl Primitive for ScenePrimitive {
                 }
             }
 
-            if let Some(corona) = celestial.meshes.get(&CelestialMeshes::SunCorona) {
+            if let Some(corona) = celestial
+                .meshes
+                .get(&CelestialMeshes::SunCorona)
+            {
                 if !storage.has::<CoronaPipeline>() {
-                    let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                    let layout = &storage
+                        .get::<PipelineLayout>()
+                        .unwrap()
+                        .0;
                     storage.store(CoronaPipeline::new(
                         device,
                         format,
@@ -563,11 +637,19 @@ impl Primitive for ScenePrimitive {
                 }
             }
 
-            if let Some(moon) = celestial.meshes.get(&CelestialMeshes::Moon) {
+            if let Some(moon) = celestial
+                .meshes
+                .get(&CelestialMeshes::Moon)
+            {
                 if !storage.has::<MoonPipeline>() {
                     const MOON_COLOR: &[u8] = include_bytes!("../../../resources/moon_4k.tif");
 
-                    let moon_color = load_texture(device, queue, MOON_COLOR, "moon_color");
+                    let moon_color = load_texture(
+                        device,
+                        queue,
+                        MOON_COLOR,
+                        "moon_color",
+                    );
 
                     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
                         address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -579,8 +661,8 @@ impl Primitive for ScenePrimitive {
                         ..Default::default()
                     });
 
-                    let moon_bind_group_layout =
-                        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    let moon_bind_group_layout = device.create_bind_group_layout(
+                        &wgpu::BindGroupLayoutDescriptor {
                             label: Some("moon bind group layout"),
                             entries: &[
                                 // sampler
@@ -606,7 +688,8 @@ impl Primitive for ScenePrimitive {
                                     count: None,
                                 },
                             ],
-                        });
+                        },
+                    );
 
                     let moon_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("moon.bind.group"),
@@ -625,17 +708,20 @@ impl Primitive for ScenePrimitive {
 
                     storage.store(MoonBindGroup(moon_bind_group));
 
-                    let uniform_bind_group_layout =
-                        &storage.get::<UniformBindGroupLayout>().unwrap().0;
-                    let moon_layout =
-                        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    let uniform_bind_group_layout = &storage
+                        .get::<UniformBindGroupLayout>()
+                        .unwrap()
+                        .0;
+                    let moon_layout = device.create_pipeline_layout(
+                        &wgpu::PipelineLayoutDescriptor {
                             label: Some("moon.pipeline.layout"),
                             bind_group_layouts: &[
                                 &uniform_bind_group_layout,
                                 &moon_bind_group_layout,
                             ],
                             push_constant_ranges: &[],
-                        });
+                        },
+                    );
 
                     storage.store(MoonPipeline::new(
                         device,
@@ -662,14 +748,17 @@ impl Primitive for ScenePrimitive {
 
             let fxaa_uniform = FxaaUniform { pixel };
 
-            let fxaa_uniform_buffer =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            let fxaa_uniform_buffer = device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
                     label: Some("fxaa uniform buffer"),
                     contents: bytemuck::bytes_of(&fxaa_uniform),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
+                },
+            );
 
-            storage.store(FxaaUniformBuffer(fxaa_uniform_buffer));
+            storage.store(FxaaUniformBuffer(
+                fxaa_uniform_buffer,
+            ));
         }
 
         if !storage.has::<FxaaView>() || resize {
@@ -695,8 +784,8 @@ impl Primitive for ScenePrimitive {
         }
         if !storage.has::<FxaaBindGroupLayout>() || resize {
             // Create the bind group layout for FXAA (texture + sampler)
-            let fxaa_bind_group_layout =
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            let fxaa_bind_group_layout = device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
                     label: Some("fxaa_bind_group_layout"),
                     entries: &[
                         // Texture (the scene rendered to the fxaa texture view)
@@ -729,8 +818,11 @@ impl Primitive for ScenePrimitive {
                             count: None,
                         },
                     ],
-                });
-            storage.store(FxaaBindGroupLayout(fxaa_bind_group_layout));
+                },
+            );
+            storage.store(FxaaBindGroupLayout(
+                fxaa_bind_group_layout,
+            ));
         }
         if !storage.has::<FxaaBindGroup>() || resize {
             let fxaa_bind_group_layout = &storage
@@ -742,10 +834,16 @@ impl Primitive for ScenePrimitive {
                 label: Some("fxaa_sampler"),
                 ..Default::default()
             });
-            let fxaa_uniform_buffer = &storage.get::<FxaaUniformBuffer>().unwrap().0;
+            let fxaa_uniform_buffer = &storage
+                .get::<FxaaUniformBuffer>()
+                .unwrap()
+                .0;
             // fxaa_texture_view should be the one you stored earlier in FxaaView.
             // (Assuming you retrieved it as below.)
-            let fxaa_texture_view = &storage.get::<FxaaView>().unwrap().0;
+            let fxaa_texture_view = &storage
+                .get::<FxaaView>()
+                .unwrap()
+                .0;
             // Create the bind group for FXAA.
             let fxaa_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("fxaa_bind_group"),
@@ -773,12 +871,13 @@ impl Primitive for ScenePrimitive {
                 .expect("FxaaBindGroupLayout not found")
                 .0;
             // Create the pipeline layout for FXAA.
-            let fxaa_pipeline_layout =
-                device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            let fxaa_pipeline_layout = device.create_pipeline_layout(
+                &wgpu::PipelineLayoutDescriptor {
                     label: Some("fxaa_pipeline_layout"),
                     bind_group_layouts: &[&fxaa_bind_group_layout],
                     push_constant_ranges: &[],
-                });
+                },
+            );
 
             // Load your FXAA shader (which should include a vertex entry "vs_main" and fragment entry "fs_main").
             const FXAA_SHADER: &str = include_str!("shaders/fxaa.wgsl");
@@ -788,49 +887,51 @@ impl Primitive for ScenePrimitive {
             });
 
             // Create the render pipeline for FXAA.
-            let fxaa_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("fxaa_pipeline"),
-                layout: Some(&fxaa_pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &fxaa_shader_module,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                    // buffers: &[wgpu::VertexBufferLayout {
-                    //     array_stride: 2 * std::mem::size_of::<f32>() as wgpu::BufferAddress,
-                    //     step_mode: wgpu::VertexStepMode::Vertex,
-                    //     attributes: &[wgpu::VertexAttribute {
-                    //         offset: 0,
-                    //         shader_location: 0,
-                    //         format: wgpu::VertexFormat::Float32x2,
-                    //     }],
-                    // }],
+            let fxaa_pipeline = device.create_render_pipeline(
+                &wgpu::RenderPipelineDescriptor {
+                    label: Some("fxaa_pipeline"),
+                    layout: Some(&fxaa_pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &fxaa_shader_module,
+                        entry_point: "vs_main",
+                        buffers: &[],
+                        // buffers: &[wgpu::VertexBufferLayout {
+                        //     array_stride: 2 * std::mem::size_of::<f32>() as wgpu::BufferAddress,
+                        //     step_mode: wgpu::VertexStepMode::Vertex,
+                        //     attributes: &[wgpu::VertexAttribute {
+                        //         offset: 0,
+                        //         shader_location: 0,
+                        //         format: wgpu::VertexFormat::Float32x2,
+                        //     }],
+                        // }],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &fxaa_shader_module,
+                        entry_point: "fs_main",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format, // same as your swapchain/surface format
+                            blend: Some(wgpu::BlendState::REPLACE),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: None,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        unclipped_depth: false,
+                        conservative: false,
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState {
+                        count: 1,
+                        mask: !0,
+                        alpha_to_coverage_enabled: false,
+                    },
+                    multiview: None,
                 },
-                fragment: Some(wgpu::FragmentState {
-                    module: &fxaa_shader_module,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format, // same as your swapchain/surface format
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: None,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-            });
+            );
 
             // Finally, store the FxaaPipeline into your storage
             storage.store(FxaaPipeline(fxaa_pipeline));
@@ -851,7 +952,10 @@ impl Primitive for ScenePrimitive {
 
         if !cuboids.is_empty() {
             if !storage.has::<CuboidPipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
+                let layout = &storage
+                    .get::<PipelineLayout>()
+                    .unwrap()
+                    .0;
                 storage.store(CuboidPipeline(Pipeline::new(
                     device,
                     format,
@@ -885,17 +989,22 @@ impl Primitive for ScenePrimitive {
 
         if !ellipsoid16s.is_empty() {
             if !storage.has::<Ellipsoid16Pipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(Ellipsoid16Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid16",
-                    Ellipsoid16::vertices(),
-                    &ellipsoid16s,
-                    self.sample_count,
-                )));
+                let layout = &storage
+                    .get::<PipelineLayout>()
+                    .unwrap()
+                    .0;
+                storage.store(Ellipsoid16Pipeline(
+                    Pipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        MAIN_SHADER,
+                        "ellipsoid16",
+                        Ellipsoid16::vertices(),
+                        &ellipsoid16s,
+                        self.sample_count,
+                    ),
+                ));
             } else {
                 if let Some(ellipsoid16_pipeline) = storage.get_mut::<Ellipsoid16Pipeline>() {
                     let pipeline = &mut ellipsoid16_pipeline.0;
@@ -919,17 +1028,22 @@ impl Primitive for ScenePrimitive {
 
         if !ellipsoid32s.is_empty() {
             if !storage.has::<Ellipsoid32Pipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(Ellipsoid32Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid32",
-                    Ellipsoid32::vertices(),
-                    &ellipsoid32s,
-                    self.sample_count,
-                )));
+                let layout = &storage
+                    .get::<PipelineLayout>()
+                    .unwrap()
+                    .0;
+                storage.store(Ellipsoid32Pipeline(
+                    Pipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        MAIN_SHADER,
+                        "ellipsoid32",
+                        Ellipsoid32::vertices(),
+                        &ellipsoid32s,
+                        self.sample_count,
+                    ),
+                ));
             } else {
                 if let Some(ellipsoid32_pipeline) = storage.get_mut::<Ellipsoid32Pipeline>() {
                     let pipeline = &mut ellipsoid32_pipeline.0;
@@ -963,17 +1077,22 @@ impl Primitive for ScenePrimitive {
 
         if !ellipsoid64s.is_empty() {
             if !storage.has::<Ellipsoid64Pipeline>() {
-                let layout = &storage.get::<PipelineLayout>().unwrap().0;
-                storage.store(Ellipsoid64Pipeline(Pipeline::new(
-                    device,
-                    format,
-                    &layout,
-                    MAIN_SHADER,
-                    "ellipsoid64",
-                    Ellipsoid64::vertices(),
-                    &ellipsoid64s,
-                    self.sample_count,
-                )));
+                let layout = &storage
+                    .get::<PipelineLayout>()
+                    .unwrap()
+                    .0;
+                storage.store(Ellipsoid64Pipeline(
+                    Pipeline::new(
+                        device,
+                        format,
+                        &layout,
+                        MAIN_SHADER,
+                        "ellipsoid64",
+                        Ellipsoid64::vertices(),
+                        &ellipsoid64s,
+                        self.sample_count,
+                    ),
+                ));
             } else {
                 if let Some(ellipsoid64_pipeline) = storage.get_mut::<Ellipsoid64Pipeline>() {
                     let pipeline = &mut ellipsoid64_pipeline.0;
@@ -991,10 +1110,22 @@ impl Primitive for ScenePrimitive {
         viewport: &Rectangle<u32>,
     ) {
         // unpack the depth_view and uniform_bind_group from storage
-        let depth_view = &storage.get::<DepthView>().unwrap().0;
-        let fxaa_view = &storage.get::<FxaaView>().unwrap().0;
-        let multisample_view = &storage.get::<MultisampleView>().unwrap().0;
-        let uniform_bind_group = &storage.get::<UniformBindGroup>().unwrap().0;
+        let depth_view = &storage
+            .get::<DepthView>()
+            .unwrap()
+            .0;
+        let fxaa_view = &storage
+            .get::<FxaaView>()
+            .unwrap()
+            .0;
+        let multisample_view = &storage
+            .get::<MultisampleView>()
+            .unwrap()
+            .0;
+        let uniform_bind_group = &storage
+            .get::<UniformBindGroup>()
+            .unwrap()
+            .0;
 
         let (view, resolve_target) = match self.sample_count {
             1 => (fxaa_view, None),
@@ -1005,22 +1136,26 @@ impl Primitive for ScenePrimitive {
         // set up the render pass
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("nadir.pipeline.pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
+            color_attachments: &[Some(
+                wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
                 },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
+            )],
+            depth_stencil_attachment: Some(
+                wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                },
+            ),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -1036,8 +1171,18 @@ impl Primitive for ScenePrimitive {
         if let Some(corona_pipeline) = storage.get::<CoronaPipeline>() {
             let pipeline = &corona_pipeline.pipeline;
             pass.set_pipeline(pipeline);
-            pass.set_vertex_buffer(0, corona_pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, corona_pipeline.instance_buffer.slice(..));
+            pass.set_vertex_buffer(
+                0,
+                corona_pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                corona_pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
             pass.draw(
                 0..corona_pipeline.n_vertices,
                 0..corona_pipeline.n_instances,
@@ -1047,8 +1192,18 @@ impl Primitive for ScenePrimitive {
         if let Some(sun_pipeline) = storage.get::<SunPipeline>() {
             let pipeline = &sun_pipeline.pipeline;
             pass.set_pipeline(pipeline);
-            pass.set_vertex_buffer(0, sun_pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, sun_pipeline.instance_buffer.slice(..));
+            pass.set_vertex_buffer(
+                0,
+                sun_pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                sun_pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
             pass.draw(
                 0..sun_pipeline.n_vertices,
                 0..sun_pipeline.n_instances,
@@ -1059,17 +1214,40 @@ impl Primitive for ScenePrimitive {
             if let Some(earth_bind_group) = storage.get::<EarthBindGroup>() {
                 pass.set_bind_group(1, &earth_bind_group.0, &[]); // textures saved in bing group 1
                 pass.set_pipeline(&pipeline.pipeline);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+                pass.set_vertex_buffer(
+                    0,
+                    pipeline
+                        .vertex_buffer
+                        .slice(..),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    pipeline
+                        .instance_buffer
+                        .slice(..),
+                );
+                pass.draw(
+                    0..pipeline.n_vertices,
+                    0..pipeline.n_instances,
+                );
             }
         }
 
         if let Some(atmosphere_pipeline) = storage.get::<AtmospherePipeline>() {
             let pipeline = &atmosphere_pipeline.pipeline;
             pass.set_pipeline(pipeline);
-            pass.set_vertex_buffer(0, atmosphere_pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, atmosphere_pipeline.instance_buffer.slice(..));
+            pass.set_vertex_buffer(
+                0,
+                atmosphere_pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                atmosphere_pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
             pass.draw(
                 0..atmosphere_pipeline.n_vertices,
                 0..atmosphere_pipeline.n_instances,
@@ -1080,9 +1258,22 @@ impl Primitive for ScenePrimitive {
             if let Some(moon_bind_group) = storage.get::<MoonBindGroup>() {
                 pass.set_bind_group(1, &moon_bind_group.0, &[]); // textures saved in bing group 1
                 pass.set_pipeline(&pipeline.pipeline);
-                pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-                pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-                pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+                pass.set_vertex_buffer(
+                    0,
+                    pipeline
+                        .vertex_buffer
+                        .slice(..),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    pipeline
+                        .instance_buffer
+                        .slice(..),
+                );
+                pass.draw(
+                    0..pipeline.n_vertices,
+                    0..pipeline.n_instances,
+                );
             }
         }
 
@@ -1090,36 +1281,88 @@ impl Primitive for ScenePrimitive {
         if let Some(cuboid_pipeline) = storage.get::<CuboidPipeline>() {
             let pipeline = &cuboid_pipeline.0;
             pass.set_pipeline(&pipeline.pipeline);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            pass.set_vertex_buffer(
+                0,
+                pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
+            pass.draw(
+                0..pipeline.n_vertices,
+                0..pipeline.n_instances,
+            );
         }
 
         //render ellipsoid16s
         if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid16Pipeline>() {
             let pipeline = &ellipsoid_pipeline.0;
             pass.set_pipeline(&pipeline.pipeline);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            pass.set_vertex_buffer(
+                0,
+                pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
+            pass.draw(
+                0..pipeline.n_vertices,
+                0..pipeline.n_instances,
+            );
         }
 
         //render ellipsoid32s
         if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid32Pipeline>() {
             let pipeline = &ellipsoid_pipeline.0;
             pass.set_pipeline(&pipeline.pipeline);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            pass.set_vertex_buffer(
+                0,
+                pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
+            pass.draw(
+                0..pipeline.n_vertices,
+                0..pipeline.n_instances,
+            );
         }
 
         //render ellipsoid64s
         if let Some(ellipsoid_pipeline) = storage.get::<Ellipsoid64Pipeline>() {
             let pipeline = &ellipsoid_pipeline.0;
             pass.set_pipeline(&pipeline.pipeline);
-            pass.set_vertex_buffer(0, pipeline.vertex_buffer.slice(..));
-            pass.set_vertex_buffer(1, pipeline.instance_buffer.slice(..));
-            pass.draw(0..pipeline.n_vertices, 0..pipeline.n_instances);
+            pass.set_vertex_buffer(
+                0,
+                pipeline
+                    .vertex_buffer
+                    .slice(..),
+            );
+            pass.set_vertex_buffer(
+                1,
+                pipeline
+                    .instance_buffer
+                    .slice(..),
+            );
+            pass.draw(
+                0..pipeline.n_vertices,
+                0..pipeline.n_instances,
+            );
         }
 
         drop(pass);
@@ -1127,19 +1370,24 @@ impl Primitive for ScenePrimitive {
         // apply fxaa
         if self.sample_count == 1 {
             if let Some(fxaa_pipeline) = storage.get::<FxaaPipeline>() {
-                let fxaa_bind_group = &storage.get::<FxaaBindGroup>().unwrap().0;
+                let fxaa_bind_group = &storage
+                    .get::<FxaaBindGroup>()
+                    .unwrap()
+                    .0;
 
                 // Create a new render pass for FXAA
                 let mut encoder = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("fxaa.render_pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: target,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                            store: wgpu::StoreOp::Store,
+                    color_attachments: &[Some(
+                        wgpu::RenderPassColorAttachment {
+                            view: target,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
                         },
-                    })],
+                    )],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
@@ -1192,14 +1440,16 @@ impl Program<Message> for Scene {
                     mouse::Event::ButtonPressed(mouse::Button::Right) => (
                         Status::Captured,
                         Some(Message::RightButtonPressed(
-                            self.window_id.unwrap(),
+                            self.window_id
+                                .unwrap(),
                             canvas_cursor_position,
                         )),
                     ),
                     mouse::Event::ButtonReleased(mouse::Button::Right) => (
                         Status::Captured,
                         Some(Message::RightButtonReleased(
-                            self.window_id.unwrap(),
+                            self.window_id
+                                .unwrap(),
                             canvas_cursor_position,
                         )),
                     ),
@@ -1213,7 +1463,8 @@ impl Program<Message> for Scene {
                                 Status::Captured,
                                 Some(Message::AnimationMessage(
                                     AnimationMessage::CameraRotation(
-                                        self.window_id.unwrap(),
+                                        self.window_id
+                                            .unwrap(),
                                         delta,
                                     ),
                                 )),

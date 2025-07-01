@@ -23,7 +23,7 @@ use spatial_algebra::{Acceleration, Force, SpatialInertia, SpatialTransform, Vel
 use std::ops::{AddAssign, MulAssign};
 use thiserror::Error;
 use transforms::Transform;
-use uncertainty::{SimVector3, Uncertainty, UncertaintyErrors};
+use uncertainty::{Dispersion, Distributions, SimVector3, Uncertainty, UncertaintyErrors};
 
 use super::{JointCache, JointErrors, JointModel, JointParametersBuilder, JointRef};
 
@@ -61,12 +61,24 @@ impl Uncertainty for FloatingParametersBuilder {
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(FloatingParameters {
-            x_rotation: self.x_rotation.sample(nominal, rng)?,
-            y_rotation: self.y_rotation.sample(nominal, rng)?,
-            z_rotation: self.z_rotation.sample(nominal, rng)?,
-            x_translation: self.x_translation.sample(nominal, rng)?,
-            y_translation: self.y_translation.sample(nominal, rng)?,
-            z_translation: self.z_translation.sample(nominal, rng)?,
+            x_rotation: self
+                .x_rotation
+                .sample(nominal, rng)?,
+            y_rotation: self
+                .y_rotation
+                .sample(nominal, rng)?,
+            z_rotation: self
+                .z_rotation
+                .sample(nominal, rng)?,
+            x_translation: self
+                .x_translation
+                .sample(nominal, rng)?,
+            y_translation: self
+                .y_translation
+                .sample(nominal, rng)?,
+            z_translation: self
+                .z_translation
+                .sample(nominal, rng)?,
         })
     }
 }
@@ -89,10 +101,22 @@ impl Uncertainty for FloatingStateBuilder {
     type Error = JointErrors;
     type Output = FloatingState;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let q = self.q.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
-        let w = self.w.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
-        let r = self.r.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
-        let mut v = self.v.sample(nominal, rng).unwrap(); // unwrapping since error type is ()
+        let q = self
+            .q
+            .sample(nominal, rng)
+            .unwrap(); // unwrapping since error type is ()
+        let w = self
+            .w
+            .sample(nominal, rng)
+            .unwrap(); // unwrapping since error type is ()
+        let r = self
+            .r
+            .sample(nominal, rng)
+            .unwrap(); // unwrapping since error type is ()
+        let mut v = self
+            .v
+            .sample(nominal, rng)
+            .unwrap(); // unwrapping since error type is ()
 
         // v is provided and stored in builder state in the jif
         // v sim is in the jof though so need to transform it based on q
@@ -101,12 +125,7 @@ impl Uncertainty for FloatingStateBuilder {
         // It's very annoying but I can't use UnitQuaternion in Floating, because when I integrate the state
         // I need to be able to add the delta quat to the quat, but delta quat from quaternion kinematics cant be normalized
         // Since I'm adding FloatingState to FloatingState, it must be a regular quat manually normalized
-        Ok(FloatingState {
-            q: Quaternion::from(&q),
-            w,
-            r,
-            v,
-        })
+        Ok(FloatingState { q: Quaternion::from(&q), w, r, v })
     }
 }
 
@@ -125,7 +144,10 @@ pub struct FloatingState {
 impl AddAssign<&Self> for FloatingState {
     fn add_assign(&mut self, rhs: &Self) {
         self.q += &rhs.q; //note this should only be used for adding quaternion derivatives in an ODE
-        self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
+        self.q = self
+            .q
+            .normalize()
+            .unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w += &rhs.w;
         self.r += &rhs.r;
         self.v += &rhs.v;
@@ -135,7 +157,10 @@ impl AddAssign<&Self> for FloatingState {
 impl MulAssign<f64> for FloatingState {
     fn mul_assign(&mut self, rhs: f64) {
         self.q *= rhs;
-        self.q = self.q.normalize().unwrap(); // manually normalize since we can't use UnitQuaternions
+        self.q = self
+            .q
+            .normalize()
+            .unwrap(); // manually normalize since we can't use UnitQuaternions
         self.w *= rhs;
         self.r *= rhs;
         self.v *= rhs;
@@ -155,29 +180,70 @@ impl FloatingBuilder {
     }
 
     pub fn with_attitude(mut self, q: UnitQuaternion) -> Self {
-        self.state.q.nominal = q;
+        self.state
+            .q
+            .nominal = q;
+        self
+    }
+    pub fn with_uncertain_attitude(
+        mut self,
+        nominal: UnitQuaternion,
+        distribution: Distributions,
+    ) -> Self {
+        self.state
+            .q = UnitQuaternionBuilder::new(
+            nominal,
+            Some(Dispersion { distribution }),
+        );
         self
     }
 
     pub fn with_angular_rate(mut self, wx: f64, wy: f64, wz: f64) -> Self {
-        self.state.w.x.nominal = wx;
-        self.state.w.y.nominal = wy;
-        self.state.w.z.nominal = wz;
+        self.state
+            .w
+            .x
+            .nominal = wx;
+        self.state
+            .w
+            .y
+            .nominal = wy;
+        self.state
+            .w
+            .z
+            .nominal = wz;
         self
     }
 
     pub fn with_position(mut self, rx: f64, ry: f64, rz: f64) -> Self {
-        self.state.r.x.nominal = rx;
-        self.state.r.y.nominal = ry;
-        self.state.r.z.nominal = rz;
+        self.state
+            .r
+            .x
+            .nominal = rx;
+        self.state
+            .r
+            .y
+            .nominal = ry;
+        self.state
+            .r
+            .z
+            .nominal = rz;
         self
     }
 
     /// This is the velocity of the joint outer frame (jof) in the joint inner frame (jif)
     pub fn with_velocity(mut self, vx: f64, vy: f64, vz: f64) -> Self {
-        self.state.v.x.nominal = vx;
-        self.state.v.y.nominal = vy;
-        self.state.v.z.nominal = vz;
+        self.state
+            .v
+            .x
+            .nominal = vx;
+        self.state
+            .v
+            .y
+            .nominal = vy;
+        self.state
+            .v
+            .z
+            .nominal = vz;
         self
     }
 
@@ -206,8 +272,12 @@ impl Uncertainty for FloatingBuilder {
     type Output = Floating;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Floating {
-            parameters: self.parameters.sample(nominal, rng)?,
-            state: self.state.sample(nominal, rng)?,
+            parameters: self
+                .parameters
+                .sample(nominal, rng)?,
+            state: self
+                .state
+                .sample(nominal, rng)?,
             cache: FloatingCache::default(),
         })
     }
@@ -231,18 +301,34 @@ impl JointModel for Floating {
 
         // only rotate the inertia to the jof, dont translate since cm is @ jof
         let mut jof_from_ob_rotation_only = jof_from_ob.clone();
-        jof_from_ob_rotation_only.0.translation = CoordinateSystem::ZERO;
+        jof_from_ob_rotation_only
+            .0
+            .translation = CoordinateSystem::ZERO;
         let joint_mass_properties = jof_from_ob_rotation_only * spatial_inertia;
 
         // if there is translation in jof_from_ob or the body frame cm is non zero
         // then we need to add them to the joint state position so that the jof frame is at the cm
         // r is in the jif frame, so need to transform jof and cm to jif frame
         let jif_from_jof = transforms.jif_from_jof;
-        let cm_in_jof = jof_from_ob.0.rotation.transform(&original_cm);
-        let ob_from_jof_translation = Cartesian::from(transforms.ob_from_jof.0.translation).vec();
+        let cm_in_jof = jof_from_ob
+            .0
+            .rotation
+            .transform(&original_cm);
+        let ob_from_jof_translation = Cartesian::from(
+            transforms
+                .ob_from_jof
+                .0
+                .translation,
+        )
+        .vec();
         let total_in_jof = cm_in_jof + ob_from_jof_translation;
-        let total_in_jif = jif_from_jof.0.rotation.transform(&total_in_jof);
-        let r = &mut self.state.r;
+        let total_in_jif = jif_from_jof
+            .0
+            .rotation
+            .transform(&total_in_jof);
+        let r = &mut self
+            .state
+            .r;
         *r += total_in_jif;
 
         joint_mass_properties
@@ -251,41 +337,123 @@ impl JointModel for Floating {
     fn calculate_tau(&mut self) {
         let p = &self.parameters;
         // this assume tait-bryan euler angle sequence (ZYX)
-        let angles = EulerAngles::from(&self.state.q);
+        let angles = EulerAngles::from(
+            &self
+                .state
+                .q,
+        );
 
-        self.cache.tau[0] = p.x_rotation.constant_force
-            + p.x_rotation.spring_constant * (p.x_rotation.equilibrium - angles.psi)
-            - p.x_rotation.damping * self.state.w[0];
-        self.cache.tau[1] = p.y_rotation.constant_force
-            + p.y_rotation.spring_constant * (p.y_rotation.equilibrium - angles.theta)
-            - p.y_rotation.damping * self.state.w[1];
-        self.cache.tau[2] = p.z_rotation.constant_force
-            + p.z_rotation.spring_constant * (p.z_rotation.equilibrium - angles.phi)
-            - p.z_rotation.damping * self.state.w[2];
+        self.cache
+            .tau[0] = p
+            .x_rotation
+            .constant_force
+            + p.x_rotation
+                .spring_constant
+                * (p.x_rotation
+                    .equilibrium
+                    - angles.psi)
+            - p.x_rotation
+                .damping
+                * self
+                    .state
+                    .w[0];
+        self.cache
+            .tau[1] = p
+            .y_rotation
+            .constant_force
+            + p.y_rotation
+                .spring_constant
+                * (p.y_rotation
+                    .equilibrium
+                    - angles.theta)
+            - p.y_rotation
+                .damping
+                * self
+                    .state
+                    .w[1];
+        self.cache
+            .tau[2] = p
+            .z_rotation
+            .constant_force
+            + p.z_rotation
+                .spring_constant
+                * (p.z_rotation
+                    .equilibrium
+                    - angles.phi)
+            - p.z_rotation
+                .damping
+                * self
+                    .state
+                    .w[2];
 
         // translation quantities are + instead of - since they are expressed in JOF
         // i.e. if the JOF is +1 units in the x direction represented in the JIF frame,
         // then r would be -1 in the JOF frame, and the spring force would be K*r instead of -K*r
         // to get back to a JIF equilibrium
-        self.cache.tau[3] = p.x_translation.constant_force
-            + p.x_translation.spring_constant * (p.x_translation.equilibrium - self.state.r[0])
-            - p.x_translation.damping * self.state.v[0];
-        self.cache.tau[4] = p.y_translation.constant_force
-            + p.y_translation.spring_constant * (p.y_translation.equilibrium - self.state.r[1])
-            - p.y_translation.damping * self.state.v[1];
-        self.cache.tau[5] = p.z_translation.constant_force
-            + p.z_translation.spring_constant * (p.z_translation.equilibrium - self.state.r[2])
-            - p.z_translation.damping * self.state.v[2];
+        self.cache
+            .tau[3] = p
+            .x_translation
+            .constant_force
+            + p.x_translation
+                .spring_constant
+                * (p.x_translation
+                    .equilibrium
+                    - self
+                        .state
+                        .r[0])
+            - p.x_translation
+                .damping
+                * self
+                    .state
+                    .v[0];
+        self.cache
+            .tau[4] = p
+            .y_translation
+            .constant_force
+            + p.y_translation
+                .spring_constant
+                * (p.y_translation
+                    .equilibrium
+                    - self
+                        .state
+                        .r[1])
+            - p.y_translation
+                .damping
+                * self
+                    .state
+                    .v[1];
+        self.cache
+            .tau[5] = p
+            .z_translation
+            .constant_force
+            + p.z_translation
+                .spring_constant
+                * (p.z_translation
+                    .equilibrium
+                    - self
+                        .state
+                        .r[2])
+            - p.z_translation
+                .damping
+                * self
+                    .state
+                    .v[2];
     }
 
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(
-            self.state.w[0],
-            self.state.w[1],
-            self.state.w[2],
-            self.state.v[0],
-            self.state.v[1],
-            self.state.v[2],
+            self.state
+                .w[0],
+            self.state
+                .w[1],
+            self.state
+                .w[2],
+            self.state
+                .v[0],
+            self.state
+                .v[1],
+            self.state
+                .v[2],
         ))
     }
 
@@ -296,12 +464,19 @@ impl JointModel for Floating {
     fn state_derivative(&self, dx: &mut [f64], transforms: &JointTransforms) {
         // Quaternion is from the body to base, or the body's orientation in the base frame
         // due to quaternion kinematic equations
-        let q = self.state.q;
+        let q = self
+            .state
+            .q;
         // Markley eq 3.20 & 2.88
         let tmp = Matrix4x3::new(
             q.w, -q.z, q.y, q.z, q.w, -q.x, -q.y, q.x, q.w, -q.x, -q.y, -q.z,
         );
-        let dq = Quaternion::from(0.5 * tmp * self.state.w);
+        let dq = Quaternion::from(
+            0.5 * tmp
+                * self
+                    .state
+                    .w,
+        );
 
         // we make assumptions about velocity and acceleration being in the jof so that our joint motion space matrix is constant
         // however, position makes a lot more sense when expressed in the jif. we will also specify linear velocity
@@ -314,8 +489,13 @@ impl JointModel for Floating {
 
         //TODO: Am I doing this right? I just said all these words but then looks like I just rotated it?
 
-        let jif_from_jof = &transforms.jif_from_jof.0.rotation;
-        let v_jof = self.state.v;
+        let jif_from_jof = &transforms
+            .jif_from_jof
+            .0
+            .rotation;
+        let v_jof = self
+            .state
+            .v;
         let v_jif = jif_from_jof.transform(&v_jof);
 
         dx[0] = dq.x;
@@ -325,48 +505,89 @@ impl JointModel for Floating {
         dx[4] = v_jif[0];
         dx[5] = v_jif[1];
         dx[6] = v_jif[2];
-        dx[7] = self.cache.q_ddot[0];
-        dx[8] = self.cache.q_ddot[1];
-        dx[9] = self.cache.q_ddot[2];
-        dx[10] = self.cache.q_ddot[3];
-        dx[11] = self.cache.q_ddot[4];
-        dx[12] = self.cache.q_ddot[5];
+        dx[7] = self
+            .cache
+            .q_ddot[0];
+        dx[8] = self
+            .cache
+            .q_ddot[1];
+        dx[9] = self
+            .cache
+            .q_ddot[2];
+        dx[10] = self
+            .cache
+            .q_ddot[3];
+        dx[11] = self
+            .cache
+            .q_ddot[4];
+        dx[12] = self
+            .cache
+            .q_ddot[5];
     }
 
     fn state_vector_init(&self) -> StateVector {
         let state = vec![
-            self.state.q.x,
-            self.state.q.y,
-            self.state.q.z,
-            self.state.q.w,
-            self.state.r[0],
-            self.state.r[1],
-            self.state.r[2],
-            self.state.w[0],
-            self.state.w[1],
-            self.state.w[2],
-            self.state.v[0],
-            self.state.v[1],
-            self.state.v[2],
+            self.state
+                .q
+                .x,
+            self.state
+                .q
+                .y,
+            self.state
+                .q
+                .z,
+            self.state
+                .q
+                .w,
+            self.state
+                .r[0],
+            self.state
+                .r[1],
+            self.state
+                .r[2],
+            self.state
+                .w[0],
+            self.state
+                .w[1],
+            self.state
+                .w[2],
+            self.state
+                .v[0],
+            self.state
+                .v[1],
+            self.state
+                .v[2],
         ];
         StateVector::new(state)
     }
 
     fn state_vector_read(&mut self, state: &[f64]) {
         // need to normalize the integrated quaternion
-        let q = Quaternion::new(state[0], state[1], state[2], state[3])
-            .normalize()
-            .unwrap();
-        self.state.q = q;
-        self.state.r[0] = state[4];
-        self.state.r[1] = state[5];
-        self.state.r[2] = state[6];
-        self.state.w[0] = state[7];
-        self.state.w[1] = state[8];
-        self.state.w[2] = state[9];
-        self.state.v[0] = state[10];
-        self.state.v[1] = state[11];
-        self.state.v[2] = state[12];
+        let q = Quaternion::new(
+            state[0], state[1], state[2], state[3],
+        )
+        .normalize()
+        .unwrap();
+        self.state
+            .q = q;
+        self.state
+            .r[0] = state[4];
+        self.state
+            .r[1] = state[5];
+        self.state
+            .r[2] = state[6];
+        self.state
+            .w[0] = state[7];
+        self.state
+            .w[1] = state[8];
+        self.state
+            .w[2] = state[9];
+        self.state
+            .v[0] = state[10];
+        self.state
+            .v[1] = state[11];
+        self.state
+            .v[2] = state[12];
     }
 
     fn update_transforms(
@@ -374,12 +595,24 @@ impl JointModel for Floating {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     ) {
-        let rotation = Rotation::from(&UnitQuaternion::try_from(&self.state.q).unwrap());
-        let translation = Cartesian::from(self.state.r); // r is already jif to jof
+        let rotation = Rotation::from(
+            &UnitQuaternion::try_from(
+                &self
+                    .state
+                    .q,
+            )
+            .unwrap(),
+        );
+        let translation = Cartesian::from(
+            self.state
+                .r,
+        ); // r is already jif to jof
         let transform = Transform::new(rotation, translation.into());
 
         transforms.jof_from_jif = SpatialTransform(transform);
-        transforms.jif_from_jof = transforms.jof_from_jif.inv();
+        transforms.jif_from_jof = transforms
+            .jof_from_jif
+            .inv();
         transforms.update(inner_joint);
     }
 
@@ -414,32 +647,88 @@ impl JointModel for Floating {
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.cache.q_ddot[3];
-        writer.float_buffer[1] = self.cache.q_ddot[4];
-        writer.float_buffer[2] = self.cache.q_ddot[5];
-        writer.float_buffer[3] = self.cache.q_ddot[0];
-        writer.float_buffer[4] = self.cache.q_ddot[1];
-        writer.float_buffer[5] = self.cache.q_ddot[2];
-        writer.float_buffer[6] = self.state.w[0];
-        writer.float_buffer[7] = self.state.w[1];
-        writer.float_buffer[8] = self.state.w[2];
-        writer.float_buffer[9] = self.state.q.x;
-        writer.float_buffer[10] = self.state.q.y;
-        writer.float_buffer[11] = self.state.q.z;
-        writer.float_buffer[12] = self.state.q.w;
-        writer.float_buffer[13] = self.state.r[0];
-        writer.float_buffer[14] = self.state.r[1];
-        writer.float_buffer[15] = self.state.r[2];
-        writer.float_buffer[16] = self.cache.tau[0];
-        writer.float_buffer[17] = self.cache.tau[1];
-        writer.float_buffer[18] = self.cache.tau[2];
-        writer.float_buffer[19] = self.cache.tau[3];
-        writer.float_buffer[20] = self.cache.tau[4];
-        writer.float_buffer[21] = self.cache.tau[5];
-        writer.float_buffer[22] = self.state.v[0];
-        writer.float_buffer[23] = self.state.v[1];
-        writer.float_buffer[24] = self.state.v[2];
-        writer.write_record().unwrap();
+        writer.float_buffer[0] = self
+            .cache
+            .q_ddot[3];
+        writer.float_buffer[1] = self
+            .cache
+            .q_ddot[4];
+        writer.float_buffer[2] = self
+            .cache
+            .q_ddot[5];
+        writer.float_buffer[3] = self
+            .cache
+            .q_ddot[0];
+        writer.float_buffer[4] = self
+            .cache
+            .q_ddot[1];
+        writer.float_buffer[5] = self
+            .cache
+            .q_ddot[2];
+        writer.float_buffer[6] = self
+            .state
+            .w[0];
+        writer.float_buffer[7] = self
+            .state
+            .w[1];
+        writer.float_buffer[8] = self
+            .state
+            .w[2];
+        writer.float_buffer[9] = self
+            .state
+            .q
+            .x;
+        writer.float_buffer[10] = self
+            .state
+            .q
+            .y;
+        writer.float_buffer[11] = self
+            .state
+            .q
+            .z;
+        writer.float_buffer[12] = self
+            .state
+            .q
+            .w;
+        writer.float_buffer[13] = self
+            .state
+            .r[0];
+        writer.float_buffer[14] = self
+            .state
+            .r[1];
+        writer.float_buffer[15] = self
+            .state
+            .r[2];
+        writer.float_buffer[16] = self
+            .cache
+            .tau[0];
+        writer.float_buffer[17] = self
+            .cache
+            .tau[1];
+        writer.float_buffer[18] = self
+            .cache
+            .tau[2];
+        writer.float_buffer[19] = self
+            .cache
+            .tau[3];
+        writer.float_buffer[20] = self
+            .cache
+            .tau[4];
+        writer.float_buffer[21] = self
+            .cache
+            .tau[5];
+        writer.float_buffer[22] = self
+            .state
+            .v[0];
+        writer.float_buffer[23] = self
+            .state
+            .v[1];
+        writer.float_buffer[24] = self
+            .state
+            .v[2];
+        writer
+            .write_record()
+            .unwrap();
     }
 }
 
@@ -468,43 +757,107 @@ struct FloatingCache {
 
 impl ArticulatedBodyAlgorithm for Floating {
     fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
-        let aba = &mut self.cache.aba;
-        let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
+        let aba = &mut self
+            .cache
+            .aba;
+        let inertia_articulated_matrix = joint_cache
+            .aba
+            .inertia_articulated
+            .matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
         aba.big_u = inertia_articulated_matrix; // S is just identity for floating joint
-        aba.big_d_inv = aba.big_u.try_inverse().unwrap();
-        aba.lil_u = self.cache.tau - joint_cache.aba.p_big_a.vector();
+        aba.big_d_inv = aba
+            .big_u
+            .try_inverse()
+            .unwrap();
+        aba.lil_u = self
+            .cache
+            .tau
+            - joint_cache
+                .aba
+                .p_big_a
+                .vector();
 
         if let Some(inner_joint_ref) = inner_joint {
             let mut inner_joint = inner_joint_ref.borrow_mut();
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
-                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
+                inertia_articulated_matrix
+                    - big_u_times_big_d_inv
+                        * aba
+                            .big_u
+                            .transpose(),
             );
 
-            joint_cache.aba.p_lil_a = joint_cache.aba.p_big_a
-                + Force::from(i_lil_a * joint_cache.aba.c)
+            joint_cache
+                .aba
+                .p_lil_a = joint_cache
+                .aba
+                .p_big_a
+                + Force::from(
+                    i_lil_a
+                        * joint_cache
+                            .aba
+                            .c,
+                )
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            inner_joint.cache.aba.inertia_articulated +=
-                joint_cache.transforms.ij_jof_from_jof * i_lil_a;
-            inner_joint.cache.aba.p_big_a +=
-                joint_cache.transforms.ij_jof_from_jof * joint_cache.aba.p_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .inertia_articulated += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * i_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .p_big_a += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * joint_cache
+                    .aba
+                    .p_lil_a;
         }
     }
 
     fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let a_ij = if let Some(inner_joint_ref) = inner_joint {
             let inner_joint = inner_joint_ref.borrow();
-            inner_joint.cache.a
+            inner_joint
+                .cache
+                .a
         } else {
             Acceleration::zeros()
         };
-        let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
-        self.cache.q_ddot = self.cache.aba.big_d_inv
-            * (self.cache.aba.lil_u - self.cache.aba.big_u.transpose() * a_prime.vector());
-        joint_cache.a = a_prime + Acceleration::from(self.cache.q_ddot);
+        let a_prime = joint_cache
+            .transforms
+            .jof_from_ij_jof
+            * a_ij
+            + joint_cache
+                .aba
+                .c;
+        self.cache
+            .q_ddot = self
+            .cache
+            .aba
+            .big_d_inv
+            * (self
+                .cache
+                .aba
+                .lil_u
+                - self
+                    .cache
+                    .aba
+                    .big_u
+                    .transpose()
+                    * a_prime.vector());
+        joint_cache.a = a_prime
+            + Acceleration::from(
+                self.cache
+                    .q_ddot,
+            );
     }
 }
 

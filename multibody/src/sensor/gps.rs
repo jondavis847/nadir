@@ -122,20 +122,28 @@ impl GpsBuilder {
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         self
     }
 
     pub fn with_uncertain_delay_normal(mut self, mean: f64, std: f64) -> Result<Self, GpsErrors> {
         let dist = Normal::new(mean, std)?;
-        if let Some(delay) = &mut self.parameters.delay {
+        if let Some(delay) = &mut self
+            .parameters
+            .delay
+        {
             delay.set_distribution(dist.into())?;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(mean).with_distribution(dist.into())?);
+            self.parameters
+                .delay = Some(UncertainValue::new(mean).with_distribution(dist.into())?);
         }
         Ok(self)
     }
@@ -145,7 +153,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.position_noise = Some(noise);
+        self.parameters
+            .position_noise = Some(noise);
         self
     }
 
@@ -154,7 +163,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.position_noise = Some(noise);
+        self.parameters
+            .position_noise = Some(noise);
     }
 
     pub fn with_noise_position_uniform(mut self, low: f64, high: f64) -> Self {
@@ -162,7 +172,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(low, high);
         let noise3 = NoiseBuilder::new_normal(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.position_noise = Some(noise);
+        self.parameters
+            .position_noise = Some(noise);
         self
     }
 
@@ -171,7 +182,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(low, high);
         let noise3 = NoiseBuilder::new_normal(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.position_noise = Some(noise);
+        self.parameters
+            .position_noise = Some(noise);
     }
 
     pub fn with_noise_velocity_normal(mut self, mean: f64, std: f64) -> Self {
@@ -179,7 +191,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.velocity_noise = Some(noise);
+        self.parameters
+            .velocity_noise = Some(noise);
         self
     }
 
@@ -188,7 +201,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.velocity_noise = Some(noise);
+        self.parameters
+            .velocity_noise = Some(noise);
     }
 
     pub fn with_noise_velocity_uniform(mut self, low: f64, high: f64) -> Self {
@@ -196,7 +210,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(low, high);
         let noise3 = NoiseBuilder::new_normal(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.velocity_noise = Some(noise);
+        self.parameters
+            .velocity_noise = Some(noise);
         self
     }
 
@@ -205,7 +220,8 @@ impl GpsBuilder {
         let noise2 = NoiseBuilder::new_normal(low, high);
         let noise3 = NoiseBuilder::new_normal(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.velocity_noise = Some(noise);
+        self.parameters
+            .velocity_noise = Some(noise);
     }
 }
 
@@ -218,7 +234,9 @@ impl Uncertainty for GpsBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(Gps {
-            parameters: self.parameters.sample(nominal, rng)?,
+            parameters: self
+                .parameters
+                .sample(nominal, rng)?,
             state: GpsState::default(),
             telemetry: GpsTelemetry::default(),
         })
@@ -235,12 +253,21 @@ pub struct Gps {
 
 impl SensorModel for Gps {
     fn update(&mut self, t: f64, connection: &BodyConnection) {
-        let body = connection.body.borrow();
+        let body = connection
+            .body
+            .borrow();
 
-        let true_position = body.state.position_base;
-        let true_velocity = body.state.velocity_base;
+        let true_position = body
+            .state
+            .position_base;
+        let true_velocity = body
+            .state
+            .velocity_base;
 
-        let (position, velocity) = if let Some(delay) = &mut self.parameters.delay {
+        let (position, velocity) = if let Some(delay) = &mut self
+            .parameters
+            .delay
+        {
             let mut delayed_position = Vector3::zeros();
             let mut delayed_velocity = Vector3::zeros();
             for i in 0..3 {
@@ -249,50 +276,90 @@ impl SensorModel for Gps {
                 delay[i + 3].update(t, true_velocity[i]);
                 delayed_velocity[i] = delay[i + 3].get_delayed_reading(t);
             }
-            (delayed_position, delayed_velocity)
+            (
+                delayed_position,
+                delayed_velocity,
+            )
         } else {
             (true_position, true_velocity)
         };
 
-        if let Some(noise_model) = &mut self.parameters.position_noise {
+        if let Some(noise_model) = &mut self
+            .parameters
+            .position_noise
+        {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
-            self.state.position_noise = Some(noise);
-            self.state.position = position + noise;
+            self.state
+                .position_noise = Some(noise);
+            self.state
+                .position = position + noise;
         } else {
-            self.state.position = position;
+            self.state
+                .position = position;
         }
 
-        if let Some(noise_model) = &mut self.parameters.velocity_noise {
+        if let Some(noise_model) = &mut self
+            .parameters
+            .velocity_noise
+        {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
-            self.state.velocity_noise = Some(noise);
-            self.state.velocity = velocity + noise;
+            self.state
+                .velocity_noise = Some(noise);
+            self.state
+                .velocity = velocity + noise;
         } else {
-            self.state.velocity = velocity;
+            self.state
+                .velocity = velocity;
         }
 
         // update telemetry
-        self.telemetry.position = self.state.position.into();
-        self.telemetry.velocity = self.state.velocity.into();
-        self.telemetry.valid = 1u8;
+        self.telemetry
+            .position = self
+            .state
+            .position
+            .into();
+        self.telemetry
+            .velocity = self
+            .state
+            .velocity
+            .into();
+        self.telemetry
+            .valid = 1u8;
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.position[0];
-        writer.float_buffer[1] = self.state.position[1];
-        writer.float_buffer[2] = self.state.position[2];
-        writer.float_buffer[3] = self.state.velocity[0];
-        writer.float_buffer[4] = self.state.velocity[1];
-        writer.float_buffer[5] = self.state.velocity[2];
+        writer.float_buffer[0] = self
+            .state
+            .position[0];
+        writer.float_buffer[1] = self
+            .state
+            .position[1];
+        writer.float_buffer[2] = self
+            .state
+            .position[2];
+        writer.float_buffer[3] = self
+            .state
+            .velocity[0];
+        writer.float_buffer[4] = self
+            .state
+            .velocity[1];
+        writer.float_buffer[5] = self
+            .state
+            .velocity[2];
 
         match (
-            &self.state.position_noise,
-            &self.state.velocity_noise,
+            &self
+                .state
+                .position_noise,
+            &self
+                .state
+                .velocity_noise,
         ) {
             (Some(position_noise), Some(velocity_noise)) => {
                 writer.float_buffer[6] = position_noise[0];
@@ -314,13 +381,19 @@ impl SensorModel for Gps {
             }
             _ => {}
         }
-        writer.write_record().unwrap();
+        writer
+            .write_record()
+            .unwrap();
     }
 
     fn writer_headers(&self) -> &[&str] {
         match (
-            &self.parameters.position_noise,
-            &self.parameters.velocity_noise,
+            &self
+                .parameters
+                .position_noise,
+            &self
+                .parameters
+                .velocity_noise,
         ) {
             (Some(_), Some(_)) => &[
                 "position[x]",

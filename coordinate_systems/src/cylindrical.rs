@@ -26,11 +26,7 @@ impl Cylindrical {
     ///
     /// A `Cylindrical` instance.
     pub fn new(radius: f64, azimuth: f64, height: f64) -> Self {
-        Self {
-            radius,
-            azimuth,
-            height,
-        }
+        Self { radius, azimuth, height }
     }
 
     /// Converts the `Cylindrical` instance to a `Vector3`.
@@ -39,7 +35,11 @@ impl Cylindrical {
     ///
     /// A `Vector3` instance.
     pub fn vec(&self) -> Vector3<f64> {
-        Vector3::new(self.radius, self.azimuth, self.height)
+        Vector3::new(
+            self.radius,
+            self.azimuth,
+            self.height,
+        )
     }
 }
 
@@ -69,8 +69,16 @@ impl From<Cartesian> for Cylindrical {
     ///
     /// A `Cylindrical` instance.
     fn from(cartesian: Cartesian) -> Self {
-        let radius = (cartesian.x.powi(2) + cartesian.y.powi(2)).sqrt();
-        let azimuth = cartesian.y.atan2(cartesian.x);
+        let radius = (cartesian
+            .x
+            .powi(2)
+            + cartesian
+                .y
+                .powi(2))
+        .sqrt();
+        let azimuth = cartesian
+            .y
+            .atan2(cartesian.x);
         Cylindrical::new(radius, azimuth, cartesian.z)
     }
 }
@@ -86,9 +94,19 @@ impl From<Spherical> for Cylindrical {
     ///
     /// A `Cylindrical` instance.
     fn from(spherical: Spherical) -> Self {
-        let radius = spherical.radius * spherical.inclination.sin(); // rho = r * sin(phi)
-        let height = spherical.radius * spherical.inclination.cos(); // z = r * cos(phi)
-        Cylindrical::new(radius, spherical.azimuth, height) // cylindrical (rho, azimuth, z)
+        let radius = spherical.radius
+            * spherical
+                .inclination
+                .sin(); // rho = r * sin(phi)
+        let height = spherical.radius
+            * spherical
+                .inclination
+                .cos(); // z = r * cos(phi)
+        Cylindrical::new(
+            radius,
+            spherical.azimuth,
+            height,
+        ) // cylindrical (rho, azimuth, z)
     }
 }
 
@@ -156,23 +174,28 @@ mod tests {
         let cylindrical = Cylindrical::from(cartesian);
 
         assert_close(cylindrical.radius, 5.0);
-        assert_close(cylindrical.azimuth, 0.9272952180016122);
+        assert_close(
+            cylindrical.azimuth,
+            0.9272952180016122,
+        );
         assert_close(cylindrical.height, 5.0);
     }
 
     /// Tests the conversion from a `Spherical` coordinate to a `Cylindrical` coordinate.
     #[test]
     fn test_cylindrical_from_spherical() {
-        let spherical = Spherical {
-            radius: 5.0,
-            azimuth: PI / 4.0,
-            inclination: PI / 4.0,
-        };
+        let spherical = Spherical { radius: 5.0, azimuth: PI / 4.0, inclination: PI / 4.0 };
         let cylindrical = Cylindrical::from(spherical);
 
-        assert_close(cylindrical.radius, 3.5355339059327378);
+        assert_close(
+            cylindrical.radius,
+            3.5355339059327378,
+        );
         assert_close(cylindrical.azimuth, PI / 4.0);
-        assert_close(cylindrical.height, 3.5355339059327378);
+        assert_close(
+            cylindrical.height,
+            3.5355339059327378,
+        );
     }
 
     /// Tests the addition of two `Cylindrical` coordinates.
@@ -182,8 +205,14 @@ mod tests {
         let cyl2 = Cylindrical::new(-2.0, -10.0 * PI - PI, -2.0);
         let result = cyl1 + cyl2;
 
-        assert_close(result.radius, 2.23606797749979);
-        assert_close(result.azimuth, 0.4636476090008061);
+        assert_close(
+            result.radius,
+            2.23606797749979,
+        );
+        assert_close(
+            result.azimuth,
+            0.4636476090008061,
+        );
         assert_close(result.height, -1.0);
     }
 }

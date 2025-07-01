@@ -14,6 +14,7 @@ use iced::{
 #[derive(Debug, Clone)]
 pub struct Line {
     pub data: Series,
+    pub alpha: Option<f32>,
     pub color: Option<Color>,
     pub legend: bool,
     pub width: f32,
@@ -22,7 +23,7 @@ pub struct Line {
 impl Line {
     pub fn new(xdata: &[f64], ydata: &[f64]) -> Result<Self, PlotErrors> {
         let data = Series::new(xdata, ydata)?;
-        Ok(Self { data, color: None, legend: true, width: 1.5 })
+        Ok(Self { data, alpha: None, color: None, legend: true, width: 1.5 })
     }
 
     pub fn delete_xname(&mut self) {
@@ -35,8 +36,16 @@ impl Line {
             .yname = None;
     }
 
+    pub fn set_alpha(&mut self, alpha: f32) {
+        self.alpha = Some(alpha);
+    }
+
     pub fn set_color(&mut self, color: Color) {
         self.color = Some(color);
+    }
+
+    pub fn set_legend(&mut self, legend: bool) {
+        self.legend = legend;
     }
 
     pub fn set_width(&mut self, width: f32) -> Result<(), PlotErrors> {
@@ -57,8 +66,21 @@ impl Line {
             .yname = Some(name.into());
     }
 
+    pub fn with_alpha(mut self, alpha: f32) -> Result<Self, PlotErrors> {
+        if alpha < 0.0 || alpha > 1.0 {
+            return Err(PlotErrors::InvalidAlpha);
+        }
+        self.alpha = Some(alpha);
+        Ok(self)
+    }
+
     pub fn with_color(mut self, color: Color) -> Self {
         self.color = Some(color);
+        self
+    }
+
+    pub fn with_legend(mut self, legend: bool) -> Self {
+        self.legend = legend;
         self
     }
 
@@ -219,11 +241,15 @@ impl Line {
             }
         }
 
-        let color = if let Some(color) = &self.color {
+        let mut color = if let Some(color) = &self.color {
             color.clone()
         } else {
             theme.line_colors[index]
         };
+
+        if let Some(alpha) = self.alpha {
+            color.a = alpha;
+        }
 
         let stroke = Stroke { style: color.into(), width: self.width, ..Stroke::default() };
 

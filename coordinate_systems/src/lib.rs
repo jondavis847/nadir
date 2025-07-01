@@ -11,10 +11,10 @@ use spherical::Spherical;
 use std::ops::{Add, Neg};
 
 pub mod prelude {
+    pub use crate::CoordinateSystem;
     pub use crate::cartesian::Cartesian;
     pub use crate::cylindrical::Cylindrical;
     pub use crate::spherical::Spherical;
-    pub use crate::CoordinateSystem;
 }
 
 /// Represents a point in a generic coordinate system, which can be Cartesian, Cylindrical, or Spherical.

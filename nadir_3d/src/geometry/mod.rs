@@ -29,11 +29,7 @@ pub enum Geometry {
 
 impl Default for Geometry {
     fn default() -> Self {
-        Geometry::Cuboid(Cuboid {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        })
+        Geometry::Cuboid(Cuboid { x: 1.0, y: 1.0, z: 1.0 })
     }
 }
 
@@ -51,10 +47,7 @@ pub struct GeometryTransform {
 
 impl GeometryTransform {
     pub fn new(transformation_matrix: Mat4, normal_matrix: Mat3) -> Self {
-        Self {
-            transformation_matrix,
-            normal_matrix,
-        }
+        Self { transformation_matrix, normal_matrix }
     }
 }
 

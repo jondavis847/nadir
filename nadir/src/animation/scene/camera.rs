@@ -77,11 +77,19 @@ impl Camera {
 
         // Calculate the current forward, up, and right vectors
         let forward = camera_to_target.normalize();
-        let right = forward.cross(self.up).normalize();
+        let right = forward
+            .cross(self.up)
+            .normalize();
 
         // Convert mouse delta to yaw and pitch
-        let yaw = Quat::from_axis_angle(self.up, -mouse_delta.x * self.sensitivity);
-        let pitch = Quat::from_axis_angle(right, -mouse_delta.y * self.sensitivity);
+        let yaw = Quat::from_axis_angle(
+            self.up,
+            -mouse_delta.x * self.sensitivity,
+        );
+        let pitch = Quat::from_axis_angle(
+            right,
+            -mouse_delta.y * self.sensitivity,
+        );
 
         // Combine yaw and pitch into a single rotation quaternion and update camera rotation
         let incremental_rotation = yaw * pitch;
@@ -131,7 +139,9 @@ impl Camera {
 
     fn update_rotation(&mut self) {
         let forward = (self.target - self.eye).normalize();
-        let right = forward.cross(self.up).normalize();
+        let right = forward
+            .cross(self.up)
+            .normalize();
         let rotation_matrix = Mat3::from_cols(-forward, right, self.up);
         self.rotation = Quat::from_mat3(&rotation_matrix);
     }

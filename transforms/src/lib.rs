@@ -1,9 +1,9 @@
 use coordinate_systems::{
-    cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem,
+    CoordinateSystem, cartesian::Cartesian, cylindrical::Cylindrical, spherical::Spherical,
 };
 use mass_properties::MassProperties;
 use nalgebra::Vector3;
-use rotations::{rotation_matrix::RotationMatrix, Rotation, RotationTrait};
+use rotations::{Rotation, RotationTrait, rotation_matrix::RotationMatrix};
 use serde::{Deserialize, Serialize};
 use std::ops::Mul;
 
@@ -28,33 +28,38 @@ impl Transform {
     };
 
     pub fn new(rotation: Rotation, translation: CoordinateSystem) -> Self {
-        Self {
-            rotation,
-            translation,
-        }
+        Self { rotation, translation }
     }
 
     pub fn inv(&self) -> Self {
-        let rotation = self.rotation.inv();
+        let rotation = self
+            .rotation
+            .inv();
         let translation = match self.translation {
-            CoordinateSystem::Cartesian(cartesian) => {
-                CoordinateSystem::from(Cartesian::from(self.rotation.transform(&-cartesian.vec())))
-            }
+            CoordinateSystem::Cartesian(cartesian) => CoordinateSystem::from(Cartesian::from(
+                self.rotation
+                    .transform(&-cartesian.vec()),
+            )),
             CoordinateSystem::Cylindrical(cylindrical) => {
                 let cartesian = Cartesian::from(cylindrical);
-                let new_cartesian = Cartesian::from(self.rotation.transform(&-cartesian.vec()));
-                CoordinateSystem::Cylindrical(Cylindrical::from(new_cartesian))
+                let new_cartesian = Cartesian::from(
+                    self.rotation
+                        .transform(&-cartesian.vec()),
+                );
+                CoordinateSystem::Cylindrical(Cylindrical::from(
+                    new_cartesian,
+                ))
             }
             CoordinateSystem::Spherical(spherical) => {
                 let cartesian = Cartesian::from(spherical);
-                let new_cartesian = Cartesian::from(self.rotation.transform(&-cartesian.vec()));
+                let new_cartesian = Cartesian::from(
+                    self.rotation
+                        .transform(&-cartesian.vec()),
+                );
                 CoordinateSystem::Spherical(Spherical::from(new_cartesian))
             }
         };
-        Self {
-            rotation,
-            translation,
-        }
+        Self { rotation, translation }
     }
 }
 
@@ -68,7 +73,9 @@ impl Mul<Vector3<f64>> for Transform {
         // translation is from A to B, so we need to take the negative since this is a transform, not motion
         let v_a_translated_to_b = v_a - Cartesian::from(self.translation).vec();
         // now transform via rotation
-        let v_b = self.rotation.transform(&v_a_translated_to_b);
+        let v_b = self
+            .rotation
+            .transform(&v_a_translated_to_b);
         v_b
     }
 }
@@ -89,15 +96,18 @@ impl Mul<Transform> for Transform {
 
         // convert to cartesian (in case it's something else) so we can transform it, then convert back
         let cartesian_vec = Cartesian::from(translation_f1_to_f2_in_f1).vec();
-        let rotated_vec = t1.rotation.inv().transform(&cartesian_vec);
+        let rotated_vec = t1
+            .rotation
+            .inv()
+            .transform(&cartesian_vec);
         let translation_f1_to_f2_in_ref = match translation_f1_to_f2_in_f1 {
             CoordinateSystem::Cartesian(_) => CoordinateSystem::from(Cartesian::from(rotated_vec)),
-            CoordinateSystem::Cylindrical(_) => {
-                CoordinateSystem::from(Cylindrical::from(Cartesian::from(rotated_vec)))
-            }
-            CoordinateSystem::Spherical(_) => {
-                CoordinateSystem::from(Spherical::from(Cartesian::from(rotated_vec)))
-            }
+            CoordinateSystem::Cylindrical(_) => CoordinateSystem::from(Cylindrical::from(
+                Cartesian::from(rotated_vec),
+            )),
+            CoordinateSystem::Spherical(_) => CoordinateSystem::from(Spherical::from(
+                Cartesian::from(rotated_vec),
+            )),
         };
 
         let translation_ref_to_f2_in_ref =
@@ -125,7 +135,9 @@ impl Mul<MassProperties> for Transform {
 
         // rotate the translation
         let translation = Cartesian::from(self.translation).vec();
-        let rotated_translation = self.rotation.transform(&translation);
+        let rotated_translation = self
+            .rotation
+            .transform(&translation);
 
         // apply parallel axis theorem
         let dx = rotated_translation[0];
@@ -186,16 +198,72 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.0.w, expected_rotation.0.w, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.x, expected_rotation.0.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.y, expected_rotation.0.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.z, expected_rotation.0.z, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[0], expected_vector[0], epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[1], expected_vector[1], epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[2], expected_vector[2], epsilon = TOL);
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .w,
+            expected_rotation
+                .0
+                .w,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .x,
+            expected_rotation
+                .0
+                .x,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .y,
+            expected_rotation
+                .0
+                .y,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .z,
+            expected_rotation
+                .0
+                .z,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.x,
+            expected_translation.x,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.y,
+            expected_translation.y,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.z,
+            expected_translation.z,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[0],
+            expected_vector[0],
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[1],
+            expected_vector[1],
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[2],
+            expected_vector[2],
+            epsilon = TOL
+        );
     }
 
     fn assert_transform_mul3(
@@ -227,25 +295,96 @@ mod tests {
         let test_vector = Vector3::new(1.0, 2.0, 3.0);
         let result_vector = result * test_vector;
 
-        assert_abs_diff_eq!(result_rotation.0.w, expected_rotation.0.w, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.x, expected_rotation.0.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.y, expected_rotation.0.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_rotation.0.z, expected_rotation.0.z, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.x, expected_translation.x, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.y, expected_translation.y, epsilon = TOL);
-        assert_abs_diff_eq!(result_translation.z, expected_translation.z, epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[0], expected_vector[0], epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[1], expected_vector[1], epsilon = TOL);
-        assert_abs_diff_eq!(result_vector[2], expected_vector[2], epsilon = TOL);
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .w,
+            expected_rotation
+                .0
+                .w,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .x,
+            expected_rotation
+                .0
+                .x,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .y,
+            expected_rotation
+                .0
+                .y,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_rotation
+                .0
+                .z,
+            expected_rotation
+                .0
+                .z,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.x,
+            expected_translation.x,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.y,
+            expected_translation.y,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_translation.z,
+            expected_translation.z,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[0],
+            expected_vector[0],
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[1],
+            expected_vector[1],
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            result_vector[2],
+            expected_vector[2],
+            epsilon = TOL
+        );
     }
 
     #[test]
     fn test_transform_mul_xx() {
-        let angles1 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(1.0, 0.0, 0.0);
-        let expected_angles = EulerAngles::new(PI, 0.0, 0.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            PI,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(2.0, 0.0, 0.0);
         let expected_vector = Vector3::new(-1.0, -2.0, -3.0);
 
@@ -262,11 +401,26 @@ mod tests {
 
     #[test]
     fn test_transform_mul_yy() {
-        let angles1 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles2 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let expected_angles = EulerAngles::new(0.0, PI, 0.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            0.0,
+            PI,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(0.0, 2.0, 0.0);
         let expected_vector = Vector3::new(-1.0, 0.0, -3.0);
 
@@ -283,11 +437,26 @@ mod tests {
 
     #[test]
     fn test_transform_mul_zz() {
-        let angles1 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            0.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(0.0, 0.0, 1.0);
-        let angles2 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = EulerAngles::new(0.0, 0.0, PI, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            0.0,
+            0.0,
+            PI,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(0.0, 0.0, 2.0);
         let expected_vector = Vector3::new(-1.0, -2.0, 1.0);
 
@@ -304,11 +473,26 @@ mod tests {
 
     #[test]
     fn test_transform_mul_xy() {
-        let angles1 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let expected_angles = EulerAngles::new(PI / 2.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            PI / 2.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(1.0, 0.0, 1.0);
         let expected_vector = Vector3::new(2.0, 2.0, 0.0);
 
@@ -325,11 +509,26 @@ mod tests {
 
     #[test]
     fn test_transform_mul_xz() {
-        let angles1 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(1.0, 0.0, 0.0);
-        let angles2 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = EulerAngles::new(PI / 2.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(1.0, -1.0, 0.0);
         let expected_vector = Vector3::new(3.0, 0.0, -3.0);
 
@@ -346,11 +545,26 @@ mod tests {
 
     #[test]
     fn test_transform_mul_yz() {
-        let angles1 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles2 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let expected_angles = EulerAngles::new(0.0, PI / 2.0, PI / 2.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(1.0, 1.0, 0.0);
         let expected_vector = Vector3::new(1.0, 3.0, 0.0);
 
@@ -367,14 +581,34 @@ mod tests {
 
     #[test]
     fn test_transform_mul_zyx() {
-        let angles1 = EulerAngles::new(0.0, 0.0, PI / 2.0, EulerSequence::XYZ);
+        let angles1 = EulerAngles::new(
+            0.0,
+            0.0,
+            PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let translation1 = Cartesian::new(0.0, 0.0, 1.0);
-        let angles2 = EulerAngles::new(0.0, PI / 2.0, 0.0, EulerSequence::XYZ);
+        let angles2 = EulerAngles::new(
+            0.0,
+            PI / 2.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation2 = Cartesian::new(0.0, 1.0, 0.0);
-        let angles3 = EulerAngles::new(PI / 2.0, 0.0, 0.0, EulerSequence::XYZ);
+        let angles3 = EulerAngles::new(
+            PI / 2.0,
+            0.0,
+            0.0,
+            EulerSequence::XYZ,
+        );
         let translation3 = Cartesian::new(1.0, 0.0, 0.0);
 
-        let expected_angles = EulerAngles::new(PI / 2.0, PI / 2.0, -PI / 2.0, EulerSequence::XYZ);
+        let expected_angles = EulerAngles::new(
+            PI / 2.0,
+            PI / 2.0,
+            -PI / 2.0,
+            EulerSequence::XYZ,
+        );
         let expected_translation = Cartesian::new(-1.0, 0.0, 0.0);
         let expected_vector = Vector3::new(-3.0, 2.0, 2.0);
 

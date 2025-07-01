@@ -16,18 +16,38 @@ pub fn derive_tolerance(input: TokenStream) -> TokenStream {
     let mut rel_lines = vec![];
 
     for field in fields.iter() {
-        let ident = field.ident.as_ref().unwrap(); // skip tuple structs
+        let ident = field
+            .ident
+            .as_ref()
+            .unwrap(); // skip tuple structs
 
         let mut abs_val = None;
         let mut rel_val = None;
 
         for attr in &field.attrs {
-            if attr.path().is_ident("tolerance") {
+            if attr
+                .path()
+                .is_ident("tolerance")
+            {
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("abs") {
-                        abs_val = Some(meta.value()?.parse::<LitFloat>()?.base10_parse::<f64>()?);
-                    } else if meta.path.is_ident("rel") {
-                        rel_val = Some(meta.value()?.parse::<LitFloat>()?.base10_parse::<f64>()?);
+                    if meta
+                        .path
+                        .is_ident("abs")
+                    {
+                        abs_val = Some(
+                            meta.value()?
+                                .parse::<LitFloat>()?
+                                .base10_parse::<f64>()?,
+                        );
+                    } else if meta
+                        .path
+                        .is_ident("rel")
+                    {
+                        rel_val = Some(
+                            meta.value()?
+                                .parse::<LitFloat>()?
+                                .base10_parse::<f64>()?,
+                        );
                     }
                     Ok(())
                 })

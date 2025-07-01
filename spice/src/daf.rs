@@ -32,15 +32,24 @@ impl DafData {
             let record_data = &data[current_record_location..current_record_location + 1024];
 
             // Parse the first 3 double precision control items (each 8 bytes)
-            let next_record = f64::from_le_bytes(record_data[0..8].try_into().unwrap()) as u32;
-            let _prev_record = f64::from_le_bytes(record_data[8..16].try_into().unwrap()) as u32;
-            let num_segments = f64::from_le_bytes(record_data[16..24].try_into().unwrap()) as u32;
+            let next_record = f64::from_le_bytes(
+                record_data[0..8]
+                    .try_into()
+                    .unwrap(),
+            ) as u32;
+            let _prev_record = f64::from_le_bytes(
+                record_data[8..16]
+                    .try_into()
+                    .unwrap(),
+            ) as u32;
+            let num_segments = f64::from_le_bytes(
+                record_data[16..24]
+                    .try_into()
+                    .unwrap(),
+            ) as u32;
 
-            let summary_record = SummaryRecord {
-                next_record,
-                prev_record: _prev_record,
-                num_segments,
-            };
+            let summary_record =
+                SummaryRecord { next_record, prev_record: _prev_record, num_segments };
             //dbg!(&summary_record);
             // Loop through each segment in the current summary record
             for i in 0..summary_record.num_segments {
@@ -68,7 +77,11 @@ impl DafData {
                     segments
                         .get_mut(&target)
                         .unwrap()
-                        .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+                        .sort_by(|a, b| {
+                            a.start_time
+                                .partial_cmp(&b.start_time)
+                                .unwrap()
+                        });
                 }
             }
 
@@ -80,11 +93,7 @@ impl DafData {
             }
         }
 
-        Ok(Self {
-            file_record,
-            segments,
-            current_segment: 0,
-        })
+        Ok(Self { file_record, segments, current_segment: 0 })
     }
 
     pub fn get_segment(
@@ -92,7 +101,10 @@ impl DafData {
         body: &SpiceBodies,
         t: f64,
     ) -> Result<Option<&mut Segment>, SpiceErrors> {
-        if let Some(segments) = self.segments.get_mut(body) {
+        if let Some(segments) = self
+            .segments
+            .get_mut(body)
+        {
             Ok(segments
                 .binary_search_by(|segment| {
                     if t < segment.start_time {
@@ -220,13 +232,12 @@ pub struct Segment {
 impl Segment {
     fn get_record_from_t(&mut self, t: f64) -> Result<&ChebyshevRecord, SpiceErrors> {
         // First, check from current_record to the end, start from current record for speed!
-        if let Some((i, record)) =
-            self.records[self.current_record..]
-                .iter()
-                .enumerate()
-                .find(|(_, record)| {
-                    (t > (record.mid - record.radius)) && (t < (record.mid + record.radius))
-                })
+        if let Some((i, record)) = self.records[self.current_record..]
+            .iter()
+            .enumerate()
+            .find(|(_, record)| {
+                (t > (record.mid - record.radius)) && (t < (record.mid + record.radius))
+            })
         {
             // Update current_record to the found index
             self.current_record += i;
@@ -355,17 +366,28 @@ impl Segment {
         let metadata = &data[metadata_offset..metadata_offset + 32];
 
         // Interpret the values as f64
-        let init = f64::from_le_bytes(metadata[0..8].try_into().unwrap());
-        let init_len = f64::from_le_bytes(metadata[8..16].try_into().unwrap());
-        let rsize = f64::from_le_bytes(metadata[16..24].try_into().unwrap()) as usize;
-        let n_records = f64::from_le_bytes(metadata[24..32].try_into().unwrap()) as usize;
+        let init = f64::from_le_bytes(
+            metadata[0..8]
+                .try_into()
+                .unwrap(),
+        );
+        let init_len = f64::from_le_bytes(
+            metadata[8..16]
+                .try_into()
+                .unwrap(),
+        );
+        let rsize = f64::from_le_bytes(
+            metadata[16..24]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        let n_records = f64::from_le_bytes(
+            metadata[24..32]
+                .try_into()
+                .unwrap(),
+        ) as usize;
 
-        let meta = SegmentMeta {
-            init,
-            init_len,
-            rsize,
-            n_records,
-        };
+        let meta = SegmentMeta { init, init_len, rsize, n_records };
         self.meta = Some(meta);
         Ok(())
     }
@@ -379,9 +401,17 @@ impl Segment {
 
             for _ in 0..meta.n_records {
                 // Read the midpoint (mid) and radius (radius) of the time interval
-                let mid = f64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
+                let mid = f64::from_le_bytes(
+                    data[offset..offset + 8]
+                        .try_into()
+                        .unwrap(),
+                );
                 offset += 8;
-                let radius = f64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
+                let radius = f64::from_le_bytes(
+                    data[offset..offset + 8]
+                        .try_into()
+                        .unwrap(),
+                );
                 offset += 8;
 
                 // Read the X, Y, and Z coefficients
@@ -391,31 +421,32 @@ impl Segment {
 
                 for _ in 0..n_coeffs {
                     coefs1.push(f64::from_le_bytes(
-                        data[offset..offset + 8].try_into().unwrap(),
+                        data[offset..offset + 8]
+                            .try_into()
+                            .unwrap(),
                     ));
                     offset += 8;
                 }
                 for _ in 0..n_coeffs {
                     coefs2.push(f64::from_le_bytes(
-                        data[offset..offset + 8].try_into().unwrap(),
+                        data[offset..offset + 8]
+                            .try_into()
+                            .unwrap(),
                     ));
                     offset += 8;
                 }
                 for _ in 0..n_coeffs {
                     coefs3.push(f64::from_le_bytes(
-                        data[offset..offset + 8].try_into().unwrap(),
+                        data[offset..offset + 8]
+                            .try_into()
+                            .unwrap(),
                     ));
                     offset += 8;
                 }
 
                 // Create the ChebyshevRecord and push it to the vector
-                self.records.push(ChebyshevRecord {
-                    mid,
-                    radius,
-                    coefs1,
-                    coefs2,
-                    coefs3,
-                });
+                self.records
+                    .push(ChebyshevRecord { mid, radius, coefs1, coefs2, coefs3 });
             }
             Ok(())
         } else {

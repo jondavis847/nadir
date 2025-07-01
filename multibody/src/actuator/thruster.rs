@@ -63,7 +63,9 @@ impl ThrusterParametersBuilder {
         };
         Ok(ThrusterParameters {
             misalignment,
-            force: self.force.sample(nominal, rng),
+            force: self
+                .force
+                .sample(nominal, rng),
         })
     }
 }
@@ -107,10 +109,14 @@ impl ThrusterBuilder {
         if delay < 0.0 {
             return Err(ThrusterErrors::NegativeDelay);
         }
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         Ok(())
     }
@@ -119,20 +125,26 @@ impl ThrusterBuilder {
         if delay < 0.0 {
             return Err(ThrusterErrors::NegativeDelay);
         }
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         Ok(self)
     }
 
     pub fn set_misalignment(&mut self, misalignment: UnitQuaternionBuilder) {
-        self.parameters.misalignment = Some(misalignment);
+        self.parameters
+            .misalignment = Some(misalignment);
     }
 
     pub fn with_misalignment(mut self, misalignment: UnitQuaternionBuilder) -> Self {
-        self.parameters.misalignment = Some(misalignment);
+        self.parameters
+            .misalignment = Some(misalignment);
         self
     }
 }
@@ -142,7 +154,9 @@ impl Uncertainty for ThrusterBuilder {
     type Output = Thruster;
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let parameters = self.parameters.sample(nominal, rng)?;
+        let parameters = self
+            .parameters
+            .sample(nominal, rng)?;
         let state = ThrusterState::new();
         Ok(Thruster { parameters, state })
     }
@@ -157,50 +171,98 @@ pub struct Thruster {
 impl ActuatorModel for Thruster {
     fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         // Determine initial torque based on command type
-        let force = match self.state.command {
-            ThrusterCommand::ON => self.parameters.force,
+        let force = match self
+            .state
+            .command
+        {
+            ThrusterCommand::ON => {
+                self.parameters
+                    .force
+            }
             ThrusterCommand::OFF => 0.0,
             _ => return Err(ThrusterErrors::InvalidCommand.into()),
         };
 
         // Update state
-        self.state.force = force;
+        self.state
+            .force = force;
         // equal and opposite
-        self.state.force_body = connection
+        self.state
+            .force_body = connection
             .transform
             .rotation
             .transform(&Vector3::new(force, 0.0, 0.0));
 
         // apply misalignment if applicable
-        if let Some(misalignment) = &self.parameters.misalignment {
-            self.state.force_body = misalignment.transform(&self.state.force_body);
+        if let Some(misalignment) = &self
+            .parameters
+            .misalignment
+        {
+            self.state
+                .force_body = misalignment.transform(
+                &self
+                    .state
+                    .force_body,
+            );
         }
 
         // Update body
-        let mut body = connection.body.borrow_mut();
-        let moment_arm = connection.transform.translation.vec();
-        let torque_body = moment_arm.cross(&self.state.force_body);
-        body.state.actuator_force_body += Force::from(Vector6::new(
+        let mut body = connection
+            .body
+            .borrow_mut();
+        let moment_arm = connection
+            .transform
+            .translation
+            .vec();
+        let torque_body = moment_arm.cross(
+            &self
+                .state
+                .force_body,
+        );
+        body.state
+            .actuator_force_body += Force::from(Vector6::new(
             torque_body[0],
             torque_body[1],
             torque_body[2],
-            self.state.force_body[0],
-            self.state.force_body[1],
-            self.state.force_body[2],
+            self.state
+                .force_body[0],
+            self.state
+                .force_body[1],
+            self.state
+                .force_body[2],
         ));
         Ok(())
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.command.0 as f64;
-        writer.float_buffer[1] = self.state.force;
-        writer.float_buffer[2] = self.state.force_body[0];
-        writer.float_buffer[3] = self.state.force_body[1];
-        writer.float_buffer[4] = self.state.force_body[2];
-        writer.float_buffer[5] = self.state.torque_body[0];
-        writer.float_buffer[6] = self.state.torque_body[1];
-        writer.float_buffer[7] = self.state.torque_body[2];
-        writer.write_record().unwrap();
+        writer.float_buffer[0] = self
+            .state
+            .command
+            .0 as f64;
+        writer.float_buffer[1] = self
+            .state
+            .force;
+        writer.float_buffer[2] = self
+            .state
+            .force_body[0];
+        writer.float_buffer[3] = self
+            .state
+            .force_body[1];
+        writer.float_buffer[4] = self
+            .state
+            .force_body[2];
+        writer.float_buffer[5] = self
+            .state
+            .torque_body[0];
+        writer.float_buffer[6] = self
+            .state
+            .torque_body[1];
+        writer.float_buffer[7] = self
+            .state
+            .torque_body[2];
+        writer
+            .write_record()
+            .unwrap();
     }
 
     fn writer_headers(&self) -> &[&str] {
@@ -219,7 +281,8 @@ impl ActuatorModel for Thruster {
     fn state_vector_read(&mut self, _state: &[f64]) {}
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
-        self.state.command = cmd.read::<ThrusterCommand>()?;
+        self.state
+            .command = cmd.read::<ThrusterCommand>()?;
         Ok(())
     }
 }

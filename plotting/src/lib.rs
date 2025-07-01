@@ -37,6 +37,8 @@ pub enum PlotErrors {
     AxesIndexOOB,
     #[error("x data and y data lengths must match")]
     DataSizeMismatch,
+    #[error("alpha must be between 0.0 and 1.0")]
+    InvalidAlpha,
     #[error("line width must be > 0.0")]
     SmallLineWidth,
 }

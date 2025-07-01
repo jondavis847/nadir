@@ -88,10 +88,14 @@ impl RateGyroBuilder {
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         self
     }
@@ -102,10 +106,14 @@ impl RateGyroBuilder {
         std: f64,
     ) -> Result<Self, RateGyroErrors> {
         let dist = Normal::new(mean, std)?;
-        if let Some(delay) = &mut self.parameters.delay {
+        if let Some(delay) = &mut self
+            .parameters
+            .delay
+        {
             delay.set_distribution(dist.into())?;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(mean).with_distribution(dist.into())?);
+            self.parameters
+                .delay = Some(UncertainValue::new(mean).with_distribution(dist.into())?);
         }
         Ok(self)
     }
@@ -115,7 +123,8 @@ impl RateGyroBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.noise = Some(noise);
+        self.parameters
+            .noise = Some(noise);
         self
     }
 
@@ -124,7 +133,8 @@ impl RateGyroBuilder {
         let noise2 = NoiseBuilder::new_normal(mean, std);
         let noise3 = NoiseBuilder::new_normal(mean, std);
         let noise = [noise1, noise2, noise3];
-        self.parameters.noise = Some(noise);
+        self.parameters
+            .noise = Some(noise);
     }
 
     pub fn with_noise_uniform(mut self, low: f64, high: f64) -> Self {
@@ -132,7 +142,8 @@ impl RateGyroBuilder {
         let noise2 = NoiseBuilder::new_uniform(low, high);
         let noise3 = NoiseBuilder::new_uniform(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.noise = Some(noise);
+        self.parameters
+            .noise = Some(noise);
         self
     }
 
@@ -141,7 +152,8 @@ impl RateGyroBuilder {
         let noise2 = NoiseBuilder::new_uniform(low, high);
         let noise3 = NoiseBuilder::new_uniform(low, high);
         let noise = [noise1, noise2, noise3];
-        self.parameters.noise = Some(noise);
+        self.parameters
+            .noise = Some(noise);
     }
 }
 
@@ -154,7 +166,9 @@ impl Uncertainty for RateGyroBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(RateGyro {
-            parameters: self.parameters.sample(nominal, rng)?,
+            parameters: self
+                .parameters
+                .sample(nominal, rng)?,
             state: RateGyroState::default(),
             telemetry: RateGyroTelemetry::default(),
         })
@@ -175,11 +189,20 @@ pub struct RateGyro {
 
 impl SensorModel for RateGyro {
     fn update(&mut self, t: f64, connection: &BodyConnection) {
-        let body = connection.body.borrow();
+        let body = connection
+            .body
+            .borrow();
         let transform = &connection.transform;
-        let body_rate = body.state.angular_rate_body;
-        let sensor_rate = if let Some(delay) = &mut self.parameters.delay {
-            let new_rate = transform.rotation.transform(&body_rate);
+        let body_rate = body
+            .state
+            .angular_rate_body;
+        let sensor_rate = if let Some(delay) = &mut self
+            .parameters
+            .delay
+        {
+            let new_rate = transform
+                .rotation
+                .transform(&body_rate);
             let mut delayed_rate = Vector3::zeros();
             for i in 0..3 {
                 delay[i].update(t, new_rate[i]);
@@ -187,38 +210,65 @@ impl SensorModel for RateGyro {
             }
             delayed_rate
         } else {
-            transform.rotation.transform(&body_rate)
+            transform
+                .rotation
+                .transform(&body_rate)
         };
-        if let Some(noise_model) = &mut self.parameters.noise {
+        if let Some(noise_model) = &mut self
+            .parameters
+            .noise
+        {
             let noise1 = noise_model[0].sample();
             let noise2 = noise_model[1].sample();
             let noise3 = noise_model[2].sample();
             let noise = Vector3::new(noise1, noise2, noise3);
-            self.state.noise = Some(noise);
-            self.state.measurement = sensor_rate + noise;
+            self.state
+                .noise = Some(noise);
+            self.state
+                .measurement = sensor_rate + noise;
         } else {
-            self.state.measurement = sensor_rate;
+            self.state
+                .measurement = sensor_rate;
         }
 
         //update telemetry
-        self.telemetry.measurement = self.state.measurement.into();
-        self.telemetry.valid = 1u8;
+        self.telemetry
+            .measurement = self
+            .state
+            .measurement
+            .into();
+        self.telemetry
+            .valid = 1u8;
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.measurement[0];
-        writer.float_buffer[1] = self.state.measurement[1];
-        writer.float_buffer[2] = self.state.measurement[2];
-        if let Some(noise) = &self.state.noise {
+        writer.float_buffer[0] = self
+            .state
+            .measurement[0];
+        writer.float_buffer[1] = self
+            .state
+            .measurement[1];
+        writer.float_buffer[2] = self
+            .state
+            .measurement[2];
+        if let Some(noise) = &self
+            .state
+            .noise
+        {
             writer.float_buffer[3] = noise[0];
             writer.float_buffer[4] = noise[1];
             writer.float_buffer[5] = noise[2];
         }
-        writer.write_record().unwrap();
+        writer
+            .write_record()
+            .unwrap();
     }
 
     fn writer_headers(&self) -> &[&str] {
-        if let Some(_) = &self.parameters.noise {
+        if let Some(_) = &self
+            .parameters
+            .noise
+        {
             &[
                 "measurement[x]",
                 "measurement[y]",

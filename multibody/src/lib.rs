@@ -96,7 +96,12 @@ impl std::fmt::Debug for HardwareBuffer {
             .field("size", &self.size)
             .field(
                 "data",
-                &&self.data[..self.size.min(self.data.len())],
+                &&self.data[..self
+                    .size
+                    .min(
+                        self.data
+                            .len(),
+                    )],
             )
             .finish()
     }
@@ -112,10 +117,14 @@ impl HardwareBuffer {
     pub fn write<T: Pod>(&mut self, val: &T) {
         let t_size = size_of::<T>();
         assert!(
-            t_size <= self.data.len(),
+            t_size
+                <= self
+                    .data
+                    .len(),
             "Type too large for HardwareBuffer ({} > {})",
             t_size,
-            self.data.len()
+            self.data
+                .len()
         );
 
         let bytes = bytes_of(val);
@@ -126,10 +135,14 @@ impl HardwareBuffer {
     /// Write a raw byte slice into the buffer
     pub fn write_bytes(&mut self, data: &[u8]) {
         assert!(
-            data.len() <= self.data.len(),
+            data.len()
+                <= self
+                    .data
+                    .len(),
             "Buffer overflow: tried to write {} bytes into {}-byte buffer",
             data.len(),
-            self.data.len()
+            self.data
+                .len()
         );
         self.data[..data.len()].copy_from_slice(data);
         self.size = data.len();
@@ -142,7 +155,9 @@ impl HardwareBuffer {
             return Err(BufferError::SizeMismatch);
         }
 
-        Ok(*from_bytes(&self.data[..t_size]))
+        Ok(*from_bytes(
+            &self.data[..t_size],
+        ))
     }
 
     /// Return the used slice of the buffer
@@ -157,12 +172,19 @@ impl HardwareBuffer {
 
     /// Return the raw pointer and length (e.g., for FFI)
     pub fn as_c_interface(&self) -> CInterface {
-        CInterface { data_ptr: self.data.as_ptr(), data_len: self.size }
+        CInterface {
+            data_ptr: self
+                .data
+                .as_ptr(),
+            data_len: self.size,
+        }
     }
 
     pub fn as_c_interface_mut(&mut self) -> CInterface {
         CInterface {
-            data_ptr: self.data.as_mut_ptr(),
+            data_ptr: self
+                .data
+                .as_mut_ptr(),
             data_len: self.size,
         }
     }

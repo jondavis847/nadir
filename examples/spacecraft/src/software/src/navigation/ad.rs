@@ -39,22 +39,38 @@ struct Parameters {}
 
 impl AttitudeDetermination {
     pub fn run(&mut self, st: &StarTrackerFsw, imu: &RateGyroFsw) {
-        if st.state.valid {
-            self.state.attitude = st.state.q_body
+        if st
+            .state
+            .valid
+        {
+            self.state
+                .attitude = st
+                .state
+                .q_body
         }; // else hold previous value?
-        self.state.attitude_source = AttitudeSource::ST;
+        self.state
+            .attitude_source = AttitudeSource::ST;
 
-        if imu.state.valid {
-            self.state.rates = imu.state.w_body
+        if imu
+            .state
+            .valid
+        {
+            self.state
+                .rates = imu
+                .state
+                .w_body
         }; // else hold previous value?
-        self.state.rate_source = RateSource::Imu;
+        self.state
+            .rate_source = RateSource::Imu;
     }
 }
 
 impl NadirResult for AttitudeDetermination {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -73,7 +89,11 @@ impl NadirResult for AttitudeDetermination {
             // "attitude_source",
             // "rate_source"
         ];
-        let id = results.new_writer("fsw_nav_ad", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_nav_ad",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -82,13 +102,35 @@ impl NadirResult for AttitudeDetermination {
             results.write_record(
                 id,
                 &[
-                    self.state.attitude.0.x.to_string(),
-                    self.state.attitude.0.y.to_string(),
-                    self.state.attitude.0.z.to_string(),
-                    self.state.attitude.0.w.to_string(),
-                    self.state.rates[0].to_string(),
-                    self.state.rates[1].to_string(),
-                    self.state.rates[2].to_string(),
+                    self.state
+                        .attitude
+                        .0
+                        .x
+                        .to_string(),
+                    self.state
+                        .attitude
+                        .0
+                        .y
+                        .to_string(),
+                    self.state
+                        .attitude
+                        .0
+                        .z
+                        .to_string(),
+                    self.state
+                        .attitude
+                        .0
+                        .w
+                        .to_string(),
+                    self.state
+                        .rates[0]
+                        .to_string(),
+                    self.state
+                        .rates[1]
+                        .to_string(),
+                    self.state
+                        .rates[2]
+                        .to_string(),
                     // self.state.attitude_source.to_string(),
                     // self.state.rate_source.to_string(),
                 ],

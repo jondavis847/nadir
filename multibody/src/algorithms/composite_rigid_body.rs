@@ -10,10 +10,7 @@ pub struct CrbCache {
 
 impl CrbCache {
     pub fn new(n: usize) -> Self {
-        Self {
-            c: DVector::<f64>::zeros(n),
-            h: DMatrix::<f64>::zeros(n, n),
-        }
+        Self { c: DVector::<f64>::zeros(n), h: DMatrix::<f64>::zeros(n, n) }
     }
 }
 

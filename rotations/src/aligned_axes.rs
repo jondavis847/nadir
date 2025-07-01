@@ -8,7 +8,10 @@ pub enum AlignedAxesErrors {
 impl std::fmt::Display for AlignedAxesErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AlignedAxesErrors::InvalidCombo => write!(f, "Invalid combination of aligned axes. Primary and Secondary axes cannot be the same."),
+            AlignedAxesErrors::InvalidCombo => write!(
+                f,
+                "Invalid combination of aligned axes. Primary and Secondary axes cannot be the same."
+            ),
         }
     }
 }

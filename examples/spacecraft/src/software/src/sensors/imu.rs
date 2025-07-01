@@ -34,9 +34,25 @@ struct Parameters {
 
 impl RateGyroFsw {
     pub fn run(&mut self) {
-        self.state.w_imu = self.telemetry.w.into();
-        self.state.w_body = self.parameters.imu_to_body.transform(&self.state.w_imu);
-        self.state.valid = match self.telemetry.valid {
+        self.state
+            .w_imu = self
+            .telemetry
+            .w
+            .into();
+        self.state
+            .w_body = self
+            .parameters
+            .imu_to_body
+            .transform(
+                &self
+                    .state
+                    .w_imu,
+            );
+        self.state
+            .valid = match self
+            .telemetry
+            .valid
+        {
             0u8 => false,
             1u8 => true,
             _ => panic!("invalid rate gyro validity flag"),
@@ -45,7 +61,9 @@ impl RateGyroFsw {
 
     pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
         match buffer.read::<RateGyroTelemetry>() {
-            Ok(telemetry) => self.telemetry.clone_from(&telemetry),
+            Ok(telemetry) => self
+                .telemetry
+                .clone_from(&telemetry),
             Err(e) => eprintln!("{e}"),
         }
     }
@@ -54,7 +72,9 @@ impl RateGyroFsw {
 impl NadirResult for RateGyroFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -62,16 +82,13 @@ impl NadirResult for RateGyroFsw {
         }
 
         // Initialize writer using the updated path
-        let headers = [
-            "w_imu[x]",
-            "w_imu[y]",
-            "w_imu[z]",
-            "w_body[x]",
-            "w_body[y]",
-            "w_body[z]",
-            "valid",
-        ];
-        let id = results.new_writer("fsw_imu", &fsw_folder_path, &headers);
+        let headers =
+            ["w_imu[x]", "w_imu[y]", "w_imu[z]", "w_body[x]", "w_body[y]", "w_body[z]", "valid"];
+        let id = results.new_writer(
+            "fsw_imu",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -80,13 +97,27 @@ impl NadirResult for RateGyroFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.w_imu[0].to_string(),
-                    self.state.w_imu[1].to_string(),
-                    self.state.w_imu[2].to_string(),
-                    self.state.w_body[0].to_string(),
-                    self.state.w_body[1].to_string(),
-                    self.state.w_body[2].to_string(),
-                    self.state.valid.to_string(),
+                    self.state
+                        .w_imu[0]
+                        .to_string(),
+                    self.state
+                        .w_imu[1]
+                        .to_string(),
+                    self.state
+                        .w_imu[2]
+                        .to_string(),
+                    self.state
+                        .w_body[0]
+                        .to_string(),
+                    self.state
+                        .w_body[1]
+                        .to_string(),
+                    self.state
+                        .w_body[2]
+                        .to_string(),
+                    self.state
+                        .valid
+                        .to_string(),
                 ],
             );
         }

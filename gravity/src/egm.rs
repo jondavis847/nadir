@@ -86,7 +86,9 @@ impl EgmGravity {
         };
 
         for line in &mut lines {
-            let columns: Vec<&str> = line.split_whitespace().collect();
+            let columns: Vec<&str> = line
+                .split_whitespace()
+                .collect();
             if columns.len() == 6 {
                 match (
                     columns[0].parse::<usize>(),
@@ -100,7 +102,11 @@ impl EgmGravity {
                         if l <= degree && m <= order {
                             let lf = l as f64;
                             let mf = m as f64;
-                            let k = if m == 0 { 1.0 } else { 2.0 };
+                            let k = if m == 0 {
+                                1.0
+                            } else {
+                                2.0
+                            };
 
                             // normalize the coeffs
                             let n = (factorial(lf + mf)
@@ -111,10 +117,16 @@ impl EgmGravity {
                             s[l][m] = s_file / n;
                         }
                     }
-                    _ => eprintln!("Failed to parse one or more columns in line: {}", line),
+                    _ => eprintln!(
+                        "Failed to parse one or more columns in line: {}",
+                        line
+                    ),
                 }
             } else {
-                eprintln!("Unexpected number of columns: {}", columns.len());
+                eprintln!(
+                    "Unexpected number of columns: {}",
+                    columns.len()
+                );
             }
         }
         (c, s)
@@ -125,7 +137,13 @@ impl GravityModel for EgmGravity {
     fn calculate(&mut self, r_ecef: &Vector3<f64>) -> Result<Vector3<f64>, GravityErrors> {
         let mut a = self
             .spherical_harmonics
-            .calculate_from_cartesian(r_ecef, Self::MU / Self::RE, Self::RE, &self.c, &self.s)
+            .calculate_from_cartesian(
+                r_ecef,
+                Self::MU / Self::RE,
+                Self::RE,
+                &self.c,
+                &self.s,
+            )
             .map_err(|e| GravityErrors::EgmErrors(e.into()))?;
 
         let r = r_ecef.norm();
@@ -172,36 +190,48 @@ impl<'de> Deserialize<'de> for EgmGravity {
                     match key {
                         "model" => {
                             if model.is_some() {
-                                return Err(de::Error::duplicate_field("model"));
+                                return Err(de::Error::duplicate_field(
+                                    "model",
+                                ));
                             }
                             model = Some(map.next_value()?);
                         }
                         "degree" => {
                             if degree.is_some() {
-                                return Err(de::Error::duplicate_field("degree"));
+                                return Err(de::Error::duplicate_field(
+                                    "degree",
+                                ));
                             }
                             degree = Some(map.next_value()?);
                         }
                         "order" => {
                             if order.is_some() {
-                                return Err(de::Error::duplicate_field("order"));
+                                return Err(de::Error::duplicate_field(
+                                    "order",
+                                ));
                             }
                             order = Some(map.next_value()?);
                         }
                         "add_centrifugal" => {
                             if add_centrifugal.is_some() {
-                                return Err(de::Error::duplicate_field("add_centrifugal"));
+                                return Err(de::Error::duplicate_field(
+                                    "add_centrifugal",
+                                ));
                             }
                             add_centrifugal = Some(map.next_value()?);
                         }
                         "add_newtonian" => {
                             if add_newtonian.is_some() {
-                                return Err(de::Error::duplicate_field("add_newtonian"));
+                                return Err(de::Error::duplicate_field(
+                                    "add_newtonian",
+                                ));
                             }
                             add_newtonian = Some(map.next_value()?);
                         }
                         _ => {
-                            return Err(de::Error::unknown_field(key, FIELDS));
+                            return Err(de::Error::unknown_field(
+                                key, FIELDS,
+                            ));
                         }
                     }
                 }
@@ -233,16 +263,15 @@ impl<'de> Deserialize<'de> for EgmGravity {
         }
 
         // Define the fields expected in the input
-        const FIELDS: &'static [&'static str] = &[
-            "model",
-            "degree",
-            "order",
-            "add_centrifugal",
-            "add_newtonian",
-        ];
+        const FIELDS: &'static [&'static str] =
+            &["model", "degree", "order", "add_centrifugal", "add_newtonian"];
 
         // Deserialize the struct using the visitor
-        deserializer.deserialize_struct("EgmGravity", FIELDS, EgmVisitor)
+        deserializer.deserialize_struct(
+            "EgmGravity",
+            FIELDS,
+            EgmVisitor,
+        )
     }
 }
 
@@ -259,7 +288,9 @@ mod tests {
             .unwrap()
             .with_newtonian()
             .with_centrifugal();
-        let a = g.calculate(&re.into()).unwrap();
+        let a = g
+            .calculate(&re.into())
+            .unwrap();
         dbg!(a);
         assert_equal(a[0], -8.145745669956069);
         assert_equal(a[1], -2.191201471327777e-5);

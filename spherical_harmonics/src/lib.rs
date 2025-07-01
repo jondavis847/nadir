@@ -29,7 +29,9 @@ impl SphericalHarmonics {
     }
 
     pub fn with_normalization(mut self, normalization: LegendreNormalization) -> Self {
-        self.legendre = self.legendre.with_normalization(normalization);
+        self.legendre = self
+            .legendre
+            .with_normalization(normalization);
         self
     }
 
@@ -62,14 +64,20 @@ impl SphericalHarmonics {
         }
         let x = colat.cos();
         let sin_colat = (1.0 - x * x).sqrt();
-        self.legendre.calculate(x)?;
+        self.legendre
+            .calculate(x)?;
 
         let mut partial_r = 0.0;
         let mut partial_colat = 0.0;
         let mut partial_lon = 0.0;
 
-        let p = &self.legendre.p;
-        let dp = match &self.legendre.dp {
+        let p = &self
+            .legendre
+            .p;
+        let dp = match &self
+            .legendre
+            .dp
+        {
             Some(dp) => dp,
             None => unreachable!("derivatives always initiliazed in new"),
         };

@@ -37,8 +37,12 @@ impl Uncertainty for PrismaticStateBuilder {
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(PrismaticState {
-            position: self.position.sample(nominal, rng),
-            velocity: self.velocity.sample(nominal, rng),
+            position: self
+                .position
+                .sample(nominal, rng),
+            velocity: self
+                .velocity
+                .sample(nominal, rng),
         })
     }
 }
@@ -73,7 +77,10 @@ impl Uncertainty for PrismaticParametersBuilder {
     type Error = JointErrors;
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        Ok(PrismaticParameters(self.0.sample(nominal, rng)?))
+        Ok(PrismaticParameters(
+            self.0
+                .sample(nominal, rng)?,
+        ))
     }
 }
 
@@ -96,32 +103,46 @@ impl PrismaticBuilder {
 
     /// Sets the nominal initial position state
     pub fn set_position(&mut self, position: f64) {
-        self.state.position = UncertainValue::new(position);
+        self.state
+            .position = UncertainValue::new(position);
     }
 
     /// Sets the nominal initial velocity state
     pub fn set_velocity(&mut self, velocity: f64) {
-        self.state.velocity = UncertainValue::new(velocity);
+        self.state
+            .velocity = UncertainValue::new(velocity);
     }
 
     /// Sets the joint damping parameter
     pub fn set_damping(&mut self, damping: f64) {
-        self.parameters.0.damping.nominal = damping;
+        self.parameters
+            .0
+            .damping
+            .nominal = damping;
     }
 
     /// Sets the joint equilibrium parameter
     pub fn set_equilibrium(&mut self, equilibrium: f64) {
-        self.parameters.0.equilibrium.nominal = equilibrium;
+        self.parameters
+            .0
+            .equilibrium
+            .nominal = equilibrium;
     }
 
     /// Sets the joint spring_constant parameter
     pub fn set_spring_constant(&mut self, spring_constant: f64) {
-        self.parameters.0.spring_constant.nominal = spring_constant;
+        self.parameters
+            .0
+            .spring_constant
+            .nominal = spring_constant;
     }
 
     /// Sets the joint constant_force parameter
     pub fn set_constant_force(&mut self, constant_force: f64) {
-        self.parameters.0.constant_force.nominal = constant_force;
+        self.parameters
+            .0
+            .constant_force
+            .nominal = constant_force;
     }
 
     /// Sets an initial position state uncertainty with a normal distribution
@@ -133,7 +154,9 @@ impl PrismaticBuilder {
         std: f64,
     ) -> Result<(), PrismaticErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.position.set_distribution(dist.into())?;
+        self.state
+            .position
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -146,7 +169,9 @@ impl PrismaticBuilder {
         high: f64,
     ) -> Result<(), PrismaticErrors> {
         let dist = Uniform::new(low, high)?;
-        self.state.position.set_distribution(dist.into())?;
+        self.state
+            .position
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -159,7 +184,10 @@ impl PrismaticBuilder {
         std: f64,
     ) -> Result<(), PrismaticErrors> {
         let dist = Normal::new(mean, std)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -172,7 +200,10 @@ impl PrismaticBuilder {
         high: f64,
     ) -> Result<(), PrismaticErrors> {
         let dist = Uniform::new(low, high)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -274,37 +305,51 @@ impl PrismaticBuilder {
 
     /// Builder method to set the initial position state
     pub fn with_position(mut self, position: f64) -> Self {
-        self.state.position = UncertainValue::new(position);
+        self.state
+            .position = UncertainValue::new(position);
         self
     }
 
     /// Builder method to set the initial velocity state
     pub fn with_velocity(mut self, velocity: f64) -> Self {
-        self.state.velocity = UncertainValue::new(velocity);
+        self.state
+            .velocity = UncertainValue::new(velocity);
         self
     }
 
     /// Builder method to set the joint damping parameter
     pub fn with_damping(mut self, damping: f64) -> Self {
-        self.parameters.0.damping.nominal = damping;
+        self.parameters
+            .0
+            .damping
+            .nominal = damping;
         self
     }
 
     /// Builder method to set the joint equilibrium parameter
     pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
-        self.parameters.0.equilibrium.nominal = equilibrium;
+        self.parameters
+            .0
+            .equilibrium
+            .nominal = equilibrium;
         self
     }
 
     /// Builder method to set the joint spring_constant parameter
     pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
-        self.parameters.0.spring_constant.nominal = spring_constant;
+        self.parameters
+            .0
+            .spring_constant
+            .nominal = spring_constant;
         self
     }
 
     /// Builder method to set the joint constant_force parameter
     pub fn with_constant_force(mut self, constant_force: f64) -> Self {
-        self.parameters.0.constant_force.nominal = constant_force;
+        self.parameters
+            .0
+            .constant_force
+            .nominal = constant_force;
         self
     }
 
@@ -349,7 +394,10 @@ impl PrismaticBuilder {
         std: f64,
     ) -> Result<Self, PrismaticErrors> {
         let dist = Normal::new(mean, std)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -362,7 +410,10 @@ impl PrismaticBuilder {
         high: f64,
     ) -> Result<Self, PrismaticErrors> {
         let dist = Uniform::new(low, high)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -439,8 +490,10 @@ impl Uncertainty for PrismaticBuilder {
     /// Samples the parameters and state uncertainty if present
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Prismatic::new(
-            self.parameters.sample(nominal, rng)?,
-            self.state.sample(nominal, rng)?,
+            self.parameters
+                .sample(nominal, rng)?,
+            self.state
+                .sample(nominal, rng)?,
         ))
     }
 }
@@ -455,11 +508,7 @@ pub struct Prismatic {
 
 impl Prismatic {
     fn new(parameters: PrismaticParameters, state: PrismaticState) -> Self {
-        Self {
-            parameters,
-            state,
-            cache: PrismaticCache::default(),
-        }
+        Self { parameters, state, cache: PrismaticCache::default() }
     }
 }
 
@@ -473,20 +522,32 @@ impl JointModel for Prismatic {
     }
 
     fn calculate_tau(&mut self) {
-        let JointParameters {
-            constant_force,
-            damping,
-            equilibrium,
-            spring_constant,
-            ..
-        } = self.parameters.0;
-        self.cache.tau = constant_force
-            - spring_constant * (equilibrium - self.state.position)
-            - damping * self.state.velocity;
+        let JointParameters { constant_force, damping, equilibrium, spring_constant, .. } = self
+            .parameters
+            .0;
+        self.cache
+            .tau = constant_force
+            - spring_constant
+                * (equilibrium
+                    - self
+                        .state
+                        .position)
+            - damping
+                * self
+                    .state
+                    .velocity;
     }
 
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
-        Velocity::from(Vector6::new(0.0, 0.0, 0.0, self.state.velocity, 0.0, 0.0))
+        Velocity::from(Vector6::new(
+            0.0,
+            0.0,
+            0.0,
+            self.state
+                .velocity,
+            0.0,
+            0.0,
+        ))
     }
 
     fn ndof(&self) -> u32 {
@@ -494,17 +555,28 @@ impl JointModel for Prismatic {
     }
 
     fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
-        derivative[0] = self.state.velocity;
-        derivative[1] = self.cache.q_ddot;
+        derivative[0] = self
+            .state
+            .velocity;
+        derivative[1] = self
+            .cache
+            .q_ddot;
     }
 
     fn state_vector_init(&self) -> StateVector {
-        StateVector::new(vec![self.state.position, self.state.velocity])
+        StateVector::new(vec![
+            self.state
+                .position,
+            self.state
+                .velocity,
+        ])
     }
 
     fn state_vector_read(&mut self, state: &[f64]) {
-        self.state.position = state[0];
-        self.state.velocity = state[1];
+        self.state
+            .position = state[0];
+        self.state
+            .velocity = state[1];
     }
 
     fn update_transforms(
@@ -513,11 +585,18 @@ impl JointModel for Prismatic {
         inner_joint: &Option<JointRef>,
     ) {
         let rotation = Rotation::identity();
-        let translation = CoordinateSystem::from(Cartesian::new(self.state.position, 0.0, 0.0));
+        let translation = CoordinateSystem::from(Cartesian::new(
+            self.state
+                .position,
+            0.0,
+            0.0,
+        ));
         let transform = Transform::new(rotation, translation);
 
         transforms.jof_from_jif = SpatialTransform(transform);
-        transforms.jif_from_jof = transforms.jof_from_jif.inv();
+        transforms.jif_from_jof = transforms
+            .jof_from_jif
+            .inv();
         transforms.update(inner_joint)
     }
 
@@ -526,11 +605,21 @@ impl JointModel for Prismatic {
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.position;
-        writer.float_buffer[1] = self.state.velocity;
-        writer.float_buffer[2] = self.cache.q_ddot;
-        writer.float_buffer[3] = self.cache.tau;
-        writer.write_record().unwrap();
+        writer.float_buffer[0] = self
+            .state
+            .position;
+        writer.float_buffer[1] = self
+            .state
+            .velocity;
+        writer.float_buffer[2] = self
+            .cache
+            .q_ddot;
+        writer.float_buffer[3] = self
+            .cache
+            .tau;
+        writer
+            .write_record()
+            .unwrap();
     }
 }
 
@@ -558,43 +647,112 @@ struct PrismaticCache {
 
 impl ArticulatedBodyAlgorithm for Prismatic {
     fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
-        let aba = &mut self.cache.aba;
-        let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
+        let aba = &mut self
+            .cache
+            .aba;
+        let inertia_articulated_matrix = joint_cache
+            .aba
+            .inertia_articulated
+            .matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.column(3).into();
+        aba.big_u = inertia_articulated_matrix
+            .column(3)
+            .into();
         aba.big_d_inv = 1.0 / aba.big_u[3];
-        aba.lil_u = self.cache.tau - (joint_cache.aba.p_big_a.get_index(4).unwrap()); //note force is 1 indexed, so
+        aba.lil_u = self
+            .cache
+            .tau
+            - (joint_cache
+                .aba
+                .p_big_a
+                .get_index(4)
+                .unwrap()); //note force is 1 indexed, so
 
         if let Some(inner_joint) = inner_joint {
             let mut inner_joint = inner_joint.borrow_mut();
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
-                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
+                inertia_articulated_matrix
+                    - big_u_times_big_d_inv
+                        * aba
+                            .big_u
+                            .transpose(),
             );
 
-            joint_cache.aba.p_lil_a = joint_cache.aba.p_big_a
-                + Force::from(i_lil_a * joint_cache.aba.c)
+            joint_cache
+                .aba
+                .p_lil_a = joint_cache
+                .aba
+                .p_big_a
+                + Force::from(
+                    i_lil_a
+                        * joint_cache
+                            .aba
+                            .c,
+                )
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            inner_joint.cache.aba.inertia_articulated +=
-                joint_cache.transforms.ij_jof_from_jof * i_lil_a;
-            inner_joint.cache.aba.p_big_a +=
-                joint_cache.transforms.ij_jof_from_jof * joint_cache.aba.p_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .inertia_articulated += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * i_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .p_big_a += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * joint_cache
+                    .aba
+                    .p_lil_a;
         }
     }
 
     fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let a_ij = if let Some(inner_joint) = inner_joint {
-            inner_joint.borrow().cache.a
+            inner_joint
+                .borrow()
+                .cache
+                .a
         } else {
             Acceleration::zeros()
         };
-        let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
-        self.cache.q_ddot = self.cache.aba.big_d_inv
-            * (self.cache.aba.lil_u - (self.cache.aba.big_u.transpose() * a_prime.vector())[0]); // indexing just pull value out of 1x1 vector
-        joint_cache.a =
-            a_prime + Acceleration::from(Vector6::new(0.0, 0.0, 0.0, self.cache.q_ddot, 0.0, 0.0));
+        let a_prime = joint_cache
+            .transforms
+            .jof_from_ij_jof
+            * a_ij
+            + joint_cache
+                .aba
+                .c;
+        self.cache
+            .q_ddot = self
+            .cache
+            .aba
+            .big_d_inv
+            * (self
+                .cache
+                .aba
+                .lil_u
+                - (self
+                    .cache
+                    .aba
+                    .big_u
+                    .transpose()
+                    * a_prime.vector())[0]); // indexing just pull value out of 1x1 vector
+        joint_cache.a = a_prime
+            + Acceleration::from(Vector6::new(
+                0.0,
+                0.0,
+                0.0,
+                self.cache
+                    .q_ddot,
+                0.0,
+                0.0,
+            ));
     }
 }
 

@@ -135,7 +135,9 @@ impl From<&AlignedAxes> for Rotation {
     fn from(aligned_axes: &AlignedAxes) -> Self {
         //let rotation_matrix = RotationMatrix::from(aligned_axes);
         //Rotation::RotationMatrix(rotation_matrix)
-        Rotation::Quaternion(UnitQuaternion::from(&RotationMatrix::from(aligned_axes)))
+        Rotation::Quaternion(UnitQuaternion::from(
+            &RotationMatrix::from(aligned_axes),
+        ))
     }
 }
 

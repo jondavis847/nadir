@@ -35,6 +35,7 @@ use transforms::{
     Transform,
     prelude::{Cartesian, CoordinateSystem},
 };
+use uncertainty::Normal;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut sys = MultibodySystemBuilder::new();
@@ -72,12 +73,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         CelestialBodies::Earth,
     );
     let f = FloatingBuilder::new()
-        .with_attitude(UnitQuaternion::new(
-            -0.3607597432795579,
-            -0.6081457090887359,
-            0.3607613756444451,
-            0.6081631639526958,
-        )?)
+        .with_uncertain_attitude(
+            UnitQuaternion::new(
+                -0.3607597432795579,
+                -0.6081457090887359,
+                0.3607613756444451,
+                0.6081631639526958,
+            )?,
+            Normal::new(0.0, 1.0)?.into(),
+        )
         .with_angular_rate(
             0.0,
             -0.0010471975511965976,

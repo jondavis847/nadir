@@ -65,8 +65,14 @@ impl Legendre {
 
     /// just preallocates at construction
     pub fn with_derivatives(mut self) -> Self {
-        self.dp = Some(vec![vec![0.0; self.order + 1]; self.degree + 1]);
-        self.dfactor = Some(vec![vec![0.0; self.order + 1]; self.degree + 1]);
+        self.dp = Some(vec![
+            vec![0.0; self.order + 1];
+            self.degree + 1
+        ]);
+        self.dfactor = Some(vec![
+            vec![0.0; self.order + 1];
+            self.degree + 1
+        ]);
         // calculate normalization if it already had one
         let norm = self.normalization;
         self.with_normalization(norm)
@@ -99,7 +105,11 @@ impl Legendre {
                                 .sqrt()
                         }
                         LegendreNormalization::SchmidtQuasi => {
-                            let delta = if m == 0 { 1.0 } else { 0.0 };
+                            let delta = if m == 0 {
+                                1.0
+                            } else {
+                                0.0
+                            };
                             ((2.0 - delta) * factorial(lf - mf) / factorial(lf + mf)).sqrt()
                         }
                     };
@@ -230,62 +240,154 @@ mod tests {
     #[test]
     fn test_legendre_1() {
         let mut legendre = Legendre::new(18, 18).unwrap();
-        legendre.calculate(0.5).unwrap();
+        legendre
+            .calculate(0.5)
+            .unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.5);
-        assert_equal(legendre.p[1][1], 0.8660254037844386);
+        assert_equal(
+            legendre.p[1][1],
+            0.8660254037844386,
+        );
         assert_equal(legendre.p[2][0], -0.125);
-        assert_equal(legendre.p[2][1], 1.299038105676658);
+        assert_equal(
+            legendre.p[2][1],
+            1.299038105676658,
+        );
         assert_equal(legendre.p[2][2], 2.25);
         assert_equal(legendre.p[6][0], 0.3232421875);
-        assert_equal(legendre.p[6][3], -12.787406352754603);
-        assert_equal(legendre.p[6][6], 4385.390624999996);
-        assert_equal(legendre.p[10][0], -0.18822860717773438);
-        assert_equal(legendre.p[10][3], 259.1875968441698);
-        assert_equal(legendre.p[10][6], -82397.37854003915);
-        assert_equal(legendre.p[10][10], 1.55370278540039e8);
-        assert_equal(legendre.p[18][18], 16642002289840226304.0);
+        assert_equal(
+            legendre.p[6][3],
+            -12.787406352754603,
+        );
+        assert_equal(
+            legendre.p[6][6],
+            4385.390624999996,
+        );
+        assert_equal(
+            legendre.p[10][0],
+            -0.18822860717773438,
+        );
+        assert_equal(
+            legendre.p[10][3],
+            259.1875968441698,
+        );
+        assert_equal(
+            legendre.p[10][6],
+            -82397.37854003915,
+        );
+        assert_equal(
+            legendre.p[10][10],
+            1.55370278540039e8,
+        );
+        assert_equal(
+            legendre.p[18][18],
+            16642002289840226304.0,
+        );
     }
 
     #[test]
     fn test_legendre_2() {
         let mut legendre = Legendre::new(50, 50).unwrap();
-        legendre.calculate(-0.99).unwrap();
+        legendre
+            .calculate(-0.99)
+            .unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], -0.99);
-        assert_equal(legendre.p[1][1], 0.14106735979665894);
-        assert_equal(legendre.p[2][0], 0.9701499999999998);
-        assert_equal(legendre.p[2][1], -0.41897005859607717);
-        assert_equal(legendre.p[2][2], 0.059700000000000066);
-        assert_equal(legendre.p[12][0], 0.3581855121242232);
-        assert_equal(legendre.p[12][3], -175.30908571682124);
-        assert_equal(legendre.p[12][12], 19.639354822743886);
-        assert_equal(legendre.p[47][0], -0.28768056966031036);
-        assert_equal(legendre.p[47][3], -10385.344699425346);
-        assert_equal(legendre.p[47][6], -3.605392577986418e9);
-        assert_equal(legendre.p[47][47], 3.150255369803779e32);
+        assert_equal(
+            legendre.p[1][1],
+            0.14106735979665894,
+        );
+        assert_equal(
+            legendre.p[2][0],
+            0.9701499999999998,
+        );
+        assert_equal(
+            legendre.p[2][1],
+            -0.41897005859607717,
+        );
+        assert_equal(
+            legendre.p[2][2],
+            0.059700000000000066,
+        );
+        assert_equal(
+            legendre.p[12][0],
+            0.3581855121242232,
+        );
+        assert_equal(
+            legendre.p[12][3],
+            -175.30908571682124,
+        );
+        assert_equal(
+            legendre.p[12][12],
+            19.639354822743886,
+        );
+        assert_equal(
+            legendre.p[47][0],
+            -0.28768056966031036,
+        );
+        assert_equal(
+            legendre.p[47][3],
+            -10385.344699425346,
+        );
+        assert_equal(
+            legendre.p[47][6],
+            -3.605392577986418e9,
+        );
+        assert_equal(
+            legendre.p[47][47],
+            3.150255369803779e32,
+        );
     }
 
     #[test]
     fn test_legendre_condon_shortley() {
-        let mut legendre = Legendre::new(10, 10).unwrap().with_condon_shortley();
-        legendre.calculate(0.5).unwrap();
+        let mut legendre = Legendre::new(10, 10)
+            .unwrap()
+            .with_condon_shortley();
+        legendre
+            .calculate(0.5)
+            .unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.5);
-        assert_equal(legendre.p[1][1], -0.8660254037844386);
+        assert_equal(
+            legendre.p[1][1],
+            -0.8660254037844386,
+        );
         assert_equal(legendre.p[2][0], -0.125);
-        assert_equal(legendre.p[2][1], -1.299038105676658);
+        assert_equal(
+            legendre.p[2][1],
+            -1.299038105676658,
+        );
         assert_equal(legendre.p[2][2], 2.25);
         assert_equal(legendre.p[6][0], 0.3232421875);
-        assert_equal(legendre.p[6][3], 12.787406352754603);
-        assert_equal(legendre.p[6][6], 4385.390624999996);
-        assert_equal(legendre.p[10][0], -0.18822860717773438);
-        assert_equal(legendre.p[10][3], -259.1875968441698);
-        assert_equal(legendre.p[10][6], -82397.37854003915);
-        assert_equal(legendre.p[10][10], 1.55370278540039e8);
+        assert_equal(
+            legendre.p[6][3],
+            12.787406352754603,
+        );
+        assert_equal(
+            legendre.p[6][6],
+            4385.390624999996,
+        );
+        assert_equal(
+            legendre.p[10][0],
+            -0.18822860717773438,
+        );
+        assert_equal(
+            legendre.p[10][3],
+            -259.1875968441698,
+        );
+        assert_equal(
+            legendre.p[10][6],
+            -82397.37854003915,
+        );
+        assert_equal(
+            legendre.p[10][10],
+            1.55370278540039e8,
+        );
     }
 
     #[test]
@@ -294,15 +396,35 @@ mod tests {
             .unwrap()
             .with_normalization(LegendreNormalization::Full)
             .with_condon_shortley();
-        legendre.calculate(0.5).unwrap();
+        legendre
+            .calculate(0.5)
+            .unwrap();
 
-        assert_equal(legendre.p[0][0], 0.7071067811865476);
-        assert_equal(legendre.p[1][0], 0.6123724356957945);
+        assert_equal(
+            legendre.p[0][0],
+            0.7071067811865476,
+        );
+        assert_equal(
+            legendre.p[1][0],
+            0.6123724356957945,
+        );
         assert_equal(legendre.p[1][1], -0.75);
-        assert_equal(legendre.p[2][2], 0.7261843774138904);
-        assert_equal(legendre.p[6][6], 0.5108536257714203);
-        assert_equal(legendre.p[10][0], -0.6099303975706846);
-        assert_equal(legendre.p[10][10], 0.3227752940307167);
+        assert_equal(
+            legendre.p[2][2],
+            0.7261843774138904,
+        );
+        assert_equal(
+            legendre.p[6][6],
+            0.5108536257714203,
+        );
+        assert_equal(
+            legendre.p[10][0],
+            -0.6099303975706846,
+        );
+        assert_equal(
+            legendre.p[10][10],
+            0.3227752940307167,
+        );
     }
 
     #[test]
@@ -310,26 +432,58 @@ mod tests {
         let mut legendre = Legendre::new(10, 10)
             .unwrap()
             .with_normalization(LegendreNormalization::SchmidtQuasi);
-        legendre.calculate(0.5).unwrap();
+        legendre
+            .calculate(0.5)
+            .unwrap();
 
         assert_equal(legendre.p[0][0], 1.0);
         assert_equal(legendre.p[1][0], 0.5);
-        assert_equal(legendre.p[1][1], 0.8660254037844386);
-        assert_equal(legendre.p[2][2], 0.6495190528383288);
-        assert_equal(legendre.p[3][1], 0.13258252147247768);
-        assert_equal(legendre.p[3][2], 0.7261843774138905);
-        assert_equal(legendre.p[3][3], 0.5134898976610931);
-        assert_equal(legendre.p[6][6], 0.2833706064577766);
-        assert_equal(legendre.p[10][0], -0.18822860717773438);
-        assert_equal(legendre.p[10][10], 0.14087068736737018);
+        assert_equal(
+            legendre.p[1][1],
+            0.8660254037844386,
+        );
+        assert_equal(
+            legendre.p[2][2],
+            0.6495190528383288,
+        );
+        assert_equal(
+            legendre.p[3][1],
+            0.13258252147247768,
+        );
+        assert_equal(
+            legendre.p[3][2],
+            0.7261843774138905,
+        );
+        assert_equal(
+            legendre.p[3][3],
+            0.5134898976610931,
+        );
+        assert_equal(
+            legendre.p[6][6],
+            0.2833706064577766,
+        );
+        assert_equal(
+            legendre.p[10][0],
+            -0.18822860717773438,
+        );
+        assert_equal(
+            legendre.p[10][10],
+            0.14087068736737018,
+        );
     }
 
     #[test]
     fn test_legendre_derivative() {
         // independent values from pyshtools
-        let mut legendre = Legendre::new(4, 4).unwrap().with_derivatives();
-        legendre.calculate(0.5).unwrap();
-        let dp = legendre.dp.unwrap();
+        let mut legendre = Legendre::new(4, 4)
+            .unwrap()
+            .with_derivatives();
+        legendre
+            .calculate(0.5)
+            .unwrap();
+        let dp = legendre
+            .dp
+            .unwrap();
         assert_equal(dp[0][0], 0.0);
         assert_equal(dp[1][0], 1.0);
         assert_equal(dp[1][1], -0.5773502691896257);
@@ -354,8 +508,12 @@ mod tests {
             .unwrap()
             .with_derivatives()
             .with_normalization(LegendreNormalization::SchmidtQuasi);
-        legendre.calculate(0.5).unwrap();
-        let dp = legendre.dp.unwrap();
+        legendre
+            .calculate(0.5)
+            .unwrap();
+        let dp = legendre
+            .dp
+            .unwrap();
         assert_equal(dp[0][0], 0.0);
         assert_equal(dp[1][0], 1.0);
         assert_equal(dp[1][1], -0.5773502691896257);
@@ -379,8 +537,12 @@ mod tests {
             .with_normalization(LegendreNormalization::SchmidtQuasi)
             .with_derivatives();
 
-        legendre.calculate(0.5).unwrap();
-        let dp = legendre.dp.unwrap();
+        legendre
+            .calculate(0.5)
+            .unwrap();
+        let dp = legendre
+            .dp
+            .unwrap();
         assert_equal(dp[0][0], 0.0);
         assert_equal(dp[1][0], 1.0);
         assert_equal(dp[1][1], -0.5773502691896257);

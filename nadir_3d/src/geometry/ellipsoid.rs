@@ -1,6 +1,6 @@
 use super::{GeometryState, GeometryTrait, GeometryTransform};
 use crate::vertex::Vertex;
-use glam::{vec2, vec3, Mat3, Mat4, Quat};
+use glam::{Mat3, Mat4, Quat, vec2, vec3};
 use serde::{Deserialize, Serialize};
 
 use thiserror::Error;
@@ -26,11 +26,7 @@ impl Ellipsoid {
         if radius_x <= 0.0 || radius_y <= 0.0 || radius_z <= 0.0 {
             return Err(EllipsoidErrors::Dimension);
         }
-        Ok(Self {
-            radius_x,
-            radius_y,
-            radius_z,
-        })
+        Ok(Self { radius_x, radius_y, radius_z })
     }
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
@@ -40,18 +36,34 @@ impl Ellipsoid {
                 self.radius_z as f32,
             ),
             Quat::from_xyzw(
-                state.rotation.x as f32,
-                state.rotation.y as f32,
-                state.rotation.z as f32,
-                state.rotation.w as f32,
+                state
+                    .rotation
+                    .x as f32,
+                state
+                    .rotation
+                    .y as f32,
+                state
+                    .rotation
+                    .z as f32,
+                state
+                    .rotation
+                    .w as f32,
             ),
             vec3(
-                state.position.x as f32,
-                state.position.y as f32,
-                state.position.z as f32,
+                state
+                    .position
+                    .x as f32,
+                state
+                    .position
+                    .y as f32,
+                state
+                    .position
+                    .z as f32,
             ),
         );
-        let normal = transformation.inverse().transpose();
+        let normal = transformation
+            .inverse()
+            .transpose();
         let normal = Mat3::from_mat4(normal);
         GeometryTransform::new(transformation, normal)
     }
@@ -61,7 +73,9 @@ impl Ellipsoid {
 pub struct Ellipsoid16(Ellipsoid);
 impl Ellipsoid16 {
     pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
-        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
+        Ok(Self(Ellipsoid::new(
+            radius_x, radius_y, radius_z,
+        )?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(16)
@@ -70,7 +84,8 @@ impl Ellipsoid16 {
 
 impl GeometryTrait for Ellipsoid16 {
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
-        self.0.get_mesh_transform(state)
+        self.0
+            .get_mesh_transform(state)
     }
 }
 
@@ -78,7 +93,9 @@ impl GeometryTrait for Ellipsoid16 {
 pub struct Ellipsoid32(Ellipsoid);
 impl Ellipsoid32 {
     pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
-        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
+        Ok(Self(Ellipsoid::new(
+            radius_x, radius_y, radius_z,
+        )?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(32)
@@ -87,7 +104,8 @@ impl Ellipsoid32 {
 
 impl GeometryTrait for Ellipsoid32 {
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
-        self.0.get_mesh_transform(state)
+        self.0
+            .get_mesh_transform(state)
     }
 }
 
@@ -95,7 +113,9 @@ impl GeometryTrait for Ellipsoid32 {
 pub struct Ellipsoid64(Ellipsoid);
 impl Ellipsoid64 {
     pub fn new(radius_x: f64, radius_y: f64, radius_z: f64) -> Result<Self, EllipsoidErrors> {
-        Ok(Self(Ellipsoid::new(radius_x, radius_y, radius_z)?))
+        Ok(Self(Ellipsoid::new(
+            radius_x, radius_y, radius_z,
+        )?))
     }
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(64)
@@ -104,7 +124,8 @@ impl Ellipsoid64 {
 
 impl GeometryTrait for Ellipsoid64 {
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
-        self.0.get_mesh_transform(state)
+        self.0
+            .get_mesh_transform(state)
     }
 }
 
@@ -139,15 +160,15 @@ fn ellipsoid_vertices(n_lat: u32) -> Vec<Vertex> {
             let z = cos_theta;
 
             let normal = vec3(x, y, z).normalize();
-            let tangent = up.cross(normal).normalize();
-            let uv = vec2(lon as f32 / n_lon as f32, lat as f32 / n_lat as f32);
+            let tangent = up
+                .cross(normal)
+                .normalize();
+            let uv = vec2(
+                lon as f32 / n_lon as f32,
+                lat as f32 / n_lat as f32,
+            );
 
-            row.push(Vertex {
-                pos: vec3(x, y, z),
-                normal,
-                tangent,
-                uv,
-            });
+            row.push(Vertex { pos: vec3(x, y, z), normal, tangent, uv });
         }
 
         grid_points.push(row);

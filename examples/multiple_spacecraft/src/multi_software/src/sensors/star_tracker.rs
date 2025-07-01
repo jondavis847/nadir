@@ -33,15 +33,30 @@ pub struct StarTrackerTelemetry {
 
 impl StarTrackerFsw {
     pub fn run(&mut self) {
-        self.state.q_st = UnitQuaternion::new(
-            self.telemetry.q_st[0],
-            self.telemetry.q_st[1],
-            self.telemetry.q_st[2],
-            self.telemetry.q_st[3],
+        self.state
+            .q_st = UnitQuaternion::new(
+            self.telemetry
+                .q_st[0],
+            self.telemetry
+                .q_st[1],
+            self.telemetry
+                .q_st[2],
+            self.telemetry
+                .q_st[3],
         )
         .unwrap();
-        self.state.q_body = self.parameters.st_to_body * self.state.q_st;
-        self.state.valid = match self.telemetry.valid {
+        self.state
+            .q_body = self
+            .parameters
+            .st_to_body
+            * self
+                .state
+                .q_st;
+        self.state
+            .valid = match self
+            .telemetry
+            .valid
+        {
             0u8 => false,
             1u8 => true,
             _ => panic!("invalid star tracker validity flag"),
@@ -50,7 +65,9 @@ impl StarTrackerFsw {
 
     pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
         match buffer.read::<StarTrackerTelemetry>() {
-            Ok(telemetry) => self.telemetry.clone_from(&telemetry),
+            Ok(telemetry) => self
+                .telemetry
+                .clone_from(&telemetry),
             Err(e) => eprintln!("{e}"),
         }
     }
@@ -59,7 +76,9 @@ impl StarTrackerFsw {
 impl NadirResult for StarTrackerFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -78,7 +97,11 @@ impl NadirResult for StarTrackerFsw {
             "q_body[w]",
             "valid",
         ];
-        let id = results.new_writer("fsw_st", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_st",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -87,15 +110,49 @@ impl NadirResult for StarTrackerFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.q_st.0.x.to_string(),
-                    self.state.q_st.0.y.to_string(),
-                    self.state.q_st.0.z.to_string(),
-                    self.state.q_st.0.w.to_string(),
-                    self.state.q_body.0.x.to_string(),
-                    self.state.q_body.0.y.to_string(),
-                    self.state.q_body.0.z.to_string(),
-                    self.state.q_body.0.w.to_string(),
-                    self.state.valid.to_string(),
+                    self.state
+                        .q_st
+                        .0
+                        .x
+                        .to_string(),
+                    self.state
+                        .q_st
+                        .0
+                        .y
+                        .to_string(),
+                    self.state
+                        .q_st
+                        .0
+                        .z
+                        .to_string(),
+                    self.state
+                        .q_st
+                        .0
+                        .w
+                        .to_string(),
+                    self.state
+                        .q_body
+                        .0
+                        .x
+                        .to_string(),
+                    self.state
+                        .q_body
+                        .0
+                        .y
+                        .to_string(),
+                    self.state
+                        .q_body
+                        .0
+                        .z
+                        .to_string(),
+                    self.state
+                        .q_body
+                        .0
+                        .w
+                        .to_string(),
+                    self.state
+                        .valid
+                        .to_string(),
                 ],
             );
         }

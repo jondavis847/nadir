@@ -73,9 +73,13 @@ impl SensorBuilder {
         rng: &mut SmallRng,
         connection: BodyConnection,
     ) -> Result<Sensor, SensorErrors> {
-        let model = self.model.sample(nominal, rng)?;
+        let model = self
+            .model
+            .sample(nominal, rng)?;
         Ok(Sensor {
-            name: self.name.clone(),
+            name: self
+                .name
+                .clone(),
             model,
             connection,
             writer_id: None,
@@ -95,7 +99,8 @@ pub struct Sensor {
 
 impl Sensor {
     pub fn update(&mut self, t: f64) -> Result<(), SensorErrors> {
-        self.model.update(t, &self.connection);
+        self.model
+            .update(t, &self.connection);
         self.model
             .write_buffer(&mut self.telemetry_buffer)?;
         Ok(())
@@ -105,7 +110,9 @@ impl Sensor {
         let rel_path = PathBuf::new()
             .join("sensors")
             .join(format!("{}.csv", self.name));
-        let headers = self.model.writer_headers();
+        let headers = self
+            .model
+            .writer_headers();
         let writer = StateWriterBuilder::new(headers.len(), rel_path)
             .with_headers(headers)
             .unwrap();
@@ -114,8 +121,12 @@ impl Sensor {
 
     pub fn writer_save_fn(&self, manager: &mut WriterManager) {
         if let Some(id) = &self.writer_id {
-            if let Some(writer) = manager.writers.get_mut(id) {
-                self.model.writer_save_fn(writer);
+            if let Some(writer) = manager
+                .writers
+                .get_mut(id)
+            {
+                self.model
+                    .writer_save_fn(writer);
             }
         }
     }
@@ -132,9 +143,9 @@ pub enum SensorModelBuilders {
 impl SensorModelBuilders {
     pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<SensorModels, SensorErrors> {
         match self {
-            SensorModelBuilders::Gps(builder) => {
-                Ok(SensorModels::Gps(builder.sample(nominal, rng)?))
-            }
+            SensorModelBuilders::Gps(builder) => Ok(SensorModels::Gps(
+                builder.sample(nominal, rng)?,
+            )),
             SensorModelBuilders::Magnetometer(builder) => Ok(SensorModels::Magnetometer(
                 builder.sample(nominal, rng)?,
             )),

@@ -22,7 +22,9 @@ pub fn format_number(value: f64) -> String {
 pub fn generate_unique_id() -> String {
     // Get the current time since Unix epoch
     let now = SystemTime::now();
-    let duration_since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    let duration_since_epoch = now
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
     let timestamp = duration_since_epoch.as_secs();
     // Convert the timestamp to base-36
     base36_encode(timestamp)
@@ -41,7 +43,10 @@ fn base36_encode(mut num: u64) -> String {
         chars.push(char);
         num /= 36;
     }
-    chars.iter().rev().collect()
+    chars
+        .iter()
+        .rev()
+        .collect()
 }
 
 pub fn format_duration(duration: Duration) -> String {
@@ -49,11 +54,17 @@ pub fn format_duration(duration: Duration) -> String {
         let hours = duration.as_secs() / 3600;
         let minutes = (duration.as_secs() % 3600) / 60;
         let seconds = duration.as_secs() % 60;
-        format!("{} hrs, {} min, {} sec", hours, minutes, seconds)
+        format!(
+            "{} hrs, {} min, {} sec",
+            hours, minutes, seconds
+        )
     } else if duration.as_secs() >= 60 {
         let minutes = duration.as_secs() / 60;
         let seconds = duration.as_secs() % 60;
-        format!("{} min, {} sec", minutes, seconds)
+        format!(
+            "{} min, {} sec",
+            minutes, seconds
+        )
     } else if duration.as_secs() >= 1 {
         format!("{} sec", duration.as_secs())
     } else if duration.as_millis() >= 1 {
@@ -107,7 +118,10 @@ pub fn unique_strings(vec1: Vec<String>, vec2: Vec<String>) -> Vec<String> {
     let mut set = HashSet::new();
     let mut result = Vec::new();
 
-    for s in vec1.into_iter().chain(vec2.into_iter()) {
+    for s in vec1
+        .into_iter()
+        .chain(vec2.into_iter())
+    {
         if set.insert(s.clone()) {
             result.push(s);
         }
@@ -123,7 +137,9 @@ pub fn unique_strings_alphabetical(vec1: Vec<String>, vec2: Vec<String>) -> Vec<
 }
 
 pub fn assert_equal(left: f64, right: f64) {
-    let max = left.abs().max(right.abs());
+    let max = left
+        .abs()
+        .max(right.abs());
     if max < std::f64::EPSILON {
         // If both values are close to zero, we consider them equal
         return;
@@ -139,7 +155,9 @@ pub fn assert_equal(left: f64, right: f64) {
 }
 
 pub fn assert_equal_reltol(left: f64, right: f64, reltol: f64) {
-    let max = left.abs().max(right.abs());
+    let max = left
+        .abs()
+        .max(right.abs());
     if max < std::f64::EPSILON {
         // If both values are close to zero, we consider them equal
         return;

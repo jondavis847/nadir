@@ -34,7 +34,9 @@ impl Animator {
         match self.status {
             AnimatorStatus::Paused => {}
             AnimatorStatus::Playing => {
-                self.dt = instant.duration_since(self.instant).as_secs_f64();
+                self.dt = instant
+                    .duration_since(self.instant)
+                    .as_secs_f64();
                 self.current_time += self.speed * self.dt;
                 //rollover by default for now;
                 if self.current_time > self.end_time {

@@ -25,12 +25,15 @@ impl Mesh {
         }
     }
     pub fn set_position_from_target(&mut self, target: DVec3) {
-        self.state.position -= target;
+        self.state
+            .position -= target;
     }
 
     pub fn update(&mut self, position: DVec3, rotation: DQuat) {
-        self.state.position = position;
-        self.state.rotation = rotation;
+        self.state
+            .position = position;
+        self.state
+            .rotation = rotation;
     }
 }
 
@@ -70,7 +73,9 @@ impl MeshGpu {
 
 impl From<&Mesh> for MeshGpu {
     fn from(mesh: &Mesh) -> Self {
-        let transforms = mesh.geometry.get_mesh_transform(&mesh.state);
+        let transforms = mesh
+            .geometry
+            .get_mesh_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
             Material::Phong { color, specular_power } => (color, 1, *specular_power),
@@ -94,7 +99,9 @@ pub struct MeshPrimitive {
 
 impl From<&Mesh> for MeshPrimitive {
     fn from(mesh: &Mesh) -> Self {
-        let transforms = mesh.geometry.get_mesh_transform(&mesh.state);
+        let transforms = mesh
+            .geometry
+            .get_mesh_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
             Material::Phong { color, specular_power } => (color, 1, *specular_power),

@@ -36,8 +36,12 @@ impl Uncertainty for RevoluteStateBuilder {
     type Output = RevoluteState;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(RevoluteState {
-            angle: self.angle.sample(nominal, rng),
-            angular_rate: self.angular_rate.sample(nominal, rng),
+            angle: self
+                .angle
+                .sample(nominal, rng),
+            angular_rate: self
+                .angular_rate
+                .sample(nominal, rng),
         })
     }
 }
@@ -69,7 +73,10 @@ impl Uncertainty for RevoluteParametersBuilder {
     type Error = JointErrors;
     type Output = RevoluteParameters;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        Ok(RevoluteParameters(self.0.sample(nominal, rng)?))
+        Ok(RevoluteParameters(
+            self.0
+                .sample(nominal, rng)?,
+        ))
     }
 }
 
@@ -92,32 +99,48 @@ impl RevoluteBuilder {
 
     /// Sets the nominal initial angular rate state
     pub fn set_angular_rate(&mut self, angular_rate: f64) {
-        self.state.angular_rate.nominal = angular_rate;
+        self.state
+            .angular_rate
+            .nominal = angular_rate;
     }
 
     /// Sets the nominal initial angle state
     pub fn set_angle(&mut self, angle: f64) {
-        self.state.angle.nominal = angle;
+        self.state
+            .angle
+            .nominal = angle;
     }
 
     /// Sets the joint damping parameter
     pub fn set_damping(&mut self, damping: f64) {
-        self.parameters.0.damping.nominal = damping;
+        self.parameters
+            .0
+            .damping
+            .nominal = damping;
     }
 
     /// Sets the joint equilibrium parameter
     pub fn set_equilibrium(&mut self, equilibrium: f64) {
-        self.parameters.0.equilibrium.nominal = equilibrium;
+        self.parameters
+            .0
+            .equilibrium
+            .nominal = equilibrium;
     }
 
     /// Sets the joint spring_constant parameter
     pub fn set_spring_constant(&mut self, spring_constant: f64) {
-        self.parameters.0.spring_constant.nominal = spring_constant;
+        self.parameters
+            .0
+            .spring_constant
+            .nominal = spring_constant;
     }
 
     /// Sets the joint constant_force parameter
     pub fn set_constant_force(&mut self, constant_force: f64) {
-        self.parameters.0.constant_force.nominal = constant_force;
+        self.parameters
+            .0
+            .constant_force
+            .nominal = constant_force;
     }
 
     /// Sets an initial angular rate state uncertainty with a normal distribution
@@ -129,7 +152,9 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angular_rate.set_distribution(dist.into())?;
+        self.state
+            .angular_rate
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -142,7 +167,9 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.state.angular_rate.set_distribution(dist.into())?;
+        self.state
+            .angular_rate
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -155,7 +182,9 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angle.set_distribution(dist.into())?;
+        self.state
+            .angle
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -168,7 +197,9 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.state.angle.set_distribution(dist.into())?;
+        self.state
+            .angle
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -181,7 +212,10 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -194,7 +228,10 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<(), RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(())
     }
 
@@ -296,37 +333,53 @@ impl RevoluteBuilder {
 
     /// Builder method to set the nominal initial angle state
     pub fn with_angle(mut self, angle: f64) -> Self {
-        self.state.angle.nominal = angle;
+        self.state
+            .angle
+            .nominal = angle;
         self
     }
 
     /// Builder method to set the nominal initial angular rate state
     pub fn with_angular_rate(mut self, angular_rate: f64) -> Self {
-        self.state.angular_rate.nominal = angular_rate;
+        self.state
+            .angular_rate
+            .nominal = angular_rate;
         self
     }
 
     /// Builder method to set the joint damping parameter
     pub fn with_damping(mut self, damping: f64) -> Self {
-        self.parameters.0.damping.nominal = damping;
+        self.parameters
+            .0
+            .damping
+            .nominal = damping;
         self
     }
 
     /// Builder method to set the joint equilibrium parameter
     pub fn with_equilibrium(mut self, equilibrium: f64) -> Self {
-        self.parameters.0.equilibrium.nominal = equilibrium;
+        self.parameters
+            .0
+            .equilibrium
+            .nominal = equilibrium;
         self
     }
 
     /// Builder method to set the joint spring_constant parameter
     pub fn with_spring_constant(mut self, spring_constant: f64) -> Self {
-        self.parameters.0.spring_constant.nominal = spring_constant;
+        self.parameters
+            .0
+            .spring_constant
+            .nominal = spring_constant;
         self
     }
 
     /// Builder method to set the joint constant_force parameter
     pub fn with_constant_force(mut self, constant_force: f64) -> Self {
-        self.parameters.0.constant_force.nominal = constant_force;
+        self.parameters
+            .0
+            .constant_force
+            .nominal = constant_force;
         self
     }
 
@@ -339,7 +392,9 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angle.set_distribution(dist.into())?;
+        self.state
+            .angle
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -352,7 +407,9 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.state.angle.set_distribution(dist.into())?;
+        self.state
+            .angle
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -365,7 +422,9 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.state.angular_rate.set_distribution(dist.into())?;
+        self.state
+            .angular_rate
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -378,7 +437,9 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.state.angular_rate.set_distribution(dist.into())?;
+        self.state
+            .angular_rate
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -423,7 +484,10 @@ impl RevoluteBuilder {
         std: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Normal::new(mean, std)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -436,7 +500,10 @@ impl RevoluteBuilder {
         high: f64,
     ) -> Result<Self, RevoluteErrors> {
         let dist = Uniform::new(low, high)?;
-        self.parameters.0.damping.set_distribution(dist.into())?;
+        self.parameters
+            .0
+            .damping
+            .set_distribution(dist.into())?;
         Ok(self)
     }
 
@@ -510,8 +577,12 @@ impl Uncertainty for RevoluteBuilder {
     type Output = Revolute;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         Ok(Revolute {
-            parameters: self.parameters.sample(nominal, rng)?,
-            state: self.state.sample(nominal, rng)?,
+            parameters: self
+                .parameters
+                .sample(nominal, rng)?,
+            state: self
+                .state
+                .sample(nominal, rng)?,
             ..Default::default()
         })
     }
@@ -527,11 +598,7 @@ pub struct Revolute {
 
 impl Revolute {
     pub fn new(parameters: RevoluteParameters, state: RevoluteState) -> Self {
-        Self {
-            parameters,
-            state,
-            ..Default::default()
-        }
+        Self { parameters, state, ..Default::default() }
     }
 }
 
@@ -545,19 +612,26 @@ impl JointModel for Revolute {
     }
 
     fn calculate_tau(&mut self) {
-        let JointParameters {
-            constant_force,
-            damping,
-            equilibrium,
-            spring_constant,
-        } = self.parameters.0;
-        self.cache.tau = constant_force + spring_constant * (equilibrium - self.state.angle)
-            - damping * self.state.angular_rate;
+        let JointParameters { constant_force, damping, equilibrium, spring_constant } = self
+            .parameters
+            .0;
+        self.cache
+            .tau = constant_force
+            + spring_constant
+                * (equilibrium
+                    - self
+                        .state
+                        .angle)
+            - damping
+                * self
+                    .state
+                    .angular_rate;
     }
 
     fn calculate_vj(&self, _transforms: &JointTransforms) -> Velocity {
         Velocity::from(Vector6::new(
-            self.state.angular_rate,
+            self.state
+                .angular_rate,
             0.0,
             0.0,
             0.0,
@@ -571,17 +645,28 @@ impl JointModel for Revolute {
     }
 
     fn state_derivative(&self, derivative: &mut [f64], _transforms: &JointTransforms) {
-        derivative[0] = self.state.angular_rate;
-        derivative[1] = self.cache.q_ddot;
+        derivative[0] = self
+            .state
+            .angular_rate;
+        derivative[1] = self
+            .cache
+            .q_ddot;
     }
 
     fn state_vector_init(&self) -> StateVector {
-        StateVector::new(vec![self.state.angle, self.state.angular_rate])
+        StateVector::new(vec![
+            self.state
+                .angle,
+            self.state
+                .angular_rate,
+        ])
     }
 
     fn state_vector_read(&mut self, state: &[f64]) {
-        self.state.angle = state[0];
-        self.state.angular_rate = state[1];
+        self.state
+            .angle = state[0];
+        self.state
+            .angular_rate = state[1];
     }
 
     fn update_transforms(
@@ -589,13 +674,21 @@ impl JointModel for Revolute {
         transforms: &mut JointTransforms,
         inner_joint: &Option<JointRef>,
     ) {
-        let euler_angles = EulerAngles::new(0.0, 0.0, self.state.angle, EulerSequence::ZYX);
+        let euler_angles = EulerAngles::new(
+            0.0,
+            0.0,
+            self.state
+                .angle,
+            EulerSequence::ZYX,
+        );
         let rotation = Rotation::EulerAngles(euler_angles);
         let translation = CoordinateSystem::ZERO;
         let transform = Transform::new(rotation, translation);
 
         transforms.jof_from_jif = SpatialTransform(transform);
-        transforms.jif_from_jof = transforms.jof_from_jif.inv();
+        transforms.jif_from_jof = transforms
+            .jof_from_jif
+            .inv();
         transforms.update(inner_joint)
     }
 
@@ -604,11 +697,21 @@ impl JointModel for Revolute {
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.angle;
-        writer.float_buffer[1] = self.state.angular_rate;
-        writer.float_buffer[2] = self.cache.q_ddot;
-        writer.float_buffer[3] = self.cache.tau;
-        writer.write_record().unwrap();
+        writer.float_buffer[0] = self
+            .state
+            .angle;
+        writer.float_buffer[1] = self
+            .state
+            .angular_rate;
+        writer.float_buffer[2] = self
+            .cache
+            .q_ddot;
+        writer.float_buffer[3] = self
+            .cache
+            .tau;
+        writer
+            .write_record()
+            .unwrap();
     }
 }
 
@@ -636,29 +739,68 @@ struct RevoluteCache {
 
 impl ArticulatedBodyAlgorithm for Revolute {
     fn aba_second_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
-        let aba = &mut self.cache.aba;
-        let inertia_articulated_matrix = joint_cache.aba.inertia_articulated.matrix();
+        let aba = &mut self
+            .cache
+            .aba;
+        let inertia_articulated_matrix = joint_cache
+            .aba
+            .inertia_articulated
+            .matrix();
 
         // use the most efficient method for creating these. Indexing is much faster than 6x6 matrix mul
-        aba.big_u = inertia_articulated_matrix.column(0).into();
+        aba.big_u = inertia_articulated_matrix
+            .column(0)
+            .into();
         aba.big_d_inv = 1.0 / aba.big_u[0];
-        aba.lil_u = self.cache.tau - (joint_cache.aba.p_big_a.get_index(1).unwrap()); //note force is 1 indexed, so
+        aba.lil_u = self
+            .cache
+            .tau
+            - (joint_cache
+                .aba
+                .p_big_a
+                .get_index(1)
+                .unwrap()); //note force is 1 indexed, so
 
         if let Some(inner_joint) = inner_joint {
             let mut inner_joint = inner_joint.borrow_mut();
             let big_u_times_big_d_inv = aba.big_u * aba.big_d_inv;
             let i_lil_a = SpatialInertia(
-                inertia_articulated_matrix - big_u_times_big_d_inv * aba.big_u.transpose(),
+                inertia_articulated_matrix
+                    - big_u_times_big_d_inv
+                        * aba
+                            .big_u
+                            .transpose(),
             );
 
-            joint_cache.aba.p_lil_a = joint_cache.aba.p_big_a
-                + Force::from(i_lil_a * joint_cache.aba.c)
+            joint_cache
+                .aba
+                .p_lil_a = joint_cache
+                .aba
+                .p_big_a
+                + Force::from(
+                    i_lil_a
+                        * joint_cache
+                            .aba
+                            .c,
+                )
                 + Force::from(big_u_times_big_d_inv * aba.lil_u);
 
-            inner_joint.cache.aba.inertia_articulated +=
-                joint_cache.transforms.ij_jof_from_jof * i_lil_a;
-            inner_joint.cache.aba.p_big_a +=
-                joint_cache.transforms.ij_jof_from_jof * joint_cache.aba.p_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .inertia_articulated += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * i_lil_a;
+            inner_joint
+                .cache
+                .aba
+                .p_big_a += joint_cache
+                .transforms
+                .ij_jof_from_jof
+                * joint_cache
+                    .aba
+                    .p_lil_a;
         }
 
         // dbg!(self);
@@ -667,15 +809,45 @@ impl ArticulatedBodyAlgorithm for Revolute {
 
     fn aba_third_pass(&mut self, joint_cache: &mut JointCache, inner_joint: &Option<JointRef>) {
         let a_ij = if let Some(inner_joint) = inner_joint {
-            inner_joint.borrow().cache.a
+            inner_joint
+                .borrow()
+                .cache
+                .a
         } else {
             Acceleration::zeros()
         };
-        let a_prime = joint_cache.transforms.jof_from_ij_jof * a_ij + joint_cache.aba.c;
-        self.cache.q_ddot = self.cache.aba.big_d_inv
-            * (self.cache.aba.lil_u - (self.cache.aba.big_u.transpose() * a_prime.vector())[0]);
-        joint_cache.a =
-            a_prime + Acceleration::from(Vector6::new(self.cache.q_ddot, 0.0, 0.0, 0.0, 0.0, 0.0));
+        let a_prime = joint_cache
+            .transforms
+            .jof_from_ij_jof
+            * a_ij
+            + joint_cache
+                .aba
+                .c;
+        self.cache
+            .q_ddot = self
+            .cache
+            .aba
+            .big_d_inv
+            * (self
+                .cache
+                .aba
+                .lil_u
+                - (self
+                    .cache
+                    .aba
+                    .big_u
+                    .transpose()
+                    * a_prime.vector())[0]);
+        joint_cache.a = a_prime
+            + Acceleration::from(Vector6::new(
+                self.cache
+                    .q_ddot,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ));
         // dbg!(self);
         // dbg!(joint_cache);
     }

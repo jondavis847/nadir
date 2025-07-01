@@ -1,4 +1,4 @@
-use super::{cylindrical::Cylindrical, spherical::Spherical, CoordinateSystem};
+use super::{CoordinateSystem, cylindrical::Cylindrical, spherical::Spherical};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use std::ops::{Add, Neg};
@@ -12,11 +12,7 @@ pub struct Cartesian {
 }
 
 impl Cartesian {
-    pub const ZERO: Self = Self {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    };
+    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
 
     /// Creates a new `Cartesian` instance with the given x, y, and z components.
     ///
@@ -146,7 +142,11 @@ impl Add<Cartesian> for Cartesian {
     ///
     /// A new `Cartesian` instance representing the sum.
     fn add(self, rhs: Cartesian) -> Cartesian {
-        Cartesian::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+        Cartesian::new(
+            self.x + rhs.x,
+            self.y + rhs.y,
+            self.z + rhs.z,
+        )
     }
 }
 
@@ -179,31 +179,32 @@ mod tests {
     /// Tests the conversion from a `Cylindrical` coordinate to a `Cartesian` coordinate.
     #[test]
     fn test_cartesian_from_cylindrical() {
-        let cylindrical = Cylindrical {
-            radius: 5.0,
-            azimuth: PI / 4.0,
-            height: 10.0,
-        };
+        let cylindrical = Cylindrical { radius: 5.0, azimuth: PI / 4.0, height: 10.0 };
         let cartesian = Cartesian::from(cylindrical);
 
-        assert_close(cartesian.x, 3.5355339059327378);
-        assert_close(cartesian.y, 3.5355339059327378);
+        assert_close(
+            cartesian.x,
+            3.5355339059327378,
+        );
+        assert_close(
+            cartesian.y,
+            3.5355339059327378,
+        );
         assert_close(cartesian.z, 10.0);
     }
 
     /// Tests the conversion from a `Spherical` coordinate to a `Cartesian` coordinate.
     #[test]
     fn test_cartesian_from_spherical() {
-        let spherical = Spherical {
-            radius: 5.0,
-            azimuth: PI / 4.0,
-            inclination: PI / 4.0,
-        };
+        let spherical = Spherical { radius: 5.0, azimuth: PI / 4.0, inclination: PI / 4.0 };
         let cartesian = Cartesian::from(spherical);
 
         assert_close(cartesian.x, 2.5);
         assert_close(cartesian.y, 2.5);
-        assert_close(cartesian.z, 3.5355339059327378);
+        assert_close(
+            cartesian.z,
+            3.5355339059327378,
+        );
     }
 
     /// Tests the addition of two `Cartesian` coordinates.
@@ -230,6 +231,9 @@ mod tests {
 
         assert_close(cartesian.x, 2.5);
         assert_close(cartesian.y, 2.5);
-        assert_close(cartesian.z, 3.5355339059327378);
+        assert_close(
+            cartesian.z,
+            3.5355339059327378,
+        );
     }
 }

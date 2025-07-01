@@ -44,7 +44,9 @@ impl Uncertainty for StarTrackerParametersBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         let delay = match &self.delay {
-            Some(delay) => Some(DelayedQuaternion::new(delay.sample(nominal, rng))),
+            Some(delay) => Some(DelayedQuaternion::new(
+                delay.sample(nominal, rng),
+            )),
             None => None,
         };
         let misalignment = match &self.misalignment {
@@ -82,23 +84,24 @@ pub struct StarTrackerBuilder {
 
 impl StarTrackerBuilder {
     pub fn new() -> Self {
-        Self {
-            parameters: StarTrackerParametersBuilder::default(),
-        }
+        Self { parameters: StarTrackerParametersBuilder::default() }
     }
 
     pub fn with_delay(mut self, delay: f64) -> Self {
-        self.parameters.delay = Some(UncertainValue::new(delay));
+        self.parameters
+            .delay = Some(UncertainValue::new(delay));
         self
     }
 
     pub fn with_misalignment(mut self, misalignment: UnitQuaternionBuilder) -> Self {
-        self.parameters.misalignment = Some(misalignment);
+        self.parameters
+            .misalignment = Some(misalignment);
         self
     }
 
     pub fn with_noise(mut self, noise: QuaternioNoiseBuilder) -> Self {
-        self.parameters.noise = Some(noise);
+        self.parameters
+            .noise = Some(noise);
         self
     }
 }
@@ -112,7 +115,9 @@ impl Uncertainty for StarTrackerBuilder {
         rng: &mut rand::prelude::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(StarTracker {
-            parameters: self.parameters.sample(nominal, rng)?,
+            parameters: self
+                .parameters
+                .sample(nominal, rng)?,
             state: StarTrackerState::default(),
             telemetry: StarTrackerTelemetry::default(),
         })
@@ -130,54 +135,123 @@ pub struct StarTracker {
 
 impl SensorModel for StarTracker {
     fn update(&mut self, t: f64, connection: &BodyConnection) {
-        let body = connection.body.borrow();
+        let body = connection
+            .body
+            .borrow();
         let transform = &connection.transform;
 
         let body_to_st = UnitQuaternion::from(&transform.rotation);
         // Get the truth attitude
-        let mut sensor_attitude = body_to_st * body.state.attitude_base;
-        if let Some(delay) = &mut self.parameters.delay {
+        let mut sensor_attitude = body_to_st
+            * body
+                .state
+                .attitude_base;
+        if let Some(delay) = &mut self
+            .parameters
+            .delay
+        {
             delay.update(t, sensor_attitude);
             sensor_attitude = delay.get_delayed_reading(t);
         }
 
         // Apply optional misalignment
-        if let Some(misalignment) = &self.parameters.misalignment {
+        if let Some(misalignment) = &self
+            .parameters
+            .misalignment
+        {
             sensor_attitude = *misalignment * sensor_attitude;
         }
 
         // Apply optional noise
-        if let Some(noise) = &mut self.parameters.noise {
+        if let Some(noise) = &mut self
+            .parameters
+            .noise
+        {
             let quaternion_noise = noise.sample();
             sensor_attitude = quaternion_noise * sensor_attitude;
-            self.state.noise = Some(quaternion_noise);
+            self.state
+                .noise = Some(quaternion_noise);
         } // else keep as None from initialization
-        self.state.measurement = sensor_attitude;
+        self.state
+            .measurement = sensor_attitude;
 
         //update telemetry
-        self.telemetry.q[0] = self.state.measurement.0.x;
-        self.telemetry.q[1] = self.state.measurement.0.y;
-        self.telemetry.q[2] = self.state.measurement.0.z;
-        self.telemetry.q[3] = self.state.measurement.0.w;
-        self.telemetry.valid = 1u8;
+        self.telemetry
+            .q[0] = self
+            .state
+            .measurement
+            .0
+            .x;
+        self.telemetry
+            .q[1] = self
+            .state
+            .measurement
+            .0
+            .y;
+        self.telemetry
+            .q[2] = self
+            .state
+            .measurement
+            .0
+            .z;
+        self.telemetry
+            .q[3] = self
+            .state
+            .measurement
+            .0
+            .w;
+        self.telemetry
+            .valid = 1u8;
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.measurement.0.x;
-        writer.float_buffer[1] = self.state.measurement.0.y;
-        writer.float_buffer[2] = self.state.measurement.0.z;
-        writer.float_buffer[3] = self.state.measurement.0.w;
-        if let Some(noise) = self.state.noise {
-            writer.float_buffer[4] = noise.0.x;
-            writer.float_buffer[5] = noise.0.y;
-            writer.float_buffer[6] = noise.0.z;
-            writer.float_buffer[7] = noise.0.w;
+        writer.float_buffer[0] = self
+            .state
+            .measurement
+            .0
+            .x;
+        writer.float_buffer[1] = self
+            .state
+            .measurement
+            .0
+            .y;
+        writer.float_buffer[2] = self
+            .state
+            .measurement
+            .0
+            .z;
+        writer.float_buffer[3] = self
+            .state
+            .measurement
+            .0
+            .w;
+        if let Some(noise) = self
+            .state
+            .noise
+        {
+            writer.float_buffer[4] = noise
+                .0
+                .x;
+            writer.float_buffer[5] = noise
+                .0
+                .y;
+            writer.float_buffer[6] = noise
+                .0
+                .z;
+            writer.float_buffer[7] = noise
+                .0
+                .w;
         }
-        writer.write_record().unwrap();
+        writer
+            .write_record()
+            .unwrap();
     }
 
     fn writer_headers(&self) -> &[&str] {
-        if let Some(_) = self.state.noise {
+        if let Some(_) = self
+            .state
+            .noise
+        {
             &[
                 "measurement[x]",
                 "measurement[y]",

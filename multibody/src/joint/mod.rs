@@ -57,15 +57,15 @@ impl Uncertainty for JointModelBuilders {
     type Output = JointModels;
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
         match self {
-            JointModelBuilders::Floating(builder) => {
-                Ok(JointModels::Floating(builder.sample(nominal, rng)?))
-            }
-            JointModelBuilders::Revolute(builder) => {
-                Ok(JointModels::Revolute(builder.sample(nominal, rng)?))
-            }
-            JointModelBuilders::Prismatic(builder) => {
-                Ok(JointModels::Prismatic(builder.sample(nominal, rng)?))
-            }
+            JointModelBuilders::Floating(builder) => Ok(JointModels::Floating(
+                builder.sample(nominal, rng)?,
+            )),
+            JointModelBuilders::Revolute(builder) => Ok(JointModels::Revolute(
+                builder.sample(nominal, rng)?,
+            )),
+            JointModelBuilders::Prismatic(builder) => Ok(JointModels::Prismatic(
+                builder.sample(nominal, rng)?,
+            )),
         }
     }
 }
@@ -112,10 +112,19 @@ impl JointBuilder {
         body: Id,
         transform: Transform,
     ) -> Result<(), JointErrors> {
-        if let Some(_) = &self.connections.inner_body {
-            return Err(JointErrors::InnerBodyExists(self.name.to_string()));
+        if let Some(_) = &self
+            .connections
+            .inner_body
+        {
+            return Err(JointErrors::InnerBodyExists(
+                self.name
+                    .to_string(),
+            ));
         } else {
-            self.connections.inner_body = Some(BodyConnectionBuilder::new(body, transform));
+            self.connections
+                .inner_body = Some(BodyConnectionBuilder::new(
+                body, transform,
+            ));
         }
         Ok(())
     }
@@ -125,10 +134,19 @@ impl JointBuilder {
         body: Id,
         transform: Transform,
     ) -> Result<(), JointErrors> {
-        if let Some(_) = &self.connections.outer_body {
-            return Err(JointErrors::OuterBodyExists(self.name.clone()));
+        if let Some(_) = &self
+            .connections
+            .outer_body
+        {
+            return Err(JointErrors::OuterBodyExists(
+                self.name
+                    .clone(),
+            ));
         } else {
-            self.connections.outer_body = Some(BodyConnectionBuilder::new(body, transform));
+            self.connections
+                .outer_body = Some(BodyConnectionBuilder::new(
+                body, transform,
+            ));
         }
         Ok(())
     }
@@ -139,9 +157,13 @@ impl JointBuilder {
         nominal: bool,
         rng: &mut SmallRng,
     ) -> Result<Joint, JointErrors> {
-        let model = self.model.sample(nominal, rng)?;
+        let model = self
+            .model
+            .sample(nominal, rng)?;
         Ok(Joint {
-            name: self.name.clone(),
+            name: self
+                .name
+                .clone(),
             model,
             connections,
             writer_id: None,
@@ -319,16 +341,26 @@ impl Joint {
     pub fn aba_first_pass(&mut self) {
         // get the inner joint velocity
         let v_ij = if let Some(inner_joint) = &self.inner_joint {
-            inner_joint.borrow().cache.v
+            inner_joint
+                .borrow()
+                .cache
+                .v
         } else {
             // no inner joint, inner body is base, velocity is 0
             Velocity::zeros()
         };
 
         let c = &mut self.cache;
-        c.v = c.transforms.jof_from_ij_jof * v_ij + c.vj;
-        c.aba.c = c.v.cross_motion(c.vj); // + cj
-        c.aba.inertia_articulated = c.inertia;
+        c.v = c
+            .transforms
+            .jof_from_ij_jof
+            * v_ij
+            + c.vj;
+        c.aba
+            .c =
+            c.v.cross_motion(c.vj); // + cj
+        c.aba
+            .inertia_articulated = c.inertia;
 
         // from eulers equation, p_big_a is w x H - T,
         // but H in the joint is H in the body transformed to the joint.
@@ -347,21 +379,35 @@ impl Joint {
                 .jof_from_ob
                 .0
                 .rotation
-                .transform(&outer_body.state.angular_momentum_body);
-            Momentum::from(Vector6::new(h[0], h[1], h[2], 0.0, 0.0, 0.0))
+                .transform(
+                    &outer_body
+                        .state
+                        .angular_momentum_body,
+                );
+            Momentum::from(Vector6::new(
+                h[0], h[1], h[2], 0.0, 0.0, 0.0,
+            ))
         };
 
-        c.aba.p_big_a = c.v.cross_force(c.inertia * c.v + h_i) - c.f;
+        c.aba
+            .p_big_a =
+            c.v.cross_force(c.inertia * c.v + h_i) - c.f;
     }
 
     pub fn aba_second_pass(&mut self) {
         self.model
-            .aba_second_pass(&mut self.cache, &self.inner_joint);
+            .aba_second_pass(
+                &mut self.cache,
+                &self.inner_joint,
+            );
     }
 
     pub fn aba_third_pass(&mut self) {
         self.model
-            .aba_third_pass(&mut self.cache, &self.inner_joint);
+            .aba_third_pass(
+                &mut self.cache,
+                &self.inner_joint,
+            );
     }
 
     /// Calculates the mass properties about the joint given mass properties at the outer body
@@ -373,30 +419,59 @@ impl Joint {
             .expect("validation should catch this")
             .body
             .borrow();
-        self.cache.inertia = self
+        self.cache
+            .inertia = self
             .model
-            .calculate_joint_inertia(&outer_body.mass_properties, &self.cache.transforms);
+            .calculate_joint_inertia(
+                &outer_body.mass_properties,
+                &self
+                    .cache
+                    .transforms,
+            );
     }
 
     pub fn calculate_vj(&mut self) {
-        self.cache.vj = self.model.calculate_vj(&self.cache.transforms);
+        self.cache
+            .vj = self
+            .model
+            .calculate_vj(
+                &self
+                    .cache
+                    .transforms,
+            );
     }
 
     pub fn set_inertia(&mut self, mass_properties: &MassProperties) {
-        self.cache.inertia = self
+        self.cache
+            .inertia = self
             .model
-            .calculate_joint_inertia(mass_properties, &self.cache.transforms);
+            .calculate_joint_inertia(
+                mass_properties,
+                &self
+                    .cache
+                    .transforms,
+            );
     }
 
     pub fn state_derivative(&self, derivatives: &mut StateVector) {
         let derivative = &mut derivatives[self.state_start..self.state_end];
         self.model
-            .state_derivative(derivative, &self.cache.transforms);
+            .state_derivative(
+                derivative,
+                &self
+                    .cache
+                    .transforms,
+            );
     }
 
     pub fn update_transforms(&mut self) {
         self.model
-            .update_transforms(&mut self.cache.transforms, &self.inner_joint);
+            .update_transforms(
+                &mut self
+                    .cache
+                    .transforms,
+                &self.inner_joint,
+            );
     }
 
     pub fn with_inner_joint(mut self, inner_joint: JointRef) -> Self {
@@ -406,18 +481,27 @@ impl Joint {
 
     pub fn state_vector_init(&mut self, x0: &mut StateVector) {
         self.state_start = x0.len();
-        let state = self.model.state_vector_init();
+        let state = self
+            .model
+            .state_vector_init();
         self.state_end = self.state_start + state.len();
-        x0.extend(&self.model.state_vector_init());
+        x0.extend(
+            &self
+                .model
+                .state_vector_init(),
+        );
     }
 
     pub fn state_vector_read(&mut self, x0: &StateVector) {
         let state = &x0[self.state_start..self.state_end];
-        self.model.state_vector_read(state);
+        self.model
+            .state_vector_read(state);
     }
 
     pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
-        let headers = self.model.writer_headers();
+        let headers = self
+            .model
+            .writer_headers();
         let rel_path = PathBuf::new()
             .join("joints")
             .join(format!("{}.csv", self.name));
@@ -429,8 +513,12 @@ impl Joint {
 
     pub fn writer_save_fn(&self, manager: &mut WriterManager) {
         if let Some(id) = &self.writer_id {
-            if let Some(writer) = manager.writers.get_mut(id) {
-                self.model.writer_save_fn(writer);
+            if let Some(writer) = manager
+                .writers
+                .get_mut(id)
+            {
+                self.model
+                    .writer_save_fn(writer);
             }
         }
     }
@@ -479,10 +567,18 @@ impl Uncertainty for JointParametersBuilder {
         rng: &mut rand::rngs::SmallRng,
     ) -> Result<Self::Output, Self::Error> {
         Ok(JointParameters {
-            constant_force: self.constant_force.sample(nominal, rng),
-            damping: self.damping.sample(nominal, rng),
-            equilibrium: self.equilibrium.sample(nominal, rng),
-            spring_constant: self.spring_constant.sample(nominal, rng),
+            constant_force: self
+                .constant_force
+                .sample(nominal, rng),
+            damping: self
+                .damping
+                .sample(nominal, rng),
+            equilibrium: self
+                .equilibrium
+                .sample(nominal, rng),
+            spring_constant: self
+                .spring_constant
+                .sample(nominal, rng),
         })
     }
 }

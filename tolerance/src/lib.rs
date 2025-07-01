@@ -6,10 +6,7 @@ pub struct Tolerances {
 
 impl Default for Tolerances {
     fn default() -> Self {
-        Self {
-            abs_tol: 1e-6,
-            rel_tol: 1e-3,
-        }
+        Self { abs_tol: 1e-6, rel_tol: 1e-3 }
     }
 }
 impl Tolerances {
@@ -17,7 +14,13 @@ impl Tolerances {
         Self { rel_tol, abs_tol }
     }
     pub fn compute_error(&self, x: f64, x_prev: f64, x_tilde: f64) -> f64 {
-        compute_error(x, x_prev, x_tilde, self.rel_tol, self.abs_tol)
+        compute_error(
+            x,
+            x_prev,
+            x_tilde,
+            self.rel_tol,
+            self.abs_tol,
+        )
     }
 }
 
@@ -38,5 +41,10 @@ pub trait Tolerance: Default {
 /// Be away that x is the currently calcualted state, x_prev is the initial state of the step, x_tilde is
 /// calculated from dt * sum(b_tilde[i] * k[i]), NOT y_hat - y
 pub fn compute_error(x: f64, x_prev: f64, x_tilde: f64, rel_tol: f64, abs_tol: f64) -> f64 {
-    x_tilde / (abs_tol + x.abs().max(x_prev.abs()).max(1e-14) * rel_tol)
+    x_tilde
+        / (abs_tol
+            + x.abs()
+                .max(x_prev.abs())
+                .max(1e-14)
+                * rel_tol)
 }

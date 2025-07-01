@@ -73,8 +73,12 @@ impl TorqueSpeedCurveBuilder {
 
     pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> TorqueSpeedCurve {
         TorqueSpeedCurve {
-            knee_speed: self.knee_speed.sample(nominal, rng),
-            max_speed: self.max_speed.sample(nominal, rng),
+            knee_speed: self
+                .knee_speed
+                .sample(nominal, rng),
+            max_speed: self
+                .max_speed
+                .sample(nominal, rng),
         }
     }
 }
@@ -108,11 +112,21 @@ pub struct ReactionWheelFrictionBuilder {
 impl ReactionWheelFrictionBuilder {
     pub fn sample(&self, nominal: bool, rng: &mut SmallRng) -> ReactionWheelFriction {
         ReactionWheelFriction {
-            stiction: self.stiction.sample(nominal, rng),
-            stiction_threshold: self.stiction_threshold.sample(nominal, rng),
-            coulomb: self.coulomb.sample(nominal, rng),
-            viscous: self.viscous.sample(nominal, rng),
-            windage: self.windage.sample(nominal, rng),
+            stiction: self
+                .stiction
+                .sample(nominal, rng),
+            stiction_threshold: self
+                .stiction_threshold
+                .sample(nominal, rng),
+            coulomb: self
+                .coulomb
+                .sample(nominal, rng),
+            viscous: self
+                .viscous
+                .sample(nominal, rng),
+            windage: self
+                .windage
+                .sample(nominal, rng),
         }
     }
 }
@@ -182,10 +196,16 @@ impl ReactionWheelParametersBuilder {
             None
         };
         Ok(ReactionWheelParameters {
-            friction: self.friction.sample(nominal, rng),
-            inertia: self.inertia.sample(nominal, rng),
+            friction: self
+                .friction
+                .sample(nominal, rng),
+            inertia: self
+                .inertia
+                .sample(nominal, rng),
             misalignment,
-            torque_constant: self.torque_constant.sample(nominal, rng),
+            torque_constant: self
+                .torque_constant
+                .sample(nominal, rng),
             torque_max,
             torque_speed_curve,
         })
@@ -247,7 +267,10 @@ impl ReactionWheelBuilder {
         if coulomb < 0.0 {
             return Err(ReactionWheelErrors::NegativeCoulomb);
         }
-        self.parameters.friction.coulomb.nominal = coulomb;
+        self.parameters
+            .friction
+            .coulomb
+            .nominal = coulomb;
         Ok(())
     }
 
@@ -255,7 +278,10 @@ impl ReactionWheelBuilder {
         if coulomb < 0.0 {
             return Err(ReactionWheelErrors::NegativeCoulomb);
         }
-        self.parameters.friction.coulomb.nominal = coulomb;
+        self.parameters
+            .friction
+            .coulomb
+            .nominal = coulomb;
         Ok(self)
     }
 
@@ -263,10 +289,14 @@ impl ReactionWheelBuilder {
         if delay < 0.0 {
             return Err(ReactionWheelErrors::NegativeDelay);
         }
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         Ok(())
     }
@@ -275,29 +305,37 @@ impl ReactionWheelBuilder {
         if delay < 0.0 {
             return Err(ReactionWheelErrors::NegativeDelay);
         }
-        if let Some(selfdelay) = &mut self.parameters.delay {
+        if let Some(selfdelay) = &mut self
+            .parameters
+            .delay
+        {
             selfdelay.nominal = delay;
         } else {
-            self.parameters.delay = Some(UncertainValue::new(delay));
+            self.parameters
+                .delay = Some(UncertainValue::new(delay));
         }
         Ok(self)
     }
 
     pub fn set_speed(&mut self, speed: f64) {
-        self.initial_speed.nominal = speed;
+        self.initial_speed
+            .nominal = speed;
     }
 
     pub fn with_speed(mut self, speed: f64) -> Self {
-        self.initial_speed.nominal = speed;
+        self.initial_speed
+            .nominal = speed;
         self
     }
 
     pub fn set_misalignment(&mut self, misalignment: UnitQuaternionBuilder) {
-        self.parameters.misalignment = Some(misalignment);
+        self.parameters
+            .misalignment = Some(misalignment);
     }
 
     pub fn with_misalignment(mut self, misalignment: UnitQuaternionBuilder) -> Self {
-        self.parameters.misalignment = Some(misalignment);
+        self.parameters
+            .misalignment = Some(misalignment);
         self
     }
 
@@ -305,7 +343,10 @@ impl ReactionWheelBuilder {
         if stiction < 0.0 {
             return Err(ReactionWheelErrors::NegativeStiction);
         }
-        self.parameters.friction.stiction.nominal = stiction;
+        self.parameters
+            .friction
+            .stiction
+            .nominal = stiction;
         Ok(())
     }
 
@@ -313,7 +354,10 @@ impl ReactionWheelBuilder {
         if stiction < 0.0 {
             return Err(ReactionWheelErrors::NegativeStiction);
         }
-        self.parameters.friction.stiction.nominal = stiction;
+        self.parameters
+            .friction
+            .stiction
+            .nominal = stiction;
         Ok(self)
     }
 
@@ -349,10 +393,16 @@ impl ReactionWheelBuilder {
         if torque_max < 0.0 {
             return Err(ReactionWheelErrors::NegativeMaxTorque);
         }
-        if let Some(simval) = &mut self.parameters.torque_max {
+        if let Some(simval) = &mut self
+            .parameters
+            .torque_max
+        {
             simval.nominal = torque_max;
         } else {
-            self.parameters.torque_max = Some(UncertainValue::new(torque_max));
+            self.parameters
+                .torque_max = Some(UncertainValue::new(
+                torque_max,
+            ));
         }
         Ok(())
     }
@@ -361,10 +411,16 @@ impl ReactionWheelBuilder {
         if torque_max < 0.0 {
             return Err(ReactionWheelErrors::NegativeMaxTorque);
         }
-        if let Some(simval) = &mut self.parameters.torque_max {
+        if let Some(simval) = &mut self
+            .parameters
+            .torque_max
+        {
             simval.nominal = torque_max;
         } else {
-            self.parameters.torque_max = Some(UncertainValue::new(torque_max));
+            self.parameters
+                .torque_max = Some(UncertainValue::new(
+                torque_max,
+            ));
         }
         Ok(self)
     }
@@ -374,7 +430,8 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<(), ReactionWheelErrors> {
-        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+        self.parameters
+            .torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
             knee_speed, max_speed,
         )?);
         Ok(())
@@ -385,7 +442,8 @@ impl ReactionWheelBuilder {
         knee_speed: f64,
         max_speed: f64,
     ) -> Result<Self, ReactionWheelErrors> {
-        self.parameters.torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
+        self.parameters
+            .torque_speed_curve = Some(TorqueSpeedCurveBuilder::new(
             knee_speed, max_speed,
         )?);
         Ok(self)
@@ -395,7 +453,10 @@ impl ReactionWheelBuilder {
         if viscous < 0.0 {
             return Err(ReactionWheelErrors::NegativeViscous);
         }
-        self.parameters.friction.viscous.nominal = viscous;
+        self.parameters
+            .friction
+            .viscous
+            .nominal = viscous;
         Ok(())
     }
 
@@ -403,7 +464,10 @@ impl ReactionWheelBuilder {
         if viscous < 0.0 {
             return Err(ReactionWheelErrors::NegativeViscous);
         }
-        self.parameters.friction.viscous.nominal = viscous;
+        self.parameters
+            .friction
+            .viscous
+            .nominal = viscous;
         Ok(self)
     }
 
@@ -411,7 +475,10 @@ impl ReactionWheelBuilder {
         if windage < 0.0 {
             return Err(ReactionWheelErrors::NegativeWindage);
         }
-        self.parameters.friction.windage.nominal = windage;
+        self.parameters
+            .friction
+            .windage
+            .nominal = windage;
         Ok(())
     }
 
@@ -419,7 +486,10 @@ impl ReactionWheelBuilder {
         if windage < 0.0 {
             return Err(ReactionWheelErrors::NegativeWindage);
         }
-        self.parameters.friction.windage.nominal = windage;
+        self.parameters
+            .friction
+            .windage
+            .nominal = windage;
         Ok(self)
     }
 }
@@ -429,10 +499,17 @@ impl Uncertainty for ReactionWheelBuilder {
     type Output = ReactionWheel;
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let parameters = self.parameters.sample(nominal, rng)?;
-        let initial_speed = self.initial_speed.sample(nominal, rng);
+        let parameters = self
+            .parameters
+            .sample(nominal, rng)?;
+        let initial_speed = self
+            .initial_speed
+            .sample(nominal, rng);
         let initial_momentum = initial_speed * parameters.inertia;
-        let state = ReactionWheelState::new(initial_speed, initial_momentum);
+        let state = ReactionWheelState::new(
+            initial_speed,
+            initial_momentum,
+        );
         Ok(ReactionWheel { parameters, state })
     }
 }
@@ -446,18 +523,33 @@ pub struct ReactionWheel {
 impl ActuatorModel for ReactionWheel {
     fn update(&mut self, connection: &BodyConnection) -> Result<(), ActuatorErrors> {
         // Determine initial torque based on command type
-        let mut torque = match self.state.command.command {
+        let mut torque = match self
+            .state
+            .command
+            .command
+        {
             ReactionWheelCommand::TORQUE => {
-                let desired_torque = self.state.command.value;
+                let desired_torque = self
+                    .state
+                    .command
+                    .value;
                 // apply max torque limit if provided
-                if let Some(torque_max) = self.parameters.torque_max {
+                if let Some(torque_max) = self
+                    .parameters
+                    .torque_max
+                {
                     desired_torque.clamp(-torque_max, torque_max)
                 } else {
                     desired_torque
                 }
             }
             ReactionWheelCommand::CURRENT => {
-                self.parameters.torque_constant * self.state.command.value
+                self.parameters
+                    .torque_constant
+                    * self
+                        .state
+                        .command
+                        .value
             }
             ReactionWheelCommand::SPEED => {
                 todo!()
@@ -468,21 +560,48 @@ impl ActuatorModel for ReactionWheel {
         };
 
         // Adjust torque based on torque-speed curve if provided
-        if let Some(curve) = &self.parameters.torque_speed_curve {
-            torque = curve.run(torque, self.state.velocity);
+        if let Some(curve) = &self
+            .parameters
+            .torque_speed_curve
+        {
+            torque = curve.run(
+                torque,
+                self.state
+                    .velocity,
+            );
         }
 
         // Apply friction adjustments if provided
-        if self.state.velocity.abs() > self.parameters.friction.stiction_threshold {
+        if self
+            .state
+            .velocity
+            .abs()
+            > self
+                .parameters
+                .friction
+                .stiction_threshold
+        {
             // Apply dynamic friction for moving wheel
             torque += self
                 .parameters
                 .friction
-                .calculate_dynamic_friction(self.state.velocity);
+                .calculate_dynamic_friction(
+                    self.state
+                        .velocity,
+                );
         } else {
             // Stiction torque opposes movement; ensure it doesn’t overpower torque
-            torque = if torque.abs() > self.parameters.friction.stiction {
-                let stiction_torque = -torque.signum() * self.parameters.friction.stiction;
+            torque = if torque.abs()
+                > self
+                    .parameters
+                    .friction
+                    .stiction
+            {
+                let stiction_torque = -torque.signum()
+                    * self
+                        .parameters
+                        .friction
+                        .stiction;
                 torque - stiction_torque
             } else {
                 0.0 // Torque insufficient to overcome stiction, so no movement
@@ -490,32 +609,68 @@ impl ActuatorModel for ReactionWheel {
         }
 
         // Update state
-        self.state.torque = torque;
+        self.state
+            .torque = torque;
         // equal and opposite
-        self.state.torque_body = connection
+        self.state
+            .torque_body = connection
             .transform
             .rotation
-            .transform(&Vector3::new(0.0, 0.0, -torque));
-        self.state.momentum_body = connection
+            .transform(&Vector3::new(
+                0.0, 0.0, -torque,
+            ));
+        self.state
+            .momentum_body = connection
             .transform
             .rotation
-            .transform(&Vector3::new(0.0, 0.0, self.state.momentum));
+            .transform(&Vector3::new(
+                0.0,
+                0.0,
+                self.state
+                    .momentum,
+            ));
 
         // apply misaligntment if applicable
-        if let Some(misalignment) = &self.parameters.misalignment {
-            self.state.torque_body = misalignment.transform(&self.state.torque_body);
-            self.state.momentum_body = misalignment.transform(&self.state.momentum_body);
+        if let Some(misalignment) = &self
+            .parameters
+            .misalignment
+        {
+            self.state
+                .torque_body = misalignment.transform(
+                &self
+                    .state
+                    .torque_body,
+            );
+            self.state
+                .momentum_body = misalignment.transform(
+                &self
+                    .state
+                    .momentum_body,
+            );
         }
 
-        self.state.acceleration = torque / self.parameters.inertia;
+        self.state
+            .acceleration = torque
+            / self
+                .parameters
+                .inertia;
 
         // Update body
-        let mut body = connection.body.borrow_mut();
-        body.state.internal_momentum_body += self.state.momentum_body;
-        body.state.actuator_force_body += Force::from(Vector6::new(
-            self.state.torque_body[0],
-            self.state.torque_body[1],
-            self.state.torque_body[2],
+        let mut body = connection
+            .body
+            .borrow_mut();
+        body.state
+            .internal_momentum_body += self
+            .state
+            .momentum_body;
+        body.state
+            .actuator_force_body += Force::from(Vector6::new(
+            self.state
+                .torque_body[0],
+            self.state
+                .torque_body[1],
+            self.state
+                .torque_body[2],
             0.0,
             0.0,
             0.0,
@@ -524,18 +679,42 @@ impl ActuatorModel for ReactionWheel {
     }
 
     fn writer_save_fn(&self, writer: &mut StateWriter) {
-        writer.float_buffer[0] = self.state.acceleration;
-        writer.float_buffer[1] = self.state.current;
-        writer.float_buffer[2] = self.state.momentum;
-        writer.float_buffer[3] = self.state.momentum_body[0];
-        writer.float_buffer[4] = self.state.momentum_body[1];
-        writer.float_buffer[5] = self.state.momentum_body[2];
-        writer.float_buffer[6] = self.state.velocity;
-        writer.float_buffer[7] = self.state.torque;
-        writer.float_buffer[8] = self.state.torque_body[0];
-        writer.float_buffer[9] = self.state.torque_body[1];
-        writer.float_buffer[10] = self.state.torque_body[2];
-        writer.write_record().unwrap();
+        writer.float_buffer[0] = self
+            .state
+            .acceleration;
+        writer.float_buffer[1] = self
+            .state
+            .current;
+        writer.float_buffer[2] = self
+            .state
+            .momentum;
+        writer.float_buffer[3] = self
+            .state
+            .momentum_body[0];
+        writer.float_buffer[4] = self
+            .state
+            .momentum_body[1];
+        writer.float_buffer[5] = self
+            .state
+            .momentum_body[2];
+        writer.float_buffer[6] = self
+            .state
+            .velocity;
+        writer.float_buffer[7] = self
+            .state
+            .torque;
+        writer.float_buffer[8] = self
+            .state
+            .torque_body[0];
+        writer.float_buffer[9] = self
+            .state
+            .torque_body[1];
+        writer.float_buffer[10] = self
+            .state
+            .torque_body[2];
+        writer
+            .write_record()
+            .unwrap();
     }
 
     fn writer_headers(&self) -> &[&str] {
@@ -555,20 +734,33 @@ impl ActuatorModel for ReactionWheel {
     }
 
     fn state_derivative(&self, derivative: &mut [f64]) {
-        derivative[0] = self.state.acceleration;
+        derivative[0] = self
+            .state
+            .acceleration;
     }
 
     fn state_vector_init(&self) -> StateVector {
-        StateVector::new(vec![self.state.velocity])
+        StateVector::new(vec![
+            self.state
+                .velocity,
+        ])
     }
 
     fn state_vector_read(&mut self, state: &[f64]) {
-        self.state.velocity = state[0];
-        self.state.momentum = self.state.velocity * self.parameters.inertia;
+        self.state
+            .velocity = state[0];
+        self.state
+            .momentum = self
+            .state
+            .velocity
+            * self
+                .parameters
+                .inertia;
     }
 
     fn read_command(&mut self, cmd: &HardwareBuffer) -> Result<(), ActuatorErrors> {
-        self.state.command = cmd.read::<ReactionWheelCommand>()?;
+        self.state
+            .command = cmd.read::<ReactionWheelCommand>()?;
         Ok(())
     }
 }

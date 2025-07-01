@@ -36,12 +36,7 @@ impl Default for State {
 
         //TODO: impl vallado luni solar for fsw
         let sun_position = Vector3::zeros();
-        Self {
-            position,
-            velocity,
-            orbit,
-            sun_position,
-        }
+        Self { position, velocity, orbit, sun_position }
     }
 }
 
@@ -52,13 +47,27 @@ struct Parameters {
 
 impl OrbitDetermination {
     pub fn run(&mut self, gps: &GpsFsw) {
-        if gps.state.valid {
-            self.state.position = gps.state.position;
-            self.state.velocity = gps.state.velocity;
-            self.state.orbit = KeplerianElements::from_rv(
-                gps.state.position,
-                gps.state.velocity,
-                gps.state.time.to_system(TimeSystem::TAI),
+        if gps
+            .state
+            .valid
+        {
+            self.state
+                .position = gps
+                .state
+                .position;
+            self.state
+                .velocity = gps
+                .state
+                .velocity;
+            self.state
+                .orbit = KeplerianElements::from_rv(
+                gps.state
+                    .position,
+                gps.state
+                    .velocity,
+                gps.state
+                    .time
+                    .to_system(TimeSystem::TAI),
                 CelestialBodies::Earth,
             );
         } else {
@@ -70,7 +79,9 @@ impl OrbitDetermination {
 impl NadirResult for OrbitDetermination {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -86,7 +97,11 @@ impl NadirResult for OrbitDetermination {
             "velocity[y]",
             "velocity[z]",
         ];
-        let id = results.new_writer("fsw_nav_od", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_nav_od",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -95,12 +110,24 @@ impl NadirResult for OrbitDetermination {
             results.write_record(
                 id,
                 &[
-                    self.state.position[0].to_string(),
-                    self.state.position[1].to_string(),
-                    self.state.position[2].to_string(),
-                    self.state.velocity[0].to_string(),
-                    self.state.velocity[1].to_string(),
-                    self.state.velocity[2].to_string(),
+                    self.state
+                        .position[0]
+                        .to_string(),
+                    self.state
+                        .position[1]
+                        .to_string(),
+                    self.state
+                        .position[2]
+                        .to_string(),
+                    self.state
+                        .velocity[0]
+                        .to_string(),
+                    self.state
+                        .velocity[1]
+                        .to_string(),
+                    self.state
+                        .velocity[2]
+                        .to_string(),
                 ],
             );
         }

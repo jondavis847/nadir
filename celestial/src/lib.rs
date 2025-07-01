@@ -25,7 +25,9 @@ pub struct CelestialEpochBuilder {
 impl From<&CelestialEpochBuilder> for CelestialEpoch {
     fn from(builder: &CelestialEpochBuilder) -> CelestialEpoch {
         CelestialEpoch {
-            time: builder.time.clone(),
+            time: builder
+                .time
+                .clone(),
             writer_id: None,
         }
     }
@@ -71,26 +73,28 @@ impl CelestialSystemBuilder {
         // TODO: for now lets default to having spice, in the future add analytical ephem
         let spice = Some(SpiceBuilder);
         let epoch = CelestialEpochBuilder { time: epoch };
-        Ok(Self {
-            epoch,
-            bodies,
-            spice,
-        })
+        Ok(Self { epoch, bodies, spice })
     }
 
     pub fn with_body(mut self, body: CelestialBodyBuilder) -> Result<Self, CelestialErrors> {
         // Check if the body already exists in the vector
-        if self.bodies.iter().any(|b| b.body == body.body) {
+        if self
+            .bodies
+            .iter()
+            .any(|b| b.body == body.body)
+        {
             return Err(CelestialErrors::CelestialBodyAlreadyExists);
         };
         // Create and add the celestial body
-        self.bodies.push(body);
+        self.bodies
+            .push(body);
 
         Ok(self)
     }
 
     pub fn delete_body(&mut self, body: CelestialBodies) {
-        self.bodies.retain(|b| b.body != body);
+        self.bodies
+            .retain(|b| b.body != body);
     }
 }
 impl From<&CelestialSystemBuilder> for CelestialSystem {
@@ -102,7 +106,10 @@ impl From<&CelestialSystemBuilder> for CelestialSystem {
             .collect();
 
         // make sure there's at least a sun for animation
-        if !bodies.iter().any(|body| body.body == CelestialBodies::Sun) {
+        if !bodies
+            .iter()
+            .any(|body| body.body == CelestialBodies::Sun)
+        {
             bodies.push(CelestialBody {
                 body: CelestialBodies::Sun,
                 position: Vector3::zeros(),
@@ -135,9 +142,15 @@ impl CelestialSystem {
     pub fn update(&mut self, t: f64) -> Result<(), CelestialErrors> {
         if let Some(spice) = &mut self.spice {
             // t is sim time in seconds
-            let current_epoch = self.epoch.time + t;
+            let current_epoch = self
+                .epoch
+                .time
+                + t;
             let current_epoch = current_epoch.to_system(time::TimeSystem::TT);
-            for body in self.bodies.iter_mut() {
+            for body in self
+                .bodies
+                .iter_mut()
+            {
                 body.update(current_epoch, spice)?;
             }
             Ok(())
@@ -155,13 +168,21 @@ impl CelestialSystem {
             if let Some(gravity) = &mut body.gravity {
                 // convert j2k position to celestial body fixed frame
                 let rf = match body.body {
-                    CelestialBodies::Earth => body.orientation.transform(position), //dont need to do subtraction for earth
-                    _ => body.orientation.transform(&(position - body.position)),
+                    CelestialBodies::Earth => body
+                        .orientation
+                        .transform(position), //dont need to do subtraction for earth
+                    _ => body
+                        .orientation
+                        .transform(&(position - body.position)),
                 };
                 // calculate mag field in celestial body fixed frame
-                let g_body = gravity.calculate(&rf).unwrap();
+                let g_body = gravity
+                    .calculate(&rf)
+                    .unwrap();
                 // rotate back to j2k
-                let g_j2k = body.orientation.rotate(&g_body); // same as body.orientation.inv().transform(&b_body);
+                let g_j2k = body
+                    .orientation
+                    .rotate(&g_body); // same as body.orientation.inv().transform(&b_body);
                 g_final += g_j2k;
             }
         }
@@ -207,13 +228,26 @@ impl CelestialSystem {
             if let Some(magnetic_field) = &mut body.magnetic_field {
                 // convert j2k position to celestial body fixed frame
                 let rf = match body.body {
-                    CelestialBodies::Earth => body.orientation.transform(position), //dont need to do subtraction here
-                    _ => body.orientation.transform(&(position - body.position)),
+                    CelestialBodies::Earth => body
+                        .orientation
+                        .transform(position), //dont need to do subtraction here
+                    _ => body
+                        .orientation
+                        .transform(&(position - body.position)),
                 };
                 // calculate mag field in celestial body fixed frame
-                let b_body = magnetic_field.calculate(&rf, &self.epoch.time).unwrap();
+                let b_body = magnetic_field
+                    .calculate(
+                        &rf,
+                        &self
+                            .epoch
+                            .time,
+                    )
+                    .unwrap();
                 // rotate back to j2k
-                let b_j2k = body.orientation.rotate(&b_body); // same as body.orientation.inv().transform(&b_body);
+                let b_j2k = body
+                    .orientation
+                    .rotate(&b_body); // same as body.orientation.inv().transform(&b_body);
                 b_final += b_j2k;
             }
         }
@@ -223,13 +257,18 @@ impl CelestialSystem {
     pub fn writer_init_fn(&mut self, manager: &mut WriterManager) {
         let rel_path = PathBuf::new().join("celestial");
         let writer = StateWriterBuilder::new(2, rel_path.join("epoch.csv"));
-        self.epoch.writer_id = Some(manager.add_writer(writer));
+        self.epoch
+            .writer_id = Some(manager.add_writer(writer));
 
         for body in &mut self.bodies {
             let headers = body.writer_headers();
             let writer = StateWriterBuilder::new(
                 headers.len(),
-                rel_path.join(format!("{}.csv", body.body.get_name())),
+                rel_path.join(format!(
+                    "{}.csv",
+                    body.body
+                        .get_name()
+                )),
             )
             .with_headers(headers)
             .unwrap();
@@ -238,17 +277,34 @@ impl CelestialSystem {
     }
 
     pub fn writer_save_fn(&self, manager: &mut WriterManager) {
-        if let Some(id) = &self.epoch.writer_id {
-            if let Some(writer) = manager.writers.get_mut(id) {
-                writer.float_buffer[0] = self.epoch.time.get_jd();
-                writer.float_buffer[1] = self.epoch.time.get_seconds_j2k();
-                writer.write_record().unwrap();
+        if let Some(id) = &self
+            .epoch
+            .writer_id
+        {
+            if let Some(writer) = manager
+                .writers
+                .get_mut(id)
+            {
+                writer.float_buffer[0] = self
+                    .epoch
+                    .time
+                    .get_jd();
+                writer.float_buffer[1] = self
+                    .epoch
+                    .time
+                    .get_seconds_j2k();
+                writer
+                    .write_record()
+                    .unwrap();
             }
         }
 
         for body in &self.bodies {
             if let Some(id) = &body.writer_id {
-                if let Some(writer) = manager.writers.get_mut(id) {
+                if let Some(writer) = manager
+                    .writers
+                    .get_mut(id)
+                {
                     body.writer_save_fn(writer);
                 }
             }
@@ -265,17 +321,16 @@ pub struct CelestialBodyBuilder {
 
 impl CelestialBodyBuilder {
     pub fn new(body: CelestialBodies) -> Self {
-        Self {
-            body,
-            gravity: None,
-            magnetic_field: None,
-        }
+        Self { body, gravity: None, magnetic_field: None }
     }
 
     pub fn with_gravity_newtonian(mut self) -> Self {
-        self.gravity = Some(Gravity::Newtonian(NewtonianGravity::new(
-            self.body.get_mu(),
-        )));
+        self.gravity = Some(Gravity::Newtonian(
+            NewtonianGravity::new(
+                self.body
+                    .get_mu(),
+            ),
+        ));
         self
     }
 
@@ -290,7 +345,10 @@ impl CelestialBodyBuilder {
     }
 
     pub fn with_magnetic_dipole(mut self) -> Result<Self, CelestialErrors> {
-        if let Some(dipole) = self.body.get_dipole()? {
+        if let Some(dipole) = self
+            .body
+            .get_dipole()?
+        {
             self.magnetic_field = Some(MagneticField::Dipole(dipole));
         } else {
             self.magnetic_field = None;
@@ -306,8 +364,12 @@ impl From<&CelestialBodyBuilder> for CelestialBody {
             body: builder.body,
             position: Vector3::zeros(),
             orientation: UnitQuaternion::IDENTITY,
-            gravity: builder.gravity.clone(),
-            magnetic_field: builder.magnetic_field.clone(),
+            gravity: builder
+                .gravity
+                .clone(),
+            magnetic_field: builder
+                .magnetic_field
+                .clone(),
             writer_id: None,
         }
     }
@@ -332,31 +394,37 @@ impl CelestialBody {
         let jdc = utc.get_jd_centuries();
         let sec_j2k = utc.get_seconds_j2k();
 
-        self.position = spice.calculate_position(t, self.body.to_spice())?;
+        self.position = spice.calculate_position(
+            t,
+            self.body
+                .to_spice(),
+        )?;
 
         self.orientation = match self.body {
-            CelestialBodies::Earth | CelestialBodies::Moon => {
-                spice.calculate_orientation(t, self.body.to_spice())?
-            }
-            CelestialBodies::Jupiter => {
-                from_planet_fact_sheet(268.057, -0.006, 64.495, 0.002, 9.9250, jdc, sec_j2k)
-            }
-            CelestialBodies::Mars => {
-                from_planet_fact_sheet(317.681, -0.106, 52.887, -0.061, 24.6229, jdc, sec_j2k)
-            }
-            CelestialBodies::Mercury => {
-                from_planet_fact_sheet(281.01, -0.033, 61.414, -0.005, 1407.6, jdc, sec_j2k)
-            }
+            CelestialBodies::Earth | CelestialBodies::Moon => spice.calculate_orientation(
+                t,
+                self.body
+                    .to_spice(),
+            )?,
+            CelestialBodies::Jupiter => from_planet_fact_sheet(
+                268.057, -0.006, 64.495, 0.002, 9.9250, jdc, sec_j2k,
+            ),
+            CelestialBodies::Mars => from_planet_fact_sheet(
+                317.681, -0.106, 52.887, -0.061, 24.6229, jdc, sec_j2k,
+            ),
+            CelestialBodies::Mercury => from_planet_fact_sheet(
+                281.01, -0.033, 61.414, -0.005, 1407.6, jdc, sec_j2k,
+            ),
             CelestialBodies::Neptune => from_planet_fact_sheet_neptune(jdc, sec_j2k),
-            CelestialBodies::Saturn => {
-                from_planet_fact_sheet(40.589, -0.036, 83.537, -0.004, 10.656, jdc, sec_j2k)
-            }
-            CelestialBodies::Uranus => {
-                from_planet_fact_sheet(257.311, 0.0, -15.175, 0.0, -17.24, jdc, sec_j2k)
-            }
-            CelestialBodies::Venus => {
-                from_planet_fact_sheet(272.76, 0.0, 61.414, 0.0, -5832.6, jdc, sec_j2k)
-            }
+            CelestialBodies::Saturn => from_planet_fact_sheet(
+                40.589, -0.036, 83.537, -0.004, 10.656, jdc, sec_j2k,
+            ),
+            CelestialBodies::Uranus => from_planet_fact_sheet(
+                257.311, 0.0, -15.175, 0.0, -17.24, jdc, sec_j2k,
+            ),
+            CelestialBodies::Venus => from_planet_fact_sheet(
+                272.76, 0.0, 61.414, 0.0, -5832.6, jdc, sec_j2k,
+            ),
             _ => UnitQuaternion::IDENTITY, //TODO: how ot handle other bodies, warn and continue?
         };
 
@@ -379,11 +447,25 @@ impl CelestialBody {
         writer.float_buffer[0] = self.position[0];
         writer.float_buffer[1] = self.position[1];
         writer.float_buffer[2] = self.position[2];
-        writer.float_buffer[3] = self.orientation.0.x;
-        writer.float_buffer[4] = self.orientation.0.y;
-        writer.float_buffer[5] = self.orientation.0.z;
-        writer.float_buffer[6] = self.orientation.0.w;
-        writer.write_record().unwrap();
+        writer.float_buffer[3] = self
+            .orientation
+            .0
+            .x;
+        writer.float_buffer[4] = self
+            .orientation
+            .0
+            .y;
+        writer.float_buffer[5] = self
+            .orientation
+            .0
+            .z;
+        writer.float_buffer[6] = self
+            .orientation
+            .0
+            .w;
+        writer
+            .write_record()
+            .unwrap();
     }
 }
 
@@ -399,14 +481,22 @@ fn from_planet_fact_sheet(
     // j2000 orientation
     let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
     let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
-    let initial_orientation =
-        UnitQuaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = UnitQuaternion::from(&EulerAngles::new(
+        ra,
+        dec,
+        0.0,
+        EulerSequence::ZYX,
+    ));
     // current orientation based on epoch
     let day = hrs_in_day * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
-    let orientation_from_rotation =
-        UnitQuaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+    let orientation_from_rotation = UnitQuaternion::from(&EulerAngles::new(
+        rotation,
+        0.0,
+        0.0,
+        EulerSequence::ZYX,
+    ));
     orientation_from_rotation * initial_orientation
 }
 
@@ -415,14 +505,22 @@ fn from_planet_fact_sheet_neptune(julian_centuries: f64, sec_j2k: f64) -> UnitQu
     let n = (357.85 + 52.316 * julian_centuries) * PI / 180.0;
     let ra = (299.36 + 0.70 * n.sin()) * PI / 180.0;
     let dec = (43.46 - 0.51 * n.cos()) * PI / 180.0;
-    let initial_orientation =
-        UnitQuaternion::from(&EulerAngles::new(ra, dec, 0.0, EulerSequence::ZYX));
+    let initial_orientation = UnitQuaternion::from(&EulerAngles::new(
+        ra,
+        dec,
+        0.0,
+        EulerSequence::ZYX,
+    ));
     // current orientation based on epoch
     let day = 16.11 * 3600.0;
     let rotation_rate = 2.0 * PI / day;
     let rotation = rotation_rate * sec_j2k;
-    let orientation_from_rotation =
-        UnitQuaternion::from(&EulerAngles::new(rotation, 0.0, 0.0, EulerSequence::ZYX));
+    let orientation_from_rotation = UnitQuaternion::from(&EulerAngles::new(
+        rotation,
+        0.0,
+        0.0,
+        EulerSequence::ZYX,
+    ));
     orientation_from_rotation * initial_orientation
 }
 
@@ -534,22 +632,42 @@ impl CelestialBodies {
     /// https://nssdc.gsfc.nasa.gov/planetary/factsheet/
     pub fn get_dipole(&self) -> Result<Option<Dipole>, CelestialErrors> {
         let dipole = match self {
-            CelestialBodies::Earth => Some(Dipole::new(6.378e6, 0.306, 80.65, -72.68, 0.076)?),
-            CelestialBodies::Jupiter => {
-                Some(Dipole::new(71.398e6, 4.30, 90.0 - 9.4, 200.1, 0.119)?)
-            }
+            CelestialBodies::Earth => Some(Dipole::new(
+                6.378e6, 0.306, 80.65, -72.68, 0.076,
+            )?),
+            CelestialBodies::Jupiter => Some(Dipole::new(
+                71.398e6,
+                4.30,
+                90.0 - 9.4,
+                200.1,
+                0.119,
+            )?),
             CelestialBodies::Mars => None,
-            CelestialBodies::Mercury => Some(Dipole::new(2.44e6, 0.002, 90.0, 0.0, 0.17)?),
+            CelestialBodies::Mercury => Some(Dipole::new(
+                2.44e6, 0.002, 90.0, 0.0, 0.17,
+            )?),
             CelestialBodies::Moon => None,
-            CelestialBodies::Neptune => {
-                Some(Dipole::new(24.765e6, 0.142, 90.0 - 46.9, 288.0, 0.485)?)
-            }
+            CelestialBodies::Neptune => Some(Dipole::new(
+                24.765e6,
+                0.142,
+                90.0 - 46.9,
+                288.0,
+                0.485,
+            )?),
             CelestialBodies::Pluto => None,
-            CelestialBodies::Saturn => Some(Dipole::new(60.33e6, 0.215, 90.0, 0.0, 0.038)?),
+            CelestialBodies::Saturn => Some(Dipole::new(
+                60.33e6, 0.215, 90.0, 0.0, 0.038,
+            )?),
             CelestialBodies::Sun => todo!(
                 "need to find a dipole bfield model for the sun, gsfc fact sheet does not provide"
             ),
-            CelestialBodies::Uranus => Some(Dipole::new(25.6e6, 0.228, 90.0 - 58.6, 53.6, 0.352)?),
+            CelestialBodies::Uranus => Some(Dipole::new(
+                25.6e6,
+                0.228,
+                90.0 - 58.6,
+                53.6,
+                0.352,
+            )?),
             CelestialBodies::Venus => None,
         };
 

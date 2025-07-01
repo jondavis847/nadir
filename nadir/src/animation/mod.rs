@@ -61,7 +61,12 @@ pub struct MeshResult {
 }
 impl MeshResult {
     fn get_state_at_time_interp(&self, t: f64, time: &Vec<f64>) -> (DQuat, DVec3) {
-        get_state_at_time_interp(t, &time, &self.attitude, &self.position)
+        get_state_at_time_interp(
+            t,
+            &time,
+            &self.attitude,
+            &self.position,
+        )
     }
 }
 
@@ -74,7 +79,12 @@ pub struct CelestialResult {
 
 impl CelestialResult {
     fn get_state_at_time_interp(&self, t: f64, time: &Vec<f64>) -> (DQuat, DVec3) {
-        get_state_at_time_interp(t, &time, &self.attitude, &self.position)
+        get_state_at_time_interp(
+            t,
+            &time,
+            &self.attitude,
+            &self.position,
+        )
     }
 }
 
@@ -101,25 +111,51 @@ impl AnimationProgram {
 
         // add the menu content if we should be
         if self.show_menu {
-            let playback_speed_text =
-                text(format!("Playback Speed: {}", self.animator.speed)).color(Color::WHITE);
+            let playback_speed_text = text(format!(
+                "Playback Speed: {}",
+                self.animator
+                    .speed
+            ))
+            .color(Color::WHITE);
 
-            let playback_speed_slider = slider(0.0..=100.0, self.animator.speed, |speed| {
-                Message::AnimationMessage(AnimationMessage::PlaybackSpeedChanged(
-                    self.window_id.unwrap(),
-                    speed,
-                ))
-            });
+            let playback_speed_slider = slider(
+                0.0..=100.0,
+                self.animator
+                    .speed,
+                |speed| {
+                    Message::AnimationMessage(
+                        AnimationMessage::PlaybackSpeedChanged(
+                            self.window_id
+                                .unwrap(),
+                            speed,
+                        ),
+                    )
+                },
+            );
 
-            let camera_fov_text =
-                text(format!("Camera FOV: {}", self.scene.camera.fov_y)).color(Color::WHITE);
+            let camera_fov_text = text(format!(
+                "Camera FOV: {}",
+                self.scene
+                    .camera
+                    .fov_y
+            ))
+            .color(Color::WHITE);
 
-            let camera_fov_slider = slider(1.0..=179.0, self.scene.camera.fov_y, |fov| {
-                Message::AnimationMessage(AnimationMessage::CameraFovChanged(
-                    self.window_id.unwrap(),
-                    fov,
-                ))
-            });
+            let camera_fov_slider = slider(
+                1.0..=179.0,
+                self.scene
+                    .camera
+                    .fov_y,
+                |fov| {
+                    Message::AnimationMessage(
+                        AnimationMessage::CameraFovChanged(
+                            self.window_id
+                                .unwrap(),
+                            fov,
+                        ),
+                    )
+                },
+            );
 
             let menu_column = Column::new()
                 .push(playback_speed_text)
@@ -140,18 +176,29 @@ impl AnimationProgram {
 
         if self.show_progress_bar {
             let progress_slider = slider(
-                self.animator.start_time..=self.animator.end_time,
-                self.animator.current_time,
+                self.animator
+                    .start_time
+                    ..=self
+                        .animator
+                        .end_time,
+                self.animator
+                    .current_time,
                 |current_time| {
-                    Message::AnimationMessage(AnimationMessage::CurrentTimeChanged(
-                        self.window_id.unwrap(),
-                        current_time,
-                    ))
+                    Message::AnimationMessage(
+                        AnimationMessage::CurrentTimeChanged(
+                            self.window_id
+                                .unwrap(),
+                            current_time,
+                        ),
+                    )
                 },
             )
             .width(Length::FillPortion(20));
 
-            let play_or_pause = match self.animator.status {
+            let play_or_pause = match self
+                .animator
+                .status
+            {
                 AnimatorStatus::Paused => "||",
                 AnimatorStatus::Playing => ">",
             };
@@ -188,7 +235,10 @@ impl AnimationProgram {
     }
 
     pub fn cursor_moved(&mut self, point: Point) {
-        if self.progress_bounds.contains(point) {
+        if self
+            .progress_bounds
+            .contains(point)
+        {
             self.show_progress_bar = true;
         } else {
             self.show_progress_bar = false;
@@ -199,14 +249,20 @@ impl AnimationProgram {
     }
 
     pub fn new(result_path: Arc<Mutex<PathBuf>>) -> Result<Self, AnimationErrors> {
-        let result_path = result_path.lock().unwrap();
+        let result_path = result_path
+            .lock()
+            .unwrap();
         let mut reader = ReaderBuilder::new()
             .has_headers(true) // Assuming the file has headers
             .from_path(&result_path.join("sim_time.csv"))?;
         let mut sim_time = Vec::new();
         for result in reader.records() {
             let record = result.unwrap();
-            let t = record.get(0).unwrap().parse::<f64>().unwrap();
+            let t = record
+                .get(0)
+                .unwrap()
+                .parse::<f64>()
+                .unwrap();
             sim_time.push(t);
         }
 
@@ -233,12 +289,22 @@ impl AnimationProgram {
 
         // initialize the multibody bodies
         for result in &animation_result.meshes {
-            let mut mesh = result.mesh.clone();
-            mesh.update(result.position[0], result.attitude[0]);
-            scene.body_meshes.push(mesh);
+            let mut mesh = result
+                .mesh
+                .clone();
+            mesh.update(
+                result.position[0],
+                result.attitude[0],
+            );
+            scene
+                .body_meshes
+                .push(mesh);
         }
 
-        if !animation_result.celestial_meshes.is_empty() {
+        if !animation_result
+            .celestial_meshes
+            .is_empty()
+        {
             let mut celestial = CelestialAnimation::default();
             for result in &animation_result.celestial_meshes {
                 celestial.add_body(result.body);
@@ -259,7 +325,10 @@ impl AnimationProgram {
 
         let animator = Animator::new(start_time, end_time);
 
-        let progress_bounds = Rectangle::new(Point::new(0.0, 600.0), Size::new(1280.0, 120.0));
+        let progress_bounds = Rectangle::new(
+            Point::new(0.0, 600.0),
+            Size::new(1280.0, 120.0),
+        );
 
         Ok(Self {
             window_id: None,
@@ -274,38 +343,69 @@ impl AnimationProgram {
 
     pub fn update(&mut self, message: AnimationMessage) {
         match message {
-            AnimationMessage::CameraFovChanged(_, fov) => self.scene.camera.set_fov(fov),
+            AnimationMessage::CameraFovChanged(_, fov) => self
+                .scene
+                .camera
+                .set_fov(fov),
             AnimationMessage::CameraRotation(_, mouse_delta) => self
                 .scene
                 .camera
                 .update_position_from_mouse_delta(mouse_delta),
-            AnimationMessage::CurrentTimeChanged(_, time) => self.animator.current_time = time,
-            AnimationMessage::PlaybackSpeedChanged(_, speed) => self.animator.speed = speed,
-            AnimationMessage::TogglePlayPause => match self.animator.status {
-                AnimatorStatus::Paused => self.animator.status = AnimatorStatus::Playing,
-                AnimatorStatus::Playing => self.animator.status = AnimatorStatus::Paused,
+            AnimationMessage::CurrentTimeChanged(_, time) => {
+                self.animator
+                    .current_time = time
+            }
+            AnimationMessage::PlaybackSpeedChanged(_, speed) => {
+                self.animator
+                    .speed = speed
+            }
+            AnimationMessage::TogglePlayPause => match self
+                .animator
+                .status
+            {
+                AnimatorStatus::Paused => {
+                    self.animator
+                        .status = AnimatorStatus::Playing
+                }
+                AnimatorStatus::Playing => {
+                    self.animator
+                        .status = AnimatorStatus::Paused
+                }
             },
         }
     }
 
     pub fn set_window_id(&mut self, id: Id) {
         self.window_id = Some(id);
-        self.scene.set_window_id(id);
+        self.scene
+            .set_window_id(id);
     }
 
     pub fn tick(&mut self, instant: &Instant) {
-        self.animator.update(instant);
-        let t = self.animator.current_time;
-        let time = &self.result.sim_time;
+        self.animator
+            .update(instant);
+        let t = self
+            .animator
+            .current_time;
+        let time = &self
+            .result
+            .sim_time;
         self.result
             .meshes
             .iter()
-            .zip(&mut self.scene.body_meshes)
+            .zip(
+                &mut self
+                    .scene
+                    .body_meshes,
+            )
             .for_each(|(result, mesh)| {
                 let (q, r) = result.get_state_at_time_interp(t, time);
                 mesh.update(r, q);
             });
-        if let Some(celestial) = &mut self.scene.celestial {
+        if let Some(celestial) = &mut self
+            .scene
+            .celestial
+        {
             self.result
                 .celestial_meshes
                 .iter()
@@ -315,25 +415,46 @@ impl AnimationProgram {
                     celestial.update_body(result.body, 1e3 * r, q);
                     // set the light pos if this is the sun
                     if result.body == CelestialBodies::Sun {
-                        self.scene.light_pos = [r[0], r[1], r[2]];
+                        self.scene
+                            .light_pos = [r[0], r[1], r[2]];
                     }
                 });
         }
 
         // adjust mesh positions so target is at origin and all other meshes are relative to it
-        if let Some(index) = self.scene.world_target {
-            let camera_target = self.scene.body_meshes[index].state.position;
-            for mesh in &mut self.scene.body_meshes {
+        if let Some(index) = self
+            .scene
+            .world_target
+        {
+            let camera_target = self
+                .scene
+                .body_meshes[index]
+                .state
+                .position;
+            for mesh in &mut self
+                .scene
+                .body_meshes
+            {
                 mesh.set_position_from_target(camera_target);
             }
-            if let Some(celestial) = &mut self.scene.celestial {
+            if let Some(celestial) = &mut self
+                .scene
+                .celestial
+            {
                 for (_, mesh) in &mut celestial.meshes {
                     mesh.set_position_from_target(camera_target);
                 }
-                self.scene.light_pos = [
-                    self.scene.light_pos[0] - camera_target.x,
-                    self.scene.light_pos[1] - camera_target.y,
-                    self.scene.light_pos[2] - camera_target.z,
+                self.scene
+                    .light_pos = [
+                    self.scene
+                        .light_pos[0]
+                        - camera_target.x,
+                    self.scene
+                        .light_pos[1]
+                        - camera_target.y,
+                    self.scene
+                        .light_pos[2]
+                        - camera_target.z,
                 ];
             }
         }
@@ -360,7 +481,10 @@ fn get_state_at_time_interp(
     q: &Vec<DQuat>,
     r: &Vec<DVec3>,
 ) -> (DQuat, DVec3) {
-    match time.binary_search_by(|v| v.partial_cmp(&t).unwrap()) {
+    match time.binary_search_by(|v| {
+        v.partial_cmp(&t)
+            .unwrap()
+    }) {
         Ok(i) => {
             // The target is exactly at index i
             (q[i], r[i])
@@ -381,7 +505,10 @@ fn get_state_at_time_interp(
                 let interp_position = r[i - 1].lerp(r[i], s);
                 let interp_attitude = q[i - 1].slerp(q[i], s);
 
-                (interp_attitude, interp_position)
+                (
+                    interp_attitude,
+                    interp_position,
+                )
             }
         }
     }
@@ -396,9 +523,17 @@ fn get_mesh_result(bodies_path: &Path) -> Vec<MeshResult> {
         let path = entry.path();
 
         // Check if the file has a .csv extension
-        if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("csv") {
+        if path.is_file()
+            && path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                == Some("csv")
+        {
             // Extract the file stem (name without extension)
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+            if let Some(stem) = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+            {
                 // Construct the corresponding .mesh file path
                 let mesh_file_path = bodies_path.join(format!("{}.mesh", stem));
 
@@ -426,8 +561,16 @@ fn get_celestial_result(bodies_path: &Path) -> Vec<CelestialResult> {
         let path = entry.path();
 
         // Check if the file has a .csv extension
-        if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("csv") {
-            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+        if path.is_file()
+            && path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                == Some("csv")
+        {
+            if let Some(stem) = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+            {
                 if let Some(body) = CelestialBodies::from_str(stem) {
                     let (attitude, position) = read_csv_result(&path);
                     results.push(CelestialResult { body, attitude, position })
@@ -444,7 +587,9 @@ fn read_csv_result(path: &Path) -> (Vec<DQuat>, Vec<DVec3>) {
         .has_headers(true) // Assuming the file has headers
         .from_path(path)
         .unwrap();
-    let headers = reader.headers().unwrap();
+    let headers = reader
+        .headers()
+        .unwrap();
     let irx = headers
         .iter()
         .position(|h| h == "position(base)[x]")
@@ -487,13 +632,41 @@ fn read_csv_result(path: &Path) -> (Vec<DQuat>, Vec<DVec3>) {
     // Iterate through records
     for result in reader.records() {
         let record = result.unwrap();
-        let rx = record.get(irx).unwrap().parse::<f64>().unwrap();
-        let ry = record.get(iry).unwrap().parse::<f64>().unwrap();
-        let rz = record.get(irz).unwrap().parse::<f64>().unwrap();
-        let qx = record.get(iqx).unwrap().parse::<f64>().unwrap();
-        let qy = record.get(iqy).unwrap().parse::<f64>().unwrap();
-        let qz = record.get(iqz).unwrap().parse::<f64>().unwrap();
-        let qw = record.get(iqw).unwrap().parse::<f64>().unwrap();
+        let rx = record
+            .get(irx)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let ry = record
+            .get(iry)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let rz = record
+            .get(irz)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let qx = record
+            .get(iqx)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let qy = record
+            .get(iqy)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let qz = record
+            .get(iqz)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        let qw = record
+            .get(iqw)
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
 
         position.push(dvec3(rx, ry, rz));
         attitude.push(dquat(qx, qy, qz, qw));

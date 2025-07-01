@@ -24,7 +24,9 @@ impl Uniform {
         if low > high {
             return Err(UncertaintyErrors::LowGreaterThanHigh);
         }
-        Ok(Self(rand_distr::Uniform::new(low, high)?))
+        Ok(Self(
+            rand_distr::Uniform::new(low, high)?,
+        ))
     }
 }
 
@@ -106,14 +108,18 @@ impl From<Uniform> for Distributions {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Dispersion {
-    distribution: Distributions,
+    pub distribution: Distributions,
 }
 
 impl Dispersion {
     pub fn sample(&self, rng: &mut SmallRng) -> f64 {
         match &self.distribution {
-            Distributions::Normal(dist) => dist.0.sample(rng),
-            Distributions::Uniform(dist) => dist.0.sample(rng),
+            Distributions::Normal(dist) => dist
+                .0
+                .sample(rng),
+            Distributions::Uniform(dist) => dist
+                .0
+                .sample(rng),
         }
     }
 }
@@ -130,9 +136,15 @@ impl Uncertainty for SimVector3 {
     type Output = Vector3<f64>;
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let x = self.x.sample(nominal, rng);
-        let y = self.y.sample(nominal, rng);
-        let z = self.z.sample(nominal, rng);
+        let x = self
+            .x
+            .sample(nominal, rng);
+        let y = self
+            .y
+            .sample(nominal, rng);
+        let z = self
+            .z
+            .sample(nominal, rng);
         Ok(Vector3::new(x, y, z))
     }
 }

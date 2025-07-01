@@ -13,10 +13,7 @@ pub struct SpatialVector {
 
 impl SpatialVector {
     pub fn new(rotation: Vector3<f64>, translation: Vector3<f64>) -> Self {
-        Self {
-            rotation,
-            translation,
-        }
+        Self { rotation, translation }
     }
 
     pub fn get_index(&self, index: usize) -> Option<f64> {
@@ -113,32 +110,44 @@ pub struct MotionVector(pub SpatialVector);
 impl MotionVector {
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn cross_motion(self, rhs: MotionVector) -> MotionVector {
-        MotionVector(self.0.cross_motion(rhs.0))
+        MotionVector(
+            self.0
+                .cross_motion(rhs.0),
+        )
     }
 
     #[inline]
     pub fn cross_force(self, rhs: ForceVector) -> ForceVector {
-        ForceVector(self.0.cross_force(rhs.0))
+        ForceVector(
+            self.0
+                .cross_force(rhs.0),
+        )
     }
 
     #[inline]
     pub fn get_index(&self, index: usize) -> Option<f64> {
-        self.0.get_index(index)
+        self.0
+            .get_index(index)
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation
+        &self
+            .0
+            .rotation
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation
+        &self
+            .0
+            .translation
     }
 }
 
@@ -164,47 +173,61 @@ pub struct Velocity(pub MotionVector);
 impl Velocity {
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn cross_motion(self, rhs: Velocity) -> Acceleration {
-        Acceleration(self.0.cross_motion(rhs.0))
+        Acceleration(
+            self.0
+                .cross_motion(rhs.0),
+        )
     }
 
     #[inline]
     pub fn cross_force(self, rhs: Momentum) -> Force {
-        Force(self.0.cross_force(rhs.0))
+        Force(
+            self.0
+                .cross_force(rhs.0),
+        )
     }
 
     #[inline]
     pub fn get_index(&self, index: usize) -> Option<f64> {
-        self.0.get_index(index)
+        self.0
+            .get_index(index)
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        self.0.rotation()
+        self.0
+            .rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        self.0.translation()
+        self.0
+            .translation()
     }
 
     #[inline]
     pub fn zeros() -> Self {
-        Self(MotionVector(SpatialVector::new(
-            Vector3::zeros(),
-            Vector3::zeros(),
-        )))
+        Self(MotionVector(
+            SpatialVector::new(
+                Vector3::zeros(),
+                Vector3::zeros(),
+            ),
+        ))
     }
 }
 
 impl From<Vector6<f64>> for Velocity {
     #[inline]
     fn from(v: Vector6<f64>) -> Self {
-        Velocity(MotionVector(SpatialVector::from(v)))
+        Velocity(MotionVector(
+            SpatialVector::from(v),
+        ))
     }
 }
 
@@ -237,25 +260,30 @@ pub struct Acceleration(pub MotionVector);
 impl Acceleration {
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn zeros() -> Self {
-        Self(MotionVector(SpatialVector::new(
-            Vector3::zeros(),
-            Vector3::zeros(),
-        )))
+        Self(MotionVector(
+            SpatialVector::new(
+                Vector3::zeros(),
+                Vector3::zeros(),
+            ),
+        ))
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        self.0.rotation()
+        self.0
+            .rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        self.0.translation()
+        self.0
+            .translation()
     }
 }
 
@@ -270,7 +298,9 @@ impl Add<Acceleration> for Acceleration {
 impl From<Vector6<f64>> for Acceleration {
     #[inline]
     fn from(v: Vector6<f64>) -> Self {
-        Acceleration(MotionVector(SpatialVector::from(v)))
+        Acceleration(MotionVector(
+            SpatialVector::from(v),
+        ))
     }
 }
 
@@ -287,22 +317,28 @@ pub struct ForceVector(SpatialVector);
 impl ForceVector {
     #[inline]
     pub fn get_index(&self, index: usize) -> Option<f64> {
-        self.0.get_index(index)
+        self.0
+            .get_index(index)
     }
 
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        &self.0.rotation
+        &self
+            .0
+            .rotation
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        &self.0.translation
+        &self
+            .0
+            .translation
     }
 }
 
@@ -335,24 +371,29 @@ pub struct Momentum(ForceVector);
 impl Momentum {
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        self.0.rotation()
+        self.0
+            .rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        self.0.translation()
+        self.0
+            .translation()
     }
 }
 
 impl From<Vector6<f64>> for Momentum {
     #[inline]
     fn from(v: Vector6<f64>) -> Self {
-        Momentum(ForceVector(SpatialVector::from(v)))
+        Momentum(ForceVector(
+            SpatialVector::from(v),
+        ))
     }
 }
 
@@ -385,43 +426,55 @@ pub struct Force(ForceVector);
 impl Force {
     #[inline]
     pub fn get_index(&self, index: usize) -> Option<f64> {
-        self.0.get_index(index)
+        self.0
+            .get_index(index)
     }
 
     #[inline]
     pub fn vector(&self) -> Vector6<f64> {
-        self.0.vector()
+        self.0
+            .vector()
     }
 
     #[inline]
     pub fn rotation(&self) -> &Vector3<f64> {
-        self.0.rotation()
+        self.0
+            .rotation()
     }
 
     #[inline]
     pub fn translation(&self) -> &Vector3<f64> {
-        self.0.translation()
+        self.0
+            .translation()
     }
 
     pub fn zeros() -> Self {
-        Self(ForceVector(SpatialVector::new(
-            Vector3::zeros(),
-            Vector3::zeros(),
-        )))
+        Self(ForceVector(
+            SpatialVector::new(
+                Vector3::zeros(),
+                Vector3::zeros(),
+            ),
+        ))
     }
 }
 
 impl From<Vector6<f64>> for Force {
     #[inline]
     fn from(v: Vector6<f64>) -> Self {
-        Force(ForceVector(SpatialVector::from(v)))
+        Force(ForceVector(
+            SpatialVector::from(v),
+        ))
     }
 }
 
 impl MulAssign<f64> for Force {
     fn mul_assign(&mut self, rhs: f64) {
-        self.0 .0.rotation *= rhs;
-        self.0 .0.translation *= rhs;
+        self.0
+            .0
+            .rotation *= rhs;
+        self.0
+            .0
+            .translation *= rhs;
     }
 }
 
@@ -462,13 +515,19 @@ pub struct SpatialTransform(pub Transform);
 impl SpatialTransform {
     #[inline]
     pub fn inv(&self) -> SpatialTransform {
-        SpatialTransform::from(self.0.inv())
+        SpatialTransform::from(
+            self.0
+                .inv(),
+        )
     }
 
     pub fn matrix_motion(&self) -> Matrix6<f64> {
         let transform = self.0;
         let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
-        let r_skew = transform.translation.vec().cross_matrix();
+        let r_skew = transform
+            .translation
+            .vec()
+            .cross_matrix();
 
         let m11 = rotation_matrix;
         let m12 = Matrix3::zeros();
@@ -477,17 +536,24 @@ impl SpatialTransform {
 
         let mut m6 = Matrix6::zeros();
 
-        m6.index_mut((0..3, 0..3)).copy_from(&m11);
-        m6.index_mut((0..3, 3..6)).copy_from(&m12);
-        m6.index_mut((3..6, 0..3)).copy_from(&m21);
-        m6.index_mut((3..6, 3..6)).copy_from(&m22);
+        m6.index_mut((0..3, 0..3))
+            .copy_from(&m11);
+        m6.index_mut((0..3, 3..6))
+            .copy_from(&m12);
+        m6.index_mut((3..6, 0..3))
+            .copy_from(&m21);
+        m6.index_mut((3..6, 3..6))
+            .copy_from(&m22);
         m6
     }
 
     pub fn matrix_force(&self) -> Matrix6<f64> {
         let transform = self.0;
         let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
-        let r_skew = transform.translation.vec().cross_matrix();
+        let r_skew = transform
+            .translation
+            .vec()
+            .cross_matrix();
 
         let m11 = rotation_matrix;
         let m12 = -rotation_matrix * r_skew;
@@ -496,10 +562,14 @@ impl SpatialTransform {
 
         let mut m6 = Matrix6::zeros();
 
-        m6.index_mut((0..3, 0..3)).copy_from(&m11);
-        m6.index_mut((0..3, 3..6)).copy_from(&m12);
-        m6.index_mut((3..6, 0..3)).copy_from(&m21);
-        m6.index_mut((3..6, 3..6)).copy_from(&m22);
+        m6.index_mut((0..3, 0..3))
+            .copy_from(&m11);
+        m6.index_mut((0..3, 3..6))
+            .copy_from(&m12);
+        m6.index_mut((3..6, 0..3))
+            .copy_from(&m21);
+        m6.index_mut((3..6, 3..6))
+            .copy_from(&m22);
         m6
     }
 }
@@ -516,12 +586,28 @@ impl Mul<MotionVector> for SpatialTransform {
     fn mul(self, motion: MotionVector) -> MotionVector {
         let transform = self.0;
         let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
-        let r_skew = transform.translation.vec().cross_matrix();
+        let r_skew = transform
+            .translation
+            .vec()
+            .cross_matrix();
 
-        let rotation = rotation_matrix * motion.0.rotation;
-        let translation =
-            rotation_matrix * motion.0.translation - rotation_matrix * r_skew * motion.0.rotation;
-        MotionVector(SpatialVector::new(rotation, translation))
+        let rotation = rotation_matrix
+            * motion
+                .0
+                .rotation;
+        let translation = rotation_matrix
+            * motion
+                .0
+                .translation
+            - rotation_matrix
+                * r_skew
+                * motion
+                    .0
+                    .rotation;
+        MotionVector(SpatialVector::new(
+            rotation,
+            translation,
+        ))
     }
 }
 
@@ -546,12 +632,28 @@ impl Mul<ForceVector> for SpatialTransform {
     fn mul(self, force: ForceVector) -> ForceVector {
         let transform = self.0;
         let rotation_matrix = RotationMatrix::from(&transform.rotation).get_value();
-        let r_skew = transform.translation.vec().cross_matrix();
+        let r_skew = transform
+            .translation
+            .vec()
+            .cross_matrix();
 
-        let rotation =
-            rotation_matrix * force.0.rotation - rotation_matrix * r_skew * force.0.translation;
-        let translation = rotation_matrix * force.0.translation;
-        ForceVector(SpatialVector::new(rotation, translation))
+        let rotation = rotation_matrix
+            * force
+                .0
+                .rotation
+            - rotation_matrix
+                * r_skew
+                * force
+                    .0
+                    .translation;
+        let translation = rotation_matrix
+            * force
+                .0
+                .translation;
+        ForceVector(SpatialVector::new(
+            rotation,
+            translation,
+        ))
     }
 }
 
@@ -585,7 +687,11 @@ impl Mul<SpatialInertia> for SpatialTransform {
         let transform_motion = self.matrix_motion();
         let transform_force = self.matrix_force();
         SpatialInertia::from(
-            transform_force * inertia.matrix() * transform_motion.try_inverse().unwrap(),
+            transform_force
+                * inertia.matrix()
+                * transform_motion
+                    .try_inverse()
+                    .unwrap(),
         )
     }
 }
@@ -648,10 +754,14 @@ impl From<&MassProperties> for SpatialInertia {
 
         let mut m6 = Matrix6::zeros();
 
-        m6.index_mut((0..3, 0..3)).copy_from(&m11);
-        m6.index_mut((0..3, 3..6)).copy_from(&m12);
-        m6.index_mut((3..6, 0..3)).copy_from(&m21);
-        m6.index_mut((3..6, 3..6)).copy_from(&m22);
+        m6.index_mut((0..3, 0..3))
+            .copy_from(&m11);
+        m6.index_mut((0..3, 3..6))
+            .copy_from(&m12);
+        m6.index_mut((3..6, 0..3))
+            .copy_from(&m21);
+        m6.index_mut((3..6, 3..6))
+            .copy_from(&m22);
         m6.into()
     }
 }
@@ -700,7 +810,7 @@ impl Mul<Acceleration> for SpatialInertia {
 #[cfg(test)]
 mod tests {
     use coordinate_systems::cartesian::Cartesian;
-    use rotations::{prelude::EulerAngles, Rotation};
+    use rotations::{Rotation, prelude::EulerAngles};
 
     use super::*;
     const TOL: f64 = 1e-12;
@@ -716,9 +826,14 @@ mod tests {
 
     #[test]
     fn test_transform_mul_acceleration() {
-        let accel = Acceleration::from(Vector6::new(-1.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        let accel = Acceleration::from(Vector6::new(
+            -1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ));
         let translation = Cartesian::new(0.0, 0.0, -1.0);
-        let transform = Transform::new(Rotation::IDENTITY, translation.into());
+        let transform = Transform::new(
+            Rotation::IDENTITY,
+            translation.into(),
+        );
         let spatial_transform = SpatialTransform::from(transform);
         let result = spatial_transform * accel;
 
@@ -746,7 +861,10 @@ mod tests {
         };
         let inertia = SpatialInertia::from(&mp);
         let translation = Cartesian::new(0.0, 0.0, 1.0);
-        let transform = Transform::new(Rotation::IDENTITY, translation.into());
+        let transform = Transform::new(
+            Rotation::IDENTITY,
+            translation.into(),
+        );
         let spatial_transform = SpatialTransform::from(transform);
         let result = spatial_transform * inertia;
 
@@ -804,10 +922,16 @@ mod tests {
         };
         let inertia = SpatialInertia::from(&mp);
         let translation1 = Cartesian::new(0.0, 0.0, 0.5);
-        let transform1 = Transform::new(Rotation::IDENTITY, translation1.into());
+        let transform1 = Transform::new(
+            Rotation::IDENTITY,
+            translation1.into(),
+        );
         let spatial_transform1 = SpatialTransform::from(transform1);
         let translation2 = Cartesian::new(0.0, 0.0, 1.0);
-        let transform2 = Transform::new(Rotation::IDENTITY, translation2.into());
+        let transform2 = Transform::new(
+            Rotation::IDENTITY,
+            translation2.into(),
+        );
         let spatial_transform2 = SpatialTransform::from(transform2);
 
         let inertia1 = spatial_transform1 * inertia;

@@ -45,16 +45,17 @@ where
 {
     /// Constructs a new memory result buffer with an initial capacity `n`.
     pub fn new(n: usize) -> Self {
-        Self {
-            t: vec![0.0; n],
-            y: vec![State::default(); n],
-            i: 0,
-        }
+        Self { t: vec![0.0; n], y: vec![State::default(); n], i: 0 }
     }
 
     /// Inserts a new result `(t, x)` into the buffer. Automatically grows if full.
     pub fn insert(&mut self, t: f64, x: &State) {
-        if self.i == self.t.len() - 1 {
+        if self.i
+            == self
+                .t
+                .len()
+                - 1
+        {
             self.extend();
         }
         self.t[self.i] = t;
@@ -64,19 +65,27 @@ where
 
     /// Returns the total capacity of the buffer (not the number of saved entries).
     pub fn len(&self) -> usize {
-        self.t.len()
+        self.t
+            .len()
     }
 
     /// Doubles the size of the buffer to accommodate more entries.
     pub fn extend(&mut self) {
-        self.t.extend(vec![0.0; self.len()]);
-        self.y.extend(vec![State::default(); self.len()]);
+        self.t
+            .extend(vec![0.0; self.len()]);
+        self.y
+            .extend(vec![
+                State::default();
+                self.len()
+            ]);
     }
 
     /// Truncates the buffer to contain only the filled entries.
     pub fn truncate(&mut self) {
-        self.t.truncate(self.i);
-        self.y.truncate(self.i);
+        self.t
+            .truncate(self.i);
+        self.y
+            .truncate(self.i);
     }
 }
 
@@ -137,7 +146,8 @@ impl StateWriter {
     }
 
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-        self.writer.flush()?;
+        self.writer
+            .flush()?;
         Ok(())
     }
 
@@ -150,10 +160,15 @@ impl StateWriter {
 
         // write the whole statevector
         for i in 0..state.len() {
-            write!(self.string_buffer[i], "{}", state[i].to_string())?;
+            write!(
+                self.string_buffer[i],
+                "{}",
+                state[i].to_string()
+            )?;
         }
 
-        self.writer.write_record(&self.string_buffer)?;
+        self.writer
+            .write_record(&self.string_buffer)?;
         Ok(())
     }
 }
@@ -186,7 +201,8 @@ impl WriterManager {
         self.root_dir = Some(root_path.clone());
         for (id, builder) in &self.builders {
             let writer = StateWriter::from_builder(builder, root_path)?;
-            self.writers.insert(*id, writer);
+            self.writers
+                .insert(*id, writer);
         }
         Ok(())
     }

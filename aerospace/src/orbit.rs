@@ -295,9 +295,16 @@ impl KeplerianElements {
         let argp = 159.7942 * PI / 180.0;
         let f = 297.9503 * PI / 180.0; // actually mean anomaly but circular so close enough
 
-        let epoch = Time::from_doy(2024, 315.45505231, TimeSystem::UTC).unwrap();
+        let epoch = Time::from_doy(
+            2024,
+            315.45505231,
+            TimeSystem::UTC,
+        )
+        .unwrap();
 
-        KeplerianElements::new(a, e, i, raan, argp, f, epoch, earth)
+        KeplerianElements::new(
+            a, e, i, raan, argp, f, epoch, earth,
+        )
     }
 
     pub fn keplers_problem(&self, new_t: Time) -> Result<Self, OrbitErrors> {
@@ -375,9 +382,17 @@ impl KeplerianElements {
     fn keplers_equation_parabolic(&self, dt: f64) -> f64 {
         // Vallado Algorithm 3
         // Barker's equation
-        let np = 2.0 * (self.mu / self.semiparameter.powi(3)).sqrt();
+        let np = 2.0
+            * (self.mu
+                / self
+                    .semiparameter
+                    .powi(3))
+            .sqrt();
         let s = 0.5 / (1.5 * np * dt).atan();
-        let w = s.tan().cbrt().atan();
+        let w = s
+            .tan()
+            .cbrt()
+            .atan();
         let b = 2.0 * 1.0 / (2.0 * w).tan();
         b
     }
@@ -476,11 +491,20 @@ impl KeplerianElements {
         let (orbit_type, p) = if e < ORBIT_EPSILON {
             (OrbitType::Circular, a)
         } else if e <= 1.0 - ORBIT_EPSILON {
-            (OrbitType::Elliptical, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Elliptical,
+                a * (1.0 - e.powi(2)),
+            )
         } else if e < 1.0 + ORBIT_EPSILON {
-            (OrbitType::Parabolic, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Parabolic,
+                a * (1.0 - e.powi(2)),
+            )
         } else {
-            (OrbitType::Hyperbolic, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Hyperbolic,
+                a * (1.0 - e.powi(2)),
+            )
         };
         Self {
             semimajor_axis: a,
@@ -512,11 +536,20 @@ impl KeplerianElements {
         let (orbit_type, p) = if e < ORBIT_EPSILON {
             (OrbitType::Circular, a)
         } else if e <= 1.0 - ORBIT_EPSILON {
-            (OrbitType::Elliptical, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Elliptical,
+                a * (1.0 - e.powi(2)),
+            )
         } else if e < 1.0 + ORBIT_EPSILON {
-            (OrbitType::Parabolic, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Parabolic,
+                a * (1.0 - e.powi(2)),
+            )
         } else {
-            (OrbitType::Hyperbolic, a * (1.0 - e.powi(2)))
+            (
+                OrbitType::Hyperbolic,
+                a * (1.0 - e.powi(2)),
+            )
         };
 
         let raan = central_body.get_raan(&epoch, mltan);
@@ -545,12 +578,28 @@ mod tests {
 
     #[test]
     fn test_from_pv() {
-        let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
+        let position = Vector3::new(
+            6524834.0, 6862875.0, 6448296.0,
+        );
         let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 
-        let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
+        let epoch = Time::from_ymdhms(
+            2000,
+            1,
+            1,
+            12,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
 
-        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
+        let orbit = KeplerianElements::from_rv(
+            position,
+            velocity,
+            epoch,
+            CelestialBodies::Earth,
+        );
 
         // note that Vallado doesn't include enough decimal places for e-6 accuracy, so we did the float division he provides to get the f64 value
         let expected_semi_major_axis = 36127343.0;
@@ -566,34 +615,78 @@ mod tests {
             expected_semi_major_axis,
             epsilon = 10.0 // 10m, since vallado used a slightly different value for mu and r
         );
-        assert_abs_diff_eq!(orbit.semiparameter, expected_semiparameter, epsilon = 10.0);
-        assert_abs_diff_eq!(orbit.eccentricity, expected_eccentricity, epsilon = 1e-6);
-        assert_abs_diff_eq!(orbit.inclination, expected_inclination, epsilon = 1e-6);
-        assert_abs_diff_eq!(orbit.raan, expected_raan, epsilon = 1e-6);
+        assert_abs_diff_eq!(
+            orbit.semiparameter,
+            expected_semiparameter,
+            epsilon = 10.0
+        );
+        assert_abs_diff_eq!(
+            orbit.eccentricity,
+            expected_eccentricity,
+            epsilon = 1e-6
+        );
+        assert_abs_diff_eq!(
+            orbit.inclination,
+            expected_inclination,
+            epsilon = 1e-6
+        );
+        assert_abs_diff_eq!(
+            orbit.raan,
+            expected_raan,
+            epsilon = 1e-6
+        );
         assert_abs_diff_eq!(
             orbit.argument_of_periapsis,
             expected_argument_of_periapsis,
             epsilon = 1e-6
         );
-        assert_abs_diff_eq!(orbit.true_anomaly, expected_true_anomaly, epsilon = 1e-6);
+        assert_abs_diff_eq!(
+            orbit.true_anomaly,
+            expected_true_anomaly,
+            epsilon = 1e-6
+        );
     }
 
     #[test]
     fn test_round_trip() {
-        let position = Vector3::new(6524834.0, 6862875.0, 6448296.0);
+        let position = Vector3::new(
+            6524834.0, 6862875.0, 6448296.0,
+        );
         let velocity = Vector3::new(4901.327, 5533.756, -1976.341);
 
-        let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
+        let epoch = Time::from_ymdhms(
+            2000,
+            1,
+            1,
+            12,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
 
         // Create a Keplerian orbit using the from_pv method
-        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
+        let orbit = KeplerianElements::from_rv(
+            position,
+            velocity,
+            epoch,
+            CelestialBodies::Earth,
+        );
 
         // Convert back to position and velocity using get_pv
         let (computed_position, computed_velocity) = orbit.get_rv();
 
         // Check that the original and computed values match (within tolerance for floating-point calculations)
-        assert_abs_diff_eq!(position, computed_position, epsilon = 1.0);
-        assert_abs_diff_eq!(velocity, computed_velocity, epsilon = 1.0);
+        assert_abs_diff_eq!(
+            position,
+            computed_position,
+            epsilon = 1.0
+        );
+        assert_abs_diff_eq!(
+            velocity,
+            computed_velocity,
+            epsilon = 1.0
+        );
     }
 
     #[test]
@@ -601,9 +694,23 @@ mod tests {
         let position = Vector3::new(7000000.0, 0.0, 0.0);
         let velocity = Vector3::new(0.0, 0.0, 7546.0533);
 
-        let epoch = Time::from_ymdhms(2000, 1, 1, 12, 0, 0.0, TimeSystem::UTC).unwrap();
+        let epoch = Time::from_ymdhms(
+            2000,
+            1,
+            1,
+            12,
+            0,
+            0.0,
+            TimeSystem::UTC,
+        )
+        .unwrap();
 
-        let orbit = KeplerianElements::from_rv(position, velocity, epoch, CelestialBodies::Earth);
+        let orbit = KeplerianElements::from_rv(
+            position,
+            velocity,
+            epoch,
+            CelestialBodies::Earth,
+        );
 
         // note that Vallado doesn't include enough decimal places for e-6 accuracy, so we did the float division he provides to get the f64 value
         let expected_semi_major_axis = 7000000.0;
@@ -618,15 +725,31 @@ mod tests {
             expected_semi_major_axis,
             epsilon = 1.0
         );
-        assert_abs_diff_eq!(orbit.eccentricity, expected_eccentricity, epsilon = 1e-6);
-        assert_abs_diff_eq!(orbit.inclination, expected_inclination, epsilon = 1e-6);
-        assert_abs_diff_eq!(orbit.raan, expected_raan, epsilon = 1e-6);
+        assert_abs_diff_eq!(
+            orbit.eccentricity,
+            expected_eccentricity,
+            epsilon = 1e-6
+        );
+        assert_abs_diff_eq!(
+            orbit.inclination,
+            expected_inclination,
+            epsilon = 1e-6
+        );
+        assert_abs_diff_eq!(
+            orbit.raan,
+            expected_raan,
+            epsilon = 1e-6
+        );
         assert_abs_diff_eq!(
             orbit.argument_of_periapsis,
             expected_argument_of_periapsis,
             epsilon = 1e-6
         );
-        assert_abs_diff_eq!(orbit.true_anomaly, expected_true_anomaly, epsilon = 1e-6);
+        assert_abs_diff_eq!(
+            orbit.true_anomaly,
+            expected_true_anomaly,
+            epsilon = 1e-6
+        );
     }
 
     // fn test_keplers_equation_elliptical() {

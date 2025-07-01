@@ -109,10 +109,14 @@ impl From<&UnitQuaternion> for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the rotation defined by the quaternion.
     fn from(q: &UnitQuaternion) -> Self {
-        let w = q.0.w;
-        let x = q.0.x;
-        let y = q.0.y;
-        let z = q.0.z;
+        let w =
+            q.0.w;
+        let x =
+            q.0.x;
+        let y =
+            q.0.y;
+        let z =
+            q.0.z;
 
         let e11 = 1.0 - 2.0 * y * y - 2.0 * z * z;
         let e12 = 2.0 * x * y + 2.0 * w * z;
@@ -125,7 +129,10 @@ impl From<&UnitQuaternion> for RotationMatrix {
         let e33 = 1.0 - 2.0 * x * x - 2.0 * y * y;
 
         // Create the `RotationMatrix` from the computed elements.
-        RotationMatrix::new(e11, e12, e13, e21, e22, e23, e31, e32, e33).unwrap()
+        RotationMatrix::new(
+            e11, e12, e13, e21, e22, e23, e31, e32, e33,
+        )
+        .unwrap()
     }
 }
 
@@ -140,14 +147,51 @@ impl From<&EulerAngles> for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the rotation defined by the euler angles.
     fn from(euler_angles: &EulerAngles) -> RotationMatrix {
-        let rotx =
-            |a: f64| Matrix3::new(1.0, 0.0, 0.0, 0.0, a.cos(), a.sin(), 0.0, -a.sin(), a.cos());
-        let roty =
-            |a: f64| Matrix3::new(a.cos(), 0.0, -a.sin(), 0.0, 1.0, 0.0, a.sin(), 0.0, a.cos());
-        let rotz =
-            |a: f64| Matrix3::new(a.cos(), a.sin(), 0.0, -a.sin(), a.cos(), 0.0, 0.0, 0.0, 1.0);
+        let rotx = |a: f64| {
+            Matrix3::new(
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                a.cos(),
+                a.sin(),
+                0.0,
+                -a.sin(),
+                a.cos(),
+            )
+        };
+        let roty = |a: f64| {
+            Matrix3::new(
+                a.cos(),
+                0.0,
+                -a.sin(),
+                0.0,
+                1.0,
+                0.0,
+                a.sin(),
+                0.0,
+                a.cos(),
+            )
+        };
+        let rotz = |a: f64| {
+            Matrix3::new(
+                a.cos(),
+                a.sin(),
+                0.0,
+                -a.sin(),
+                a.cos(),
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+            )
+        };
 
-        let (phi, theta, psi) = (euler_angles.phi, euler_angles.theta, euler_angles.psi);
+        let (phi, theta, psi) = (
+            euler_angles.phi,
+            euler_angles.theta,
+            euler_angles.psi,
+        );
         match euler_angles.sequence {
             EulerSequence::XYZ => RotationMatrix::from(rotz(psi) * roty(theta) * rotx(phi)),
             EulerSequence::XZY => RotationMatrix::from(roty(psi) * rotz(theta) * rotx(phi)),
@@ -180,8 +224,14 @@ impl From<&AlignedAxes> for RotationMatrix {
             }
         };
 
-        let primary_new_vec = axis_to_vector(axes.primary.new);
-        let secondary_new_vec = axis_to_vector(axes.secondary.new);
+        let primary_new_vec = axis_to_vector(
+            axes.primary
+                .new,
+        );
+        let secondary_new_vec = axis_to_vector(
+            axes.secondary
+                .new,
+        );
 
         let set_column = |m: &mut Matrix3<f64>, col_idx: usize, vec: Vector3<f64>| {
             m[(0, col_idx)] = vec[0];
@@ -190,21 +240,35 @@ impl From<&AlignedAxes> for RotationMatrix {
         };
 
         // Determine columns based on old primary and secondary axes
-        let primary_col = match axes.primary.old {
+        let primary_col = match axes
+            .primary
+            .old
+        {
             Axis::Xp | Axis::Xn => 0,
             Axis::Yp | Axis::Yn => 1,
             Axis::Zp | Axis::Zn => 2,
         };
 
-        let secondary_col = match axes.secondary.old {
+        let secondary_col = match axes
+            .secondary
+            .old
+        {
             Axis::Xp | Axis::Xn => 0,
             Axis::Yp | Axis::Yn => 1,
             Axis::Zp | Axis::Zn => 2,
         };
 
         // Place the new vectors in the correct columns
-        set_column(&mut m, primary_col, primary_new_vec);
-        set_column(&mut m, secondary_col, secondary_new_vec);
+        set_column(
+            &mut m,
+            primary_col,
+            primary_new_vec,
+        );
+        set_column(
+            &mut m,
+            secondary_col,
+            secondary_new_vec,
+        );
 
         let primary_vec = Vector3::new(
             m[(0, primary_col)],
@@ -218,12 +282,30 @@ impl From<&AlignedAxes> for RotationMatrix {
         );
 
         let (third_col, third_vec) = match (primary_col, secondary_col) {
-            (0, 1) => (2, primary_vec.cross(&secondary_vec)),
-            (0, 2) => (1, secondary_vec.cross(&primary_vec)),
-            (1, 0) => (2, secondary_vec.cross(&primary_vec)),
-            (1, 2) => (0, primary_vec.cross(&secondary_vec)),
-            (2, 0) => (1, primary_vec.cross(&secondary_vec)),
-            (2, 1) => (0, secondary_vec.cross(&primary_vec)),
+            (0, 1) => (
+                2,
+                primary_vec.cross(&secondary_vec),
+            ),
+            (0, 2) => (
+                1,
+                secondary_vec.cross(&primary_vec),
+            ),
+            (1, 0) => (
+                2,
+                secondary_vec.cross(&primary_vec),
+            ),
+            (1, 2) => (
+                0,
+                primary_vec.cross(&secondary_vec),
+            ),
+            (2, 0) => (
+                1,
+                primary_vec.cross(&secondary_vec),
+            ),
+            (2, 1) => (
+                0,
+                secondary_vec.cross(&primary_vec),
+            ),
             _ => panic!("invalid combo"),
         };
         set_column(&mut m, third_col, third_vec);
@@ -261,11 +343,16 @@ impl RotationTrait for RotationMatrix {
     ///
     /// The transformed vector.
     fn transform(&self, v: &Vector3<f64>) -> Vector3<f64> {
-        self.0.transpose() * v
+        self.0
+            .transpose()
+            * v
     }
 
     fn inv(&self) -> Self {
-        RotationMatrix::from(self.0.transpose())
+        RotationMatrix::from(
+            self.0
+                .transpose(),
+        )
     }
 
     /// Creates an identity `RotationMatrix`.
@@ -274,7 +361,10 @@ impl RotationTrait for RotationMatrix {
     ///
     /// A new `RotationMatrix` representing the identity matrix.
     fn identity() -> Self {
-        Self::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).unwrap()
+        Self::new(
+            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+        )
+        .unwrap()
     }
 }
 
@@ -304,54 +394,42 @@ mod tests {
     #[test]
     fn test_rotation_from_aligned_axes_1() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Xp,
-                new: Axis::Xn,
-            },
-            AxisPair {
-                old: Axis::Yp,
-                new: Axis::Yp,
-            },
+            AxisPair { old: Axis::Xp, new: Axis::Xn },
+            AxisPair { old: Axis::Yp, new: Axis::Yp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0);
+        let expected_matrix = Matrix3::new(
+            -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_2() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Yp,
-                new: Axis::Yn,
-            },
-            AxisPair {
-                old: Axis::Zp,
-                new: Axis::Zp,
-            },
+            AxisPair { old: Axis::Yp, new: Axis::Yn },
+            AxisPair { old: Axis::Zp, new: Axis::Zp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
+        let expected_matrix = Matrix3::new(
+            -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_3() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Zp,
-                new: Axis::Zn,
-            },
-            AxisPair {
-                old: Axis::Xp,
-                new: Axis::Xp,
-            },
+            AxisPair { old: Axis::Zp, new: Axis::Zn },
+            AxisPair { old: Axis::Xp, new: Axis::Xp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0);
+        let expected_matrix = Matrix3::new(
+            1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0,
+        );
 
         assert_eq!(rotation.0, expected_matrix);
     }
@@ -359,90 +437,70 @@ mod tests {
     #[test]
     fn test_rotation_from_aligned_axes_4() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Xp,
-                new: Axis::Yp,
-            },
-            AxisPair {
-                old: Axis::Zp,
-                new: Axis::Xp,
-            },
+            AxisPair { old: Axis::Xp, new: Axis::Yp },
+            AxisPair { old: Axis::Zp, new: Axis::Xp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+        let expected_matrix = Matrix3::new(
+            0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_5() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Yn,
-                new: Axis::Zn,
-            },
-            AxisPair {
-                old: Axis::Xp,
-                new: Axis::Yn,
-            },
+            AxisPair { old: Axis::Yn, new: Axis::Zn },
+            AxisPair { old: Axis::Xp, new: Axis::Yn },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+        let expected_matrix = Matrix3::new(
+            0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_6() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Zn,
-                new: Axis::Yn,
-            },
-            AxisPair {
-                old: Axis::Xp,
-                new: Axis::Xp,
-            },
+            AxisPair { old: Axis::Zn, new: Axis::Yn },
+            AxisPair { old: Axis::Xp, new: Axis::Xp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0);
+        let expected_matrix = Matrix3::new(
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_7() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Xn,
-                new: Axis::Zp,
-            },
-            AxisPair {
-                old: Axis::Yn,
-                new: Axis::Xp,
-            },
+            AxisPair { old: Axis::Xn, new: Axis::Zp },
+            AxisPair { old: Axis::Yn, new: Axis::Xp },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(0.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0);
+        let expected_matrix = Matrix3::new(
+            0.0, -1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 
     #[test]
     fn test_rotation_from_aligned_axes_8() {
         let axis_rotation = AlignedAxes::new(
-            AxisPair {
-                old: Axis::Yp,
-                new: Axis::Xn,
-            },
-            AxisPair {
-                old: Axis::Zp,
-                new: Axis::Yn,
-            },
+            AxisPair { old: Axis::Yp, new: Axis::Xn },
+            AxisPair { old: Axis::Zp, new: Axis::Yn },
         )
         .unwrap();
         let rotation = RotationMatrix::from(&axis_rotation);
-        let expected_matrix = Matrix3::new(0.0, -1.0, -0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0);
+        let expected_matrix = Matrix3::new(
+            0.0, -1.0, -0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0,
+        );
         assert_eq!(rotation.0, expected_matrix);
     }
 }

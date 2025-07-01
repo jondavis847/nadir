@@ -256,17 +256,35 @@ impl Cuboid {
 impl GeometryTrait for Cuboid {
     fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
-            vec3(self.x as f32, self.y as f32, self.z as f32),
+            vec3(
+                self.x as f32,
+                self.y as f32,
+                self.z as f32,
+            ),
             Quat::from_xyzw(
-                state.rotation.x as f32,
-                state.rotation.y as f32,
-                state.rotation.z as f32,
-                state.rotation.w as f32,
+                state
+                    .rotation
+                    .x as f32,
+                state
+                    .rotation
+                    .y as f32,
+                state
+                    .rotation
+                    .z as f32,
+                state
+                    .rotation
+                    .w as f32,
             ),
             vec3(
-                state.position.x as f32,
-                state.position.y as f32,
-                state.position.z as f32,
+                state
+                    .position
+                    .x as f32,
+                state
+                    .position
+                    .y as f32,
+                state
+                    .position
+                    .z as f32,
             ),
         );
 

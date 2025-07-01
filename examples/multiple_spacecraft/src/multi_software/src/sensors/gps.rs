@@ -46,10 +46,27 @@ struct Parameters {}
 
 impl GpsFsw {
     pub fn run(&mut self) {
-        self.state.time = Time::from_sec_j2k(self.telemetry.time, time::TimeSystem::TAI);
-        self.state.position = self.telemetry.position.into();
-        self.state.velocity = self.telemetry.velocity.into();
-        self.state.valid = match self.telemetry.valid {
+        self.state
+            .time = Time::from_sec_j2k(
+            self.telemetry
+                .time,
+            time::TimeSystem::TAI,
+        );
+        self.state
+            .position = self
+            .telemetry
+            .position
+            .into();
+        self.state
+            .velocity = self
+            .telemetry
+            .velocity
+            .into();
+        self.state
+            .valid = match self
+            .telemetry
+            .valid
+        {
             0u8 => false,
             1u8 => true,
             _ => panic!("invalid gps validity flag"),
@@ -58,7 +75,9 @@ impl GpsFsw {
 
     pub fn read_buffer(&mut self, buffer: &HardwareBuffer) {
         match buffer.read::<GpsTelemetry>() {
-            Ok(telemetry) => self.telemetry.clone_from(&telemetry),
+            Ok(telemetry) => self
+                .telemetry
+                .clone_from(&telemetry),
             Err(e) => eprintln!("{e}"),
         }
     }
@@ -67,7 +86,9 @@ impl GpsFsw {
 impl NadirResult for GpsFsw {
     fn new_result(&mut self, results: &mut ResultManager) {
         // Define the actuator subfolder folder path
-        let fsw_folder_path = results.result_path.join("software");
+        let fsw_folder_path = results
+            .result_path
+            .join("software");
 
         // Check if the folder exists, if not, create it
         if !fsw_folder_path.exists() {
@@ -85,7 +106,11 @@ impl NadirResult for GpsFsw {
             "velocity(j2k)[z]",
             "valid",
         ];
-        let id = results.new_writer("fsw_gps", &fsw_folder_path, &headers);
+        let id = results.new_writer(
+            "fsw_gps",
+            &fsw_folder_path,
+            &headers,
+        );
         self.result_id = Some(id);
     }
 
@@ -94,14 +119,37 @@ impl NadirResult for GpsFsw {
             results.write_record(
                 id,
                 &[
-                    self.state.time.get_datetime().to_string(),
-                    self.state.position.x.to_string(),
-                    self.state.position.y.to_string(),
-                    self.state.position.z.to_string(),
-                    self.state.velocity.x.to_string(),
-                    self.state.velocity.y.to_string(),
-                    self.state.velocity.z.to_string(),
-                    self.state.valid.to_string(),
+                    self.state
+                        .time
+                        .get_datetime()
+                        .to_string(),
+                    self.state
+                        .position
+                        .x
+                        .to_string(),
+                    self.state
+                        .position
+                        .y
+                        .to_string(),
+                    self.state
+                        .position
+                        .z
+                        .to_string(),
+                    self.state
+                        .velocity
+                        .x
+                        .to_string(),
+                    self.state
+                        .velocity
+                        .y
+                        .to_string(),
+                    self.state
+                        .velocity
+                        .z
+                        .to_string(),
+                    self.state
+                        .valid
+                        .to_string(),
                 ],
             );
         }

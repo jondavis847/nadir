@@ -13,11 +13,7 @@ pub struct ResultManager {
 
 impl ResultManager {
     pub fn new(result_path: PathBuf) -> Self {
-        Self {
-            writers: HashMap::new(),
-            result_path,
-            next_id: 0,
-        }
+        Self { writers: HashMap::new(), result_path, next_id: 0 }
     }
 
     pub fn new_writer(&mut self, name: &str, path: &PathBuf, headers: &[&str]) -> u32 {
@@ -32,21 +28,30 @@ impl ResultManager {
             .write_record(headers)
             .expect("Failed to write headers");
         let id = self.next_id;
-        self.writers.insert(id, writer);
+        self.writers
+            .insert(id, writer);
         self.next_id += 1;
         id
     }
 
     pub fn write_record(&mut self, id: u32, content: &[String]) {
-        let writer = self.writers.get_mut(&id).expect("Writer not found");
+        let writer = self
+            .writers
+            .get_mut(&id)
+            .expect("Writer not found");
         writer
             .write_record(content)
             .expect("Failed to write record");
     }
 
     pub fn flush(&mut self) {
-        for writer in self.writers.values_mut() {
-            writer.flush().expect("Failed to flush writer");
+        for writer in self
+            .writers
+            .values_mut()
+        {
+            writer
+                .flush()
+                .expect("Failed to flush writer");
         }
     }
 }

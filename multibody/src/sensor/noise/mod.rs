@@ -70,7 +70,9 @@ pub struct NoiseBuilder {
 impl NoiseBuilder {
     pub fn new_normal(mean: f64, sigma: f64) -> Self {
         Self {
-            model: NoiseModelBuilders::Gaussian(GaussianBuilder::new(mean, sigma)),
+            model: NoiseModelBuilders::Gaussian(GaussianBuilder::new(
+                mean, sigma,
+            )),
         }
     }
 
@@ -124,7 +126,8 @@ impl Noise {
     }
 
     pub fn sample(&mut self) -> f64 {
-        self.model.sample(&mut self.rng)
+        self.model
+            .sample(&mut self.rng)
     }
 }
 
@@ -142,13 +145,12 @@ impl Uncertainty for QuaternioNoiseBuilder {
     type Error = NoiseErrors;
 
     fn sample(&self, nominal: bool, rng: &mut SmallRng) -> Result<Self::Output, Self::Error> {
-        let magnitude_noise = self.magnitude_noise.sample(nominal, rng)?;
+        let magnitude_noise = self
+            .magnitude_noise
+            .sample(nominal, rng)?;
         let axis_seed = rng.random();
         let axis_rng = SmallRng::seed_from_u64(axis_seed);
-        Ok(QuaternionNoise {
-            magnitude_noise,
-            axis_rng,
-        })
+        Ok(QuaternionNoise { magnitude_noise, axis_rng })
     }
 }
 
@@ -161,12 +163,17 @@ pub struct QuaternionNoise {
 impl QuaternionNoise {
     pub fn sample(&mut self) -> UnitQuaternion {
         // Generate a small random angle for the noise
-        let noise_angle = self.magnitude_noise.sample();
+        let noise_angle = self
+            .magnitude_noise
+            .sample();
 
         let random_axis = Vector3::new(
-            self.axis_rng.random(),
-            self.axis_rng.random(),
-            self.axis_rng.random(),
+            self.axis_rng
+                .random(),
+            self.axis_rng
+                .random(),
+            self.axis_rng
+                .random(),
         )
         .normalize();
 

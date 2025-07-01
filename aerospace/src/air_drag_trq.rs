@@ -2,7 +2,7 @@
 //use std::vec;
 //use std::{f32::consts::PI, sync::Arc, time::SystemTime};
 //use std::f64::consts::PI;
-use interp::{interp, InterpMode};
+use interp::{InterpMode, interp};
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 //use crate::gravity::EARTH_RE;
@@ -54,9 +54,8 @@ impl AeroDynamicsDrag {
         }*/
 
         fn atm_density(h_in: f64) -> f64 {
-            let height: Vec<f64> = Vec::from([
-                100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0,
-            ]);
+            let height: Vec<f64> =
+                Vec::from([100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0]);
             let rho: Vec<f64> = Vec::from([
                 5.603998064021879e-07,
                 2.540582078157406e-10,
@@ -69,7 +68,12 @@ impl AeroDynamicsDrag {
                 5.758938544921416e-15,
                 3.560576449319286e-15,
             ]);
-            let atm_density: f64 = interp(&height, &rho, h_in, &InterpMode::Extrapolate);
+            let atm_density: f64 = interp(
+                &height,
+                &rho,
+                h_in,
+                &InterpMode::Extrapolate,
+            );
             atm_density
         }
         tq_air_drag
@@ -85,14 +89,34 @@ mod tests {
     #[test]
     fn test_air_drag_trq() {
         let trq = AeroDynamicsDrag {};
-        let velocity = Vector3::new(-7405.819636, 931.4468463, 753.7540218); // from XINA (for PACE)
+        let velocity = Vector3::new(
+            -7405.819636,
+            931.4468463,
+            753.7540218,
+        ); // from XINA (for PACE)
         let height: f64 = 670.0;
 
         let air_drag = trq.calculate(velocity, height);
-        let expected_air_drag = Vector3::new(0.0, 0.269827106195429e-4, 0.269827106195429e-4); // get this from Matlab
+        let expected_air_drag = Vector3::new(
+            0.0,
+            0.269827106195429e-4,
+            0.269827106195429e-4,
+        ); // get this from Matlab
 
-        assert_abs_diff_eq!(air_drag.x, expected_air_drag.x, epsilon = TOL);
-        assert_abs_diff_eq!(air_drag.y, expected_air_drag.y, epsilon = TOL);
-        assert_abs_diff_eq!(air_drag.z, expected_air_drag.z, epsilon = TOL);
+        assert_abs_diff_eq!(
+            air_drag.x,
+            expected_air_drag.x,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            air_drag.y,
+            expected_air_drag.y,
+            epsilon = TOL
+        );
+        assert_abs_diff_eq!(
+            air_drag.z,
+            expected_air_drag.z,
+            epsilon = TOL
+        );
     }
 }

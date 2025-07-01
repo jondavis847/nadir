@@ -23,29 +23,49 @@ pub struct SpacecraftFsw {
 
 impl SpacecraftFsw {
     fn step(&mut self, sensor_buffers: &[HardwareBuffer], actuator_buffers: &mut [HardwareBuffer]) {
-        self.sensors.read_buffers(sensor_buffers);
-        self.sensors.run();
-        self.navigation.run(&self.sensors);
-        self.guidance.run(&self.navigation);
-        self.control.run(&self.navigation, &self.guidance);
-        self.actuators.run(&self.control);
-        self.actuators.write_buffers(actuator_buffers);
+        self.sensors
+            .read_buffers(sensor_buffers);
+        self.sensors
+            .run();
+        self.navigation
+            .run(&self.sensors);
+        self.guidance
+            .run(&self.navigation);
+        self.control
+            .run(
+                &self.navigation,
+                &self.guidance,
+            );
+        self.actuators
+            .run(&self.control);
+        self.actuators
+            .write_buffers(actuator_buffers);
     }
 
     fn initialize_results(&mut self, results: &mut nadir_result::ResultManager) {
-        self.sensors.initialize_results(results);
-        self.navigation.initialize_results(results);
-        self.guidance.new_result(results);
-        self.control.new_result(results);
-        self.actuators.initialize_results(results);
+        self.sensors
+            .initialize_results(results);
+        self.navigation
+            .initialize_results(results);
+        self.guidance
+            .new_result(results);
+        self.control
+            .new_result(results);
+        self.actuators
+            .initialize_results(results);
     }
 
     fn write_results(&self, results: &mut nadir_result::ResultManager) {
-        self.sensors.write_results(results);
-        self.navigation.write_results(results);
-        self.guidance.write_result(results);
-        self.control.write_result(results);
-        self.actuators.write_results(results);
+        self.sensors
+            .write_results(results);
+        self.navigation
+            .write_results(results);
+        self.guidance
+            .write_result(results);
+        self.control
+            .write_result(results);
+        self.actuators
+            .write_results(results);
     }
 }
 
@@ -76,14 +96,25 @@ pub extern "C" fn step_software(
     let software = unsafe { &mut *(software_ptr as *mut SpacecraftFsw) };
 
     // Create Rust slices from the raw pointers
-    let sensor_buffers =
-        unsafe { std::slice::from_raw_parts(sensor_buffers_ptr, sensor_buffer_count) };
+    let sensor_buffers = unsafe {
+        std::slice::from_raw_parts(
+            sensor_buffers_ptr,
+            sensor_buffer_count,
+        )
+    };
 
-    let actuator_buffers =
-        unsafe { std::slice::from_raw_parts_mut(actuator_buffers_ptr, actuator_buffer_count) };
+    let actuator_buffers = unsafe {
+        std::slice::from_raw_parts_mut(
+            actuator_buffers_ptr,
+            actuator_buffer_count,
+        )
+    };
 
     // Call the step method
-    software.step(sensor_buffers, actuator_buffers);
+    software.step(
+        sensor_buffers,
+        actuator_buffers,
+    );
 
     0 // Success code
 }

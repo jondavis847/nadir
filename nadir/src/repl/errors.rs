@@ -57,7 +57,10 @@ impl fmt::Display for ReplErrors {
             ReplErrors::MatrixRowLengthMismatch => {
                 format!("matrix cannot have rows of different lengths")
             }
-            ReplErrors::NameReserved(str) => format!("variable name '{}' is reserverd", str),
+            ReplErrors::NameReserved(str) => format!(
+                "variable name '{}' is reserverd",
+                str
+            ),
             ReplErrors::OutOfBoundsIndex(max, ind) => {
                 format!("max size was {max} but index was {ind}")
             }

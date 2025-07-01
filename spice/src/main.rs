@@ -37,11 +37,17 @@ fn main() {
         )
         .get_matches();
 
-    let body_str = matches.get_one::<String>("body").unwrap();
-    let et_str = matches.get_one::<String>("et").unwrap();
+    let body_str = matches
+        .get_one::<String>("body")
+        .unwrap();
+    let et_str = matches
+        .get_one::<String>("et")
+        .unwrap();
 
     let body = SpiceBodies::from_string(body_str);
-    let et: f64 = et_str.parse().expect("Invalid ET");
+    let et: f64 = et_str
+        .parse()
+        .expect("Invalid ET");
     let epoch = Time::from_sec_j2k(et, TimeSystem::TAI);
 
     if let Some(body) = body {
