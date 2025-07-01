@@ -48,8 +48,6 @@ pub enum Message {
     CursorMoved(Point),
     EscapePressed(Id),
     LoadAnimation(Uuid, Arc<Mutex<PathBuf>>),
-    MouseMiddlePressed(Point),
-    MouseMiddleReleased(Point),
     NewAnimation(Arc<Mutex<PathBuf>>),
     NewFigure(Arc<Mutex<Figure>>),
     OpenWindow(Uuid, Size),
@@ -251,28 +249,6 @@ impl WindowManager {
                         ))
                     }
                 }
-            }
-            Message::MouseMiddlePressed(point) => {
-                if let Some(id) = &self.active_window {
-                    if let Some(window) = self
-                        .windows
-                        .get_mut(id)
-                    {
-                        window.mouse_middle_pressed(point);
-                    }
-                }
-                Task::none()
-            }
-            Message::MouseMiddleReleased(point) => {
-                if let Some(id) = &self.active_window {
-                    if let Some(window) = self
-                        .windows
-                        .get_mut(id)
-                    {
-                        window.mouse_middle_released(point);
-                    }
-                }
-                Task::none()
             }
             Message::NewAnimation(result_path) => {
                 let request_id = Uuid::new_v4();
@@ -608,19 +584,6 @@ impl NadirWindow {
         match &mut self.program {
             NadirProgram::Animation(animation) => animation.escape_pressed(),
             NadirProgram::Plot(_) => {}
-        }
-    }
-
-    fn mouse_middle_pressed(&mut self, point: Point) {
-        match &mut self.program {
-            NadirProgram::Animation(_) => {}
-            NadirProgram::Plot(plot) => plot.mouse_middle_clicked(point),
-        }
-    }
-    fn mouse_middle_released(&mut self, point: Point) {
-        match &mut self.program {
-            NadirProgram::Animation(_) => {}
-            NadirProgram::Plot(plot) => plot.mouse_middle_released(point),
         }
     }
 

@@ -1,6 +1,3 @@
-use std::f32::INFINITY;
-use std::sync::{Arc, Mutex};
-
 use super::datatip::Datatip;
 use super::legend::Legend;
 use super::theme::PlotTheme;
@@ -12,6 +9,7 @@ use iced::mouse::ScrollDelta;
 use iced::window::Id;
 use iced::{Color, Padding};
 use iced::{Point, Rectangle, Size, widget::canvas::Frame};
+use std::sync::{Arc, Mutex};
 
 use super::axis::Axis;
 

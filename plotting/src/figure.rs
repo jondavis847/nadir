@@ -176,7 +176,8 @@ impl Figure {
             ncols: 1,
         };
 
-        fig.add_axes(0, 0);
+        fig.add_axes(0, 0)
+            .unwrap();
 
         fig
     }
