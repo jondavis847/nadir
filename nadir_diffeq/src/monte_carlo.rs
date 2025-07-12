@@ -7,7 +7,7 @@ use crate::{
     state::{Adaptive, OdeState},
     stepping::AdaptiveStepControl,
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::{Rng, SeedableRng, rngs::SmallRng};
 use rayon::prelude::*;
 
