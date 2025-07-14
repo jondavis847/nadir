@@ -397,6 +397,18 @@ impl Body {
             .rotation();
     }
 
+    fn calculate_surface_area(&self, direction: &Vector3<f64>) -> f64 {
+        if let Some(mesh) = &self.mesh {
+            0.0
+            //mesh.calculate_surface_area(direction)
+        } else {
+            panic!(
+                "no mesh found for body '{}'",
+                self.name
+            );
+        }
+    }
+
     pub fn update_acceleration(&mut self) {
         let inner_joint = self
             .inner_joint
@@ -562,6 +574,9 @@ impl Body {
             "kinetic_energy",
             "potential_energy",
             "total_energy",
+            "gravity_force(base)[x]",
+            "gravity_force(base)[y]",
+            "gravity_force(base)[z]",
         ];
 
         let rel_path = PathBuf::from_str("bodies")
@@ -721,6 +736,16 @@ impl Body {
                 writer.float_buffer[45] = self
                     .state
                     .total_energy;
+                writer.float_buffer[46] = self
+                    .state
+                    .gravity_force_base[0];
+                writer.float_buffer[47] = self
+                    .state
+                    .gravity_force_base[1];
+                writer.float_buffer[48] = self
+                    .state
+                    .gravity_force_base[2];
+
                 writer
                     .write_record()
                     .unwrap();

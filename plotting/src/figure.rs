@@ -264,6 +264,24 @@ impl Figure {
             );
         }
     }
+
+    pub fn set_note(&mut self, note: &str) {
+        self.note_bar = Some(NoteBar::new(note));
+    }
+
+    pub fn with_note(mut self, note: &str) -> Self {
+        self.note_bar = Some(NoteBar::new(note));
+        self
+    }
+
+    pub fn set_title(&mut self, title: &str) {
+        self.title_bar = Some(TitleBar::new(title));
+    }
+
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.title_bar = Some(TitleBar::new(title));
+        self
+    }
 }
 
 impl fmt::Debug for Figure {

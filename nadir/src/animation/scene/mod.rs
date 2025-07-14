@@ -28,12 +28,14 @@ use image::{GenericImageView, load_from_memory};
 pub mod camera;
 pub mod earth_pipeline;
 pub mod fxaa_pipeline;
+pub mod jupiter_pipeline;
 pub mod moon_pipeline;
 pub mod pipeline;
 pub mod sun_pipeline;
 
 use camera::Camera;
 use earth_pipeline::{AtmospherePipeline, EarthBindGroup, EarthPipeline};
+use jupiter_pipeline::{JupiterBindGroup, JupiterPipeline};
 use moon_pipeline::{MoonBindGroup, MoonPipeline};
 use pipeline::{
     CuboidPipeline, Ellipsoid16Pipeline, Ellipsoid32Pipeline, Ellipsoid64Pipeline, Pipeline,
@@ -737,6 +739,110 @@ impl Primitive for ScenePrimitive {
                     }
                 }
             }
+
+            if let Some(jupiter) = celestial
+                .meshes
+                .get(&CelestialMeshes::Jupiter)
+            {
+                if !storage.has::<JupiterPipeline>() {
+                    const JUPITER_COLOR: &[u8] =
+                        include_bytes!("../../../resources/8k_jupiter.jpg");
+
+                    let jupiter_color = load_texture(
+                        device,
+                        queue,
+                        JUPITER_COLOR,
+                        "jupiter_color",
+                    );
+
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        address_mode_u: wgpu::AddressMode::ClampToEdge,
+                        address_mode_v: wgpu::AddressMode::ClampToEdge,
+                        address_mode_w: wgpu::AddressMode::ClampToEdge,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        min_filter: wgpu::FilterMode::Linear,
+                        mipmap_filter: wgpu::FilterMode::Linear,
+                        ..Default::default()
+                    });
+
+                    let jupiter_bind_group_layout = device.create_bind_group_layout(
+                        &wgpu::BindGroupLayoutDescriptor {
+                            label: Some("jupiter bind group layout"),
+                            entries: &[
+                                // sampler
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Sampler(
+                                        wgpu::SamplerBindingType::Filtering,
+                                    ),
+                                    count: None,
+                                },
+                                // jupiter color
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 1,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        multisampled: false,
+                                    },
+                                    count: None,
+                                },
+                            ],
+                        },
+                    );
+
+                    let jupiter_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("jupiter.bind.group"),
+                        layout: &jupiter_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Sampler(&sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(&jupiter_color),
+                            },
+                        ],
+                    });
+
+                    storage.store(JupiterBindGroup(
+                        jupiter_bind_group,
+                    ));
+
+                    let uniform_bind_group_layout = &storage
+                        .get::<UniformBindGroupLayout>()
+                        .unwrap()
+                        .0;
+                    let jupiter_layout = device.create_pipeline_layout(
+                        &wgpu::PipelineLayoutDescriptor {
+                            label: Some("jupiter.pipeline.layout"),
+                            bind_group_layouts: &[
+                                &uniform_bind_group_layout,
+                                &jupiter_bind_group_layout,
+                            ],
+                            push_constant_ranges: &[],
+                        },
+                    );
+
+                    storage.store(JupiterPipeline::new(
+                        device,
+                        format,
+                        &jupiter_layout,
+                        &[jupiter.mesh_gpu],
+                        Ellipsoid64::vertices(),
+                        self.sample_count,
+                    ));
+                } else {
+                    if let Some(jupiter_pipeline) = storage.get_mut::<JupiterPipeline>() {
+                        jupiter_pipeline.update(queue, &[jupiter.mesh_gpu]);
+                    }
+                }
+            }
         }
 
         // Create and store the fxaa uniform buffer
@@ -1257,6 +1363,29 @@ impl Primitive for ScenePrimitive {
         if let Some(pipeline) = storage.get::<MoonPipeline>() {
             if let Some(moon_bind_group) = storage.get::<MoonBindGroup>() {
                 pass.set_bind_group(1, &moon_bind_group.0, &[]); // textures saved in bing group 1
+                pass.set_pipeline(&pipeline.pipeline);
+                pass.set_vertex_buffer(
+                    0,
+                    pipeline
+                        .vertex_buffer
+                        .slice(..),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    pipeline
+                        .instance_buffer
+                        .slice(..),
+                );
+                pass.draw(
+                    0..pipeline.n_vertices,
+                    0..pipeline.n_instances,
+                );
+            }
+        }
+
+        if let Some(pipeline) = storage.get::<JupiterPipeline>() {
+            if let Some(jupiter_bind_group) = storage.get::<JupiterBindGroup>() {
+                pass.set_bind_group(1, &jupiter_bind_group.0, &[]); // textures saved in bing group 1
                 pass.set_pipeline(&pipeline.pipeline);
                 pass.set_vertex_buffer(
                     0,

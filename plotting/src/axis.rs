@@ -1,6 +1,6 @@
 use super::theme::PlotTheme;
 use iced::{
-    Padding, Point, Rectangle, Size, Vector,
+    Padding, Point, Rectangle, Vector,
     alignment::{Horizontal, Vertical},
     widget::canvas::{Frame, Path, Stroke, Text, path::Builder},
 };
@@ -19,7 +19,7 @@ pub struct Axis {
     border_width: f32,
     pub bounds: Rectangle,
     n_ticks: u32,
-    tick_length: f32,
+    _tick_length: f32,
     tick_text_spacing: f32,
     x_label: Option<String>,
     y_label: Option<String>,
@@ -34,7 +34,7 @@ impl Default for Axis {
             border_width: 1.0,
             bounds,
             n_ticks: 5,
-            tick_length: 10.0,
+            _tick_length: 10.0,
             tick_text_spacing: 20.0,
             y_label: None,
             x_label: None,

@@ -1,4 +1,4 @@
-use glam::{Mat3, Mat4, Quat, Vec3, mat4, vec3, vec4};
+use glam::{Mat3, Mat4, Quat, Vec3, vec3};
 use iced::{Rectangle, Vector, mouse::ScrollDelta};
 
 #[derive(Copy, Clone, Debug)]

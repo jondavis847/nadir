@@ -1,11 +1,6 @@
 use aerospace::orbit::KeplerianElements;
 use celestial::{CelestialBodies, CelestialBodyBuilder, CelestialSystemBuilder};
 use color::Color;
-use gravity::{
-    Gravity,
-    egm::{EgmGravity, EgmModel},
-};
-use magnetics::{MagneticField, igrf::Igrf};
 use mass_properties::MassPropertiesBuilder;
 use multibody::{
     actuator::{ActuatorBuilder, reaction_wheel::ReactionWheelBuilder},
@@ -28,6 +23,7 @@ use rotations::{
     Rotation,
     prelude::{AlignedAxes, Axis, AxisPair},
 };
+use spice::Spice;
 use std::{env::current_dir, error::Error, path::Path};
 use time::Time;
 use transforms::{Transform, prelude::CoordinateSystem};
@@ -40,33 +36,44 @@ fn main() -> Result<(), Box<dyn Error>> {
     let epoch = Time::now()?;
 
     let celestial = CelestialSystemBuilder::new(epoch)?
-        .with_body(
-            CelestialBodyBuilder::new(CelestialBodies::Earth)
-                .with_gravity(Gravity::Egm(
-                    EgmGravity::new(EgmModel::Egm2008, 7, 7)?.with_newtonian(),
-                ))
-                .with_magnetic_field(MagneticField::Igrf(
-                    Igrf::new(13, 13, &epoch)?,
-                )),
-        )?
-        .with_body(CelestialBodyBuilder::new(
-            CelestialBodies::Moon,
-        ))?;
+        .with_body(CelestialBodyBuilder::new(CelestialBodies::Jupiter).with_gravity_newtonian())?;
     sys.base
         .set_celestial(celestial);
 
+    // Get position of jupiter in j2000
+    let mut spice = Spice::from_local()?;
+    let r_jupiter = spice.calculate_position(
+        epoch,
+        CelestialBodies::Jupiter.to_spice(),
+    )? * 1000.0;
+
+    // Get position 1 sec later to estimate velocity
+    let r2_jupiter = spice.calculate_position(
+        epoch + 1.0,
+        CelestialBodies::Jupiter.to_spice(),
+    )? * 1000.0;
+
+    let v_jupiter = r2_jupiter - r_jupiter; // m/s
+
     // Spacecraft 1
     let orbit1 = KeplerianElements::new(
-        8e6,
+        CelestialBodies::Jupiter.get_radius() * 2.0,
         0.0,
         0.0,
         0.0,
         0.0,
         0.0,
         epoch,
-        CelestialBodies::Earth,
+        CelestialBodies::Jupiter,
     );
-    let f1 = FloatingBuilder::new().with_orbit(orbit1.into());
+
+    let (r, v) = orbit1.get_rv();
+    let r = r + r_jupiter;
+    let v = v + v_jupiter;
+
+    let f1 = FloatingBuilder::new()
+        .with_position(r[0], r[1], r[2])
+        .with_velocity(v[0], v[1], v[2]);
 
     let mut j1 = sys.new_joint("f1", f1.into())?;
 
@@ -142,17 +149,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     mag1.connect_body(sc1.id, Transform::IDENTITY)?;
 
     // Spacecraft 2
+
     let orbit2 = KeplerianElements::new(
-        8e6,
+        CelestialBodies::Jupiter.get_radius() * 2.0,
         0.0,
         0.0,
         0.0,
         0.0,
-        1e-6,
+        1e-7,
         epoch,
-        CelestialBodies::Earth,
+        CelestialBodies::Jupiter,
     );
-    let f2 = FloatingBuilder::new().with_orbit(orbit2.into());
+
+    let (r, v) = orbit2.get_rv();
+    let r = r + r_jupiter;
+    let v = v + v_jupiter;
+    let f2 = FloatingBuilder::new()
+        .with_position(r[0], r[1], r[2])
+        .with_velocity(v[0], v[1], v[2]);
+
     let mut j2 = sys.new_joint("f2", f2.into())?;
 
     let mut sc2 = sys.new_body("sc2")?;

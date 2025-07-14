@@ -173,9 +173,9 @@ impl CelestialSystem {
                         .transform(position), //dont need to do subtraction for earth
                     _ => body
                         .orientation
-                        .transform(&(position - body.position)),
+                        .transform(&(position - body.position * 1000.0)),
                 };
-                // calculate mag field in celestial body fixed frame
+                // calculate gravity in celestial body fixed frame
                 let g_body = gravity
                     .calculate(&rf)
                     .unwrap();
@@ -479,8 +479,8 @@ fn from_planet_fact_sheet(
     sec_j2k: f64,
 ) -> UnitQuaternion {
     // j2000 orientation
-    let ra = ra0 + ra1 * julian_centuries * PI / 180.0;
-    let dec = dec0 + dec1 * julian_centuries * PI / 180.0;
+    let ra = (ra0 + ra1 * julian_centuries) * PI / 180.0;
+    let dec = (90.0 - dec0 - dec1 * julian_centuries) * PI / 180.0;
     let initial_orientation = UnitQuaternion::from(&EulerAngles::new(
         ra,
         dec,
@@ -543,16 +543,16 @@ impl CelestialBodies {
     pub fn to_spice(&self) -> SpiceBodies {
         match self {
             CelestialBodies::Earth => SpiceBodies::Earth,
-            CelestialBodies::Jupiter => SpiceBodies::Jupiter,
-            CelestialBodies::Mars => SpiceBodies::Mars,
+            CelestialBodies::Jupiter => SpiceBodies::JupiterBarycenter, //using de440, so have to use barycenter
+            CelestialBodies::Mars => SpiceBodies::MarsBarycenter,
             CelestialBodies::Mercury => SpiceBodies::Mercury,
             CelestialBodies::Moon => SpiceBodies::Moon,
-            CelestialBodies::Neptune => SpiceBodies::Neptune,
-            CelestialBodies::Pluto => SpiceBodies::Pluto,
+            CelestialBodies::Neptune => SpiceBodies::NeptuneBarycenter,
+            CelestialBodies::Pluto => SpiceBodies::PlutoBarycenter,
             CelestialBodies::Sun => SpiceBodies::Sun,
-            CelestialBodies::Saturn => SpiceBodies::Saturn,
-            CelestialBodies::Uranus => SpiceBodies::Uranus,
-            CelestialBodies::Venus => SpiceBodies::Venus,
+            CelestialBodies::Saturn => SpiceBodies::SaturnBarycenter,
+            CelestialBodies::Uranus => SpiceBodies::UranusBarycenter,
+            CelestialBodies::Venus => SpiceBodies::VenusBarycenter,
         }
     }
 
