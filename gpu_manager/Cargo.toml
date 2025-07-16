@@ -1,0 +1,12 @@
+[package]
+name = "gpu_manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+pollster.workspace = true
+thiserror.workspace = true
+wgpu.workspace = true
