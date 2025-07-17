@@ -28,7 +28,7 @@ impl Ellipsoid {
         }
         Ok(Self { radius_x, radius_y, radius_z })
     }
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
             vec3(
                 self.radius_x as f32,
@@ -83,9 +83,13 @@ impl Ellipsoid16 {
 }
 
 impl GeometryTrait for Ellipsoid16 {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         self.0
-            .get_mesh_transform(state)
+            .get_transform(state)
+    }
+
+    fn get_vertices(&self) -> Vec<Vertex> {
+        Self::vertices()
     }
 }
 
@@ -97,15 +101,20 @@ impl Ellipsoid32 {
             radius_x, radius_y, radius_z,
         )?))
     }
+
     pub fn vertices() -> Vec<Vertex> {
         ellipsoid_vertices(32)
     }
 }
 
 impl GeometryTrait for Ellipsoid32 {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         self.0
-            .get_mesh_transform(state)
+            .get_transform(state)
+    }
+
+    fn get_vertices(&self) -> Vec<Vertex> {
+        Self::vertices()
     }
 }
 
@@ -123,9 +132,13 @@ impl Ellipsoid64 {
 }
 
 impl GeometryTrait for Ellipsoid64 {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         self.0
-            .get_mesh_transform(state)
+            .get_transform(state)
+    }
+
+    fn get_vertices(&self) -> Vec<Vertex> {
+        Self::vertices()
     }
 }
 

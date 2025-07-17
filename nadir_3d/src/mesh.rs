@@ -75,7 +75,7 @@ impl From<&Mesh> for MeshGpu {
     fn from(mesh: &Mesh) -> Self {
         let transforms = mesh
             .geometry
-            .get_mesh_transform(&mesh.state);
+            .get_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
             Material::Phong { color, specular_power } => (color, 1, *specular_power),
@@ -101,7 +101,7 @@ impl From<&Mesh> for MeshPrimitive {
     fn from(mesh: &Mesh) -> Self {
         let transforms = mesh
             .geometry
-            .get_mesh_transform(&mesh.state);
+            .get_transform(&mesh.state);
         let (color, material, specular_power) = match &mesh.material {
             Material::Basic { color } => (color, 0, 0.0),
             Material::Phong { color, specular_power } => (color, 1, *specular_power),

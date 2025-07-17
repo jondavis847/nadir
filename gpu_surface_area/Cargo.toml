@@ -6,5 +6,7 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bytemuck.workspace = true
+glam.workspace = true
 wgpu.workspace = true
 nadir_3d.workspace = true

@@ -11,6 +11,8 @@ pub mod ellipsoid;
 use cuboid::{Cuboid, CuboidErrors};
 use ellipsoid::{Ellipsoid16, Ellipsoid32, Ellipsoid64, EllipsoidErrors};
 
+use crate::vertex::Vertex;
+
 #[derive(Debug, Error)]
 pub enum GeometryErrors {
     #[error("{0}")]
@@ -52,16 +54,26 @@ impl GeometryTransform {
 }
 
 pub trait GeometryTrait: Debug + Sync + Send {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform;
+    fn get_vertices(&self) -> Vec<Vertex>;
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform;
 }
 
 impl GeometryTrait for Geometry {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         match self {
-            Geometry::Cuboid(geometry) => geometry.get_mesh_transform(state),
-            Geometry::Ellipsoid16(geometry) => geometry.get_mesh_transform(state),
-            Geometry::Ellipsoid32(geometry) => geometry.get_mesh_transform(state),
-            Geometry::Ellipsoid64(geometry) => geometry.get_mesh_transform(state),
+            Geometry::Cuboid(geometry) => geometry.get_transform(state),
+            Geometry::Ellipsoid16(geometry) => geometry.get_transform(state),
+            Geometry::Ellipsoid32(geometry) => geometry.get_transform(state),
+            Geometry::Ellipsoid64(geometry) => geometry.get_transform(state),
+        }
+    }
+
+    fn get_vertices(&self) -> Vec<Vertex> {
+        match self {
+            Geometry::Cuboid(geometry) => geometry.get_vertices(),
+            Geometry::Ellipsoid16(geometry) => geometry.get_vertices(),
+            Geometry::Ellipsoid32(geometry) => geometry.get_vertices(),
+            Geometry::Ellipsoid64(geometry) => geometry.get_vertices(),
         }
     }
 }

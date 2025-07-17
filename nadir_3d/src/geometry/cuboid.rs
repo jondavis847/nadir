@@ -18,6 +18,231 @@ pub struct Cuboid {
 }
 
 impl Cuboid {
+    pub const VERTICES: [Vertex; 36] = [
+        //bottom face
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(0.0, 0.0, -1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        // top face
+        Vertex {
+            pos: vec3(-0.5, -0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, 0.5),
+            normal: vec3(0.0, 0.0, 1.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        //back face
+        Vertex {
+            pos: vec3(-0.5, 0.5, 0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, -0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, 0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, 0.5),
+            normal: vec3(-1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        //front face
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, -0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, -0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, -0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, 0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(1.0, 0.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        //left face
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, -0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, 0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, 0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, 0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            normal: vec3(0.0, -1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        // right face
+        Vertex {
+            pos: vec3(-0.5, 0.5, -0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, -0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, 0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, -0.5),
+            normal: vec3(0.0, 1.0, 0.0),
+            tangent: vec3(1.0, 0.0, 0.0),
+            uv: vec2(0.0, 1.0),
+        },
+    ];
+
     pub fn new(x: f64, y: f64, z: f64) -> Result<Self, CuboidErrors> {
         if x <= 0.0 || y <= 0.0 || z <= 0.0 {
             return Err(CuboidErrors::Dimension);
@@ -254,7 +479,7 @@ impl Cuboid {
 }
 
 impl GeometryTrait for Cuboid {
-    fn get_mesh_transform(&self, state: &GeometryState) -> GeometryTransform {
+    fn get_transform(&self, state: &GeometryState) -> GeometryTransform {
         let transformation = Mat4::from_scale_rotation_translation(
             vec3(
                 self.x as f32,
@@ -292,5 +517,9 @@ impl GeometryTrait for Cuboid {
             .inverse()
             .transpose();
         GeometryTransform::new(transformation, normal)
+    }
+
+    fn get_vertices(&self) -> Vec<Vertex> {
+        Self::vertices()
     }
 }

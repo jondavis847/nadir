@@ -2006,6 +2006,8 @@ dependencies = [
 name = "gpu_surface_area"
 version = "0.0.1"
 dependencies = [
+ "bytemuck",
+ "glam 0.30.3",
  "nadir_3d",
  "wgpu 26.0.1",
 ]
