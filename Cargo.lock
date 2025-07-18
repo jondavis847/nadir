@@ -2009,6 +2009,7 @@ dependencies = [
  "bytemuck",
  "glam 0.30.3",
  "nadir_3d",
+ "pollster",
  "wgpu 26.0.1",
 ]
 

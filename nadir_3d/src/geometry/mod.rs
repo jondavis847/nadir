@@ -35,6 +35,30 @@ impl Default for Geometry {
     }
 }
 
+impl From<Cuboid> for Geometry {
+    fn from(value: Cuboid) -> Self {
+        Geometry::Cuboid(value)
+    }
+}
+
+impl From<Ellipsoid16> for Geometry {
+    fn from(value: Ellipsoid16) -> Self {
+        Geometry::Ellipsoid16(value)
+    }
+}
+
+impl From<Ellipsoid32> for Geometry {
+    fn from(value: Ellipsoid32) -> Self {
+        Geometry::Ellipsoid32(value)
+    }
+}
+
+impl From<Ellipsoid64> for Geometry {
+    fn from(value: Ellipsoid64) -> Self {
+        Geometry::Ellipsoid64(value)
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GeometryState {
     pub position: DVec3,

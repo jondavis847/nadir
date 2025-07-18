@@ -10,3 +10,4 @@ bytemuck.workspace = true
 glam.workspace = true
 wgpu.workspace = true
 nadir_3d.workspace = true
+pollster.workspace = true
