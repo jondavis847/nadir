@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, f32};
 
 use glam::Mat4;
 use nadir_3d::{
@@ -21,15 +21,24 @@ pub struct GpuSurfaceArea {
 struct Initialized {
     bindgroup: wgpu::BindGroup,
     compute_pipeline: wgpu::ComputePipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
     direction_buffer: wgpu::Buffer,
     result_buffer: wgpu::Buffer,
     staging_buffer: wgpu::Buffer,
+    transform_buffer: wgpu::Buffer,
     result: Vec<f32>,
-    n_vertices: usize,
-    n_triangles: usize, // for determining workgroup size
+    n_triangles: u32,
+    n_rays: u32,
     meta: Vec<GeometryMetadata>,
+    max_workgroup_size: [u32; 3],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Ray {
+    pub origin: [f32; 3],
+    pub _pad1: f32, // align vec3 to 16 bytes
+    pub direction: [f32; 3],
+    pub _pad2: f32,
 }
 
 #[repr(C)]
@@ -72,8 +81,6 @@ impl GpuSurfaceArea {
     }
 
     pub fn initialize(&mut self, device: &Device) {
-        // let limits = device.limits();
-
         // println!(
         //     "Max compute workgroup size X: {}",
         //     limits.max_compute_workgroup_size_x
@@ -103,6 +110,7 @@ impl GpuSurfaceArea {
         let mut unique_vertices = Vec::new();
         let mut collected_indices = Vec::new();
         let mut vertex_map: HashMap<SimpleVertexKey, u32> = HashMap::new();
+        let mut max_dimension = 0.0;
 
         for geometry in &self.geometries {
             let vertices = simple_vertices(&geometry.get_vertices());
@@ -124,6 +132,41 @@ impl GpuSurfaceArea {
                 };
 
                 geometry_indices.push(vertex_index);
+
+                // Determine what the max vertex value is for all triangles to help determine ray grid size
+                if vertex
+                    .pos
+                    .x
+                    .abs()
+                    > max_dimension
+                {
+                    max_dimension = vertex
+                        .pos
+                        .x
+                        .abs();
+                }
+                if vertex
+                    .pos
+                    .y
+                    .abs()
+                    > max_dimension
+                {
+                    max_dimension = vertex
+                        .pos
+                        .y
+                        .abs();
+                }
+                if vertex
+                    .pos
+                    .z
+                    .abs()
+                    > max_dimension
+                {
+                    max_dimension = vertex
+                        .pos
+                        .z
+                        .abs();
+                }
             }
 
             // Store metadata
@@ -150,8 +193,38 @@ impl GpuSurfaceArea {
             usage: BufferUsages::STORAGE,
         });
 
-        let n_vertices = unique_vertices.len();
-        let n_triangles = collected_indices.len() / 3;
+        let transform_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Transform Buffer"),
+            contents: bytemuck::cast_slice(&self.transforms),
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        });
+
+        let n_triangles = (collected_indices.len() / 3) as u32;
+
+        // Create the grid of rays
+        let ncols = 100;
+        let nrows = 100;
+        let n_rays = ncols * nrows;
+        let mut rays = Vec::with_capacity((n_rays) as usize);
+
+        for j in 0..ncols {
+            for i in 0..nrows {
+                let x = (-1.0 + (i as f32 / (nrows - 1) as f32)) * max_dimension * 1.5;
+                let y = (-1.0 + (j as f32 / (ncols - 1) as f32)) * max_dimension * 1.5;
+                rays.push(Ray {
+                    origin: [x, y, max_dimension * 10.0], // TODO: does the z distance actually matter, could it be inf?
+                    _pad1: 0.0,
+                    direction: [0.0, 0.0, -1.0], // transformed in shader
+                    _pad2: 0.0,
+                });
+            }
+        }
+
+        let ray_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Ray Buffer"),
+            contents: bytemuck::cast_slice(&rays),
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        });
 
         // Define bind group layout
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -179,9 +252,20 @@ impl GpuSurfaceArea {
                     },
                     count: None,
                 },
-                // Parameters (direction, counts)
+                // Transform buffer
                 BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Parameters (direction, counts)
+                BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
@@ -192,7 +276,7 @@ impl GpuSurfaceArea {
                 },
                 // Result buffer
                 BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 4,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage { read_only: false },
@@ -203,7 +287,18 @@ impl GpuSurfaceArea {
                 },
                 // MetaData
                 BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 5,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Ray Buffer
+                BindGroupLayoutEntry {
+                    binding: 6,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage { read_only: true },
@@ -242,21 +337,21 @@ impl GpuSurfaceArea {
 
         let direction_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Direction Buffer"),
-            size: std::mem::size_of::<[f32; 3]>() as u64,
+            size: std::mem::size_of::<[f32; 4]>() as u64, //first 3 are direction but need a 4th for alignment
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let result_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Result Buffer"),
-            size: num_geometries as u64 * std::mem::size_of::<f32>() as u64,
+            size: n_triangles as u64 * std::mem::size_of::<f32>() as u64,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
         let staging_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Staging Buffer"),
-            size: num_geometries as u64 * std::mem::size_of::<f32>() as u64,
+            size: n_triangles as u64 * std::mem::size_of::<f32>() as u64,
             usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -274,27 +369,36 @@ impl GpuSurfaceArea {
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: vertex_buffer.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 1, resource: index_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: direction_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: result_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: metadata_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: transform_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: direction_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 4, resource: result_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 5, resource: metadata_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 6, resource: ray_buffer.as_entire_binding() },
             ],
             label: Some("Surface Area Bind Group"),
         });
 
         let result = vec![0.0; num_geometries];
 
+        let limits = device.limits();
+        let max_workgroup_size = [
+            limits.max_compute_workgroup_size_x,
+            limits.max_compute_workgroup_size_y,
+            limits.max_compute_workgroup_size_z,
+        ];
+
         self.initialized = Some(Initialized {
             bindgroup,
             compute_pipeline,
-            vertex_buffer,
-            index_buffer,
+            transform_buffer,
             direction_buffer,
             result_buffer,
             staging_buffer,
             result,
             n_triangles,
-            n_vertices,
+            n_rays,
             meta,
+            max_workgroup_size,
         });
     }
 
@@ -305,14 +409,43 @@ impl GpuSurfaceArea {
         device: &Device,
         queue: &Queue,
     ) -> Result<f32, Box<dyn std::error::Error>> {
-        // Return the result directly
-        // Ensure initialized
         if let Some(initialized) = &mut self.initialized {
+            // Get the mean origin of all of the geometries
+            let mut mean_origin = [0.0; 3];
+            for transform in &self.transforms {
+                let translation = transform.w_axis;
+                mean_origin[0] += translation[0];
+                mean_origin[1] += translation[1];
+                mean_origin[2] += translation[2];
+            }
+
+            mean_origin[0] = mean_origin[0]
+                / self
+                    .geometries
+                    .len() as f32;
+            mean_origin[1] = mean_origin[1]
+                / self
+                    .geometries
+                    .len() as f32;
+            mean_origin[2] = mean_origin[2]
+                / self
+                    .geometries
+                    .len() as f32;
+
             // Update direction buffer
+            // Convert to 4 element first for byte alignment on gpu
+            let direction = [direction[0], direction[1], direction[2], 0.0]; // Add 0 for alignment
             queue.write_buffer(
                 &initialized.direction_buffer,
                 0,
                 bytemuck::cast_slice(&[direction]),
+            );
+
+            // Update transforms
+            queue.write_buffer(
+                &initialized.transform_buffer,
+                0,
+                bytemuck::cast_slice(&self.transforms),
             );
 
             // Create command encoder
@@ -330,19 +463,32 @@ impl GpuSurfaceArea {
                 compute_pass.set_pipeline(&initialized.compute_pipeline);
                 compute_pass.set_bind_group(0, &initialized.bindgroup, &[]);
 
-                let workgroup_size = 64;
-                let workgroup_count =
-                    (initialized.n_triangles + workgroup_size - 1) / workgroup_size;
-                compute_pass.dispatch_workgroups(workgroup_count as u32, 1, 1);
+                // TODO
+                // for now we put triangles on x and rays on y, but maybe decide which maxes more sense
+                // that is if x and y max workgroups are different
+                let triangle_workgroup =
+                    (initialized.n_triangles + initialized.max_workgroup_size[0] - 1)
+                        / initialized.max_workgroup_size[0];
+                let ray_workgroup = (initialized.n_rays + initialized.max_workgroup_size[1] - 1)
+                    / initialized.max_workgroup_size[1];
+                compute_pass.dispatch_workgroups(
+                    triangle_workgroup as u32,
+                    ray_workgroup as u32,
+                    1,
+                );
             }
 
-            // Copy result to staging buffer (only the specific geometry's result)
+            let meta = &initialized.meta[geometry_index];
+            let offset_bytes = meta.index_offset as u64 / 3 * std::mem::size_of::<f32>() as u64;
+            let triangle_count = meta.triangle_count as usize;
+            let byte_size = triangle_count as u64 * std::mem::size_of::<f32>() as u64;
+
             encoder.copy_buffer_to_buffer(
                 &initialized.result_buffer,
-                (geometry_index * std::mem::size_of::<f32>()) as u64,
+                offset_bytes,
                 &initialized.staging_buffer,
                 0,
-                std::mem::size_of::<f32>() as u64,
+                byte_size,
             );
 
             // Submit command buffer
@@ -350,10 +496,9 @@ impl GpuSurfaceArea {
                 encoder.finish(),
             ));
 
-            // Read result - only read the single f32 we copied
             let buffer_slice = initialized
                 .staging_buffer
-                .slice(0..std::mem::size_of::<f32>() as u64);
+                .slice(0..byte_size);
 
             // Map the buffer
             buffer_slice.map_async(
@@ -374,12 +519,19 @@ impl GpuSurfaceArea {
             // Get the mapped range and read the result
             let range = buffer_slice.get_mapped_range();
             let result_data: &[f32] = bytemuck::cast_slice(&range);
-
+            println!(
+                "Read {} triangle areas for geometry {}",
+                result_data.len(),
+                geometry_index
+            );
+            dbg!(result_data);
             if result_data.is_empty() {
                 return Err("No data in buffer".into());
             }
-
-            let surface_area = result_data[0];
+            let surface_area: f32 = result_data
+                .iter()
+                .copied()
+                .sum();
 
             // Update the result vector
             initialized.result[geometry_index] = surface_area;
@@ -407,6 +559,7 @@ mod tests {
         // Create instance
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
+            flags: wgpu::InstanceFlags::debugging(),
             ..Default::default()
         });
 
@@ -458,12 +611,6 @@ mod tests {
             .as_ref()
             .unwrap();
 
-        // A cube should have 8 vertices and 12 triangles (2 per face * 6 faces)
-        // But after deduplication, it should have exactly 8 unique vertices
-        assert_eq!(
-            initialized.n_vertices, 8,
-            "Cube should have 8 unique vertices after deduplication"
-        );
         assert_eq!(
             initialized.n_triangles, 12,
             "Cube should have 12 triangles"
@@ -527,10 +674,6 @@ mod tests {
             .unwrap();
 
         // Two different-sized cubes should have 16 unique vertices total
-        assert_eq!(
-            initialized.n_vertices, 16,
-            "Three cubes where 2 are same geometry should have 16 unique vertices"
-        );
         assert_eq!(
             initialized.n_triangles, 36,
             "Three cubes should have 36 triangles total"
