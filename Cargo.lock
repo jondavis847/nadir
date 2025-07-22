@@ -2007,9 +2007,11 @@ name = "gpu_surface_area"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
+ "futures",
  "glam 0.30.3",
  "nadir_3d",
  "pollster",
+ "thiserror 2.0.12",
  "wgpu 26.0.1",
 ]
 

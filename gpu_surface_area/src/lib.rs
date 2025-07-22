@@ -1,1130 +1,738 @@
-use std::{collections::HashMap, f32};
-
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use nadir_3d::{
-    geometry::{Geometry, GeometryState, GeometryTrait},
-    vertex::{SimpleVertexKey, simple_vertices},
+    geometry::{Geometry, GeometryTrait},
+    vertex::{SimpleVertex, simple_vertices},
 };
-use wgpu::{
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType,
-    BufferDescriptor, BufferUsages, ComputePipelineDescriptor, Device, PipelineLayoutDescriptor,
-    Queue, ShaderModuleDescriptor, ShaderSource, ShaderStages, util::BufferInitDescriptor,
-    util::DeviceExt,
-};
-
-pub struct GpuSurfaceArea {
-    geometries: Vec<Geometry>,
-    transforms: Vec<Mat4>,
-    initialized: Option<Initialized>,
-}
-
-struct Initialized {
-    bindgroup: wgpu::BindGroup,
-    compute_pipeline: wgpu::ComputePipeline,
-    direction_buffer: wgpu::Buffer,
-    result_buffer: wgpu::Buffer,
-    staging_buffer: wgpu::Buffer,
-    transform_buffer: wgpu::Buffer,
-    result: Vec<f32>,
-    n_triangles: u32,
-    n_rays: u32,
-    meta: Vec<GeometryMetadata>,
-    max_workgroup_size: [u32; 3],
-}
+use wgpu::util::DeviceExt;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Ray {
-    pub origin: [f32; 3],
-    pub _pad1: f32, // align vec3 to 16 bytes
-    pub direction: [f32; 3],
-    pub _pad2: f32,
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    projection_matrix: [[f32; 4]; 4],
+    object_id: u32,
+    _padding: [u32; 3], // Align to 16 bytes
+}
+pub struct SurfaceAreaCalculator {
+    render_pipeline: wgpu::RenderPipeline,
+    texture: wgpu::Texture,
+    texture_view: wgpu::TextureView,
+    depth_texture: wgpu::Texture,
+    depth_view: wgpu::TextureView,
+    buffer: wgpu::Buffer,
+    uniform_bind_group_layout: wgpu::BindGroupLayout,
+    resolution: u32,
+    scale_factor: f32,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct GeometryMetadata {
-    index_offset: u32,   // Where this geometry's indices start in index buffer
-    index_count: u32,    // How many indices this geometry has
-    triangle_count: u32, // How many triangles (index_count / 3)
-    _padding: u32,       // Padding for alignment
-}
-
-impl GpuSurfaceArea {
-    pub fn new() -> Self {
-        Self {
-            geometries: Vec::new(),
-            transforms: Vec::new(),
-            initialized: None,
-        }
-    }
-
-    pub fn add_body(&mut self, geometry: Geometry, state: GeometryState) -> usize {
-        self.transforms
-            .push(
-                geometry
-                    .get_transform(&state)
-                    .transformation_matrix,
-            );
-        self.geometries
-            .push(geometry);
-
-        self.geometries
-            .len()
-            - 1
-    }
-
-    pub fn update_body(&mut self, index: usize, state: &GeometryState) {
-        self.transforms[index] = self.geometries[index]
-            .get_transform(&state)
-            .transformation_matrix;
-    }
-
-    pub fn initialize(&mut self, device: &Device) {
-        // println!(
-        //     "Max compute workgroup size X: {}",
-        //     limits.max_compute_workgroup_size_x
-        // );
-        // println!(
-        //     "Max compute workgroup size Y: {}",
-        //     limits.max_compute_workgroup_size_y
-        // );
-        // println!(
-        //     "Max compute workgroup size Z: {}",
-        //     limits.max_compute_workgroup_size_z
-        // );
-        // println!(
-        //     "Max compute workgroup storage size: {}",
-        //     limits.max_compute_workgroup_storage_size
-        // );
-        // println!(
-        //     "Max compute invocations per workgroup: {}",
-        //     limits.max_compute_invocations_per_workgroup
-        // );
-
-        // Create buffers with deduplication
-        let num_geometries = self
-            .geometries
-            .len();
-        let mut meta = Vec::new();
-        let mut unique_vertices = Vec::new();
-        let mut collected_indices = Vec::new();
-        let mut vertex_map: HashMap<SimpleVertexKey, u32> = HashMap::new();
-        let mut max_dimension = 0.0;
-
-        for geometry in &self.geometries {
-            let vertices = simple_vertices(&geometry.get_vertices());
-            let mut geometry_indices = Vec::new();
-
-            // Process each vertex in this geometry
-            for vertex in vertices {
-                let key = SimpleVertexKey::from_vertex(&vertex, 1000.0); // 10000 = tolerance of 0.1 mm
-
-                let vertex_index = match vertex_map.get(&key) {
-                    Some(&existing_index) => existing_index, // Reuse existing vertex
-                    None => {
-                        // Add new unique vertex
-                        let new_index = unique_vertices.len() as u32;
-                        unique_vertices.push(vertex);
-                        vertex_map.insert(key, new_index);
-                        new_index
-                    }
-                };
-
-                geometry_indices.push(vertex_index);
-
-                // Determine what the max vertex value is for all triangles to help determine ray grid size
-                if vertex
-                    .pos
-                    .x
-                    .abs()
-                    > max_dimension
-                {
-                    max_dimension = vertex
-                        .pos
-                        .x
-                        .abs();
-                }
-                if vertex
-                    .pos
-                    .y
-                    .abs()
-                    > max_dimension
-                {
-                    max_dimension = vertex
-                        .pos
-                        .y
-                        .abs();
-                }
-                if vertex
-                    .pos
-                    .z
-                    .abs()
-                    > max_dimension
-                {
-                    max_dimension = vertex
-                        .pos
-                        .z
-                        .abs();
-                }
-            }
-
-            // Store metadata
-            meta.push(GeometryMetadata {
-                index_offset: collected_indices.len() as u32,
-                index_count: geometry_indices.len() as u32,
-                triangle_count: (geometry_indices.len() / 3) as u32,
-                _padding: 0,
-            });
-
-            collected_indices.extend(geometry_indices);
-        }
-
-        // Create buffers with deduplicated data
-        let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&unique_vertices),
-            usage: BufferUsages::STORAGE,
+impl SurfaceAreaCalculator {
+    pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue, resolution: u32) -> Self {
+        // Create render target texture (R32Uint format for object IDs)
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Surface Area Render Target"),
+            size: wgpu::Extent3d {
+                width: resolution,
+                height: resolution,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Uint,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
         });
 
-        let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&collected_indices),
-            usage: BufferUsages::STORAGE,
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create depth texture
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: resolution,
+                height: resolution,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
         });
 
-        let transform_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Transform Buffer"),
-            contents: bytemuck::cast_slice(&self.transforms),
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Calculate aligned buffer size
+        let unaligned = resolution * 4; // 4 bytes per pixel
+        let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = ((unaligned + alignment - 1) / alignment) * alignment;
+        let buffer_size = (bytes_per_row * resolution) as u64;
+
+        // Create buffer to read back results
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Surface Area Readback Buffer"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
         });
 
-        let n_triangles = (collected_indices.len() / 3) as u32;
-
-        // Create the grid of rays
-        let ncols = 100;
-        let nrows = 100;
-        let n_rays = ncols * nrows;
-        let mut rays = Vec::with_capacity((n_rays) as usize);
-
-        for j in 0..ncols {
-            for i in 0..nrows {
-                let x = (-1.0 + (i as f32 / (nrows - 1) as f32)) * max_dimension * 1.5;
-                let y = (-1.0 + (j as f32 / (ncols - 1) as f32)) * max_dimension * 1.5;
-                rays.push(Ray {
-                    origin: [x, y, max_dimension * 10.0], // TODO: does the z distance actually matter, could it be inf?
-                    _pad1: 0.0,
-                    direction: [0.0, 0.0, -1.0], // transformed in shader
-                    _pad2: 0.0,
-                });
-            }
-        }
-
-        let ray_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Ray Buffer"),
-            contents: bytemuck::cast_slice(&rays),
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        });
-
-        // Define bind group layout
-        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Surface Area Bind Group Layout"),
-            entries: &[
-                // Vertex buffer
-                BindGroupLayoutEntry {
+        // Create bind group layout for uniforms
+        let uniform_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
                     count: None,
-                },
-                // Index buffer
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Transform buffer
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Parameters (direction, counts)
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Result buffer
-                BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // MetaData
-                BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Ray Buffer
-                BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
+                }],
+            },
+        );
+
+        // Create render pipeline
+        let render_pipeline = Self::create_render_pipeline(
+            device,
+            &uniform_bind_group_layout,
+        );
+
+        Self {
+            render_pipeline,
+            texture,
+            texture_view,
+            depth_texture,
+            depth_view,
+            buffer,
+            uniform_bind_group_layout,
+            resolution,
+            scale_factor: 1.1,
+        }
+    }
+
+    fn create_render_pipeline(
+        device: &wgpu::Device,
+        uniform_bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::RenderPipeline {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Surface Area Shader"),
+            source: wgpu::ShaderSource::Wgsl(SHADER_SOURCE.into()),
         });
 
-        // Create pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Surface Area Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let render_pipeline_layout = device.create_pipeline_layout(
+            &wgpu::PipelineLayoutDescriptor {
+                label: Some("Surface Area Pipeline Layout"),
+                bind_group_layouts: &[uniform_bind_group_layout],
+                push_constant_ranges: &[],
+            },
+        );
 
-        // Create shader module
-        let shader_module = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Surface Area Compute Shader"),
-            source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                include_str!("area.wgsl"), // Read file at compile time
-            )),
-        });
-
-        // Create compute pipeline
-        let compute_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Surface Area Pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader_module,
-            entry_point: Some("main"),
-            compilation_options: Default::default(),
-            cache: None,
-        });
-
-        let direction_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Direction Buffer"),
-            size: std::mem::size_of::<[f32; 4]>() as u64, //first 3 are direction but need a 4th for alignment
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let result_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Result Buffer"),
-            size: n_triangles as u64 * std::mem::size_of::<f32>() as u64,
-            usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
-
-        let staging_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Staging Buffer"),
-            size: n_triangles as u64 * std::mem::size_of::<f32>() as u64,
-            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        // Create metadata buffer
-        let metadata_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Geometry Metadata Buffer"),
-            contents: bytemuck::cast_slice(&meta),
-            usage: BufferUsages::STORAGE,
-        });
-
-        // Create a bind group for this calculation
-        let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: vertex_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: index_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: transform_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: direction_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: result_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: metadata_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 6, resource: ray_buffer.as_entire_binding() },
-            ],
-            label: Some("Surface Area Bind Group"),
-        });
-
-        let result = vec![0.0; num_geometries];
-
-        let limits = device.limits();
-        let max_workgroup_size = [
-            limits.max_compute_workgroup_size_x,
-            limits.max_compute_workgroup_size_y,
-            limits.max_compute_workgroup_size_z,
+        const ATTRIBS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![
+            //position
+            0 => Float32x3,
         ];
 
-        self.initialized = Some(Initialized {
-            bindgroup,
-            compute_pipeline,
-            transform_buffer,
-            direction_buffer,
-            result_buffer,
-            staging_buffer,
-            result,
-            n_triangles,
-            n_rays,
-            meta,
-            max_workgroup_size,
-        });
+        // created this hear since geometry crate uses iced::wgpu which is a different version
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<SimpleVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &ATTRIBS,
+        };
+
+        device.create_render_pipeline(
+            &wgpu::RenderPipelineDescriptor {
+                label: Some("Surface Area Pipeline"),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    buffers: &[vertex_layout],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::R32Uint,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            },
+        )
     }
 
-    pub fn calculate_surface_area(
-        &mut self,
-        geometry_index: usize,
-        direction: [f32; 3],
-        device: &Device,
-        queue: &Queue,
-    ) -> Result<f32, Box<dyn std::error::Error>> {
-        if let Some(initialized) = &mut self.initialized {
-            // Get the mean origin of all of the geometries
-            let mut mean_origin = [0.0; 3];
-            for transform in &self.transforms {
-                let translation = transform.w_axis;
-                mean_origin[0] += translation[0];
-                mean_origin[1] += translation[1];
-                mean_origin[2] += translation[2];
-            }
+    pub fn calculate_surface_areas(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        geometries: &[Geometry],
+        view_direction: [f32; 3],
+        scene_bounds: SceneBounds,
+    ) -> Vec<f32> {
+        // Create orthographic projection matrix
+        let projection_matrix = Self::create_orthographic_projection(
+            view_direction,
+            scene_bounds,
+            self.scale_factor,
+        );
 
-            mean_origin[0] = mean_origin[0]
-                / self
-                    .geometries
-                    .len() as f32;
-            mean_origin[1] = mean_origin[1]
-                / self
-                    .geometries
-                    .len() as f32;
-            mean_origin[2] = mean_origin[2]
-                / self
-                    .geometries
-                    .len() as f32;
+        // Begin render pass
+        let mut encoder = device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: Some("Surface Area Render Encoder") },
+        );
 
-            // Update direction buffer
-            // Convert to 4 element first for byte alignment on gpu
-            let direction = [direction[0], direction[1], direction[2], 0.0]; // Add 0 for alignment
-            queue.write_buffer(
-                &initialized.direction_buffer,
-                0,
-                bytemuck::cast_slice(&[direction]),
-            );
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Surface Area Render Pass"),
+                color_attachments: &[Some(
+                    wgpu::RenderPassColorAttachment {
+                        view: &self.texture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), // Clear to 0 (no object)
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    },
+                )],
+                depth_stencil_attachment: Some(
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: &self.depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    },
+                ),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
 
-            // Update transforms
-            queue.write_buffer(
-                &initialized.transform_buffer,
-                0,
-                bytemuck::cast_slice(&self.transforms),
-            );
+            render_pass.set_pipeline(&self.render_pipeline);
 
-            // Create command encoder
-            let mut encoder = device.create_command_encoder(
-                &wgpu::CommandEncoderDescriptor { label: Some("Surface Area Encoder") },
-            );
-
-            // Compute pass
+            // Render each geometry with its object ID
+            for (object_id, geometry) in geometries
+                .iter()
+                .enumerate()
             {
-                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("Surface Area Compute Pass"),
-                    timestamp_writes: None,
+                let vertices = simple_vertices(&geometry.get_vertices());
+                let vertex_buffer = device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!(
+                            "Vertex Buffer {}",
+                            object_id
+                        )),
+                        contents: bytemuck::cast_slice(&vertices),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    },
+                );
+
+                // Create uniforms
+                let uniforms = Uniforms {
+                    projection_matrix,
+                    object_id: (object_id + 1) as u32, // +1 because 0 is background
+                    _padding: [0; 3],
+                };
+
+                let uniform_buffer = device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!(
+                            "Uniform Buffer {}",
+                            object_id
+                        )),
+                        contents: bytemuck::cast_slice(&[uniforms]),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    },
+                );
+
+                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some(&format!(
+                        "Bind Group {}",
+                        object_id
+                    )),
+                    layout: &self.uniform_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: uniform_buffer.as_entire_binding(),
+                    }],
                 });
 
-                compute_pass.set_pipeline(&initialized.compute_pipeline);
-                compute_pass.set_bind_group(0, &initialized.bindgroup, &[]);
-
-                // TODO
-                // for now we put triangles on x and rays on y, but maybe decide which maxes more sense
-                // that is if x and y max workgroups are different
-                let triangle_workgroup =
-                    (initialized.n_triangles + initialized.max_workgroup_size[0] - 1)
-                        / initialized.max_workgroup_size[0];
-                let ray_workgroup = (initialized.n_rays + initialized.max_workgroup_size[1] - 1)
-                    / initialized.max_workgroup_size[1];
-                compute_pass.dispatch_workgroups(
-                    triangle_workgroup as u32,
-                    ray_workgroup as u32,
-                    1,
-                );
+                render_pass.set_bind_group(0, &bind_group, &[]);
+                render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                render_pass.draw(0..vertices.len() as u32, 0..1);
             }
-
-            let meta = &initialized.meta[geometry_index];
-            let offset_bytes = meta.index_offset as u64 / 3 * std::mem::size_of::<f32>() as u64;
-            let triangle_count = meta.triangle_count as usize;
-            let byte_size = triangle_count as u64 * std::mem::size_of::<f32>() as u64;
-
-            encoder.copy_buffer_to_buffer(
-                &initialized.result_buffer,
-                offset_bytes,
-                &initialized.staging_buffer,
-                0,
-                byte_size,
-            );
-
-            // Submit command buffer
-            queue.submit(std::iter::once(
-                encoder.finish(),
-            ));
-
-            let buffer_slice = initialized
-                .staging_buffer
-                .slice(0..byte_size);
-
-            // Map the buffer
-            buffer_slice.map_async(
-                wgpu::MapMode::Read,
-                |result| {
-                    if let Err(e) = result {
-                        eprintln!(
-                            "Failed to map buffer: {:?}",
-                            e
-                        );
-                    }
-                },
-            );
-
-            // Poll until mapping is complete
-            device.poll(wgpu::PollType::Wait)?;
-
-            // Get the mapped range and read the result
-            let range = buffer_slice.get_mapped_range();
-            let result_data: &[f32] = bytemuck::cast_slice(&range);
-            println!(
-                "Read {} triangle areas for geometry {}",
-                result_data.len(),
-                geometry_index
-            );
-            dbg!(result_data);
-            if result_data.is_empty() {
-                return Err("No data in buffer".into());
-            }
-            let surface_area: f32 = result_data
-                .iter()
-                .copied()
-                .sum();
-
-            // Update the result vector
-            initialized.result[geometry_index] = surface_area;
-
-            // Unmap the buffer
-            drop(range);
-            initialized
-                .staging_buffer
-                .unmap();
-
-            Ok(surface_area)
-        } else {
-            Err("GPU was not initialized. Make sure you run GpuSurfaceArea .initialize()".into())
         }
+
+        // Copy render target to readable buffer
+        let unaligned = self.resolution * 4;
+        let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = ((unaligned + alignment - 1) / alignment) * alignment;
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &self.buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(self.resolution),
+                },
+            },
+            wgpu::Extent3d {
+                width: self.resolution,
+                height: self.resolution,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        queue.submit(Some(encoder.finish()));
+
+        // Read back pixel data and calculate areas
+        let pixel_data = self.read_buffer_data(device);
+
+        //After getting pixel_data, add this debugging:
+        // println!(
+        //     "Pixel data as {}x{} grid:",
+        //     self.resolution, self.resolution
+        // );
+        // for y in 0..self.resolution {
+        //     for x in 0..self.resolution {
+        //         let idx = (y * self.resolution + x) as usize;
+        //         print!("{:2} ", pixel_data[idx]);
+        //     }
+        //     println!();
+        // }
+
+        self.calculate_areas_from_pixels(
+            pixel_data,
+            geometries.len(),
+            scene_bounds,
+            self.resolution,
+            self.scale_factor,
+        )
+    }
+
+    fn read_buffer_data(&self, device: &wgpu::Device) -> Vec<u32> {
+        let buffer_slice = self
+            .buffer
+            .slice(..);
+
+        // Set up a channel to receive mapping result
+        let (sender, receiver) = futures::channel::oneshot::channel();
+
+        // Map async, send result on channel when ready
+        buffer_slice.map_async(
+            wgpu::MapMode::Read,
+            move |result| {
+                sender
+                    .send(result)
+                    .unwrap();
+            },
+        );
+
+        // Drive the device so the mapping can progress
+        device
+            .poll(wgpu::PollType::Wait)
+            .expect("polling error");
+
+        // Wait (blocking) until mapping is complete
+        pollster::block_on(async {
+            receiver
+                .await
+                .expect("failed to receive mapping result")
+                .expect("failed to map buffer");
+        });
+
+        // Handle aligned rows properly
+        let unaligned = self.resolution * 4; // 4 bytes per pixel
+        let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = ((unaligned + alignment - 1) / alignment) * alignment;
+
+        // Create a properly sized result without padding
+        let mut result = Vec::with_capacity((self.resolution * self.resolution) as usize);
+
+        let mapped_data = buffer_slice.get_mapped_range();
+        let bytes = mapped_data.as_ref();
+
+        // Extract just the actual pixels, skipping padding
+        for y in 0..self.resolution {
+            let row_start = (y * bytes_per_row) as usize; // bytes_per_row is in bytes, not u32s
+            for x in 0..self.resolution {
+                let pixel_offset = row_start + (x * 4) as usize; // 4 bytes per u32 pixel
+
+                // Convert 4 bytes to u32 (little-endian)
+                let pixel_bytes = [
+                    bytes[pixel_offset],
+                    bytes[pixel_offset + 1],
+                    bytes[pixel_offset + 2],
+                    bytes[pixel_offset + 3],
+                ];
+                let pixel_value = u32::from_le_bytes(pixel_bytes);
+                result.push(pixel_value);
+            }
+        }
+
+        drop(mapped_data);
+        self.buffer
+            .unmap();
+
+        result
+    }
+
+    fn calculate_areas_from_pixels(
+        &self,
+        pixels: Vec<u32>,
+        num_objects: usize,
+        scene_bounds: SceneBounds,
+        resolution: u32,
+        scale_factor: f32,
+    ) -> Vec<f32> {
+        let mut pixel_counts = vec![0u32; num_objects];
+
+        // Count pixels per object ID
+        for pixel in pixels {
+            if pixel > 0 && pixel <= num_objects as u32 {
+                pixel_counts[(pixel - 1) as usize] += 1;
+            }
+        }
+
+        // Convert pixel counts to surface area
+        let area_per_pixel = Self::calculate_area_per_pixel(
+            scene_bounds,
+            resolution,
+            scale_factor,
+        );
+
+        pixel_counts
+            .iter()
+            .map(|&count| count as f32 * area_per_pixel)
+            .collect()
+    }
+
+    fn create_orthographic_projection(
+        view_direction: [f32; 3],
+        scene_bounds: SceneBounds,
+        scale_factor: f32,
+    ) -> [[f32; 4]; 4] {
+        // Extract bounds
+        let min = Vec3::new(
+            scene_bounds.min_x,
+            scene_bounds.min_y,
+            scene_bounds.min_z,
+        );
+        let max = Vec3::new(
+            scene_bounds.max_x,
+            scene_bounds.max_y,
+            scene_bounds.max_z,
+        );
+
+        // Calculate center of bounds and size
+        let center = (min + max) * 0.5;
+        let size = max - min;
+
+        // Add buffer for projection (ensure whole geometry is visible)
+        let buffer_factor = 1.2; // Use 1.2 for 20% extra space around object
+
+        // Store this for scaling area calculations later
+        // (Store this as a static or member variable for use in calculate_area_per_pixel)
+
+        // Convert view direction to Vec3 and normalize
+        let dir = Vec3::from_array(view_direction).normalize();
+
+        // Calculate the up vector (perpendicular to view direction)
+        let up = if dir
+            .y
+            .abs()
+            > 0.9
+        {
+            Vec3::Z
+        } else {
+            Vec3::Y
+        };
+
+        // Position camera OUTSIDE the object, looking toward center
+        let view_distance = size.length();
+        let eye = center - dir * view_distance;
+
+        // Create view matrix
+        let view_matrix = Mat4::look_at_rh(eye, center, up);
+
+        // Create orthographic projection with buffer
+        let ortho_size = size.max_element() * 0.5 * scale_factor;
+        let ortho_matrix = Mat4::orthographic_rh(
+            -ortho_size,
+            ortho_size,
+            -ortho_size,
+            ortho_size,
+            0.1,
+            view_distance * 2.0,
+        );
+
+        // Combine matrices and return
+        let view_proj = ortho_matrix * view_matrix;
+        view_proj.to_cols_array_2d()
+    }
+
+    fn calculate_area_per_pixel(
+        scene_bounds: SceneBounds,
+        resolution: u32,
+        scale_factor: f32,
+    ) -> f32 {
+        // Simple scaling formula: area per pixel * scaling factor squared
+        (scene_bounds.max_x - scene_bounds.min_x) * (scene_bounds.max_y - scene_bounds.min_y)
+            / ((resolution * resolution) as f32)
+            * (scale_factor * scale_factor)
     }
 }
+
+#[derive(Copy, Clone)]
+pub struct SceneBounds {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    min_z: f32,
+    max_z: f32,
+}
+
+const SHADER_SOURCE: &str = r#"
+struct Uniforms {
+    projection_matrix: mat4x4<f32>,
+    object_id: u32,
+}
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+}
+
+@vertex
+fn vs_main(@location(0) position: vec3<f32>) -> VertexOutput {
+    var out: VertexOutput;
+    out.clip_position = uniforms.projection_matrix * vec4<f32>(position, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) u32 {
+    return uniforms.object_id;
+}
+"#;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::{DQuat, DVec3};
-    use nadir_3d::geometry::cuboid::Cuboid;
+    use glam::{DQuat, Quat};
+    use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-    async fn create_wgpu_context() -> (Device, Queue) {
-        // Create instance
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            flags: wgpu::InstanceFlags::debugging(),
-            ..Default::default()
-        });
-
-        // Request adapter
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
+    #[test]
+    fn test_cube_area() {
+        // WGPU Setup (use default adapter)
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(
+            instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: None,
                 force_fallback_adapter: false,
-            })
-            .await
-            .expect("Failed to find a graphics adapter");
+            }),
+        )
+        .expect("Failed to find a GPU adapter");
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+                .expect("Failed to get device");
 
-        // Request device and queue
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Main Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                memory_hints: wgpu::MemoryHints::default(),
-                trace: wgpu::Trace::Off,
-            })
-            .await
-            .expect("Failed to create device");
+        // Build test geometry (unit cube)
+        let cube = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        // Provide dummy geometry state if needed by your trait/struct impl
+        let geometry = cube;
+        let geometry_vec: Vec<Geometry> = vec![geometry.into()];
 
-        (device, queue)
-    }
+        // Scene bounds that tightly include the cube
+        let bounds = SceneBounds {
+            min_x: -1.0,
+            max_x: 1.0,
+            min_y: -1.0,
+            max_y: 1.0,
+            min_z: -1.0,
+            max_z: 1.0,
+        };
 
-    #[test]
-    fn test_cube_loading_metadata() {
-        let (device, _queue) = pollster::block_on(create_wgpu_context());
+        // Compute surface area using calculator
+        let resolution = 32;
+        let calc = SurfaceAreaCalculator::new(&device, &queue, resolution);
 
-        let cube = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-        let state = GeometryState { position: DVec3::ZERO, rotation: DQuat::IDENTITY };
+        // Front-on (Z) view
+        let view_direction = [0.0, 0.0, -1.0];
 
-        let mut sa = GpuSurfaceArea::new();
-        let _index = sa.add_body(cube.into(), state);
-        sa.initialize(&device);
+        // Your geometry should implement GeometryTrait (get_vertices)
+        let areas = calc.calculate_surface_areas(
+            &device,
+            &queue,
+            &geometry_vec,
+            view_direction,
+            bounds,
+        );
 
-        // Verify initialization worked
+        // Only one object, expect just front face: area should be close to 1.0
+        let calculated_area = areas[0];
+        println!(
+            "Calculated area: {}",
+            calculated_area
+        );
         assert!(
-            sa.initialized
-                .is_some(),
-            "GPU surface area should be initialized"
-        );
-
-        let initialized = sa
-            .initialized
-            .as_ref()
-            .unwrap();
-
-        assert_eq!(
-            initialized.n_triangles, 12,
-            "Cube should have 12 triangles"
-        );
-
-        // Test metadata
-        assert_eq!(
-            initialized
-                .meta
-                .len(),
-            1,
-            "Should have metadata for 1 geometry"
-        );
-
-        let cube_meta = &initialized.meta[0];
-        assert_eq!(
-            cube_meta.index_offset, 0,
-            "First geometry should start at index 0"
-        );
-        assert_eq!(
-            cube_meta.index_count, 36,
-            "Cube should have 36 indices (12 triangles * 3 vertices each)"
-        );
-        assert_eq!(
-            cube_meta.triangle_count, 12,
-            "Cube should have 12 triangles"
+            (calculated_area - 1.0).abs() < 0.02, // Allow small error due to resolution
+            "Expected ~1.0, got {}",
+            calculated_area
         );
     }
 
     #[test]
-    fn test_multiple_cubes_deduplication() {
-        let (device, _queue) = pollster::block_on(create_wgpu_context());
+    fn test_two_cubes_one_rotated() {
+        // WGPU Setup
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(
+            instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::LowPower,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            }),
+        )
+        .expect("Failed to find a GPU adapter");
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+                .expect("Failed to get device");
 
+        // Create two cubes
         let cube1 = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        let cube2 = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-        let cube3 = Cuboid::new(2.0, 2.0, 2.0).unwrap();
+        let cube2 = Cuboid::new(1.0, 1.0, 1.0).unwrap();
 
+        // Create geometry states - one normal, one rotated 90 degrees around Y axis
         let state1 = GeometryState {
-            position: DVec3::new(0.0, 0.0, 0.0),
-            rotation: DQuat::IDENTITY,
-        };
-        let state2 = GeometryState {
-            position: DVec3::new(5.0, 0.0, 0.0),
-            rotation: DQuat::IDENTITY,
-        };
-
-        let state3 = GeometryState {
-            position: DVec3::new(0.0, 0.0, 0.0),
-            rotation: DQuat::IDENTITY,
-        };
-
-        let mut sa = GpuSurfaceArea::new();
-        sa.add_body(cube1.into(), state1);
-        sa.add_body(cube2.into(), state2);
-        sa.add_body(cube3.into(), state3);
-        sa.initialize(&device);
-
-        let initialized = sa
-            .initialized
-            .as_ref()
-            .unwrap();
-
-        // Two different-sized cubes should have 16 unique vertices total
-        assert_eq!(
-            initialized.n_triangles, 36,
-            "Three cubes should have 36 triangles total"
-        );
-
-        // Test metadata for both geometries
-        assert_eq!(
-            initialized
-                .meta
-                .len(),
-            3,
-            "Should have metadata for 3 geometries"
-        );
-
-        let cube1_meta = &initialized.meta[0];
-        let cube2_meta = &initialized.meta[1];
-        let cube3_meta = &initialized.meta[2];
-
-        assert_eq!(
-            cube1_meta.index_offset, 0,
-            "First cube should start at index 0"
-        );
-        assert_eq!(
-            cube1_meta.triangle_count, 12,
-            "Each cube should have 12 triangles"
-        );
-
-        assert_eq!(
-            cube2_meta.index_offset, 36,
-            "Second cube should start at index 36"
-        );
-        assert_eq!(
-            cube2_meta.triangle_count, 12,
-            "Each cube should have 12 triangles"
-        );
-
-        assert_eq!(
-            cube3_meta.index_offset, 72,
-            "Third cube should start at index 72"
-        );
-        assert_eq!(
-            cube2_meta.triangle_count, 12,
-            "Each cube should have 12 triangles"
-        );
-    }
-
-    #[test]
-    fn test_cube_surface_area() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // 1. Create a 2x2x2 cube (dimensions 2.0 in each direction)
-        let cube = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-        let state = GeometryState { position: DVec3::ZERO, rotation: DQuat::IDENTITY };
-
-        let mut sa = GpuSurfaceArea::new();
-        let index = sa.add_body(cube.into(), state);
-        sa.initialize(&device);
-
-        // 2. Calculate surface area along each axis
-        sa.calculate_surface_area(
-            index,
-            [1.0, 0.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_x = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        sa.calculate_surface_area(
-            index,
-            [0.0, 1.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_y = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        sa.calculate_surface_area(
-            index,
-            [0.0, 0.0, 1.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_z = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        // 3. For a 2x2x2 cube, projected area along any axis should be 4.0
-        println!(
-            "Calculated surface areas - X: {}, Y: {}, Z: {}",
-            area_x, area_y, area_z
-        );
-
-        // Check with reasonable epsilon for floating-point errors
-        const EPSILON: f32 = 0.001;
-        assert!(
-            (area_x - 4.0).abs() < EPSILON,
-            "X-axis surface area should be 4.0, got {}",
-            area_x
-        );
-        assert!(
-            (area_y - 4.0).abs() < EPSILON,
-            "Y-axis surface area should be 4.0, got {}",
-            area_y
-        );
-        assert!(
-            (area_z - 4.0).abs() < EPSILON,
-            "Z-axis surface area should be 4.0, got {}",
-            area_z
-        );
-    }
-
-    //#[test]
-    fn test_rotated_cube_surface_area() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // 1. Create a 2x2x2 cube and rotate it 45 degrees around Y axis
-        let cube = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-        let state = GeometryState {
-            position: DVec3::ZERO,
-            rotation: DQuat::from_rotation_y(std::f64::consts::PI / 4.0), // 45 degrees
-        };
-
-        let mut sa = GpuSurfaceArea::new();
-        let index = sa.add_body(cube.into(), state);
-        sa.initialize(&device);
-
-        // 2. Calculate surface area along X and Z axes
-        sa.calculate_surface_area(
-            index,
-            [1.0, 0.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_x = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        sa.calculate_surface_area(
-            index,
-            [0.0, 0.0, 1.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_z = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        // 3. For a 45-degree rotated cube along Y, projected area should be √2 * 2 * 2 = 5.66
-        // (Because we see the cube corner-on, which increases the projected area)
-        println!(
-            "Rotated cube surface areas - X: {}, Z: {}",
-            area_x, area_z
-        );
-
-        const EPSILON: f32 = 0.1;
-        let expected_area = 2.0 * 2.0 * std::f32::consts::SQRT_2;
-        assert!(
-            (area_x - expected_area).abs() < EPSILON,
-            "Rotated X-axis surface area should be ~{}, got {}",
-            expected_area,
-            area_x
-        );
-        assert!(
-            (area_z - expected_area).abs() < EPSILON,
-            "Rotated Z-axis surface area should be ~{}, got {}",
-            expected_area,
-            area_z
-        );
-    }
-
-    //#[test]
-    fn test_rectangular_cuboid_surface_area() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // 1. Create a rectangular cuboid with different dimensions
-        let cuboid = Cuboid::new(1.0, 2.0, 3.0).unwrap();
-        let state = GeometryState { position: DVec3::ZERO, rotation: DQuat::IDENTITY };
-
-        let mut sa = GpuSurfaceArea::new();
-        let index = sa.add_body(cuboid.into(), state);
-        sa.initialize(&device);
-
-        // 2. Calculate surface areas along each axis
-        sa.calculate_surface_area(
-            index,
-            [1.0, 0.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_x = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        sa.calculate_surface_area(
-            index,
-            [0.0, 1.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_y = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        sa.calculate_surface_area(
-            index,
-            [0.0, 0.0, 1.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area_z = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        // 3. Expected areas:
-        // X-axis: 2.0 * 3.0 = 6.0 (height * depth)
-        // Y-axis: 1.0 * 3.0 = 3.0 (width * depth)
-        // Z-axis: 1.0 * 2.0 = 2.0 (width * height)
-        println!(
-            "Rectangular cuboid surface areas - X: {}, Y: {}, Z: {}",
-            area_x, area_y, area_z
-        );
-
-        const EPSILON: f32 = 0.001;
-        assert!(
-            (area_x - 6.0).abs() < EPSILON,
-            "X-axis surface area should be 6.0, got {}",
-            area_x
-        );
-        assert!(
-            (area_y - 3.0).abs() < EPSILON,
-            "Y-axis surface area should be 3.0, got {}",
-            area_y
-        );
-        assert!(
-            (area_z - 2.0).abs() < EPSILON,
-            "Z-axis surface area should be 2.0, got {}",
-            area_z
-        );
-    }
-
-    //#[test]
-    fn test_multiple_geometries() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // Create two different cubes
-        let cube1 = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        let cube2 = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-
-        let state1 = GeometryState {
-            position: DVec3::new(-2.0, 0.0, 0.0), // Position first cube on left
-            rotation: DQuat::IDENTITY,
+            position: Vec3::new(-1.5, 0.0, 0.0).into(), // Position first cube to the left
+            rotation: DQuat::IDENTITY,                  // No rotation
         };
 
         let state2 = GeometryState {
-            position: DVec3::new(2.0, 0.0, 0.0), // Position second cube on right
-            rotation: DQuat::IDENTITY,
+            position: Vec3::new(1.5, 0.0, 0.0).into(), // Position second cube to the right
+            rotation: DQuat::from_rotation_y(std::f64::consts::PI / 4.0), // 90° rotation around Y
         };
 
-        let mut sa = GpuSurfaceArea::new();
-        let index1 = sa.add_body(cube1.into(), state1);
-        let index2 = sa.add_body(cube2.into(), state2);
-        sa.initialize(&device);
+        // Apply transformations and create geometries
+        let transform1 = cube1.get_transform(&state1);
+        let transform2 = cube2.get_transform(&state2);
 
-        // Calculate areas
-        sa.calculate_surface_area(
-            index1,
-            [0.0, 0.0, 1.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area1 = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index1];
+        let mut vertices1 = cube1.get_vertices();
+        let mut vertices2 = cube2.get_vertices();
 
-        sa.calculate_surface_area(
-            index2,
-            [0.0, 0.0, 1.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let area2 = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index2];
+        // Apply transformations to vertices
+        for vertex in &mut vertices1 {
+            let pos = transform1.transformation_matrix
+                * vertex
+                    .pos
+                    .extend(1.0);
+            vertex.pos = pos.truncate();
+            vertex.normal = transform1.normal_matrix * vertex.normal;
+        }
 
-        // Expected values
-        // First cube (1x1x1): area = 1.0
-        // Second cube (2x2x2): area = 4.0
-        println!(
-            "Multiple geometries - Cube1 (1x1x1): {}, Cube2 (2x2x2): {}",
-            area1, area2
-        );
+        for vertex in &mut vertices2 {
+            let pos = transform2.transformation_matrix
+                * vertex
+                    .pos
+                    .extend(1.0);
+            vertex.pos = pos.truncate();
+            vertex.normal = transform2.normal_matrix * vertex.normal;
+        }
 
-        const EPSILON: f32 = 0.001;
-        assert!(
-            (area1 - 1.0).abs() < EPSILON,
-            "Cube1 area should be 1.0, got {}",
-            area1
-        );
-        assert!(
-            (area2 - 4.0).abs() < EPSILON,
-            "Cube2 area should be 4.0, got {}",
-            area2
-        );
-    }
+        // Create geometry objects with transformed vertices
+        let geometry1 = Geometry::from_vertices(vertices1);
+        let geometry2 = Geometry::from_vertices(vertices2);
+        let geometry_vec = vec![geometry1, geometry2];
 
-    //#[test]
-    fn test_diagonal_projection() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // Create a cube
-        let cube = Cuboid::new(2.0, 2.0, 2.0).unwrap();
-        let state = GeometryState { position: DVec3::ZERO, rotation: DQuat::IDENTITY };
-
-        let mut sa = GpuSurfaceArea::new();
-        let index = sa.add_body(cube.into(), state);
-        sa.initialize(&device);
-
-        // Project along diagonal direction
-        let diagonal = [1.0, 1.0, 1.0]; // Direction vector
-        let magnitude = ((diagonal[0] * diagonal[0]
-            + diagonal[1] * diagonal[1]
-            + diagonal[2] * diagonal[2]) as f32)
-            .sqrt();
-        let normalized =
-            [diagonal[0] / magnitude, diagonal[1] / magnitude, diagonal[2] / magnitude];
-
-        sa.calculate_surface_area(
-            index, normalized, &device, &queue,
-        )
-        .unwrap();
-        let area = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        // For a 2x2x2 cube projected along the (1,1,1) diagonal,
-        // the projected area should be 2*2*sqrt(3) = 6.93
-        println!(
-            "Diagonal projection area: {}",
-            area
-        );
-
-        const EPSILON: f32 = 0.1;
-        let expected_area = 2.0 * 2.0 * (3.0_f32.sqrt()) / 3.0;
-        assert!(
-            (area - expected_area).abs() < EPSILON,
-            "Diagonal projection area should be ~{}, got {}",
-            expected_area,
-            area
-        );
-    }
-
-    //#[test]
-    fn test_update_body_state() {
-        let (device, queue) = pollster::block_on(create_wgpu_context());
-
-        // Create a rectangular cuboid
-        let cuboid = Cuboid::new(1.0, 2.0, 3.0).unwrap();
-        let initial_state = GeometryState { position: DVec3::ZERO, rotation: DQuat::IDENTITY };
-
-        let mut sa = GpuSurfaceArea::new();
-        let index = sa.add_body(cuboid.into(), initial_state);
-        sa.initialize(&device);
-
-        // Get initial area
-        sa.calculate_surface_area(
-            index,
-            [1.0, 0.0, 0.0],
-            &device,
-            &queue,
-        )
-        .unwrap();
-        let initial_area = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
-
-        // Update state - rotate 90 degrees around Z
-        let rotated_state = GeometryState {
-            position: DVec3::ZERO,
-            rotation: DQuat::from_rotation_z(std::f64::consts::PI / 2.0),
+        // Expanded scene bounds to contain both cubes
+        let bounds = SceneBounds {
+            min_x: -3.0,
+            max_x: 3.0,
+            min_y: -1.5,
+            max_y: 1.5,
+            min_z: -1.5,
+            max_z: 1.5,
         };
 
-        sa.update_body(index, &rotated_state);
+        // Calculate surface areas
+        let resolution = 64; // Higher resolution for better accuracy with 2 objects
+        let calc = SurfaceAreaCalculator::new(&device, &queue, resolution);
 
-        // Calculate area again
-        sa.calculate_surface_area(
-            index,
-            [1.0, 0.0, 0.0],
+        // View from positive Z direction
+        let view_direction = [0.0, 0.0, 1.0];
+
+        let areas = calc.calculate_surface_areas(
             &device,
             &queue,
-        )
-        .unwrap();
-        let rotated_area = sa
-            .initialized
-            .as_ref()
-            .unwrap()
-            .result[index];
+            &geometry_vec,
+            view_direction,
+            bounds,
+        );
 
-        // Before rotation: projecting along X gives height*depth = 2*3 = 6
-        // After rotation: height and width swap, so we get width*depth = 1*3 = 3
         println!(
-            "Initial area: {}, After rotation: {}",
-            initial_area, rotated_area
+            "Cube 1 (unrotated) area: {}",
+            areas[0]
+        );
+        println!(
+            "Cube 2 (rotated 90°) area: {}",
+            areas[1]
         );
 
-        const EPSILON: f32 = 0.1;
+        // Both cubes should have the same apparent surface area from this view direction
+        // The rotation shouldn't change the projected area when viewed along Z
         assert!(
-            (initial_area - 6.0).abs() < EPSILON,
-            "Initial area should be 6.0, got {}",
-            initial_area
+            (areas[0] - 1.0).abs() < 0.05,
+            "Expected cube 1 area ~1.0, got {}",
+            areas[0]
         );
         assert!(
-            (rotated_area - 3.0).abs() < EPSILON,
-            "Rotated area should be 3.0, got {}",
-            rotated_area
+            (areas[1] - 1.0).abs() < 0.05,
+            "Expected cube 2 area ~1.0, got {}",
+            areas[1]
         );
+
+        // Areas should be approximately equal
+        assert!(
+            (areas[0] - areas[1]).abs() < 0.02,
+            "Expected similar areas, got {} and {}",
+            areas[0],
+            areas[1]
+        );
+
+        println!("Test passed: Both cubes have similar projected areas!");
     }
 }

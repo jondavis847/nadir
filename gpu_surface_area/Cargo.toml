@@ -7,7 +7,9 @@ rust-version.workspace = true
 
 [dependencies]
 bytemuck.workspace = true
+futures.workspace = true
 glam.workspace = true
 wgpu.workspace = true
 nadir_3d.workspace = true
 pollster.workspace = true
+thiserror.workspace = true
