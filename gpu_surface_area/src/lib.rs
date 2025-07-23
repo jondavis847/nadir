@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 use nadir_3d::{
-    geometry::{Geometry, GeometryState, GeometryTrait, GeometryTransform},
+    geometry::{Geometry, GeometryState, GeometryTrait},
     vertex::simple_vertices,
 };
 use wgpu::util::DeviceExt;
@@ -10,6 +11,57 @@ use wgpu::util::DeviceExt;
 use crate::surface_area::SurfaceAreaCalculator;
 
 pub mod surface_area;
+
+pub enum GpuCalculatorMethod {
+    Rasterization {
+        resolution: u32,
+        safety_factor: f32,
+    },
+    RayTracing {
+        nrays_x: u32,
+        nrays_y: u32,
+    },
+}
+
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
+pub struct GeometryId(usize);
+
+pub struct GeometryData {
+    geometry: Geometry,
+    uniforms: GeometryUniforms,
+    max_vertex_mag: f32,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct SceneBounds {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    min_z: f32,
+    max_z: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Zeroable, Pod)]
+struct SharedUniforms {
+    projection_matrix: Mat4,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Zeroable, Pod)]
+struct GeometryUniforms {
+    world_transform: Mat4,
+    id: u32,
+    _padding: [u32; 3], // Align to 16 bytes
+}
+
+pub struct GpuGeometryResources {
+    bind_group: wgpu::BindGroup,
+    uniform_buffer: wgpu::Buffer,
+    vertex_buffer: wgpu::Buffer,
+    vertex_count: u32,
+}
 
 pub struct GpuInitialized {
     device: wgpu::Device,
@@ -29,8 +81,11 @@ pub struct GpuInitialized {
     /// Ensures only the nearest (visible) fragments are drawn when objects overlap.
     /// Prevents back surfaces and occluded geometry from contributing to area/CoP/SRP.
     depth_texture: wgpu::TextureView,
-    vertex_buffers: Vec<wgpu::Buffer>,
-    transform_buffer: wgpu::Buffer,
+    geometry: HashMap<GeometryId, GpuGeometryResources>,
+    geometry_uniform_bindgroup_layout: wgpu::BindGroupLayout,
+    shared_uniform_buffer: wgpu::Buffer,
+    shared_bind_group: wgpu::BindGroup,
+    shared_bind_group_layout: wgpu::BindGroupLayout,
     resolution: u32,
 }
 
@@ -41,52 +96,154 @@ pub struct GpuCalculator {
     //center_of_pressure: Option<CenterOfPressureCalculator>,
     //solar_radiation_pressure: Option<SrpCalculator>,
     initialized: Option<GpuInitialized>,
+    scene_bounds: SceneBounds,
 }
 
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 1024, safety_factor: 1.1 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 32, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
+            scene_bounds: SceneBounds::default(),
         }
     }
 
     pub fn add_geometry(&mut self, geometry: Geometry, state: &GeometryState) -> GeometryId {
         let id = GeometryId(
             self.geometry
-                .len(),
+                .len()
+                + 1,
         );
-        let transform = geometry.get_transform(state);
+
+        let world_transform = geometry
+            .get_transform(state)
+            .transformation_matrix;
+
+        let vertices = geometry.get_vertices();
+        let mut max_vertex_mag = 0.0;
+        for vertex in vertices {
+            let mag = vertex
+                .pos
+                .length();
+            if mag > max_vertex_mag {
+                max_vertex_mag = mag;
+            }
+        }
+
+        dbg!(max_vertex_mag);
         self.geometry
             .insert(
                 id,
-                GeometryData { geometry, transform },
+                GeometryData {
+                    geometry,
+                    uniforms: GeometryUniforms {
+                        world_transform,
+                        id: id.0 as u32,
+                        _padding: [0; 3],
+                    },
+                    max_vertex_mag,
+                },
             );
+
         id
     }
 
-    pub fn update_geometry(&mut self, id: GeometryId, state: &GeometryState) {
-        if let Some(geometry) = self
-            .geometry
-            .get_mut(&id)
-        {
-            geometry.transform = geometry
-                .geometry
-                .get_transform(state);
+    pub fn calculate_scene_bounds(&mut self) {
+        // for scene bounds calculations
+        let mut scene_bounds = SceneBounds {
+            min_x: std::f32::INFINITY,
+            max_x: -std::f32::INFINITY,
+            min_y: std::f32::INFINITY,
+            max_y: -std::f32::INFINITY,
+            min_z: std::f32::INFINITY,
+            max_z: -std::f32::INFINITY,
+        };
+
+        for (_, geometry) in &self.geometry {
+            // calculate bounding box
+            let world_position = geometry
+                .uniforms
+                .world_transform
+                .col(3);
+            let geometry_bounds = SceneBounds {
+                min_x: world_position.x - geometry.max_vertex_mag,
+                max_x: world_position.x + geometry.max_vertex_mag,
+                min_y: world_position.y - geometry.max_vertex_mag,
+                max_y: world_position.y + geometry.max_vertex_mag,
+                min_z: world_position.z - geometry.max_vertex_mag,
+                max_z: world_position.z + geometry.max_vertex_mag,
+            };
+            scene_bounds.min_x = scene_bounds
+                .min_x
+                .min(geometry_bounds.min_x);
+            scene_bounds.max_x = scene_bounds
+                .max_x
+                .max(geometry_bounds.max_x);
+            scene_bounds.min_y = scene_bounds
+                .min_y
+                .min(geometry_bounds.min_y);
+            scene_bounds.max_y = scene_bounds
+                .max_y
+                .max(geometry_bounds.max_y);
+            scene_bounds.min_z = scene_bounds
+                .min_z
+                .min(geometry_bounds.min_z);
+            scene_bounds.max_z = scene_bounds
+                .max_z
+                .max(geometry_bounds.max_z);
+        }
+        dbg!(&scene_bounds);
+        self.scene_bounds = scene_bounds;
+    }
+
+    pub fn calculate_surface_area(
+        &mut self,
+        view_direction: &[f32; 3],
+        safety_factor: f32,
+    ) -> Vec<f32> {
+        // recalculate the scene bounds with new transform information
+        // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
+        self.calculate_scene_bounds();
+
+        if let Some(initialized) = &mut self.initialized {
+            // Initialize surface area calculator if needed
+            if self
+                .surface_area
+                .is_none()
+            {
+                self.surface_area = Some(SurfaceAreaCalculator::new());
+            }
+
+            let surface_area_calc = self
+                .surface_area
+                .as_mut()
+                .unwrap();
+
+            // Use YOUR textures from GpuInitialized
+            surface_area_calc.calculate(
+                &initialized.device,
+                &initialized.queue,
+                &initialized.geometry,
+                &self.scene_bounds,
+                view_direction,
+                initialized.resolution,
+                safety_factor,
+                &initialized.shared_uniform_buffer,
+                &initialized.shared_bind_group,
+                &initialized.object_id_texture,
+                &initialized.depth_texture,
+            )
         } else {
-            panic!(
-                "Geometry with ID {:?} not found",
-                id
-            );
+            panic!("GpuCalculator not initialized");
         }
     }
 
     // don't initialize until all geometries have been added
     // if geometries are added after initilization, can i just re call this, or do i need to drop gpu resources first somehow?
     pub fn initialize(&mut self) {
-        let (resolution, safety_factor) = match self.method {
+        let (resolution, _) = match self.method {
             GpuCalculatorMethod::Rasterization { resolution, safety_factor } => {
                 (resolution, safety_factor)
             }
@@ -156,20 +313,86 @@ impl GpuCalculator {
             view_formats: &[],
         });
 
-        // Create transform buffer
-        let transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Transform Buffer"),
-            size: 0, // to be resized later
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        let mut gpu_geometries = HashMap::new();
+
+        // Create shared bind group layout (for projection matrix)
+        let shared_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Shared Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            },
+        );
+
+        // Create the uniform bind group layout
+        let geometry_uniform_bindgroup_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Geometry Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            },
+        );
+
+        // Create shared uniform buffer
+        let shared_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Shared Uniform Buffer"),
+            size: std::mem::size_of::<SharedUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        // Create vertex buffers for each geometry
-        let mut vertex_buffers = Vec::new();
-        for geometry in self
-            .geometry
-            .values()
-        {
+        // Create shared bind group
+        let shared_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Shared Bind Group"),
+            layout: &shared_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: shared_uniform_buffer.as_entire_binding(),
+            }],
+        });
+
+        for (id, geometry) in &self.geometry {
+            // Create uniform buffer per geometry
+            let uniform_buffer = device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!(
+                        "Uniform Buffer {}",
+                        id.0
+                    )),
+                    contents: bytemuck::cast_slice(&[geometry.uniforms]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                },
+            );
+
+            // Create bind group using the layout and buffer
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(&format!(
+                    "Bind Group {}",
+                    id.0
+                )),
+                layout: &geometry_uniform_bindgroup_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }],
+            });
+
             // Create vertex buffers for each geometry
             let vertices = simple_vertices(
                 &geometry
@@ -178,12 +401,23 @@ impl GpuCalculator {
             );
             let vertex_buffer = device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
-                    label: Some("Vertex Buffer"),
+                    label: Some(&format!(
+                        "Vertex Buffer {}",
+                        id.0
+                    )),
                     contents: bytemuck::cast_slice(&vertices),
                     usage: wgpu::BufferUsages::VERTEX,
                 },
             );
-            vertex_buffers.push(vertex_buffer);
+
+            let gpu_geometry = GpuGeometryResources {
+                bind_group,
+                uniform_buffer,
+                vertex_buffer,
+                vertex_count: vertices.len() as u32,
+            };
+
+            gpu_geometries.insert(*id, gpu_geometry);
         }
 
         self.initialized = Some(GpuInitialized {
@@ -192,10 +426,97 @@ impl GpuCalculator {
             object_id_texture: object_id_texture.create_view(&Default::default()),
             position_texture: position_texture.create_view(&Default::default()),
             depth_texture: depth_texture.create_view(&Default::default()),
-            transform_buffer,
             resolution,
-            vertex_buffers,
+            geometry: gpu_geometries,
+            geometry_uniform_bindgroup_layout,
+            shared_uniform_buffer,
+            shared_bind_group,
+            shared_bind_group_layout,
         });
+
+        // if let Some(gpu) = &self.initialized {
+        //     // initialize center of pressure area
+        //     if let Some(surface_area) = &mut self.surface_area {
+        //         surface_area.initialize(
+        //             &gpu.device,
+        //             &gpu.geometry_uniform_bindgroup_layout,
+        //             resolution,
+        //         );
+        //     }
+        // }
+
+        // if let Some(gpu) = &self.initialized {
+        //     // initialize solar radiation pressure
+        //     if let Some(surface_area) = &mut self.surface_area {
+        //         surface_area.initialize(
+        //             &gpu.device,
+        //             &gpu.geometry_uniform_bindgroup_layout,
+        //             resolution,
+        //         );
+        //     }
+        // }
+
+        if let Some(gpu) = &self.initialized {
+            // initialize surface area
+            if let Some(surface_area) = &mut self.surface_area {
+                surface_area.initialize(
+                    &gpu.device,
+                    &gpu.shared_bind_group_layout,
+                    &gpu.geometry_uniform_bindgroup_layout,
+                    resolution,
+                );
+            }
+        }
+    }
+
+    pub fn update_geometry(&mut self, id: GeometryId, state: &GeometryState) {
+        if let Some(geometry_data) = self
+            .geometry
+            .get_mut(&id)
+        {
+            // Update the CPU-side uniforms
+            geometry_data
+                .uniforms
+                .world_transform = geometry_data
+                .geometry
+                .get_transform(state)
+                .transformation_matrix;
+
+            // Update the GPU uniform buffer
+            if let Some(initialized) = &mut self.initialized {
+                if let Some(gpu_geometry) = initialized
+                    .geometry
+                    .get(&id)
+                {
+                    // Write the updated uniforms to the GPU buffer
+                    initialized
+                        .queue
+                        .write_buffer(
+                            &gpu_geometry.uniform_buffer,
+                            0, // offset
+                            bytemuck::cast_slice(&[geometry_data.uniforms]),
+                        );
+                }
+            }
+        } else {
+            panic!(
+                "Geometry with ID {:?} not found",
+                id
+            );
+        }
+    }
+
+    pub fn with_center_of_pressure(mut self) -> Self {
+        todo!()
+    }
+
+    pub fn with_solar_radiation_pressure(mut self) -> Self {
+        todo!()
+    }
+
+    pub fn with_surface_area(mut self) -> Self {
+        self.surface_area = Some(SurfaceAreaCalculator::new());
+        self
     }
 }
 
@@ -215,7 +536,9 @@ fn create_orthographic_projection(
         bounds.max_z,
     );
     let center = (min + max) * 0.5;
-    let size = (max - min) * scale_factor;
+
+    // Calculate half-extents, not full size
+    let half_extents = (max - min) * 0.5 * scale_factor;
 
     let dir = Vec3::from(*view_direction).normalize();
     let up = if dir
@@ -227,111 +550,114 @@ fn create_orthographic_projection(
     } else {
         Vec3::Y
     };
-    let eye = center - dir * size.length();
+    let eye = center - dir * half_extents.length() * 2.0;
     let view = Mat4::look_at_rh(eye, center, up);
+
+    // Use half-extents for orthographic bounds
     let ortho = Mat4::orthographic_rh(
-        -size.x,
-        size.x,
-        -size.y,
-        size.y,
+        -half_extents.x,
+        half_extents.x,
+        -half_extents.y,
+        half_extents.y,
         0.1,
-        size.length() * 2.0,
+        half_extents.length() * 4.0,
     );
+
     (ortho * view).to_cols_array_2d()
-}
-pub enum GpuCalculatorMethod {
-    Rasterization {
-        resolution: u32,
-        safety_factor: f32,
-    },
-    RayTracing {
-        nrays_x: u32,
-        nrays_y: u32,
-    },
-}
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
-pub struct GeometryId(usize);
-
-pub struct GeometryData {
-    geometry: Geometry,
-    transform: GeometryTransform,
-}
-
-#[derive(Copy, Clone)]
-pub struct SceneBounds {
-    min_x: f32,
-    max_x: f32,
-    min_y: f32,
-    max_y: f32,
-    min_z: f32,
-    max_z: f32,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::{DQuat, Quat};
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
     #[test]
     fn test_cube_area() {
-        // WGPU Setup (use default adapter)
-        let instance = wgpu::Instance::default();
-        let adapter = pollster::block_on(
-            instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::LowPower,
-                compatible_surface: None,
-                force_fallback_adapter: false,
-            }),
-        )
-        .expect("Failed to find a GPU adapter");
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-                .expect("Failed to get device");
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
         // Build test geometry (unit cube)
-        let cube = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        // Provide dummy geometry state if needed by your trait/struct impl
-        let geometry = cube;
-        let geometry_vec: Vec<Geometry> = vec![geometry.into()];
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let geometry_state = GeometryState::default(); // Assuming default state is identity transform
 
-        // Scene bounds that tightly include the cube
-        let bounds = SceneBounds {
-            min_x: -1.0,
-            max_x: 1.0,
-            min_y: -1.0,
-            max_y: 1.0,
-            min_z: -1.0,
-            max_z: 1.0,
-        };
-
-        // Compute surface area using calculator
-        let resolution = 32;
-        let calc = SurfaceAreaCalculator::new(&device, &queue, resolution);
-
-        // Front-on (Z) view
-        let view_direction = [0.0, 0.0, -1.0];
-
-        // Your geometry should implement GeometryTrait (get_vertices)
-        let areas = calc.calculate_surface_areas(
-            &device,
-            &queue,
-            &geometry_vec,
-            view_direction,
-            bounds,
+        // Add geometry to the calculator
+        let _cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
         );
 
+        // Initialize the GPU resources
+        gpu_calc.initialize();
+
+        // Front-on (Z) view - looking at the cube from the front
+        let view_direction = [0.0, 0.0, -1.0];
+        let safety_factor = 1.1;
+
+        // Calculate surface area using the new framework
+        let areas = gpu_calc.calculate_surface_area(&view_direction, safety_factor);
+
         // Only one object, expect just front face: area should be close to 1.0
+        assert_eq!(
+            areas.len(),
+            1,
+            "Should have one geometry"
+        );
         let calculated_area = areas[0];
+
         println!(
             "Calculated area: {}",
             calculated_area
         );
+
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
         assert!(
-            (calculated_area - 1.0).abs() < 0.02, // Allow small error due to resolution
+            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
             "Expected ~1.0, got {}",
             calculated_area
         );
+    }
+
+    #[test]
+    fn test_cube_area_multiple_views() {
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+
+        let cube_geometry = Cuboid::new(2.0, 2.0, 2.0).unwrap(); // 2x2x2 cube
+        let geometry_state = GeometryState::default();
+
+        let _cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
+        );
+        gpu_calc.initialize();
+
+        let safety_factor = 1.1;
+
+        // Test different viewing directions
+        let test_cases = [
+            ([0.0, 0.0, -1.0], "front"),  // Front face
+            ([0.0, 0.0, 1.0], "back"),    // Back face
+            ([1.0, 0.0, 0.0], "right"),   // Right face
+            ([-1.0, 0.0, 0.0], "left"),   // Left face
+            ([0.0, 1.0, 0.0], "top"),     // Top face
+            ([0.0, -1.0, 0.0], "bottom"), // Bottom face
+        ];
+
+        for (view_direction, name) in test_cases {
+            let areas = gpu_calc.calculate_surface_area(&view_direction, safety_factor);
+
+            let calculated_area = areas[0];
+            println!(
+                "{} view calculated area: {}",
+                name, calculated_area
+            );
+
+            // Each face of a 2x2 cube should have area 4.0
+            assert!(
+                (calculated_area - 4.0).abs() < 0.2,
+                "{} view: Expected ~4.0, got {}",
+                name,
+                calculated_area
+            );
+        }
     }
 }

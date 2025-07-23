@@ -1,8 +1,8 @@
+use glam::Mat4;
+use nadir_3d::vertex::SimpleVertex;
 use std::collections::HashMap;
 
-use nadir_3d::vertex::SimpleVertex;
-
-use crate::{GeometryData, GeometryId, SceneBounds, create_orthographic_projection};
+use crate::{GeometryId, GpuGeometryResources, SceneBounds, SharedUniforms};
 
 pub struct SurfaceAreaInitialized {
     render_pipeline: wgpu::RenderPipeline,
@@ -18,10 +18,11 @@ impl SurfaceAreaCalculator {
         Self { initialized: None }
     }
 
-    fn initialize(
+    pub fn initialize(
         &mut self,
         device: &wgpu::Device,
-        uniform_bind_group_layout: &wgpu::BindGroupLayout,
+        shared_bind_group_layout: &wgpu::BindGroupLayout,
+        geometry_bind_group_layout: &wgpu::BindGroupLayout,
         resolution: u32,
     ) {
         const SHADER: &str = include_str!("surface_area.wgsl");
@@ -30,10 +31,14 @@ impl SurfaceAreaCalculator {
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
         });
 
+        // Add push constants to pipeline layout
         let render_pipeline_layout = device.create_pipeline_layout(
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Surface Area Pipeline Layout"),
-                bind_group_layouts: &[uniform_bind_group_layout],
+                bind_group_layouts: &[
+                    shared_bind_group_layout,   // Bind group 0: shared data
+                    geometry_bind_group_layout, // Bind group 1: per-geometry data
+                ],
                 push_constant_ranges: &[],
             },
         );
@@ -110,23 +115,34 @@ impl SurfaceAreaCalculator {
     }
 
     pub fn calculate(
-        &self,
+        &mut self, // Changed to &mut since we need to initialize
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        geometries: &HashMap<GeometryId, GeometryData>,
+        geometry_resources: &HashMap<GeometryId, GpuGeometryResources>, // Use GPU resources
         scene_bounds: &SceneBounds,
         view_direction: &[f32; 3],
         resolution: u32,
         safety_factor: f32,
+        shared_buffer: &wgpu::Buffer,
+        shared_bindgroup: &wgpu::BindGroup,
         object_id_view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
     ) -> Vec<f32> {
         if let Some(initialized) = &self.initialized {
             // Create orthographic projection matrix
-            let projection_matrix = create_orthographic_projection(
+            let projection_matrix = crate::create_orthographic_projection(
                 scene_bounds,
                 view_direction,
                 safety_factor,
+            );
+
+            let shared_uniforms = SharedUniforms {
+                projection_matrix: Mat4::from_cols_array_2d(&projection_matrix),
+            };
+            queue.write_buffer(
+                shared_buffer,
+                0,
+                bytemuck::cast_slice(&[shared_uniforms]),
             );
 
             // Begin render pass
@@ -163,27 +179,26 @@ impl SurfaceAreaCalculator {
                 });
 
                 render_pass.set_pipeline(&initialized.render_pipeline);
+                // Set shared bind group once
+                render_pass.set_bind_group(0, shared_bindgroup, &[]);
 
-                // Render each geometry with its object ID
-                for (object_id, geometry) in geometries
-                    .iter()
-                    .enumerate()
-                {
-                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some(&format!(
-                            "Bind Group {}",
-                            object_id
-                        )),
-                        layout: &self.uniform_bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: uniform_buffer.as_entire_binding(),
-                        }],
-                    });
-
-                    render_pass.set_bind_group(0, &bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                    render_pass.draw(0..vertices.len() as u32, 0..1);
+                // Render each geometry with its resources
+                for (_geometry_id, gpu_geometry) in geometry_resources {
+                    render_pass.set_bind_group(
+                        1,
+                        &gpu_geometry.bind_group,
+                        &[],
+                    );
+                    render_pass.set_vertex_buffer(
+                        0,
+                        gpu_geometry
+                            .vertex_buffer
+                            .slice(..),
+                    );
+                    render_pass.draw(
+                        0..gpu_geometry.vertex_count,
+                        0..1,
+                    );
                 }
             }
 
@@ -194,7 +209,7 @@ impl SurfaceAreaCalculator {
 
             encoder.copy_texture_to_buffer(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &self.texture,
+                    texture: object_id_view.texture(), // Fixed: use the texture from the view
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
@@ -217,37 +232,51 @@ impl SurfaceAreaCalculator {
             queue.submit(Some(encoder.finish()));
 
             // Read back pixel data and calculate areas
-            let pixel_data = self.read_buffer_data(device);
+            let pixel_data = self.read_buffer_data(
+                device,
+                &initialized.result_buffer,
+                resolution,
+            );
 
-            //After getting pixel_data, add this debugging:
-            // println!(
-            //     "Pixel data as {}x{} grid:",
-            //     self.resolution, self.resolution
-            // );
-            // for y in 0..self.resolution {
-            //     for x in 0..self.resolution {
-            //         let idx = (y * self.resolution + x) as usize;
-            //         print!("{:2} ", pixel_data[idx]);
-            //     }
-            //     println!();
-            // }
+            // Print pixel data as a grid for debugging
+            println!(
+                "Pixel data as {}x{} grid:",
+                resolution, resolution
+            );
+            println!("(0 = background, >0 = object ID)");
+            println!();
+
+            for y in 0..resolution {
+                for x in 0..resolution {
+                    let idx = (y * resolution + x) as usize;
+                    if idx < pixel_data.len() {
+                        print!("{:3} ", pixel_data[idx]);
+                    } else {
+                        print!("??? ");
+                    }
+                }
+                println!(); // New line after each row
+            }
 
             self.calculate_areas_from_pixels(
                 pixel_data,
-                geometries.len(),
-                scene_bounds,
-                self.resolution,
-                self.scale_factor,
+                geometry_resources.len(),
+                *scene_bounds,
+                resolution,
+                safety_factor,
             )
         } else {
-            panic!("SurfaceAreaCalculator not initialized. Call initialize() first.");
+            panic!("SurfaceAreaCalculator failed to initialize");
         }
     }
 
-    fn read_buffer_data(&self, device: &wgpu::Device) -> Vec<u32> {
-        let buffer_slice = self
-            .buffer
-            .slice(..);
+    fn read_buffer_data(
+        &self,
+        device: &wgpu::Device,
+        buffer: &wgpu::Buffer,
+        resolution: u32,
+    ) -> Vec<u32> {
+        let buffer_slice = buffer.slice(..);
 
         // Set up a channel to receive mapping result
         let (sender, receiver) = futures::channel::oneshot::channel();
@@ -276,20 +305,20 @@ impl SurfaceAreaCalculator {
         });
 
         // Handle aligned rows properly
-        let unaligned = self.resolution * 4; // 4 bytes per pixel
+        let unaligned = resolution * 4; // 4 bytes per pixel
         let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let bytes_per_row = ((unaligned + alignment - 1) / alignment) * alignment;
 
         // Create a properly sized result without padding
-        let mut result = Vec::with_capacity((self.resolution * self.resolution) as usize);
+        let mut result = Vec::with_capacity((resolution * resolution) as usize);
 
         let mapped_data = buffer_slice.get_mapped_range();
         let bytes = mapped_data.as_ref();
 
         // Extract just the actual pixels, skipping padding
-        for y in 0..self.resolution {
+        for y in 0..resolution {
             let row_start = (y * bytes_per_row) as usize; // bytes_per_row is in bytes, not u32s
-            for x in 0..self.resolution {
+            for x in 0..resolution {
                 let pixel_offset = row_start + (x * 4) as usize; // 4 bytes per u32 pixel
 
                 // Convert 4 bytes to u32 (little-endian)
@@ -305,8 +334,7 @@ impl SurfaceAreaCalculator {
         }
 
         drop(mapped_data);
-        self.buffer
-            .unmap();
+        buffer.unmap();
 
         result
     }
@@ -346,9 +374,14 @@ impl SurfaceAreaCalculator {
         resolution: u32,
         scale_factor: f32,
     ) -> f32 {
-        // Simple scaling formula: area per pixel * scaling factor squared
-        (scene_bounds.max_x - scene_bounds.min_x) * (scene_bounds.max_y - scene_bounds.min_y)
-            / ((resolution * resolution) as f32)
-            * (scale_factor * scale_factor)
+        // Calculate the world space area that each pixel represents
+        let world_width = (scene_bounds.max_x - scene_bounds.min_x) * scale_factor;
+        let world_height = (scene_bounds.max_y - scene_bounds.min_y) * scale_factor;
+
+        // Each pixel represents this much world area
+        let pixel_world_width = world_width / resolution as f32;
+        let pixel_world_height = world_height / resolution as f32;
+
+        pixel_world_width * pixel_world_height
     }
 }
