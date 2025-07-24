@@ -301,16 +301,13 @@ impl GeometryTrait for Cuboid {
                 pos: vec3(
                     vertex
                         .pos
-                        .x
-                        * self.x as f32,
+                        .x,
                     vertex
                         .pos
-                        .y
-                        * self.y as f32,
+                        .y,
                     vertex
                         .pos
-                        .z
-                        * self.z as f32,
+                        .z,
                 ),
                 normal: vertex.normal,   // Normals stay the same for cuboid
                 tangent: vertex.tangent, // Tangents stay the same for cuboid

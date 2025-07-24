@@ -136,6 +136,8 @@ impl SurfaceAreaCalculator {
                 safety_factor,
             );
 
+            dbg!(projection_matrix);
+
             let shared_uniforms = SharedUniforms {
                 projection_matrix: Mat4::from_cols_array_2d(&projection_matrix),
             };
@@ -238,25 +240,25 @@ impl SurfaceAreaCalculator {
                 resolution,
             );
 
-            // Print pixel data as a grid for debugging
-            println!(
-                "Pixel data as {}x{} grid:",
-                resolution, resolution
-            );
-            println!("(0 = background, >0 = object ID)");
-            println!();
+            // // Print pixel data as a grid for debugging
+            // println!(
+            //     "Pixel data as {}x{} grid:",
+            //     resolution, resolution
+            // );
+            // println!("(0 = background, >0 = object ID)");
+            // println!();
 
-            for y in 0..resolution {
-                for x in 0..resolution {
-                    let idx = (y * resolution + x) as usize;
-                    if idx < pixel_data.len() {
-                        print!("{:3} ", pixel_data[idx]);
-                    } else {
-                        print!("??? ");
-                    }
-                }
-                println!(); // New line after each row
-            }
+            // for y in 0..resolution {
+            //     for x in 0..resolution {
+            //         let idx = (y * resolution + x) as usize;
+            //         if idx < pixel_data.len() {
+            //             print!("{:3} ", pixel_data[idx]);
+            //         } else {
+            //             print!("??? ");
+            //         }
+            //     }
+            //     println!(); // New line after each row
+            // }
 
             self.calculate_areas_from_pixels(
                 pixel_data,
