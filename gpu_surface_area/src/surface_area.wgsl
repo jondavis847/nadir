@@ -33,6 +33,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) u32 {
-    return in.object_id;
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let id = f32(in.object_id);
+    return vec4<f32>(id / 255.0, 0.0, 0.0, 1.0);
 }

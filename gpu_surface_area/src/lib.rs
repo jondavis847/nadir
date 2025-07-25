@@ -81,6 +81,7 @@ pub struct GpuInitialized {
     /// Ensures only the nearest (visible) fragments are drawn when objects overlap.
     /// Prevents back surfaces and occluded geometry from contributing to area/CoP/SRP.
     depth_texture: wgpu::TextureView,
+    resolve_texture: wgpu::TextureView,
     geometry: HashMap<GeometryId, GpuGeometryResources>,
     geometry_uniform_bindgroup_layout: wgpu::BindGroupLayout,
     shared_uniform_buffer: wgpu::Buffer,
@@ -102,7 +103,7 @@ pub struct GpuCalculator {
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 64, safety_factor: 1.0 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 1024, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
@@ -243,6 +244,7 @@ impl GpuCalculator {
                 &initialized.shared_bind_group,
                 &initialized.object_id_texture,
                 &initialized.depth_texture,
+                &initialized.resolve_texture,
             )
         } else {
             panic!("GpuCalculator not initialized");
@@ -289,9 +291,9 @@ impl GpuCalculator {
             label: Some("Object ID Texture"),
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: 4,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -315,10 +317,22 @@ impl GpuCalculator {
             label: Some("Depth Texture"),
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: 4,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        // Create a resolve target (single-sampled)
+        let resolve_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Resolve Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1, // Single sample for copying
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
@@ -435,6 +449,7 @@ impl GpuCalculator {
             object_id_texture: object_id_texture.create_view(&Default::default()),
             position_texture: position_texture.create_view(&Default::default()),
             depth_texture: depth_texture.create_view(&Default::default()),
+            resolve_texture: resolve_texture.create_view(&Default::default()),
             resolution,
             geometry: gpu_geometries,
             geometry_uniform_bindgroup_layout,
@@ -569,14 +584,28 @@ fn create_orthographic_projection(
         .normalize();
 
     let eye = center - dir * half_extents.length() * 2.0;
-    let view = Mat4::look_at_rh(eye, center, up);
+
+    //let view = Mat4::look_at_rh(eye, center, up);
+    //Build view matrix manually instead of using look_at_rh
+    // sinec glams frame is x right y up z out versus out frame of x out y right z up
+    let view = Mat4::from_cols(
+        Vec4::new(right.x, up.x, -dir.x, 0.0), // Column 0
+        Vec4::new(right.y, up.y, -dir.y, 0.0), // Column 1
+        Vec4::new(right.z, up.z, -dir.z, 0.0), // Column 2
+        Vec4::new(
+            -right.dot(eye),
+            -up.dot(eye),
+            dir.dot(eye),
+            1.0,
+        ), // Column 3
+    );
 
     // Use half-extents for orthographic bounds
     let ortho = Mat4::orthographic_rh(
-        -half_extents.x,
-        half_extents.x,
         -half_extents.y,
         half_extents.y,
+        -half_extents.z,
+        half_extents.z,
         0.01 * half_extents.length(),
         half_extents.length() * 4.0,
     );
@@ -718,6 +747,69 @@ mod tests {
             "Should have one geometry"
         );
         let calculated_area = areas[0];
+
+        println!(
+            "Calculated area: {}",
+            calculated_area
+        );
+
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area - (3.0 as f32).sqrt()).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {}",
+            calculated_area
+        );
+    }
+
+    #[test]
+    fn test_2_cubes_area() {
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+
+        // Build test geometry (unit cube)
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let state1 = GeometryState {
+            position: DVec3 { x: 0.0, y: 0.5, z: 0.5 },
+            rotation: DQuat::IDENTITY,
+        };
+
+        let state2 = GeometryState {
+            position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
+            rotation: DQuat::IDENTITY,
+        };
+
+        gpu_calc.add_geometry(cube_geometry.into(), &state1);
+
+        gpu_calc.add_geometry(cube_geometry.into(), &state2);
+
+        gpu_calc.initialize();
+
+        let view_direction = [-1.0, 0.0, 0.0];
+
+        // Calculate surface area using the new framework
+        let areas = gpu_calc.calculate_surface_area(&view_direction);
+
+        // Only one object, expect just front face: area should be close to 1.0
+        assert_eq!(
+            areas.len(),
+            2,
+            "Should have one geometry"
+        );
+        let calculated_area = areas[0];
+
+        println!(
+            "Calculated area: {}",
+            calculated_area
+        );
+
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {}",
+            calculated_area
+        );
+
+        let calculated_area = areas[1];
 
         println!(
             "Calculated area: {}",

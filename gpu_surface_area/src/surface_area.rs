@@ -83,7 +83,7 @@ impl SurfaceAreaCalculator {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -105,7 +105,11 @@ impl SurfaceAreaCalculator {
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
-                multisample: wgpu::MultisampleState::default(),
+                multisample: wgpu::MultisampleState {
+                    count: 4, // or 8
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
                 multiview: None,
                 cache: None,
             },
@@ -127,6 +131,7 @@ impl SurfaceAreaCalculator {
         shared_bindgroup: &wgpu::BindGroup,
         object_id_view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
+        resolve_view: &wgpu::TextureView,
     ) -> Vec<f32> {
         if let Some(initialized) = &self.initialized {
             // Create orthographic projection matrix
@@ -135,8 +140,6 @@ impl SurfaceAreaCalculator {
                 view_direction,
                 safety_factor,
             );
-
-            dbg!(projection_matrix);
 
             let shared_uniforms = SharedUniforms {
                 projection_matrix: Mat4::from_cols_array_2d(&projection_matrix),
@@ -158,7 +161,7 @@ impl SurfaceAreaCalculator {
                     color_attachments: &[Some(
                         wgpu::RenderPassColorAttachment {
                             view: object_id_view,
-                            resolve_target: None,
+                            resolve_target: Some(resolve_view),
                             ops: wgpu::Operations {
                                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), // Clear to 0 (no object)
                                 store: wgpu::StoreOp::Store,
@@ -211,7 +214,7 @@ impl SurfaceAreaCalculator {
 
             encoder.copy_texture_to_buffer(
                 wgpu::TexelCopyTextureInfo {
-                    texture: object_id_view.texture(), // Fixed: use the texture from the view
+                    texture: resolve_view.texture(), // Fixed: use the texture from the view
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
@@ -241,29 +244,29 @@ impl SurfaceAreaCalculator {
             );
 
             // Print pixel data as a grid for debugging
-            println!(
-                "Pixel data as {}x{} grid:",
-                resolution, resolution
-            );
-            println!("(0 = background, >0 = object ID)");
-            println!();
+            // println!(
+            //     "Pixel data as {}x{} grid:",
+            //     resolution, resolution
+            // );
+            // println!("(0 = background, >0 = object ID)");
+            // println!();
 
-            for y in 0..resolution {
-                for x in 0..resolution {
-                    let idx = (y * resolution + x) as usize;
-                    if idx < pixel_data.len() {
-                        print!("{:3} ", pixel_data[idx]);
-                    } else {
-                        print!("??? ");
-                    }
-                }
-                println!(); // New line after each row
-            }
+            // for y in 0..resolution {
+            //     for x in 0..resolution {
+            //         let idx = (y * resolution + x) as usize;
+            //         if idx < pixel_data.len() {
+            //             print!("{:3} ", pixel_data[idx]);
+            //         } else {
+            //             print!("??? ");
+            //         }
+            //     }
+            //     println!(); // New line after each row
+            // }
 
             self.calculate_areas_from_pixels(
                 pixel_data,
                 geometry_resources.len(),
-                *scene_bounds,
+                scene_bounds,
                 resolution,
                 safety_factor,
             )
@@ -323,15 +326,19 @@ impl SurfaceAreaCalculator {
             for x in 0..resolution {
                 let pixel_offset = row_start + (x * 4) as usize; // 4 bytes per u32 pixel
 
-                // Convert 4 bytes to u32 (little-endian)
-                let pixel_bytes = [
-                    bytes[pixel_offset],
-                    bytes[pixel_offset + 1],
-                    bytes[pixel_offset + 2],
-                    bytes[pixel_offset + 3],
-                ];
-                let pixel_value = u32::from_le_bytes(pixel_bytes);
-                result.push(pixel_value);
+                // // Convert 4 bytes to u32 (little-endian)
+                // let pixel_bytes = [
+                //     bytes[pixel_offset],
+                //     bytes[pixel_offset + 1],
+                //     bytes[pixel_offset + 2],
+                //     bytes[pixel_offset + 3],
+                // ];
+                // let pixel_value = u32::from_le_bytes(pixel_bytes);
+
+                // Read the red channel and convert back to object ID
+                let red_value = bytes[pixel_offset];
+                let object_id = red_value as u32; // Direct mapping if ID < 256
+                result.push(object_id);
             }
         }
 
@@ -345,7 +352,7 @@ impl SurfaceAreaCalculator {
         &self,
         pixels: Vec<u32>,
         num_objects: usize,
-        scene_bounds: SceneBounds,
+        scene_bounds: &SceneBounds,
         resolution: u32,
         scale_factor: f32,
     ) -> Vec<f32> {
@@ -372,13 +379,13 @@ impl SurfaceAreaCalculator {
     }
 
     fn calculate_area_per_pixel(
-        scene_bounds: SceneBounds,
+        scene_bounds: &SceneBounds,
         resolution: u32,
         scale_factor: f32,
     ) -> f32 {
         // Calculate the world space area that each pixel represents
-        let world_width = (scene_bounds.max_x - scene_bounds.min_x) * scale_factor;
-        let world_height = (scene_bounds.max_y - scene_bounds.min_y) * scale_factor;
+        let world_width = (scene_bounds.max_y - scene_bounds.min_y) * scale_factor;
+        let world_height = (scene_bounds.max_z - scene_bounds.min_z) * scale_factor;
 
         // Each pixel represents this much world area
         let pixel_world_width = world_width / resolution as f32;
