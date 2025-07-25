@@ -115,10 +115,10 @@ impl SurfaceAreaCalculator {
     }
 
     pub fn calculate(
-        &mut self, // Changed to &mut since we need to initialize
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        geometry_resources: &HashMap<GeometryId, GpuGeometryResources>, // Use GPU resources
+        geometry_resources: &HashMap<GeometryId, GpuGeometryResources>,
         scene_bounds: &SceneBounds,
         view_direction: &[f32; 3],
         resolution: u32,
@@ -240,25 +240,25 @@ impl SurfaceAreaCalculator {
                 resolution,
             );
 
-            // // Print pixel data as a grid for debugging
-            // println!(
-            //     "Pixel data as {}x{} grid:",
-            //     resolution, resolution
-            // );
-            // println!("(0 = background, >0 = object ID)");
-            // println!();
+            // Print pixel data as a grid for debugging
+            println!(
+                "Pixel data as {}x{} grid:",
+                resolution, resolution
+            );
+            println!("(0 = background, >0 = object ID)");
+            println!();
 
-            // for y in 0..resolution {
-            //     for x in 0..resolution {
-            //         let idx = (y * resolution + x) as usize;
-            //         if idx < pixel_data.len() {
-            //             print!("{:3} ", pixel_data[idx]);
-            //         } else {
-            //             print!("??? ");
-            //         }
-            //     }
-            //     println!(); // New line after each row
-            // }
+            for y in 0..resolution {
+                for x in 0..resolution {
+                    let idx = (y * resolution + x) as usize;
+                    if idx < pixel_data.len() {
+                        print!("{:3} ", pixel_data[idx]);
+                    } else {
+                        print!("??? ");
+                    }
+                }
+                println!(); // New line after each row
+            }
 
             self.calculate_areas_from_pixels(
                 pixel_data,

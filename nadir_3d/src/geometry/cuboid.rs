@@ -35,6 +35,12 @@ impl Cuboid {
                 uv: vec2(0.0, 1.0),
             },
             Vertex {
+                pos: vec3(0.5, 0.5, -0.5),
+                normal: vec3(0.0, 0.0, -1.0),
+                tangent: vec3(1.0, 0.0, 0.0),
+                uv: vec2(1.0, 0.0),
+            },
+            Vertex {
                 pos: vec3(0.5, -0.5, -0.5),
                 normal: vec3(0.0, 0.0, -1.0),
                 tangent: vec3(1.0, 0.0, 0.0),
@@ -47,22 +53,16 @@ impl Cuboid {
                 uv: vec2(1.0, 0.0),
             },
             Vertex {
-                pos: vec3(0.5, 0.5, -0.5),
+                pos: vec3(-0.5, -0.5, -0.5),
                 normal: vec3(0.0, 0.0, -1.0),
                 tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(1.0, 0.0),
+                uv: vec2(0.0, 1.0),
             },
             Vertex {
                 pos: vec3(-0.5, 0.5, -0.5),
                 normal: vec3(0.0, 0.0, -1.0),
                 tangent: vec3(1.0, 0.0, 0.0),
                 uv: vec2(0.0, 0.0),
-            },
-            Vertex {
-                pos: vec3(-0.5, -0.5, -0.5),
-                normal: vec3(0.0, 0.0, -1.0),
-                tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(0.0, 1.0),
             },
             // top face
             Vertex {
@@ -146,6 +146,12 @@ impl Cuboid {
                 uv: vec2(0.0, 1.0),
             },
             Vertex {
+                pos: vec3(0.5, -0.5, -0.5),
+                normal: vec3(1.0, 0.0, 0.0),
+                tangent: vec3(1.0, 0.0, 0.0),
+                uv: vec2(1.0, 0.0),
+            },
+            Vertex {
                 pos: vec3(0.5, 0.5, -0.5),
                 normal: vec3(1.0, 0.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
@@ -158,22 +164,16 @@ impl Cuboid {
                 uv: vec2(1.0, 0.0),
             },
             Vertex {
-                pos: vec3(0.5, -0.5, -0.5),
+                pos: vec3(0.5, 0.5, 0.5),
                 normal: vec3(1.0, 0.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(1.0, 0.0),
+                uv: vec2(0.0, 1.0),
             },
             Vertex {
                 pos: vec3(0.5, -0.5, 0.5),
                 normal: vec3(1.0, 0.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
                 uv: vec2(0.0, 0.0),
-            },
-            Vertex {
-                pos: vec3(0.5, 0.5, 0.5),
-                normal: vec3(1.0, 0.0, 0.0),
-                tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(0.0, 1.0),
             },
             //left face
             Vertex {
@@ -220,6 +220,12 @@ impl Cuboid {
                 uv: vec2(0.0, 1.0),
             },
             Vertex {
+                pos: vec3(0.5, 0.5, 0.5),
+                normal: vec3(0.0, 1.0, 0.0),
+                tangent: vec3(1.0, 0.0, 0.0),
+                uv: vec2(1.0, 0.0),
+            },
+            Vertex {
                 pos: vec3(0.5, 0.5, -0.5),
                 normal: vec3(0.0, 1.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
@@ -232,22 +238,16 @@ impl Cuboid {
                 uv: vec2(1.0, 0.0),
             },
             Vertex {
-                pos: vec3(0.5, 0.5, 0.5),
+                pos: vec3(-0.5, 0.5, -0.5),
                 normal: vec3(0.0, 1.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(1.0, 0.0),
+                uv: vec2(0.0, 1.0),
             },
             Vertex {
                 pos: vec3(-0.5, 0.5, 0.5),
                 normal: vec3(0.0, 1.0, 0.0),
                 tangent: vec3(1.0, 0.0, 0.0),
                 uv: vec2(0.0, 0.0),
-            },
-            Vertex {
-                pos: vec3(-0.5, 0.5, -0.5),
-                normal: vec3(0.0, 1.0, 0.0),
-                tangent: vec3(1.0, 0.0, 0.0),
-                uv: vec2(0.0, 1.0),
             },
         ]
     }
@@ -296,23 +296,5 @@ impl GeometryTrait for Cuboid {
 
     fn get_vertices(&self) -> Vec<Vertex> {
         Self::vertices()
-            .iter()
-            .map(|vertex| Vertex {
-                pos: vec3(
-                    vertex
-                        .pos
-                        .x,
-                    vertex
-                        .pos
-                        .y,
-                    vertex
-                        .pos
-                        .z,
-                ),
-                normal: vertex.normal,   // Normals stay the same for cuboid
-                tangent: vertex.tangent, // Tangents stay the same for cuboid
-                uv: vertex.uv,           // UVs stay the same
-            })
-            .collect()
     }
 }
