@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU64};
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
@@ -10,6 +10,8 @@ use wgpu::util::DeviceExt;
 
 use crate::surface_area::SurfaceAreaCalculator;
 
+pub mod atomic_accumulation;
+//pub mod parallel_reduction;
 pub mod surface_area;
 
 pub enum GpuCalculatorMethod {
@@ -40,6 +42,71 @@ pub struct SceneBounds {
     max_y: f32,
     min_z: f32,
     max_z: f32,
+}
+
+/// Stores per-object counts or area values computed by the reduction pass.
+/// Indexed by object ID.
+pub struct ReductionBuffers {
+    pub per_object_sum: wgpu::Buffer, // Output of reduction pass
+    pub staging_buffer: wgpu::Buffer, // For copying to CPU if needed
+    pub bind_group: wgpu::BindGroup,
+    pub bind_group_layout: wgpu::BindGroupLayout,
+}
+
+impl ReductionBuffers {
+    fn new(device: &wgpu::Device, num_objects: usize) -> Self {
+        let buffer_size = (num_objects * std::mem::size_of::<f32>()) as u64;
+
+        // 1. Output buffer for compute shader to write per-object sums
+        let per_object_sum = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per-Object Sum Buffer"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        // 2. Staging buffer for CPU readback
+        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per-Object Sum Staging Buffer"),
+            size: buffer_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // 3. Bind group layout
+        let bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Reduction Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: NonZeroU64::new(std::mem::size_of::<f32>() as u64),
+                    },
+                    count: None,
+                }],
+            },
+        );
+
+        // 4. Bind group
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Reduction Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: per_object_sum.as_entire_binding(),
+            }],
+        });
+
+        ReductionBuffers {
+            per_object_sum,
+            staging_buffer,
+            bind_group,
+            bind_group_layout,
+        }
+    }
 }
 
 #[repr(C)]
@@ -81,9 +148,9 @@ pub struct GpuInitialized {
     /// Ensures only the nearest (visible) fragments are drawn when objects overlap.
     /// Prevents back surfaces and occluded geometry from contributing to area/CoP/SRP.
     depth_texture: wgpu::TextureView,
-    resolve_texture: wgpu::TextureView,
     geometry: HashMap<GeometryId, GpuGeometryResources>,
     geometry_uniform_bindgroup_layout: wgpu::BindGroupLayout,
+    //reduction_buffers: ReductionBuffers,
     shared_uniform_buffer: wgpu::Buffer,
     shared_bind_group: wgpu::BindGroup,
     shared_bind_group_layout: wgpu::BindGroupLayout,
@@ -103,7 +170,7 @@ pub struct GpuCalculator {
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 1024, safety_factor: 1.0 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 8192, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
@@ -244,7 +311,6 @@ impl GpuCalculator {
                 &initialized.shared_bind_group,
                 &initialized.object_id_texture,
                 &initialized.depth_texture,
-                &initialized.resolve_texture,
             )
         } else {
             panic!("GpuCalculator not initialized");
@@ -291,9 +357,9 @@ impl GpuCalculator {
             label: Some("Object ID Texture"),
             size,
             mip_level_count: 1,
-            sample_count: 4,
+            sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::R32Uint,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -317,22 +383,10 @@ impl GpuCalculator {
             label: Some("Depth Texture"),
             size,
             mip_level_count: 1,
-            sample_count: 4,
+            sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-
-        // Create a resolve target (single-sampled)
-        let resolve_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Resolve Texture"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1, // Single sample for copying
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
@@ -443,16 +497,22 @@ impl GpuCalculator {
             gpu_geometries.insert(*id, gpu_geometry);
         }
 
+        // let reduction_buffers = ReductionBuffers::new(
+        //     &device,
+        //     self.geometry
+        //         .len(),
+        // );
+
         self.initialized = Some(GpuInitialized {
             device,
             queue,
             object_id_texture: object_id_texture.create_view(&Default::default()),
             position_texture: position_texture.create_view(&Default::default()),
             depth_texture: depth_texture.create_view(&Default::default()),
-            resolve_texture: resolve_texture.create_view(&Default::default()),
             resolution,
             geometry: gpu_geometries,
             geometry_uniform_bindgroup_layout,
+            // reduction_buffers,
             shared_uniform_buffer,
             shared_bind_group,
             shared_bind_group_layout,
@@ -488,6 +548,9 @@ impl GpuCalculator {
                     &gpu.shared_bind_group_layout,
                     &gpu.geometry_uniform_bindgroup_layout,
                     resolution,
+                    gpu.geometry
+                        .len(),
+                    &gpu.object_id_texture,
                 );
             }
         }

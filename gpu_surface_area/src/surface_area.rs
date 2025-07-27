@@ -2,11 +2,15 @@ use glam::Mat4;
 use nadir_3d::vertex::SimpleVertex;
 use std::collections::HashMap;
 
-use crate::{GeometryId, GpuGeometryResources, SceneBounds, SharedUniforms};
+use crate::{
+    GeometryId, GpuGeometryResources, SceneBounds, SharedUniforms,
+    atomic_accumulation::{self, AtomicAccumulation},
+};
 
 pub struct SurfaceAreaInitialized {
     render_pipeline: wgpu::RenderPipeline,
     result_buffer: wgpu::Buffer,
+    atomic_accumulation: Option<AtomicAccumulation>,
 }
 
 pub struct SurfaceAreaCalculator {
@@ -24,6 +28,8 @@ impl SurfaceAreaCalculator {
         shared_bind_group_layout: &wgpu::BindGroupLayout,
         geometry_bind_group_layout: &wgpu::BindGroupLayout,
         resolution: u32,
+        n_objects: usize,
+        object_id_view: &wgpu::TextureView,
     ) {
         const SHADER: &str = include_str!("surface_area.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -83,7 +89,7 @@ impl SurfaceAreaCalculator {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        format: wgpu::TextureFormat::R32Uint,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -106,7 +112,7 @@ impl SurfaceAreaCalculator {
                     bias: wgpu::DepthBiasState::default(),
                 }),
                 multisample: wgpu::MultisampleState {
-                    count: 4, // or 8
+                    count: 1, // or 8
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
@@ -115,7 +121,17 @@ impl SurfaceAreaCalculator {
             },
         );
 
-        self.initialized = Some(SurfaceAreaInitialized { render_pipeline, result_buffer });
+        let atomic_accumulation = AtomicAccumulation::new(
+            device,
+            n_objects,
+            object_id_view,
+        );
+
+        self.initialized = Some(SurfaceAreaInitialized {
+            render_pipeline,
+            result_buffer,
+            atomic_accumulation: Some(atomic_accumulation),
+        });
     }
 
     pub fn calculate(
@@ -131,7 +147,6 @@ impl SurfaceAreaCalculator {
         shared_bindgroup: &wgpu::BindGroup,
         object_id_view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
-        resolve_view: &wgpu::TextureView,
     ) -> Vec<f32> {
         if let Some(initialized) = &self.initialized {
             // Create orthographic projection matrix
@@ -161,7 +176,7 @@ impl SurfaceAreaCalculator {
                     color_attachments: &[Some(
                         wgpu::RenderPassColorAttachment {
                             view: object_id_view,
-                            resolve_target: Some(resolve_view),
+                            resolve_target: None,
                             ops: wgpu::Operations {
                                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), // Clear to 0 (no object)
                                 store: wgpu::StoreOp::Store,
@@ -206,42 +221,61 @@ impl SurfaceAreaCalculator {
                     );
                 }
             }
+            queue.submit(Some(encoder.finish()));
 
             // Copy render target to readable buffer
             let unaligned = resolution * 4;
             let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
             let bytes_per_row = ((unaligned + alignment - 1) / alignment) * alignment;
 
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture: resolve_view.texture(), // Fixed: use the texture from the view
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &initialized.result_buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(bytes_per_row),
-                        rows_per_image: Some(resolution),
-                    },
-                },
-                wgpu::Extent3d {
-                    width: resolution,
-                    height: resolution,
-                    depth_or_array_layers: 1,
-                },
-            );
+            if let Some(accum) = &initialized.atomic_accumulation {
+                let counts = accum.calculate(
+                    object_id_view,
+                    device,
+                    queue,
+                    resolution,
+                );
 
-            queue.submit(Some(encoder.finish()));
+                return self.calculate_areas_from_counts(
+                    counts,
+                    scene_bounds,
+                    resolution,
+                    safety_factor,
+                );
+            } else {
+                panic!("Atomic accumulation not initialized");
+            }
 
-            // Read back pixel data and calculate areas
-            let pixel_data = self.read_buffer_data(
-                device,
-                &initialized.result_buffer,
-                resolution,
-            );
+            // encoder.copy_texture_to_buffer(
+            //     wgpu::TexelCopyTextureInfo {
+            //         texture: object_id_view.texture(),
+            //         mip_level: 0,
+            //         origin: wgpu::Origin3d::ZERO,
+            //         aspect: wgpu::TextureAspect::All,
+            //     },
+            //     wgpu::TexelCopyBufferInfo {
+            //         buffer: &initialized.result_buffer,
+            //         layout: wgpu::TexelCopyBufferLayout {
+            //             offset: 0,
+            //             bytes_per_row: Some(bytes_per_row),
+            //             rows_per_image: Some(resolution),
+            //         },
+            //     },
+            //     wgpu::Extent3d {
+            //         width: resolution,
+            //         height: resolution,
+            //         depth_or_array_layers: 1,
+            //     },
+            // );
+
+            // queue.submit(Some(encoder.finish()));
+
+            // // Read back pixel data and calculate areas
+            // let pixel_data = self.read_buffer_data(
+            //     device,
+            //     &initialized.result_buffer,
+            //     resolution,
+            // );
 
             // Print pixel data as a grid for debugging
             // println!(
@@ -263,13 +297,13 @@ impl SurfaceAreaCalculator {
             //     println!(); // New line after each row
             // }
 
-            self.calculate_areas_from_pixels(
-                pixel_data,
-                geometry_resources.len(),
-                scene_bounds,
-                resolution,
-                safety_factor,
-            )
+            // self.calculate_areas_from_pixels(
+            //     pixel_data,
+            //     geometry_resources.len(),
+            //     scene_bounds,
+            //     resolution,
+            //     safety_factor,
+            // )
         } else {
             panic!("SurfaceAreaCalculator failed to initialize");
         }
@@ -326,18 +360,18 @@ impl SurfaceAreaCalculator {
             for x in 0..resolution {
                 let pixel_offset = row_start + (x * 4) as usize; // 4 bytes per u32 pixel
 
-                // // Convert 4 bytes to u32 (little-endian)
-                // let pixel_bytes = [
-                //     bytes[pixel_offset],
-                //     bytes[pixel_offset + 1],
-                //     bytes[pixel_offset + 2],
-                //     bytes[pixel_offset + 3],
-                // ];
-                // let pixel_value = u32::from_le_bytes(pixel_bytes);
+                // Convert 4 bytes to u32 (little-endian)
+                let pixel_bytes = &bytes[pixel_offset..pixel_offset + 4];
+                let object_id = u32::from_le_bytes([
+                    pixel_bytes[0],
+                    pixel_bytes[1],
+                    pixel_bytes[2],
+                    pixel_bytes[3],
+                ]);
 
-                // Read the red channel and convert back to object ID
-                let red_value = bytes[pixel_offset];
-                let object_id = red_value as u32; // Direct mapping if ID < 256
+                // // Read the red channel and convert back to object ID
+                // let red_value = bytes[pixel_offset];
+                // let object_id = red_value as u32; // Direct mapping if ID < 256
                 result.push(object_id);
             }
         }
@@ -346,6 +380,25 @@ impl SurfaceAreaCalculator {
         buffer.unmap();
 
         result
+    }
+
+    fn calculate_areas_from_counts(
+        &self,
+        counts: Vec<u32>,
+        scene_bounds: &SceneBounds,
+        resolution: u32,
+        scale_factor: f32,
+    ) -> Vec<f32> {
+        let area_per_pixel = Self::calculate_area_per_pixel(
+            scene_bounds,
+            resolution,
+            scale_factor,
+        );
+
+        counts
+            .iter()
+            .map(|&count| count as f32 * area_per_pixel)
+            .collect()
     }
 
     fn calculate_areas_from_pixels(
