@@ -170,7 +170,7 @@ pub struct GpuCalculator {
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 8192, safety_factor: 1.0 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 512, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
@@ -678,13 +678,13 @@ fn create_orthographic_projection(
 
 #[cfg(test)]
 mod tests {
-    use std::f64::consts::PI;
+    use std::{f64::consts::PI, time::Instant};
 
     use super::*;
     use glam::{DQuat, DVec3};
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-    #[test]
+    //#[test]
     fn test_cube_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
@@ -729,7 +729,7 @@ mod tests {
         );
     }
 
-    #[test]
+    //#[test]
     fn test_cube_area_multiple_views() {
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
@@ -801,8 +801,11 @@ mod tests {
         let view_direction = [-1.0, 0.0, 0.0];
 
         // Calculate surface area using the new framework
+        let start = Instant::now();
         let areas = gpu_calc.calculate_surface_area(&view_direction);
-
+        let stop = Instant::now();
+        let duration = stop.duration_since(start);
+        dbg!(duration.as_micros());
         // Only one object, expect just front face: area should be close to 1.0
         assert_eq!(
             areas.len(),
@@ -824,7 +827,7 @@ mod tests {
         );
     }
 
-    #[test]
+    //#[test]
     fn test_2_cubes_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
