@@ -2,13 +2,23 @@ use std::num::NonZeroU64;
 
 use wgpu::PipelineCompilationOptions;
 
+pub struct AtomicAccumulationResult {
+    pub pixel_count: u32,
+    pub position_sum: [f32; 3],
+}
+
 pub struct AtomicAccumulation {
     pipeline: wgpu::ComputePipeline,
     zero_pipeline: wgpu::ComputePipeline,
-    bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
-    staging_buffer: wgpu::Buffer,
-    result_buffer: wgpu::Buffer,
+    per_object_id_sum: wgpu::Buffer,
+    per_object_pos_sum_x: wgpu::Buffer,
+    per_object_pos_sum_y: wgpu::Buffer,
+    per_object_pos_sum_z: wgpu::Buffer,
+    staging_id_sum: wgpu::Buffer,
+    staging_pos_sum_x: wgpu::Buffer,
+    staging_pos_sum_y: wgpu::Buffer,
+    staging_pos_sum_z: wgpu::Buffer,
 }
 
 impl AtomicAccumulation {
@@ -19,15 +29,57 @@ impl AtomicAccumulation {
     ) -> Self {
         let result_size = (num_objects * std::mem::size_of::<u32>()) as u64;
 
-        let result_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Atomic Accumulation Result Buffer"),
+        let per_object_id_sum = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Id Sum Buffer"),
             size: result_size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
-        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Atomic Accumulation Staging Buffer"),
+        let per_object_pos_sum_x = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position X Sum Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let per_object_pos_sum_y = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position Y Sum Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let per_object_pos_sum_z = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position Z Sum Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let staging_id_sum = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Id Staging Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_pos_sum_x = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position X Staging Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_pos_sum_y = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position Y Staging Buffer"),
+            size: result_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_pos_sum_z = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Per Object Position Z Staging Buffer"),
             size: result_size,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -48,7 +100,7 @@ impl AtomicAccumulation {
                         },
                         count: None,
                     },
-                    // storage buffer
+                    // per_obect_id_sum buffer
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
@@ -56,6 +108,39 @@ impl AtomicAccumulation {
                             ty: wgpu::BufferBindingType::Storage { read_only: false },
                             has_dynamic_offset: false,
                             min_binding_size: NonZeroU64::new(std::mem::size_of::<u32>() as u64),
+                        },
+                        count: None,
+                    },
+                    // per_obect_pos_sum_x buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: NonZeroU64::new(std::mem::size_of::<f32>() as u64),
+                        },
+                        count: None,
+                    },
+                    // per_obect_pos_sum_y buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: NonZeroU64::new(std::mem::size_of::<f32>() as u64),
+                        },
+                        count: None,
+                    },
+                    // per_obect_pos_sum_z buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: NonZeroU64::new(std::mem::size_of::<f32>() as u64),
                         },
                         count: None,
                     },
@@ -71,7 +156,22 @@ impl AtomicAccumulation {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(object_id_texture),
                 },
-                wgpu::BindGroupEntry { binding: 1, resource: result_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: per_object_id_sum.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: per_object_pos_sum_x.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: per_object_pos_sum_y.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: per_object_pos_sum_z.as_entire_binding(),
+                },
             ],
         });
 
@@ -113,20 +213,25 @@ impl AtomicAccumulation {
         Self {
             pipeline,
             zero_pipeline,
-            bind_group_layout,
             bind_group,
-            staging_buffer,
-            result_buffer,
+            per_object_id_sum,
+            per_object_pos_sum_x,
+            per_object_pos_sum_y,
+            per_object_pos_sum_z,
+            staging_id_sum,
+            staging_pos_sum_x,
+            staging_pos_sum_y,
+            staging_pos_sum_z,
         }
     }
 
     pub fn calculate(
         &self,
-        object_id_texture: &wgpu::TextureView,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         resolution: u32,
-    ) -> Vec<u32> {
+        num_objects: usize,
+    ) -> Vec<AtomicAccumulationResult> {
         let mut encoder = device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("Atomic Accumulation Encoder") },
         );
@@ -134,7 +239,7 @@ impl AtomicAccumulation {
         self.clear(
             &mut encoder,
             (self
-                .staging_buffer
+                .per_object_id_sum
                 .size()
                 / 4) as u32,
         );
@@ -154,45 +259,57 @@ impl AtomicAccumulation {
             );
         }
 
-        // Copy result buffer to staging buffer for CPU read
+        // Copy all GPU results to staging buffers
         encoder.copy_buffer_to_buffer(
-            &self.result_buffer,
+            &self.per_object_id_sum,
             0,
-            &self.staging_buffer,
+            &self.staging_id_sum,
             0,
-            self.staging_buffer
+            self.staging_id_sum
+                .size(),
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.per_object_pos_sum_x,
+            0,
+            &self.staging_pos_sum_x,
+            0,
+            self.staging_pos_sum_x
+                .size(),
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.per_object_pos_sum_y,
+            0,
+            &self.staging_pos_sum_y,
+            0,
+            self.staging_pos_sum_y
+                .size(),
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.per_object_pos_sum_z,
+            0,
+            &self.staging_pos_sum_z,
+            0,
+            self.staging_pos_sum_z
                 .size(),
         );
 
         // Submit GPU work
         queue.submit(Some(encoder.finish()));
 
-        // Wait and map buffer for read
-        let buffer_slice = self
-            .staging_buffer
-            .slice(..);
-        let (tx, rx) = futures::channel::oneshot::channel();
-        buffer_slice.map_async(
-            wgpu::MapMode::Read,
-            move |v| {
-                tx.send(v)
-                    .unwrap()
-            },
+        let pixel_counts = Self::read_pixel_counts(device, &self.staging_id_sum);
+        let position_sums = Self::read_position_sums(
+            device,
+            &self.staging_pos_sum_x,
+            &self.staging_pos_sum_y,
+            &self.staging_pos_sum_z,
+            num_objects,
         );
-        device
-            .poll(wgpu::PollType::Wait)
-            .expect("Failed to poll device");
-        pollster::block_on(async {
-            rx.await
-                .unwrap()
-                .unwrap();
-        });
 
-        let data = buffer_slice.get_mapped_range();
-        let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
-        drop(data);
-        self.staging_buffer
-            .unmap();
+        let result: Vec<AtomicAccumulationResult> = pixel_counts
+            .into_iter()
+            .zip(position_sums)
+            .map(|(px, sum)| AtomicAccumulationResult { pixel_count: px, position_sum: sum })
+            .collect();
 
         result
     }
@@ -206,5 +323,80 @@ impl AtomicAccumulation {
         cpass.set_pipeline(&self.zero_pipeline);
         cpass.set_bind_group(0, &self.bind_group, &[]);
         cpass.dispatch_workgroups((n_objects + 63) / 64, 1, 1);
+    }
+
+    fn read_pixel_counts(device: &wgpu::Device, staging_buffer: &wgpu::Buffer) -> Vec<u32> {
+        let slice = staging_buffer.slice(..);
+        let (tx, rx) = futures::channel::oneshot::channel();
+        slice.map_async(
+            wgpu::MapMode::Read,
+            move |v| {
+                tx.send(v)
+                    .unwrap();
+            },
+        );
+
+        device
+            .poll(wgpu::PollType::Wait)
+            .expect("Failed to poll device");
+        pollster::block_on(async {
+            rx.await
+                .unwrap()
+                .unwrap();
+        });
+
+        let mapped = slice.get_mapped_range();
+        let data: Vec<u32> = bytemuck::cast_slice(&mapped).to_vec();
+        drop(mapped);
+        staging_buffer.unmap();
+        data
+    }
+
+    fn read_position_sums(
+        device: &wgpu::Device,
+        staging_x: &wgpu::Buffer,
+        staging_y: &wgpu::Buffer,
+        staging_z: &wgpu::Buffer,
+        num_objects: usize,
+    ) -> Vec<[f32; 3]> {
+        fn map_buffer_f32(device: &wgpu::Device, buffer: &wgpu::Buffer) -> Vec<f32> {
+            let buffer_slice = buffer.slice(..);
+            let (tx, rx) = futures::channel::oneshot::channel();
+
+            buffer_slice.map_async(
+                wgpu::MapMode::Read,
+                move |v| {
+                    tx.send(v)
+                        .unwrap();
+                },
+            );
+
+            device
+                .poll(wgpu::PollType::Wait)
+                .expect("Failed to poll device");
+            pollster::block_on(async {
+                rx.await
+                    .unwrap()
+                    .unwrap();
+            });
+
+            let mapped = buffer_slice.get_mapped_range();
+            let data: Vec<f32> = bytemuck::cast_slice(&mapped).to_vec();
+            drop(mapped);
+            buffer.unmap();
+            data
+        }
+
+        let x_vals = map_buffer_f32(device, staging_x);
+        let y_vals = map_buffer_f32(device, staging_y);
+        let z_vals = map_buffer_f32(device, staging_z);
+
+        assert_eq!(x_vals.len(), num_objects);
+        assert_eq!(y_vals.len(), num_objects);
+        assert_eq!(z_vals.len(), num_objects);
+
+        (0..num_objects)
+            .map(|i| [x_vals[i], y_vals[i], z_vals[i]])
+            .collect()
     }
 }

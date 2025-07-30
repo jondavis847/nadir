@@ -8,10 +8,10 @@ use nadir_3d::{
 };
 use wgpu::util::DeviceExt;
 
-use crate::surface_area::SurfaceAreaCalculator;
+use crate::surface_area::{AerodynamicsResult, SurfaceAreaCalculator};
 
 pub mod atomic_accumulation;
-//pub mod parallel_reduction;
+pub mod parallel_reduction;
 pub mod surface_area;
 
 pub enum GpuCalculatorMethod {
@@ -170,7 +170,7 @@ pub struct GpuCalculator {
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 512, safety_factor: 1.0 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 128, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
@@ -274,7 +274,7 @@ impl GpuCalculator {
         self.scene_bounds = scene_bounds;
     }
 
-    pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) -> Vec<f32> {
+    pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) -> Vec<AerodynamicsResult> {
         // recalculate the scene bounds with new transform information
         // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
         self.calculate_scene_bounds();
@@ -541,16 +541,21 @@ impl GpuCalculator {
         // }
 
         if let Some(gpu) = &self.initialized {
+            let threads_per_workgroup = 8 * 8;
+            let total_pixels = resolution * resolution;
+            let n_workgroups = (total_pixels + threads_per_workgroup - 1) / threads_per_workgroup;
+
             // initialize surface area
             if let Some(surface_area) = &mut self.surface_area {
                 surface_area.initialize(
                     &gpu.device,
                     &gpu.shared_bind_group_layout,
                     &gpu.geometry_uniform_bindgroup_layout,
-                    resolution,
                     gpu.geometry
                         .len(),
                     &gpu.object_id_texture,
+                    &gpu.position_texture,
+                    n_workgroups as usize,
                 );
             }
         }
@@ -714,17 +719,17 @@ mod tests {
             1,
             "Should have one geometry"
         );
-        let calculated_area = areas[0];
+        let calculated_area = &areas[0];
 
         println!(
-            "Calculated area: {}",
-            calculated_area
+            "Calculated area: {:?}",
+            calculated_area.surface_area
         );
 
         // For a unit cube viewed from the front, we should see approximately 1.0 square units
         assert!(
-            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {}",
+            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
             calculated_area
         );
     }
@@ -755,16 +760,16 @@ mod tests {
         for (view_direction, name) in test_cases {
             let areas = gpu_calc.calculate_surface_area(&view_direction);
 
-            let calculated_area = areas[0];
+            let calculated_area = &areas[0];
             println!(
-                "{} view calculated area: {}",
+                "{} view calculated area: {:?}",
                 name, calculated_area
             );
 
             // Each face of a 2x2 cube should have area 4.0
             assert!(
-                (calculated_area - 4.0).abs() < 1.0,
-                "{} view: Expected ~4.0, got {}",
+                (calculated_area.surface_area - 4.0).abs() < 1.0,
+                "{} view: Expected ~4.0, got {:?}",
                 name,
                 calculated_area
             );
@@ -800,29 +805,31 @@ mod tests {
         // Front-on (X) view - looking at the cube from the front
         let view_direction = [-1.0, 0.0, 0.0];
 
+        let start = Instant::now();
         // Calculate surface area using the new framework
         let start = Instant::now();
         let areas = gpu_calc.calculate_surface_area(&view_direction);
         let stop = Instant::now();
         let duration = stop.duration_since(start);
-        dbg!(duration.as_micros());
+        dbg!(duration);
+
         // Only one object, expect just front face: area should be close to 1.0
         assert_eq!(
             areas.len(),
             1,
             "Should have one geometry"
         );
-        let calculated_area = areas[0];
+        let calculated_area = &areas[0];
 
         println!(
-            "Calculated area: {}",
+            "Calculated area: {:?}",
             calculated_area
         );
 
         // For a unit cube viewed from the front, we should see approximately 1.0 square units
         assert!(
-            (calculated_area - (3.0 as f32).sqrt()).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {}",
+            (calculated_area.surface_area - (3.0 as f64).sqrt()).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
             calculated_area
         );
     }
@@ -861,31 +868,31 @@ mod tests {
             2,
             "Should have one geometry"
         );
-        let calculated_area = areas[0];
+        let calculated_area = &areas[0];
 
         println!(
-            "Calculated area: {}",
+            "Calculated area: {:?}",
             calculated_area
         );
 
         // For a unit cube viewed from the front, we should see approximately 1.0 square units
         assert!(
-            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {}",
+            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
             calculated_area
         );
 
-        let calculated_area = areas[1];
+        let calculated_area = &areas[1];
 
         println!(
-            "Calculated area: {}",
+            "Calculated area: {:?}",
             calculated_area
         );
 
         // For a unit cube viewed from the front, we should see approximately 1.0 square units
         assert!(
-            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {}",
+            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
             calculated_area
         );
     }
