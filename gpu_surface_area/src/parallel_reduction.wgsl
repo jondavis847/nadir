@@ -1,9 +1,6 @@
 // ======= SHARED STRUCTURES =======
-struct Config {
+struct Uniforms {
     num_objects: u32,
-}
-
-struct GridInfo {
     num_workgroups: u32,
 }
 
@@ -14,7 +11,7 @@ struct GridInfo {
 @group(0) @binding(3) var<storage, read_write> group_sum_x: array<f32>;
 @group(0) @binding(4) var<storage, read_write> group_sum_y: array<f32>;
 @group(0) @binding(5) var<storage, read_write> group_sum_z: array<f32>;
-@group(0) @binding(6) var<uniform> config: Config;
+@group(0) @binding(6) var<uniform> uniforms: Uniforms;
 
 
 var<workgroup> shared_tmp: array<u32, 4096>; // Treated as pool of memory
@@ -30,11 +27,11 @@ fn stage1_per_tile_reduction_shared(@builtin(global_invocation_id) id: vec3<u32>
     
     // Define memory layout in the shared pool
     // Each thread gets space for all objects
-    let thread_data_size = config.num_objects * 4u; // 4 values per object (count, x, y, z)
+    let thread_data_size = uniforms.num_objects * 4u; // 4 values per object (count, x, y, z)
     let thread_offset = thread_idx * thread_data_size;
     
     // Clear our section of shared memory
-    for (var i = 0u; i < config.num_objects; i++) {
+    for (var i = 0u; i < uniforms.num_objects; i++) {
         let base = thread_offset + i * 4u;
         shared_tmp[base] = 0u;     // count
         shared_tmp[base + 1u] = 0u; // x (as bitcast u32)
@@ -45,7 +42,7 @@ fn stage1_per_tile_reduction_shared(@builtin(global_invocation_id) id: vec3<u32>
     // Process our pixel
     if id.x < tex_dims.x && id.y < tex_dims.y {
         let obj_id = textureLoad(object_id_tex, vec2<i32>(id.xy), 0).r;
-        if obj_id > 0u && obj_id <= config.num_objects {
+        if obj_id > 0u && obj_id <= uniforms.num_objects {
             let pos = textureLoad(position_tex, vec2<i32>(id.xy), 0).xyz;
             let obj_index = obj_id - 1u;
             
@@ -61,7 +58,7 @@ fn stage1_per_tile_reduction_shared(@builtin(global_invocation_id) id: vec3<u32>
     
     // Now reduce across threads for each object
     // Each thread handles reduction for some objects
-    for (var obj = 0u; obj < config.num_objects; obj += 1u) {
+    for (var obj = 0u; obj < uniforms.num_objects; obj += 1u) {
         if obj % 256u == thread_idx { // Distribute objects across threads
             var count = 0u;
             var x_sum = 0.0;
@@ -79,7 +76,7 @@ fn stage1_per_tile_reduction_shared(@builtin(global_invocation_id) id: vec3<u32>
             
             // Write result to global memory if non-zero
             if count > 0u {
-                let offset = group_idx * config.num_objects + obj;
+                let offset = group_idx * uniforms.num_objects + obj;
                 group_counts[offset] = count;
                 group_sum_x[offset] = x_sum;
                 group_sum_y[offset] = y_sum;
@@ -98,8 +95,6 @@ fn stage1_per_tile_reduction_shared(@builtin(global_invocation_id) id: vec3<u32>
 @group(0) @binding(5) var<storage, read_write> total_sum_x: array<f32>;
 @group(0) @binding(6) var<storage, read_write> total_sum_y: array<f32>;
 @group(0) @binding(7) var<storage, read_write> total_sum_z: array<f32>;
-@group(0) @binding(8) var<uniform> stage2_config: Config;
-@group(0) @binding(9) var<uniform> grid_info: GridInfo;
 
 var<workgroup> shared_count: array<u32, 256>;
 var<workgroup> shared_sum_x: array<f32, 256>;
@@ -120,8 +115,8 @@ fn stage2_reduce_workgroups(@builtin(global_invocation_id) id: vec3<u32>,
     var local_sum_z = 0.0;
     
     // Each thread processes a portion of the workgroups for this object
-    for (var i = thread_id; i < grid_info.num_workgroups; i += 256u) {
-        let offset = i * stage2_config.num_objects + object_id;
+    for (var i = thread_id; i < uniforms.num_workgroups; i += 256u) {
+        let offset = i * uniforms.num_objects + object_id;
         local_count += workgroup_counts[offset];
         local_sum_x += workgroup_sum_x[offset];
         local_sum_y += workgroup_sum_y[offset];
@@ -167,7 +162,7 @@ fn stage2_reduce_workgroups(@builtin(global_invocation_id) id: vec3<u32>,
 @compute @workgroup_size(64)
 fn stage3_calculate_centers(@builtin(global_invocation_id) id: vec3<u32>) {
     let obj_idx = id.x;
-    if obj_idx >= stage3_config.num_objects {
+    if obj_idx >= uniforms.num_objects {
         return;
     }
 

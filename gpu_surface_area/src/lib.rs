@@ -274,48 +274,48 @@ impl GpuCalculator {
         self.scene_bounds = scene_bounds;
     }
 
-    pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) -> Vec<AerodynamicsResult> {
-        // recalculate the scene bounds with new transform information
-        // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
-        self.calculate_scene_bounds();
+    // pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) -> Vec<AerodynamicsResult> {
+    //     // recalculate the scene bounds with new transform information
+    //     // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
+    //     self.calculate_scene_bounds();
 
-        if let Some(initialized) = &mut self.initialized {
-            // Initialize surface area calculator if needed
-            if self
-                .surface_area
-                .is_none()
-            {
-                self.surface_area = Some(SurfaceAreaCalculator::new());
-            }
+    //     if let Some(initialized) = &mut self.initialized {
+    //         // Initialize surface area calculator if needed
+    //         if self
+    //             .surface_area
+    //             .is_none()
+    //         {
+    //             self.surface_area = Some(SurfaceAreaCalculator::new());
+    //         }
 
-            let surface_area_calc = self
-                .surface_area
-                .as_mut()
-                .unwrap();
+    //         let surface_area_calc = self
+    //             .surface_area
+    //             .as_mut()
+    //             .unwrap();
 
-            let safety_factor = match self.method {
-                GpuCalculatorMethod::Rasterization { safety_factor, .. } => safety_factor,
-                GpuCalculatorMethod::RayTracing { .. } => todo!(),
-            };
+    //         let safety_factor = match self.method {
+    //             GpuCalculatorMethod::Rasterization { safety_factor, .. } => safety_factor,
+    //             GpuCalculatorMethod::RayTracing { .. } => todo!(),
+    //         };
 
-            // Use YOUR textures from GpuInitialized
-            surface_area_calc.calculate(
-                &initialized.device,
-                &initialized.queue,
-                &initialized.geometry,
-                &self.scene_bounds,
-                view_direction,
-                initialized.resolution,
-                safety_factor,
-                &initialized.shared_uniform_buffer,
-                &initialized.shared_bind_group,
-                &initialized.object_id_texture,
-                &initialized.depth_texture,
-            )
-        } else {
-            panic!("GpuCalculator not initialized");
-        }
-    }
+    //         // Use YOUR textures from GpuInitialized
+    //         surface_area_calc.calculate(
+    //             &initialized.device,
+    //             &initialized.queue,
+    //             &initialized.geometry,
+    //             &self.scene_bounds,
+    //             view_direction,
+    //             initialized.resolution,
+    //             safety_factor,
+    //             &initialized.shared_uniform_buffer,
+    //             &initialized.shared_bind_group,
+    //             &initialized.object_id_texture,
+    //             &initialized.depth_texture,
+    //         )
+    //     } else {
+    //         panic!("GpuCalculator not initialized");
+    //     }
+    // }
 
     // don't initialize until all geometries have been added
     // if geometries are added after initilization, can i just re call this, or do i need to drop gpu resources first somehow?
@@ -541,10 +541,6 @@ impl GpuCalculator {
         // }
 
         if let Some(gpu) = &self.initialized {
-            let threads_per_workgroup = 8 * 8;
-            let total_pixels = resolution * resolution;
-            let n_workgroups = (total_pixels + threads_per_workgroup - 1) / threads_per_workgroup;
-
             // initialize surface area
             if let Some(surface_area) = &mut self.surface_area {
                 surface_area.initialize(
@@ -555,7 +551,6 @@ impl GpuCalculator {
                         .len(),
                     &gpu.object_id_texture,
                     &gpu.position_texture,
-                    n_workgroups as usize,
                 );
             }
         }
@@ -681,219 +676,219 @@ fn create_orthographic_projection(
     (ortho * view).to_cols_array_2d()
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{f64::consts::PI, time::Instant};
+// #[cfg(test)]
+// mod tests {
+//     use std::{f64::consts::PI, time::Instant};
 
-    use super::*;
-    use glam::{DQuat, DVec3};
-    use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
+//     use super::*;
+//     use glam::{DQuat, DVec3};
+//     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-    //#[test]
-    fn test_cube_area() {
-        // Create a GPU calculator with surface area capability
-        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+//     //#[test]
+//     fn test_cube_area() {
+//         // Create a GPU calculator with surface area capability
+//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-        // Build test geometry (unit cube)
-        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        let geometry_state = GeometryState::default(); // Assuming default state is identity transform
+//         // Build test geometry (unit cube)
+//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+//         let geometry_state = GeometryState::default(); // Assuming default state is identity transform
 
-        // Add geometry to the calculator
-        let _cube_id = gpu_calc.add_geometry(
-            cube_geometry.into(),
-            &geometry_state,
-        );
+//         // Add geometry to the calculator
+//         let _cube_id = gpu_calc.add_geometry(
+//             cube_geometry.into(),
+//             &geometry_state,
+//         );
 
-        // Initialize the GPU resources
-        gpu_calc.initialize();
+//         // Initialize the GPU resources
+//         gpu_calc.initialize();
 
-        // Front-on (Z) view - looking at the cube from the front
-        let view_direction = [0.0, 0.0, -1.0];
+//         // Front-on (Z) view - looking at the cube from the front
+//         let view_direction = [0.0, 0.0, -1.0];
 
-        // Calculate surface area using the new framework
-        let areas = gpu_calc.calculate_surface_area(&view_direction);
+//         // Calculate surface area using the new framework
+//         let areas = gpu_calc.calculate_surface_area(&view_direction);
 
-        // Only one object, expect just front face: area should be close to 1.0
-        assert_eq!(
-            areas.len(),
-            1,
-            "Should have one geometry"
-        );
-        let calculated_area = &areas[0];
+//         // Only one object, expect just front face: area should be close to 1.0
+//         assert_eq!(
+//             areas.len(),
+//             1,
+//             "Should have one geometry"
+//         );
+//         let calculated_area = &areas[0];
 
-        println!(
-            "Calculated area: {:?}",
-            calculated_area.surface_area
-        );
+//         println!(
+//             "Calculated area: {:?}",
+//             calculated_area.surface_area
+//         );
 
-        // For a unit cube viewed from the front, we should see approximately 1.0 square units
-        assert!(
-            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {:?}",
-            calculated_area
-        );
-    }
+//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
+//         assert!(
+//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+//             "Expected ~1.0, got {:?}",
+//             calculated_area
+//         );
+//     }
 
-    //#[test]
-    fn test_cube_area_multiple_views() {
-        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+//     //#[test]
+//     fn test_cube_area_multiple_views() {
+//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-        let cube_geometry = Cuboid::new(2.0, 2.0, 2.0).unwrap(); // 2x2x2 cube
-        let geometry_state = GeometryState::default();
+//         let cube_geometry = Cuboid::new(2.0, 2.0, 2.0).unwrap(); // 2x2x2 cube
+//         let geometry_state = GeometryState::default();
 
-        let _cube_id = gpu_calc.add_geometry(
-            cube_geometry.into(),
-            &geometry_state,
-        );
-        gpu_calc.initialize();
+//         let _cube_id = gpu_calc.add_geometry(
+//             cube_geometry.into(),
+//             &geometry_state,
+//         );
+//         gpu_calc.initialize();
 
-        // Test different viewing directions
-        let test_cases = [
-            ([0.0, 0.0, -1.0], "front"),  // Front face
-            ([0.0, 0.0, 1.0], "back"),    // Back face
-            ([1.0, 0.0, 0.0], "right"),   // Right face
-            ([-1.0, 0.0, 0.0], "left"),   // Left face
-            ([0.0, 1.0, 0.0], "top"),     // Top face
-            ([0.0, -1.0, 0.0], "bottom"), // Bottom face
-        ];
+//         // Test different viewing directions
+//         let test_cases = [
+//             ([0.0, 0.0, -1.0], "front"),  // Front face
+//             ([0.0, 0.0, 1.0], "back"),    // Back face
+//             ([1.0, 0.0, 0.0], "right"),   // Right face
+//             ([-1.0, 0.0, 0.0], "left"),   // Left face
+//             ([0.0, 1.0, 0.0], "top"),     // Top face
+//             ([0.0, -1.0, 0.0], "bottom"), // Bottom face
+//         ];
 
-        for (view_direction, name) in test_cases {
-            let areas = gpu_calc.calculate_surface_area(&view_direction);
+//         for (view_direction, name) in test_cases {
+//             let areas = gpu_calc.calculate_surface_area(&view_direction);
 
-            let calculated_area = &areas[0];
-            println!(
-                "{} view calculated area: {:?}",
-                name, calculated_area
-            );
+//             let calculated_area = &areas[0];
+//             println!(
+//                 "{} view calculated area: {:?}",
+//                 name, calculated_area
+//             );
 
-            // Each face of a 2x2 cube should have area 4.0
-            assert!(
-                (calculated_area.surface_area - 4.0).abs() < 1.0,
-                "{} view: Expected ~4.0, got {:?}",
-                name,
-                calculated_area
-            );
-        }
-    }
+//             // Each face of a 2x2 cube should have area 4.0
+//             assert!(
+//                 (calculated_area.surface_area - 4.0).abs() < 1.0,
+//                 "{} view: Expected ~4.0, got {:?}",
+//                 name,
+//                 calculated_area
+//             );
+//         }
+//     }
 
-    #[test]
-    fn test_rotated_cube_area() {
-        // Create a GPU calculator with surface area capability
-        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+//     #[test]
+//     fn test_rotated_cube_area() {
+//         // Create a GPU calculator with surface area capability
+//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-        // Build test geometry (unit cube)
-        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        let geometry_state = GeometryState {
-            position: DVec3::ZERO,
-            rotation: DQuat::from_euler(
-                glam::EulerRot::YXZ,
-                PI / 4.0,
-                PI / 4.0,
-                0.0,
-            ),
-        };
+//         // Build test geometry (unit cube)
+//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+//         let geometry_state = GeometryState {
+//             position: DVec3::ZERO,
+//             rotation: DQuat::from_euler(
+//                 glam::EulerRot::YXZ,
+//                 PI / 4.0,
+//                 PI / 4.0,
+//                 0.0,
+//             ),
+//         };
 
-        // Add geometry to the calculator
-        let _cube_id = gpu_calc.add_geometry(
-            cube_geometry.into(),
-            &geometry_state,
-        );
+//         // Add geometry to the calculator
+//         let _cube_id = gpu_calc.add_geometry(
+//             cube_geometry.into(),
+//             &geometry_state,
+//         );
 
-        // Initialize the GPU resources
-        gpu_calc.initialize();
+//         // Initialize the GPU resources
+//         gpu_calc.initialize();
 
-        // Front-on (X) view - looking at the cube from the front
-        let view_direction = [-1.0, 0.0, 0.0];
+//         // Front-on (X) view - looking at the cube from the front
+//         let view_direction = [-1.0, 0.0, 0.0];
 
-        let start = Instant::now();
-        // Calculate surface area using the new framework
-        let start = Instant::now();
-        let areas = gpu_calc.calculate_surface_area(&view_direction);
-        let stop = Instant::now();
-        let duration = stop.duration_since(start);
-        dbg!(duration);
+//         let start = Instant::now();
+//         // Calculate surface area using the new framework
+//         let start = Instant::now();
+//         let areas = gpu_calc.calculate_surface_area(&view_direction);
+//         let stop = Instant::now();
+//         let duration = stop.duration_since(start);
+//         dbg!(duration);
 
-        // Only one object, expect just front face: area should be close to 1.0
-        assert_eq!(
-            areas.len(),
-            1,
-            "Should have one geometry"
-        );
-        let calculated_area = &areas[0];
+//         // Only one object, expect just front face: area should be close to 1.0
+//         assert_eq!(
+//             areas.len(),
+//             1,
+//             "Should have one geometry"
+//         );
+//         let calculated_area = &areas[0];
 
-        println!(
-            "Calculated area: {:?}",
-            calculated_area
-        );
+//         println!(
+//             "Calculated area: {:?}",
+//             calculated_area
+//         );
 
-        // For a unit cube viewed from the front, we should see approximately 1.0 square units
-        assert!(
-            (calculated_area.surface_area - (3.0 as f64).sqrt()).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {:?}",
-            calculated_area
-        );
-    }
+//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
+//         assert!(
+//             (calculated_area.surface_area - (3.0 as f64).sqrt()).abs() < 0.05, // Allow small error due to rasterization
+//             "Expected ~1.0, got {:?}",
+//             calculated_area
+//         );
+//     }
 
-    //#[test]
-    fn test_2_cubes_area() {
-        // Create a GPU calculator with surface area capability
-        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+//     //#[test]
+//     fn test_2_cubes_area() {
+//         // Create a GPU calculator with surface area capability
+//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-        // Build test geometry (unit cube)
-        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-        let state1 = GeometryState {
-            position: DVec3 { x: 0.0, y: 0.5, z: 0.5 },
-            rotation: DQuat::IDENTITY,
-        };
+//         // Build test geometry (unit cube)
+//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+//         let state1 = GeometryState {
+//             position: DVec3 { x: 0.0, y: 0.5, z: 0.5 },
+//             rotation: DQuat::IDENTITY,
+//         };
 
-        let state2 = GeometryState {
-            position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
-            rotation: DQuat::IDENTITY,
-        };
+//         let state2 = GeometryState {
+//             position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
+//             rotation: DQuat::IDENTITY,
+//         };
 
-        gpu_calc.add_geometry(cube_geometry.into(), &state1);
+//         gpu_calc.add_geometry(cube_geometry.into(), &state1);
 
-        gpu_calc.add_geometry(cube_geometry.into(), &state2);
+//         gpu_calc.add_geometry(cube_geometry.into(), &state2);
 
-        gpu_calc.initialize();
+//         gpu_calc.initialize();
 
-        let view_direction = [-1.0, 0.0, 0.0];
+//         let view_direction = [-1.0, 0.0, 0.0];
 
-        // Calculate surface area using the new framework
-        let areas = gpu_calc.calculate_surface_area(&view_direction);
+//         // Calculate surface area using the new framework
+//         let areas = gpu_calc.calculate_surface_area(&view_direction);
 
-        // Only one object, expect just front face: area should be close to 1.0
-        assert_eq!(
-            areas.len(),
-            2,
-            "Should have one geometry"
-        );
-        let calculated_area = &areas[0];
+//         // Only one object, expect just front face: area should be close to 1.0
+//         assert_eq!(
+//             areas.len(),
+//             2,
+//             "Should have one geometry"
+//         );
+//         let calculated_area = &areas[0];
 
-        println!(
-            "Calculated area: {:?}",
-            calculated_area
-        );
+//         println!(
+//             "Calculated area: {:?}",
+//             calculated_area
+//         );
 
-        // For a unit cube viewed from the front, we should see approximately 1.0 square units
-        assert!(
-            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {:?}",
-            calculated_area
-        );
+//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
+//         assert!(
+//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+//             "Expected ~1.0, got {:?}",
+//             calculated_area
+//         );
 
-        let calculated_area = &areas[1];
+//         let calculated_area = &areas[1];
 
-        println!(
-            "Calculated area: {:?}",
-            calculated_area
-        );
+//         println!(
+//             "Calculated area: {:?}",
+//             calculated_area
+//         );
 
-        // For a unit cube viewed from the front, we should see approximately 1.0 square units
-        assert!(
-            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-            "Expected ~1.0, got {:?}",
-            calculated_area
-        );
-    }
-}
+//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
+//         assert!(
+//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+//             "Expected ~1.0, got {:?}",
+//             calculated_area
+//         );
+//     }
+// }

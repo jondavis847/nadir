@@ -1,500 +1,122 @@
+pub mod stage1;
+use stage1::Stage1;
+use wgpu::util::DeviceExt;
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Uniforms {
+    num_objects: u32,
+    num_workgroups: u32,
+    _pad0: u32,
+    _pad1: u32,
+}
+
+impl Uniforms {
+    pub fn new(num_objects: u32, num_workgroups: u32) -> Self {
+        Self { num_objects, num_workgroups, _pad0: 0, _pad1: 0 }
+    }
+}
+
 pub struct ParallelReduction {
-    count_pipeline: wgpu::ComputePipeline,
-    reduce_pipeline: wgpu::ComputePipeline,
-    clear_pipeline: wgpu::ComputePipeline,
-    count_bind_group: wgpu::BindGroup,
-    reduce_bind_group: wgpu::BindGroup,
-
-    group_counts: wgpu::Buffer,
-    group_sum_x: wgpu::Buffer,
-    group_sum_y: wgpu::Buffer,
-    group_sum_z: wgpu::Buffer,
-
-    total_counts: wgpu::Buffer,
-    total_sum_x: wgpu::Buffer,
-    total_sum_y: wgpu::Buffer,
-    total_sum_z: wgpu::Buffer,
-
-    staging_buffer: wgpu::Buffer, // For final mapped readback
+    uniforms: Uniforms,
+    uniform_bind_group_layout: wgpu::BindGroupLayout,
+    uniform_bind_group: wgpu::BindGroup,
+    uniform_buffer: wgpu::Buffer,
+    stage1: Stage1,
 }
 
 impl ParallelReduction {
+    const WORKGROUP_WIDTH: u32 = 16;
+    const WORKGROUP_HEIGHT: u32 = 16;
+
     pub fn new(
         device: &wgpu::Device,
         object_id_texture: &wgpu::TextureView,
         position_texture: &wgpu::TextureView,
-        num_objects: usize,
-        num_workgroups: usize,
+        num_objects: u32,
     ) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Parallel Reduction Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("parallel_reduction.wgsl").into()),
-        });
+        // Get dimenions of the textures, make sure they match
+        let object_id_size = object_id_texture
+            .texture()
+            .size();
+        let position_size = position_texture
+            .texture()
+            .size();
+        assert!(
+            object_id_size.width == position_size.width
+                && object_id_size.height == position_size.height,
+            "Object ID and Position textures must have the same dimensions",
+        );
+        let texture_width = object_id_size.width;
+        let texture_height = object_id_size.height;
 
-        // Layouts
-        let count_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label: Some("Count Bind Group Layout"),
-                entries: &[
-                    // object_id_tex, position_tex
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Uint,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    // output buffers
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 5,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
+        // Calculate the number of workgroups required for the calculations
+        let wg_x = (texture_width + Self::WORKGROUP_WIDTH - 1) / Self::WORKGROUP_WIDTH;
+        let wg_y = (texture_height + Self::WORKGROUP_HEIGHT - 1) / Self::WORKGROUP_HEIGHT;
+        let num_workgroups = wg_x * wg_y;
+
+        let uniforms = Uniforms::new(num_objects, num_workgroups);
+        let uniform_bind_group_layout = Self::bind_group_layout(device);
+        let uniform_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Parallel Reduction Uniform Buffer"),
+                contents: bytemuck::bytes_of(&uniforms),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             },
         );
-
-        let reduce_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label: Some("Reduce Bind Group Layout"),
-                entries: &[
-                    // inputs
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    // outputs
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 5,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 6,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 7,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            },
+        let uniform_bind_group = Self::bind_group(
+            device,
+            &uniform_bind_group_layout,
+            &uniform_buffer,
         );
 
-        // === Pipelines ===
-
-        let clear_pipeline = device.create_compute_pipeline(
-            &wgpu::ComputePipelineDescriptor {
-                label: Some("Clear Buffers Pipeline"),
-                layout: Some(
-                    &device.create_pipeline_layout(
-                        &wgpu::PipelineLayoutDescriptor {
-                            label: Some("Clear Buffers Layout"),
-                            bind_group_layouts: &[&reduce_bind_group_layout],
-                            push_constant_ranges: &[],
-                        },
-                    ),
-                ),
-                module: &shader,
-                entry_point: Some("clear_buffers"), // <-- must match WGSL function name
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                cache: None,
-            },
+        let stage1 = Stage1::new(
+            device,
+            &uniforms,
+            &uniform_bind_group_layout,
+            object_id_texture.clone(),
+            position_texture.clone(),
         );
-
-        let count_pipeline = device.create_compute_pipeline(
-            &wgpu::ComputePipelineDescriptor {
-                label: Some("Count Pipeline"),
-                layout: Some(
-                    &device.create_pipeline_layout(
-                        &wgpu::PipelineLayoutDescriptor {
-                            label: Some("Count Layout"),
-                            bind_group_layouts: &[&count_bind_group_layout],
-                            push_constant_ranges: &[],
-                        },
-                    ),
-                ),
-                module: &shader,
-                entry_point: Some("count_pixels_and_positions"),
-                cache: None,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-        );
-
-        let reduce_pipeline = device.create_compute_pipeline(
-            &wgpu::ComputePipelineDescriptor {
-                label: Some("Reduce Pipeline"),
-                layout: Some(
-                    &device.create_pipeline_layout(
-                        &wgpu::PipelineLayoutDescriptor {
-                            label: Some("Reduce Layout"),
-                            bind_group_layouts: &[&reduce_bind_group_layout],
-                            push_constant_ranges: &[],
-                        },
-                    ),
-                ),
-                module: &shader,
-                entry_point: Some("reduce_histograms"),
-                cache: None,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-        );
-
-        // === Buffers ===
-        let obj_count = num_objects as u64;
-        let group_count = num_workgroups as u64;
-        let buffer_size_u32 = (group_count * obj_count * 4) as wgpu::BufferAddress; // 4 bytes per u32
-        let buffer_size_f32 = (group_count * obj_count * 4) as wgpu::BufferAddress; // 4 bytes per f32
-
-        let make_buf = |label: &str, size, usage| {
-            device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label),
-                size,
-                usage,
-                mapped_at_creation: false,
-            })
-        };
-
-        let group_counts = make_buf(
-            "group_counts",
-            buffer_size_u32,
-            wgpu::BufferUsages::STORAGE,
-        );
-        let group_sum_x = make_buf(
-            "group_sum_x",
-            buffer_size_f32,
-            wgpu::BufferUsages::STORAGE,
-        );
-        let group_sum_y = make_buf(
-            "group_sum_y",
-            buffer_size_f32,
-            wgpu::BufferUsages::STORAGE,
-        );
-        let group_sum_z = make_buf(
-            "group_sum_z",
-            buffer_size_f32,
-            wgpu::BufferUsages::STORAGE,
-        );
-
-        let total_counts = make_buf(
-            "total_counts",
-            obj_count * 4,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        );
-        let total_sum_x = make_buf(
-            "total_sum_x",
-            obj_count * 4,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        );
-        let total_sum_y = make_buf(
-            "total_sum_y",
-            obj_count * 4,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        );
-        let total_sum_z = make_buf(
-            "total_sum_z",
-            obj_count * 4,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-        );
-
-        let staging_buffer = make_buf(
-            "staging",
-            obj_count * 4,
-            wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        );
-
-        let count_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Parallel Count Bind Group"),
-            layout: &count_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(object_id_texture),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(position_texture),
-                },
-                wgpu::BindGroupEntry { binding: 2, resource: group_counts.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: group_sum_x.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: group_sum_y.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: group_sum_z.as_entire_binding() },
-            ],
-        });
-
-        let reduce_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Parallel Reduce Bind Group"),
-            layout: &reduce_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: group_counts.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: group_sum_x.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: group_sum_y.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 3, resource: group_sum_z.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 4, resource: total_counts.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 5, resource: total_sum_x.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 6, resource: total_sum_y.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 7, resource: total_sum_z.as_entire_binding() },
-            ],
-        });
 
         Self {
-            clear_pipeline,
-            count_pipeline,
-            reduce_pipeline,
-            count_bind_group,
-            reduce_bind_group,
-            group_counts,
-            group_sum_x,
-            group_sum_y,
-            group_sum_z,
-            total_counts,
-            total_sum_x,
-            total_sum_y,
-            total_sum_z,
-            staging_buffer,
+            uniforms,
+            uniform_bind_group,
+            uniform_bind_group_layout,
+            uniform_buffer,
+            stage1,
         }
     }
 
-    pub fn reduce(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        resolution: u32,
-        num_objects: usize,
-    ) -> Vec<ReductionResult> {
-        let mut encoder = device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: Some("Parallel Reduction Encoder") },
-        );
-        {
-            let mut clear_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Clear Buffers Pass"),
-                timestamp_writes: None,
-            });
-            clear_pass.set_pipeline(&self.clear_pipeline);
-            clear_pass.set_bind_group(
-                0,
-                &self.reduce_bind_group,
-                &[],
-            );
-            clear_pass.dispatch_workgroups(num_objects as u32, 1, 1);
-        }
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Count Compute Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.count_pipeline);
-            cpass.set_bind_group(0, &self.count_bind_group, &[]);
-
-            let workgroups_x = (resolution + 7) / 8;
-            let workgroups_y = (resolution + 7) / 8;
-            cpass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
-        }
-
-        {
-            let mut rpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Reduce Compute Pass"),
-                timestamp_writes: None,
-            });
-            rpass.set_pipeline(&self.reduce_pipeline);
-            rpass.set_bind_group(
-                0,
-                &self.reduce_bind_group,
-                &[],
-            );
-            rpass.dispatch_workgroups(num_objects as u32, 1, 1);
-        }
-
-        // === 3. Copy results to staging buffer ===
-        let result_size = (num_objects * std::mem::size_of::<ReductionResult>()) as u64;
-
-        // Create a temporary buffer to hold packed result structs
-        let packed_result_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Packed Results"),
-            size: result_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-
-        // Pack the separate component buffers into the final struct buffer using copy_buffer_to_buffer
-        encoder.copy_buffer_to_buffer(
-            &self.total_counts,
-            0,
-            &packed_result_buffer,
-            0,
-            (num_objects * 4) as u64,
-        );
-        encoder.copy_buffer_to_buffer(
-            &self.total_sum_x,
-            0,
-            &packed_result_buffer,
-            (num_objects * 4) as u64,
-            (num_objects * 4) as u64,
-        );
-        encoder.copy_buffer_to_buffer(
-            &self.total_sum_y,
-            0,
-            &packed_result_buffer,
-            (num_objects * 8) as u64,
-            (num_objects * 4) as u64,
-        );
-        encoder.copy_buffer_to_buffer(
-            &self.total_sum_z,
-            0,
-            &packed_result_buffer,
-            (num_objects * 12) as u64,
-            (num_objects * 4) as u64,
-        );
-
-        // Submit and wait
-        queue.submit(Some(encoder.finish()));
-        device.poll(wgpu::PollType::Wait);
-
-        // Map result buffer
-        let buffer_slice = packed_result_buffer.slice(..);
-        let (sender, receiver) = futures::channel::oneshot::channel();
-        buffer_slice.map_async(
-            wgpu::MapMode::Read,
-            move |res| {
-                sender
-                    .send(res)
-                    .unwrap();
+    fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Parallel Reduction Uniform BindGroupLayout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
             },
-        );
-        pollster::block_on(async {
-            receiver
-                .await
-                .unwrap()
-                .unwrap();
-        });
-
-        // Read mapped data
-        let data = buffer_slice.get_mapped_range();
-        let results: Vec<ReductionResult> = bytemuck::cast_slice(&data).to_vec();
-
-        drop(data);
-        packed_result_buffer.unmap();
-
-        results
+        )
     }
-}
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct ReductionResult {
-    pub pixel_count: u32,
-    pub sum_x: f32,
-    pub sum_y: f32,
-    pub sum_z: f32,
+    fn bind_group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        uniform_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Parallel Reduction Uniform Bind Group"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+        })
+    }
 }
