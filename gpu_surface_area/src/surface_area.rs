@@ -1,6 +1,6 @@
 use glam::Mat4;
 use nadir_3d::vertex::SimpleVertex;
-use std::{collections::HashMap, f32::NAN};
+use std::{collections::HashMap, f64::NAN};
 
 use crate::{
     GeometryId, GpuGeometryResources, SceneBounds, SharedUniforms,
@@ -14,6 +14,7 @@ pub struct SurfaceAreaInitialized {
 
 pub struct SurfaceAreaCalculator {
     initialized: Option<SurfaceAreaInitialized>,
+    pub aerodynamics_result: HashMap<GeometryId, AerodynamicsResult>,
 }
 
 #[derive(Debug)]
@@ -24,7 +25,7 @@ pub struct AerodynamicsResult {
 
 impl SurfaceAreaCalculator {
     pub fn new() -> Self {
-        Self { initialized: None }
+        Self { initialized: None, aerodynamics_result: HashMap::new() }
     }
 
     pub fn initialize(
@@ -116,144 +117,141 @@ impl SurfaceAreaCalculator {
         self.initialized = Some(SurfaceAreaInitialized { render_pipeline, parallel_reduction });
     }
 
-    //     pub fn calculate(
-    //         &mut self,
-    //         device: &wgpu::Device,
-    //         queue: &wgpu::Queue,
-    //         geometry_resources: &HashMap<GeometryId, GpuGeometryResources>,
-    //         scene_bounds: &SceneBounds,
-    //         view_direction: &[f32; 3],
-    //         resolution: u32,
-    //         safety_factor: f32,
-    //         shared_buffer: &wgpu::Buffer,
-    //         shared_bindgroup: &wgpu::BindGroup,
-    //         object_id_view: &wgpu::TextureView,
-    //         depth_view: &wgpu::TextureView,
-    //     ) -> Vec<AerodynamicsResult> {
-    //         if let Some(initialized) = &self.initialized {
-    //             let projection_matrix = crate::create_orthographic_projection(
-    //                 scene_bounds,
-    //                 view_direction,
-    //                 safety_factor,
-    //             );
+    pub fn calculate(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        geometry_resources: &HashMap<GeometryId, GpuGeometryResources>,
+        scene_bounds: &SceneBounds,
+        view_direction: &[f32; 3],
+        resolution: u32,
+        safety_factor: f32,
+        shared_buffer: &wgpu::Buffer,
+        shared_bindgroup: &wgpu::BindGroup,
+        object_id_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+    ) {
+        if let Some(initialized) = &mut self.initialized {
+            let projection_matrix = crate::create_orthographic_projection(
+                scene_bounds,
+                view_direction,
+                safety_factor,
+            );
 
-    //             let shared_uniforms = SharedUniforms {
-    //                 projection_matrix: Mat4::from_cols_array_2d(&projection_matrix),
-    //             };
-    //             queue.write_buffer(
-    //                 shared_buffer,
-    //                 0,
-    //                 bytemuck::cast_slice(&[shared_uniforms]),
-    //             );
+            let shared_uniforms = SharedUniforms {
+                projection_matrix: Mat4::from_cols_array_2d(&projection_matrix),
+            };
+            queue.write_buffer(
+                shared_buffer,
+                0,
+                bytemuck::cast_slice(&[shared_uniforms]),
+            );
 
-    //             let mut encoder = device.create_command_encoder(
-    //                 &wgpu::CommandEncoderDescriptor { label: Some("Surface Area Render Encoder") },
-    //             );
+            let mut encoder = device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor { label: Some("Surface Area Render Encoder") },
+            );
 
-    //             {
-    //                 let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-    //                     label: Some("Surface Area Render Pass"),
-    //                     color_attachments: &[Some(
-    //                         wgpu::RenderPassColorAttachment {
-    //                             view: object_id_view,
-    //                             resolve_target: None,
-    //                             ops: wgpu::Operations {
-    //                                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-    //                                 store: wgpu::StoreOp::Store,
-    //                             },
-    //                             depth_slice: None,
-    //                         },
-    //                     )],
-    //                     depth_stencil_attachment: Some(
-    //                         wgpu::RenderPassDepthStencilAttachment {
-    //                             view: depth_view,
-    //                             depth_ops: Some(wgpu::Operations {
-    //                                 load: wgpu::LoadOp::Clear(1.0),
-    //                                 store: wgpu::StoreOp::Store,
-    //                             }),
-    //                             stencil_ops: None,
-    //                         },
-    //                     ),
-    //                     timestamp_writes: None,
-    //                     occlusion_query_set: None,
-    //                 });
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Surface Area Render Pass"),
+                    color_attachments: &[Some(
+                        wgpu::RenderPassColorAttachment {
+                            view: object_id_view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                store: wgpu::StoreOp::Store,
+                            },
+                            depth_slice: None,
+                        },
+                    )],
+                    depth_stencil_attachment: Some(
+                        wgpu::RenderPassDepthStencilAttachment {
+                            view: depth_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        },
+                    ),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
 
-    //                 render_pass.set_pipeline(&initialized.render_pipeline);
-    //                 render_pass.set_bind_group(0, shared_bindgroup, &[]);
+                render_pass.set_pipeline(&initialized.render_pipeline);
+                render_pass.set_bind_group(0, shared_bindgroup, &[]);
 
-    //                 for (_geometry_id, gpu_geometry) in geometry_resources {
-    //                     render_pass.set_bind_group(
-    //                         1,
-    //                         &gpu_geometry.bind_group,
-    //                         &[],
-    //                     );
-    //                     render_pass.set_vertex_buffer(
-    //                         0,
-    //                         gpu_geometry
-    //                             .vertex_buffer
-    //                             .slice(..),
-    //                     );
-    //                     render_pass.draw(
-    //                         0..gpu_geometry.vertex_count,
-    //                         0..1,
-    //                     );
-    //                 }
-    //             }
+                for (_geometry_id, gpu_geometry) in geometry_resources {
+                    render_pass.set_bind_group(
+                        1,
+                        &gpu_geometry.bind_group,
+                        &[],
+                    );
+                    render_pass.set_vertex_buffer(
+                        0,
+                        gpu_geometry
+                            .vertex_buffer
+                            .slice(..),
+                    );
+                    render_pass.draw(
+                        0..gpu_geometry.vertex_count,
+                        0..1,
+                    );
+                }
+            }
 
-    //             let n_objects = geometry_resources.len();
-    //             let result = initialized
-    //                 .parallel_reduction
-    //                 .reduce(
-    //                     device, queue, resolution, n_objects,
-    //                 );
+            initialized
+                .parallel_reduction
+                .dispatch(device, queue);
 
-    //             queue.submit(Some(encoder.finish()));
+            let results = &initialized
+                .parallel_reduction
+                .result;
 
-    //             let area_per_pixel = Self::calculate_area_per_pixel(
-    //                 scene_bounds,
-    //                 resolution,
-    //                 safety_factor,
-    //             );
+            dbg!(results);
+            let area_per_pixel = Self::calculate_area_per_pixel(
+                scene_bounds,
+                resolution,
+                safety_factor,
+            );
 
-    //             result
-    //                 .into_iter()
-    //                 .map(|r: ReductionResult| {
-    //                     let surface_area = r.pixel_count as f32 * area_per_pixel;
-    //                     let center_of_pressure = if r.pixel_count > 0 {
-    //                         [
-    //                             r.sum_x / r.pixel_count as f32,
-    //                             r.sum_y / r.pixel_count as f32,
-    //                             r.sum_z / r.pixel_count as f32,
-    //                         ]
-    //                     } else {
-    //                         [NAN; 3]
-    //                     };
-    //                     AerodynamicsResult {
-    //                         surface_area: surface_area as f64,
-    //                         center_of_pressure: [
-    //                             center_of_pressure[0] as f64,
-    //                             center_of_pressure[1] as f64,
-    //                             center_of_pressure[2] as f64,
-    //                         ],
-    //                     }
-    //                 })
-    //                 .collect()
-    //         } else {
-    //             panic!("SurfaceAreaCalculator failed to initialize");
-    //         }
-    //     }
+            for result in results {
+                let surface_area = (result.count as f32 * area_per_pixel) as f64;
+                let cop = if result.count > 0 {
+                    [
+                        (result.pos[0] / result.count as f32) as f64,
+                        (result.pos[1] / result.count as f32) as f64,
+                        (result.pos[2] / result.count as f32) as f64,
+                    ]
+                } else {
+                    [NAN; 3]
+                };
 
-    //     fn calculate_area_per_pixel(
-    //         scene_bounds: &SceneBounds,
-    //         resolution: u32,
-    //         safety_factor: f32,
-    //     ) -> f32 {
-    //         let world_width = (scene_bounds.max_y - scene_bounds.min_y) * safety_factor;
-    //         let world_height = (scene_bounds.max_z - scene_bounds.min_z) * safety_factor;
+                self.aerodynamics_result
+                    .entry(GeometryId(result.id as usize))
+                    .and_modify(|e| {
+                        e.surface_area = surface_area;
+                        e.center_of_pressure = cop;
+                    })
+                    .or_insert(AerodynamicsResult { surface_area, center_of_pressure: cop });
+            }
+        } else {
+            panic!("SurfaceAreaCalculator failed to initialize");
+        }
+    }
 
-    //         let pixel_world_width = world_width / resolution as f32;
-    //         let pixel_world_height = world_height / resolution as f32;
+    fn calculate_area_per_pixel(
+        scene_bounds: &SceneBounds,
+        resolution: u32,
+        safety_factor: f32,
+    ) -> f32 {
+        let world_width = (scene_bounds.max_y - scene_bounds.min_y) * safety_factor;
+        let world_height = (scene_bounds.max_z - scene_bounds.min_z) * safety_factor;
 
-    //         pixel_world_width * pixel_world_height
-    //     }
+        let pixel_world_width = world_width / resolution as f32;
+        let pixel_world_height = world_height / resolution as f32;
+
+        pixel_world_width * pixel_world_height
+    }
 }

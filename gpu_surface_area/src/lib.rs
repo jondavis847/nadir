@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU64};
+use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
@@ -8,7 +8,7 @@ use nadir_3d::{
 };
 use wgpu::util::DeviceExt;
 
-use crate::surface_area::{AerodynamicsResult, SurfaceAreaCalculator};
+use crate::surface_area::SurfaceAreaCalculator;
 
 pub mod atomic_accumulation;
 pub mod parallel_reduction;
@@ -42,71 +42,6 @@ pub struct SceneBounds {
     max_y: f32,
     min_z: f32,
     max_z: f32,
-}
-
-/// Stores per-object counts or area values computed by the reduction pass.
-/// Indexed by object ID.
-pub struct ReductionBuffers {
-    pub per_object_sum: wgpu::Buffer, // Output of reduction pass
-    pub staging_buffer: wgpu::Buffer, // For copying to CPU if needed
-    pub bind_group: wgpu::BindGroup,
-    pub bind_group_layout: wgpu::BindGroupLayout,
-}
-
-impl ReductionBuffers {
-    fn new(device: &wgpu::Device, num_objects: usize) -> Self {
-        let buffer_size = (num_objects * std::mem::size_of::<f32>()) as u64;
-
-        // 1. Output buffer for compute shader to write per-object sums
-        let per_object_sum = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Per-Object Sum Buffer"),
-            size: buffer_size,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
-
-        // 2. Staging buffer for CPU readback
-        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Per-Object Sum Staging Buffer"),
-            size: buffer_size,
-            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        // 3. Bind group layout
-        let bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label: Some("Reduction Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: NonZeroU64::new(std::mem::size_of::<f32>() as u64),
-                    },
-                    count: None,
-                }],
-            },
-        );
-
-        // 4. Bind group
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Reduction Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: per_object_sum.as_entire_binding(),
-            }],
-        });
-
-        ReductionBuffers {
-            per_object_sum,
-            staging_buffer,
-            bind_group,
-            bind_group_layout,
-        }
-    }
 }
 
 #[repr(C)]
@@ -274,48 +209,39 @@ impl GpuCalculator {
         self.scene_bounds = scene_bounds;
     }
 
-    // pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) -> Vec<AerodynamicsResult> {
-    //     // recalculate the scene bounds with new transform information
-    //     // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
-    //     self.calculate_scene_bounds();
+    pub fn calculate_surface_area(&mut self, view_direction: &[f32; 3]) {
+        // recalculate the scene bounds with new transform information
+        // FIXME: if we do this once per calc (aero, srp, cop) that seems wasteful
+        self.calculate_scene_bounds();
 
-    //     if let Some(initialized) = &mut self.initialized {
-    //         // Initialize surface area calculator if needed
-    //         if self
-    //             .surface_area
-    //             .is_none()
-    //         {
-    //             self.surface_area = Some(SurfaceAreaCalculator::new());
-    //         }
+        if let Some(initialized) = &mut self.initialized {
+            let surface_area_calc = self
+                .surface_area
+                .as_mut()
+                .unwrap();
 
-    //         let surface_area_calc = self
-    //             .surface_area
-    //             .as_mut()
-    //             .unwrap();
+            let safety_factor = match self.method {
+                GpuCalculatorMethod::Rasterization { safety_factor, .. } => safety_factor,
+                GpuCalculatorMethod::RayTracing { .. } => todo!(),
+            };
 
-    //         let safety_factor = match self.method {
-    //             GpuCalculatorMethod::Rasterization { safety_factor, .. } => safety_factor,
-    //             GpuCalculatorMethod::RayTracing { .. } => todo!(),
-    //         };
-
-    //         // Use YOUR textures from GpuInitialized
-    //         surface_area_calc.calculate(
-    //             &initialized.device,
-    //             &initialized.queue,
-    //             &initialized.geometry,
-    //             &self.scene_bounds,
-    //             view_direction,
-    //             initialized.resolution,
-    //             safety_factor,
-    //             &initialized.shared_uniform_buffer,
-    //             &initialized.shared_bind_group,
-    //             &initialized.object_id_texture,
-    //             &initialized.depth_texture,
-    //         )
-    //     } else {
-    //         panic!("GpuCalculator not initialized");
-    //     }
-    // }
+            surface_area_calc.calculate(
+                &initialized.device,
+                &initialized.queue,
+                &initialized.geometry,
+                &self.scene_bounds,
+                view_direction,
+                initialized.resolution,
+                safety_factor,
+                &initialized.shared_uniform_buffer,
+                &initialized.shared_bind_group,
+                &initialized.object_id_texture,
+                &initialized.depth_texture,
+            );
+        } else {
+            panic!("GpuCalculator not initialized");
+        }
+    }
 
     // don't initialize until all geometries have been added
     // if geometries are added after initilization, can i just re call this, or do i need to drop gpu resources first somehow?
@@ -676,219 +602,257 @@ fn create_orthographic_projection(
     (ortho * view).to_cols_array_2d()
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::{f64::consts::PI, time::Instant};
+#[cfg(test)]
+mod tests {
+    use std::{f64::consts::PI, time::Instant};
 
-//     use super::*;
-//     use glam::{DQuat, DVec3};
-//     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
+    use super::*;
+    use glam::{DQuat, DVec3};
+    use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-//     //#[test]
-//     fn test_cube_area() {
-//         // Create a GPU calculator with surface area capability
-//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
+    //#[test]
+    fn test_cube_area() {
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-//         // Build test geometry (unit cube)
-//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-//         let geometry_state = GeometryState::default(); // Assuming default state is identity transform
+        // Build test geometry (unit cube)
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let geometry_state = GeometryState::default(); // Assuming default state is identity transform
 
-//         // Add geometry to the calculator
-//         let _cube_id = gpu_calc.add_geometry(
-//             cube_geometry.into(),
-//             &geometry_state,
-//         );
+        // Add geometry to the calculator
+        let cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
+        );
 
-//         // Initialize the GPU resources
-//         gpu_calc.initialize();
+        // Initialize the GPU resources
+        gpu_calc.initialize();
 
-//         // Front-on (Z) view - looking at the cube from the front
-//         let view_direction = [0.0, 0.0, -1.0];
+        // Front-on (Z) view - looking at the cube from the front
+        let view_direction = [0.0, 0.0, -1.0];
 
-//         // Calculate surface area using the new framework
-//         let areas = gpu_calc.calculate_surface_area(&view_direction);
+        // Calculate surface area using the new framework
+        gpu_calc.calculate_surface_area(&view_direction);
 
-//         // Only one object, expect just front face: area should be close to 1.0
-//         assert_eq!(
-//             areas.len(),
-//             1,
-//             "Should have one geometry"
-//         );
-//         let calculated_area = &areas[0];
+        let result = gpu_calc
+            .surface_area
+            .unwrap()
+            .aerodynamics_result;
 
-//         println!(
-//             "Calculated area: {:?}",
-//             calculated_area.surface_area
-//         );
+        // Only one object, expect just front face: area should be close to 1.0
+        assert_eq!(
+            result.len(),
+            1,
+            "Should have one geometry"
+        );
+        let calculated_area = result
+            .get(&cube_id)
+            .unwrap();
 
-//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
-//         assert!(
-//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-//             "Expected ~1.0, got {:?}",
-//             calculated_area
-//         );
-//     }
+        println!(
+            "Calculated area: {:?}",
+            calculated_area.surface_area
+        );
 
-//     //#[test]
-//     fn test_cube_area_multiple_views() {
-//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
+            calculated_area
+        );
+    }
 
-//         let cube_geometry = Cuboid::new(2.0, 2.0, 2.0).unwrap(); // 2x2x2 cube
-//         let geometry_state = GeometryState::default();
+    //#[test]
+    fn test_cube_area_multiple_views() {
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-//         let _cube_id = gpu_calc.add_geometry(
-//             cube_geometry.into(),
-//             &geometry_state,
-//         );
-//         gpu_calc.initialize();
+        let cube_geometry = Cuboid::new(2.0, 2.0, 2.0).unwrap(); // 2x2x2 cube
+        let geometry_state = GeometryState::default();
 
-//         // Test different viewing directions
-//         let test_cases = [
-//             ([0.0, 0.0, -1.0], "front"),  // Front face
-//             ([0.0, 0.0, 1.0], "back"),    // Back face
-//             ([1.0, 0.0, 0.0], "right"),   // Right face
-//             ([-1.0, 0.0, 0.0], "left"),   // Left face
-//             ([0.0, 1.0, 0.0], "top"),     // Top face
-//             ([0.0, -1.0, 0.0], "bottom"), // Bottom face
-//         ];
+        let cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
+        );
+        gpu_calc.initialize();
 
-//         for (view_direction, name) in test_cases {
-//             let areas = gpu_calc.calculate_surface_area(&view_direction);
+        // Test different viewing directions
+        let test_cases = [
+            ([0.0, 0.0, -1.0], "front"),  // Front face
+            ([0.0, 0.0, 1.0], "back"),    // Back face
+            ([1.0, 0.0, 0.0], "right"),   // Right face
+            ([-1.0, 0.0, 0.0], "left"),   // Left face
+            ([0.0, 1.0, 0.0], "top"),     // Top face
+            ([0.0, -1.0, 0.0], "bottom"), // Bottom face
+        ];
 
-//             let calculated_area = &areas[0];
-//             println!(
-//                 "{} view calculated area: {:?}",
-//                 name, calculated_area
-//             );
+        for (view_direction, name) in test_cases {
+            gpu_calc.calculate_surface_area(&view_direction);
 
-//             // Each face of a 2x2 cube should have area 4.0
-//             assert!(
-//                 (calculated_area.surface_area - 4.0).abs() < 1.0,
-//                 "{} view: Expected ~4.0, got {:?}",
-//                 name,
-//                 calculated_area
-//             );
-//         }
-//     }
+            let result = gpu_calc
+                .surface_area
+                .as_ref()
+                .unwrap();
 
-//     #[test]
-//     fn test_rotated_cube_area() {
-//         // Create a GPU calculator with surface area capability
-//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
+            let calculated_area = result
+                .aerodynamics_result
+                .get(&cube_id)
+                .unwrap();
+            println!(
+                "{} view calculated area: {:?}",
+                name, calculated_area.surface_area
+            );
 
-//         // Build test geometry (unit cube)
-//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-//         let geometry_state = GeometryState {
-//             position: DVec3::ZERO,
-//             rotation: DQuat::from_euler(
-//                 glam::EulerRot::YXZ,
-//                 PI / 4.0,
-//                 PI / 4.0,
-//                 0.0,
-//             ),
-//         };
+            // Each face of a 2x2 cube should have area 4.0
+            assert!(
+                (calculated_area.surface_area - 4.0).abs() < 1.0,
+                "{} view: Expected ~4.0, got {:?}",
+                name,
+                calculated_area
+            );
+        }
+    }
 
-//         // Add geometry to the calculator
-//         let _cube_id = gpu_calc.add_geometry(
-//             cube_geometry.into(),
-//             &geometry_state,
-//         );
+    #[test]
+    fn test_rotated_cube_area() {
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-//         // Initialize the GPU resources
-//         gpu_calc.initialize();
+        // Build test geometry (unit cube)
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let geometry_state = GeometryState {
+            position: DVec3::ZERO,
+            rotation: DQuat::from_euler(
+                glam::EulerRot::YXZ,
+                PI / 4.0,
+                PI / 4.0,
+                0.0,
+            ),
+        };
 
-//         // Front-on (X) view - looking at the cube from the front
-//         let view_direction = [-1.0, 0.0, 0.0];
+        // Add geometry to the calculator
+        let cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
+        );
 
-//         let start = Instant::now();
-//         // Calculate surface area using the new framework
-//         let start = Instant::now();
-//         let areas = gpu_calc.calculate_surface_area(&view_direction);
-//         let stop = Instant::now();
-//         let duration = stop.duration_since(start);
-//         dbg!(duration);
+        // Initialize the GPU resources
+        gpu_calc.initialize();
 
-//         // Only one object, expect just front face: area should be close to 1.0
-//         assert_eq!(
-//             areas.len(),
-//             1,
-//             "Should have one geometry"
-//         );
-//         let calculated_area = &areas[0];
+        // Front-on (X) view - looking at the cube from the front
+        let view_direction = [-1.0, 0.0, 0.0];
 
-//         println!(
-//             "Calculated area: {:?}",
-//             calculated_area
-//         );
+        // Calculate surface area using the new framework
+        let start = Instant::now();
+        gpu_calc.calculate_surface_area(&view_direction);
+        let stop = Instant::now();
+        let duration = stop.duration_since(start);
+        dbg!(duration);
 
-//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
-//         assert!(
-//             (calculated_area.surface_area - (3.0 as f64).sqrt()).abs() < 0.05, // Allow small error due to rasterization
-//             "Expected ~1.0, got {:?}",
-//             calculated_area
-//         );
-//     }
+        let result = gpu_calc
+            .surface_area
+            .as_ref()
+            .unwrap();
+        // Only one object, expect just front face: area should be close to 1.0
+        assert_eq!(
+            result
+                .aerodynamics_result
+                .len(),
+            1,
+            "Should have one geometry"
+        );
+        dbg!(cube_id);
+        dbg!(&result.aerodynamics_result);
+        let calculated_area = result
+            .aerodynamics_result
+            .get(&cube_id)
+            .unwrap();
 
-//     //#[test]
-//     fn test_2_cubes_area() {
-//         // Create a GPU calculator with surface area capability
-//         let mut gpu_calc = GpuCalculator::new().with_surface_area();
+        println!(
+            "Calculated area: {:?}",
+            calculated_area.surface_area
+        );
 
-//         // Build test geometry (unit cube)
-//         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
-//         let state1 = GeometryState {
-//             position: DVec3 { x: 0.0, y: 0.5, z: 0.5 },
-//             rotation: DQuat::IDENTITY,
-//         };
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area.surface_area - (3.0 as f64).sqrt()).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
+            calculated_area
+        );
+    }
 
-//         let state2 = GeometryState {
-//             position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
-//             rotation: DQuat::IDENTITY,
-//         };
+    //#[test]
+    fn test_2_cubes_area() {
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
-//         gpu_calc.add_geometry(cube_geometry.into(), &state1);
+        // Build test geometry (unit cube)
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let state1 = GeometryState {
+            position: DVec3 { x: 0.0, y: 0.5, z: 0.5 },
+            rotation: DQuat::IDENTITY,
+        };
 
-//         gpu_calc.add_geometry(cube_geometry.into(), &state2);
+        let state2 = GeometryState {
+            position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
+            rotation: DQuat::IDENTITY,
+        };
 
-//         gpu_calc.initialize();
+        let cube1_id = gpu_calc.add_geometry(cube_geometry.into(), &state1);
+        let cube2_id = gpu_calc.add_geometry(cube_geometry.into(), &state2);
 
-//         let view_direction = [-1.0, 0.0, 0.0];
+        gpu_calc.initialize();
 
-//         // Calculate surface area using the new framework
-//         let areas = gpu_calc.calculate_surface_area(&view_direction);
+        let view_direction = [-1.0, 0.0, 0.0];
 
-//         // Only one object, expect just front face: area should be close to 1.0
-//         assert_eq!(
-//             areas.len(),
-//             2,
-//             "Should have one geometry"
-//         );
-//         let calculated_area = &areas[0];
+        // Calculate surface area using the new framework
+        gpu_calc.calculate_surface_area(&view_direction);
 
-//         println!(
-//             "Calculated area: {:?}",
-//             calculated_area
-//         );
+        let result = gpu_calc
+            .surface_area
+            .as_ref()
+            .unwrap();
+        // Only one object, expect just front face: area should be close to 1.0
+        assert_eq!(
+            result
+                .aerodynamics_result
+                .len(),
+            2,
+            "Should have one geometry"
+        );
+        let calculated_area = result
+            .aerodynamics_result
+            .get(&cube1_id)
+            .unwrap()
+            .surface_area;
 
-//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
-//         assert!(
-//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-//             "Expected ~1.0, got {:?}",
-//             calculated_area
-//         );
+        println!(
+            "Cube1 calculated area: {:?}",
+            calculated_area
+        );
 
-//         let calculated_area = &areas[1];
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
+            calculated_area
+        );
 
-//         println!(
-//             "Calculated area: {:?}",
-//             calculated_area
-//         );
+        let calculated_area = result
+            .aerodynamics_result
+            .get(&cube2_id)
+            .unwrap()
+            .surface_area;
 
-//         // For a unit cube viewed from the front, we should see approximately 1.0 square units
-//         assert!(
-//             (calculated_area.surface_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
-//             "Expected ~1.0, got {:?}",
-//             calculated_area
-//         );
-//     }
-// }
+        println!(
+            "Calculated area: {:?}",
+            calculated_area
+        );
+
+        // For a unit cube viewed from the front, we should see approximately 1.0 square units
+        assert!(
+            (calculated_area - 1.0).abs() < 0.05, // Allow small error due to rasterization
+            "Expected ~1.0, got {:?}",
+            calculated_area
+        );
+    }
+}
