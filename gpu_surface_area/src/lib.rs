@@ -28,6 +28,7 @@ pub enum GpuCalculatorMethod {
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct GeometryId(usize);
 
+#[derive(Debug)]
 pub struct GeometryData {
     geometry: Geometry,
     uniforms: GeometryUniforms,
@@ -51,7 +52,7 @@ struct SharedUniforms {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Zeroable, Pod)]
+#[derive(Clone, Copy, Debug, Zeroable, Pod)]
 struct GeometryUniforms {
     world_transform: Mat4,
     id: u32,
@@ -105,7 +106,7 @@ pub struct GpuCalculator {
 impl GpuCalculator {
     pub fn new() -> Self {
         Self {
-            method: GpuCalculatorMethod::Rasterization { resolution: 128, safety_factor: 1.0 },
+            method: GpuCalculatorMethod::Rasterization { resolution: 1024, safety_factor: 1.0 },
             geometry: HashMap::new(),
             surface_area: None,
             initialized: None,
@@ -527,6 +528,16 @@ impl GpuCalculator {
         todo!()
     }
 
+    pub fn with_resolution(mut self, new_resolution: u32) -> Self {
+        match &mut self.method {
+            GpuCalculatorMethod::Rasterization { resolution, .. } => {
+                *resolution = new_resolution;
+            }
+            _ => {}
+        }
+        self
+    }
+
     pub fn with_surface_area(mut self) -> Self {
         self.surface_area = Some(SurfaceAreaCalculator::new());
         self
@@ -610,7 +621,32 @@ mod tests {
     use glam::{DQuat, DVec3};
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-    //#[test]
+    #[test]
+    fn pixel_map() {
+        // Create a GPU calculator with surface area capability
+        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+
+        // Build test geometry (unit cube)
+        let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let geometry_state = GeometryState::default(); // Assuming default state is identity transform
+
+        // Add geometry to the calculator
+        let cube_id = gpu_calc.add_geometry(
+            cube_geometry.into(),
+            &geometry_state,
+        );
+
+        // Initialize the GPU resources
+        gpu_calc.initialize();
+
+        // Front-on (Z) view - looking at the cube from the front
+        let view_direction = [0.0, 0.0, -1.0];
+
+        // Calculate surface area using the new framework
+        gpu_calc.calculate_surface_area(&view_direction);
+    }
+
+    #[test]
     fn test_cube_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
@@ -742,6 +778,7 @@ mod tests {
         let view_direction = [-1.0, 0.0, 0.0];
 
         // Calculate surface area using the new framework
+        dbg!(&gpu_calc.geometry);
         let start = Instant::now();
         gpu_calc.calculate_surface_area(&view_direction);
         let stop = Instant::now();

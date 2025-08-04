@@ -131,6 +131,58 @@ impl SurfaceAreaCalculator {
         object_id_view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
     ) {
+        // renders the geometry and stores calculated values as pixel data in the textures
+        self.render(
+            device,
+            queue,
+            geometry_resources,
+            scene_bounds,
+            view_direction,
+            safety_factor,
+            shared_buffer,
+            shared_bindgroup,
+            object_id_view,
+            depth_view,
+        );
+
+        // uses parallel reduction to collect the texture values and reduce to per object values
+        self.reduce(device, queue);
+
+        // collects the final results and stores them in self.aerodynamics_result
+        self.results(
+            scene_bounds,
+            resolution,
+            safety_factor,
+        );
+    }
+
+    fn calculate_area_per_pixel(
+        scene_bounds: &SceneBounds,
+        resolution: u32,
+        safety_factor: f32,
+    ) -> f32 {
+        let world_width = (scene_bounds.max_y - scene_bounds.min_y) * safety_factor;
+        let world_height = (scene_bounds.max_z - scene_bounds.min_z) * safety_factor;
+
+        let pixel_world_width = world_width / resolution as f32;
+        let pixel_world_height = world_height / resolution as f32;
+
+        pixel_world_width * pixel_world_height
+    }
+
+    pub fn render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        geometry_resources: &HashMap<GeometryId, GpuGeometryResources>,
+        scene_bounds: &SceneBounds,
+        view_direction: &[f32; 3],
+        safety_factor: f32,
+        shared_buffer: &wgpu::Buffer,
+        shared_bindgroup: &wgpu::BindGroup,
+        object_id_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+    ) {
         if let Some(initialized) = &mut self.initialized {
             let projection_matrix = crate::create_orthographic_projection(
                 scene_bounds,
@@ -200,23 +252,33 @@ impl SurfaceAreaCalculator {
                     );
                 }
             }
+            queue.submit(Some(encoder.finish()));
+            device
+                .poll(wgpu::PollType::Wait)
+                .unwrap();
+        }
+    }
 
+    pub fn reduce(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if let Some(initialized) = &mut self.initialized {
             initialized
                 .parallel_reduction
                 .dispatch(device, queue);
+        }
+    }
 
-            let results = &initialized
-                .parallel_reduction
-                .result;
-
-            dbg!(results);
+    pub fn results(&mut self, scene_bounds: &SceneBounds, resolution: u32, safety_factor: f32) {
+        if let Some(init) = &self.initialized {
             let area_per_pixel = Self::calculate_area_per_pixel(
                 scene_bounds,
                 resolution,
                 safety_factor,
             );
 
-            for result in results {
+            for result in &init
+                .parallel_reduction
+                .result
+            {
                 let surface_area = (result.count as f32 * area_per_pixel) as f64;
                 let cop = if result.count > 0 {
                     [
@@ -240,18 +302,153 @@ impl SurfaceAreaCalculator {
             panic!("SurfaceAreaCalculator failed to initialize");
         }
     }
+}
 
-    fn calculate_area_per_pixel(
-        scene_bounds: &SceneBounds,
-        resolution: u32,
-        safety_factor: f32,
-    ) -> f32 {
-        let world_width = (scene_bounds.max_y - scene_bounds.min_y) * safety_factor;
-        let world_height = (scene_bounds.max_z - scene_bounds.min_z) * safety_factor;
+#[cfg(test)]
+mod tests {
+    use crate::GpuCalculator;
+    use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
+    use std::time::Instant;
 
-        let pixel_world_width = world_width / resolution as f32;
-        let pixel_world_height = world_height / resolution as f32;
+    #[test]
+    fn render_pixels_id() {
+        let resolution = 64; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
+        let mut gpu = GpuCalculator::new()
+            .with_resolution(resolution)
+            .with_surface_area();
 
-        pixel_world_width * pixel_world_height
+        let cube = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let cube_state = GeometryState::default();
+        gpu.add_geometry(cube.into(), &cube_state);
+
+        gpu.initialize();
+        gpu.calculate_scene_bounds();
+        let view_direction = [-1.0, 0.0, 0.0];
+        let start = Instant::now();
+        if let Some(init) = &mut gpu.initialized {
+            if let Some(area) = &mut gpu.surface_area {
+                area.render(
+                    &init.device,
+                    &init.queue,
+                    &init.geometry,
+                    &gpu.scene_bounds,
+                    &view_direction,
+                    1.0,
+                    &init.shared_uniform_buffer,
+                    &init.shared_bind_group,
+                    &init.object_id_texture,
+                    &init.depth_texture,
+                );
+            }
+        }
+        let stop = Instant::now();
+        let duration = stop.duration_since(start);
+        println!(
+            "Surface area calculation time: {:?}",
+            duration
+        );
+
+        // test specific gpu setup for copying results to cpu
+        if let Some(init) = &gpu.initialized {
+            let bytes_per_pixel = std::mem::size_of::<u32>() as u32;
+            let staging_buffer = init
+                .device
+                .create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("test_staging"),
+                    size: ((resolution * resolution) * bytes_per_pixel) as u64,
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                    mapped_at_creation: false,
+                });
+
+            let mut encoder = init
+                .device
+                .create_command_encoder(
+                    &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
+                );
+
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfoBase {
+                    texture: init
+                        .object_id_texture
+                        .texture(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyBufferInfoBase {
+                    buffer: &staging_buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(resolution * bytes_per_pixel),
+                        rows_per_image: Some(resolution),
+                    },
+                },
+                wgpu::Extent3d {
+                    width: resolution,
+                    height: resolution,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            init.queue
+                .submit(Some(encoder.finish()));
+            init.device
+                .poll(wgpu::PollType::Wait)
+                .unwrap();
+
+            let buffer_slice = staging_buffer.slice(..);
+            let (tx, rx) = futures::channel::oneshot::channel();
+
+            buffer_slice.map_async(
+                wgpu::MapMode::Read,
+                move |result| {
+                    tx.send(result)
+                        .unwrap();
+                },
+            );
+
+            init.device
+                .poll(wgpu::PollType::Wait)
+                .unwrap();
+            pollster::block_on(rx)
+                .unwrap()
+                .unwrap();
+
+            let data = buffer_slice.get_mapped_range();
+            let pixels: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+
+            drop(data);
+            staging_buffer.unmap();
+
+            println!(
+                "\nObject ID Texture Contents ({} x {}):",
+                resolution, resolution
+            );
+
+            for i in 0..resolution as usize {
+                for j in 0..resolution as usize {
+                    let id = pixels[resolution as usize * i + j];
+                    print!("{:2} ", id);
+                }
+                println!("");
+            }
+
+            let mut id_counts = std::collections::HashMap::new();
+            for &id in &pixels {
+                *id_counts
+                    .entry(id)
+                    .or_insert(0) += 1;
+            }
+
+            println!("\nPixel Statistics:");
+            for (id, count) in id_counts {
+                println!(
+                    "Object ID {}: {} pixels ({:.1}%)",
+                    id,
+                    count,
+                    100.0 * count as f32 / (resolution * resolution) as f32
+                );
+            }
+        }
     }
 }
