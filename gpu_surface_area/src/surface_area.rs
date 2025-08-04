@@ -167,7 +167,7 @@ impl SurfaceAreaCalculator {
         );
     }
 
-    fn calculate_area_per_pixel(
+    pub fn calculate_area_per_pixel(
         scene_bounds: &SceneBounds,
         resolution: u32,
         safety_factor: f32,
