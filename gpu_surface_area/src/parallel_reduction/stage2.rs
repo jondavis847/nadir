@@ -2,7 +2,6 @@ use crate::parallel_reduction::{ParallelReduction, stage_buffers::StageBuffers};
 
 pub struct Stage2 {
     pub buffers: StageBuffers,
-    bind_group_layout: wgpu::BindGroupLayout,
     pub bind_group: wgpu::BindGroup,
     pub pipeline: wgpu::ComputePipeline,
 }
@@ -29,12 +28,7 @@ impl Stage2 {
             uniform_bind_group_layout,
             &bind_group_layout,
         );
-        Self {
-            buffers: current_buffers,
-            bind_group_layout,
-            bind_group,
-            pipeline,
-        }
+        Self { buffers: current_buffers, bind_group, pipeline }
     }
 
     fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
