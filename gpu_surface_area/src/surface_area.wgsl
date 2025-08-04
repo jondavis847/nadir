@@ -16,8 +16,9 @@ struct VertexInput {
 }
 
 struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
+    @builtin(position) clip_position: vec4<f32>,    
     @location(0) object_id: u32,
+    @location(1) world_position: vec4<f32>,
 }
 
 @vertex
@@ -27,12 +28,22 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     let clip_pos = shared_uniforms.projection_matrix * world_pos;
 
     return VertexOutput(
-        clip_pos,
+        clip_pos,        
         geometry_uniforms.object_id,
+        world_pos,
     );
 }
 
+struct FragmentOutput {
+    @location(0) object_id: u32,
+    @location(1) position: vec4<f32>,
+}
+
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) u32 {
-    return in.object_id;    
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    return FragmentOutput(
+        in.object_id,
+        in.world_position,
+    );
 }

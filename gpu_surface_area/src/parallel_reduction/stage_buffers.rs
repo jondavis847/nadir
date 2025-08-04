@@ -3,8 +3,8 @@
 pub struct WorkgroupResult {
     pub id: u32,
     pub count: u32,
-    pub pos: [f32; 3],
-    _padding: [u32; 3],
+    pub pos: glam::Vec3,
+    _padding: glam::Vec3,
 }
 
 // The buffers will store the summed results per workgroup
@@ -20,8 +20,16 @@ impl StageBuffers {
             label: Some("workgroup_results"),
             size: buffer_size as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
+            mapped_at_creation: true,
         });
+        // initialize to zero to prevent garbage data
+        {
+            let mut buffer_view = result_buffer
+                .slice(..)
+                .get_mapped_range_mut();
+            buffer_view.fill(0);
+        }
+        result_buffer.unmap();
 
         Self { length: buffer_length, result_buffer }
     }

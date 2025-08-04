@@ -12,27 +12,23 @@ use crate::parallel_reduction::stage_buffers::WorkgroupResult;
 pub struct Uniforms {
     num_objects: u32,
     num_workgroups: u32,
-    _pad0: u32,
-    _pad1: u32,
 }
 
 impl Uniforms {
     pub fn new(num_objects: u32, num_workgroups: u32) -> Self {
-        Self { num_objects, num_workgroups, _pad0: 0, _pad1: 0 }
+        Self { num_objects, num_workgroups }
     }
 }
 
 pub struct ParallelReduction {
     uniforms: Uniforms,
-    uniform_bind_group_layout: wgpu::BindGroupLayout,
     uniform_bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
     stage1: Stage1,
     stage2: Vec<Stage2>,
     result_buffer: wgpu::Buffer,
     pub result: Vec<WorkgroupResult>,
-    texture_width: u32,
-    texture_height: u32,
+    n_workgroups_x: u32,
+    n_workgroups_y: u32,
 }
 
 impl ParallelReduction {
@@ -62,9 +58,9 @@ impl ParallelReduction {
         let texture_height = object_id_size.height;
 
         // Calculate the number of workgroups required for the calculations
-        let wg_x = (texture_width + Self::WORKGROUP_WIDTH - 1) / Self::WORKGROUP_WIDTH;
-        let wg_y = (texture_height + Self::WORKGROUP_HEIGHT - 1) / Self::WORKGROUP_HEIGHT;
-        let num_workgroups = wg_x * wg_y;
+        let n_workgroups_x = (texture_width + Self::WORKGROUP_WIDTH - 1) / Self::WORKGROUP_WIDTH;
+        let n_workgroups_y = (texture_height + Self::WORKGROUP_HEIGHT - 1) / Self::WORKGROUP_HEIGHT;
+        let num_workgroups = n_workgroups_x * n_workgroups_y;
 
         let uniforms = Uniforms::new(num_objects, num_workgroups);
         let uniform_bind_group_layout = Self::bind_group_layout(device);
@@ -132,14 +128,12 @@ impl ParallelReduction {
         Self {
             uniforms,
             uniform_bind_group,
-            uniform_bind_group_layout,
-            uniform_buffer,
             stage1,
             stage2,
             result,
             result_buffer,
-            texture_height,
-            texture_width,
+            n_workgroups_x,
+            n_workgroups_y,
         }
     }
 
@@ -149,37 +143,13 @@ impl ParallelReduction {
         );
 
         // Stage 1 - Process texture data and perform initial reduction
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("ParallelReduction Stage1 Pass"),
-                timestamp_writes: None,
-            });
-
-            compute_pass.set_pipeline(
-                &self
-                    .stage1
-                    .pipeline,
-            );
-            compute_pass.set_bind_group(
-                0,
+        self.stage1
+            .dispatch(
+                self.n_workgroups_x,
+                self.n_workgroups_y,
                 &self.uniform_bind_group,
-                &[],
+                &mut encoder,
             );
-            compute_pass.set_bind_group(
-                1,
-                &self
-                    .stage1
-                    .bind_group,
-                &[],
-            );
-
-            let dispatch_x =
-                (self.texture_width + Self::WORKGROUP_WIDTH - 1) / Self::WORKGROUP_WIDTH;
-            let dispatch_y =
-                (self.texture_height + Self::WORKGROUP_HEIGHT - 1) / Self::WORKGROUP_HEIGHT;
-
-            compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
-        }
 
         // Stage 2 - Continue to reduce results from previous stages until final result is achieved
         for (i, stage) in self

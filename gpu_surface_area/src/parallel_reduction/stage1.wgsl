@@ -1,13 +1,17 @@
 struct Uniforms {
   num_objects: u32,
-  num_workgroups: u32,
+  num_workgroups: u32,  
 };
 
 struct WorkgroupResult {
   id: u32,
   count: u32,
-  pos: vec3<f32>,  
-  _padding: vec3<u32>,
+  pos_x: f32,
+  pos_y: f32,
+  pos_z: f32,
+  pad0: u32,
+  pad1: u32,
+  pad2: u32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -78,12 +82,14 @@ fn main(
       stride = stride >> 1u; //right shift operator, divides stride by 2
     }
 
-    if (lane_id == 0u && shared_count[0] > 0u) {
+    if (lane_id == 0u) {
       result_buffer[tile_idx * uniforms.num_objects + (i - 1u)] = WorkgroupResult (
         i,
         shared_count[0],
-        vec3<f32>(shared_sum_x[0], shared_sum_y[0], shared_sum_z[0]),
-        vec3<u32>(0u, 0u, 0u),
+        shared_sum_x[0],
+        shared_sum_y[0],
+        shared_sum_z[0],
+        0u, 0u, 0u,
       );
     }
     workgroupBarrier(); // ensure all lanes are done before next object
