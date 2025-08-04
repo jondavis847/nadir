@@ -49,9 +49,9 @@ fn main(
             let input_result = input_result_buffer[input_index];
             if (input_result.id == i) {
                 shared_count[lane_id] = input_result.count;
-                shared_sum_x[lane_id] = input_result.pos.x;
-                shared_sum_y[lane_id] = input_result.pos.y;
-                shared_sum_z[lane_id] = input_result.pos.z;
+                shared_sum_x[lane_id] = input_result.pos_x;
+                shared_sum_y[lane_id] = input_result.pos_y;
+                shared_sum_z[lane_id] = input_result.pos_z;
             } else {
                 shared_count[lane_id] = 0u;
                 shared_sum_x[lane_id] = 0.0;
@@ -63,7 +63,7 @@ fn main(
         workgroupBarrier();
         
         // Perform reduction for this object
-        var stride = 128u;
+        var stride = WORKGROUP_SIZE / 2u;
         loop {
             if (stride == 0u) { break; }
             

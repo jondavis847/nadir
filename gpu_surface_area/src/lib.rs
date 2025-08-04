@@ -622,7 +622,7 @@ mod tests {
     use glam::{DQuat, DVec3};
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
-    //#[test]
+    #[test]
     fn test_cube_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();

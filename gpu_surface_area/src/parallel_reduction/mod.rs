@@ -173,13 +173,25 @@ impl ParallelReduction {
             );
             compute_pass.set_bind_group(1, &stage.bind_group, &[]);
 
-            let dispatch_x = ceil_div(
-                stage
+            let input_buffer_length = if i == 0 {
+                // using stage 1 buffer
+                self.stage1
                     .buffers
-                    .length,
+                    .length
+            } else {
+                // using previous stage 2 buffer
+                self.stage2[i - 1]
+                    .buffers
+                    .length
+            };
+
+            let dispatch_x = ceil_div(
+                input_buffer_length,
                 Self::WORKGROUP_SIZE,
             );
             compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
+
+            drop(compute_pass);
         }
 
         // --- Copy final stage buffer to result buffer ---
