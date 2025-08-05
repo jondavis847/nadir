@@ -1,3 +1,6 @@
+![Screenshot](resources/nadir1.jpg)
+
+
 # Intro
 NADIR is a collection of Rust crates that support modeling and simulation of dynamical systems. The primary motivation is high fidelity modeling of spacecraft dynamics, but general dynamical systems are supported.
 
