@@ -316,7 +316,7 @@ mod tests {
 
                     assert!(
                         results.len() == 4096,
-                        "Result length for this test should be 64 * 64 pixels * 1 object / 256 workers = 16 workgroup elements"
+                        "Result length for this test should be 1024 * 1024 pixels * 1 object / 256 workers = 4096 workgroup elements"
                     );
 
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
@@ -476,7 +476,7 @@ mod tests {
 
                     assert!(
                         results.len() == 4096 * 2,
-                        "Result length for this test should be 64 * 64 pixels * 1 object / 256 workers = 16 workgroup elements"
+                        "Result length for this test should be 1024 * 1024 pixels * 2 object / 256 workers = 8192 workgroup elements"
                     );
 
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(

@@ -1,5 +1,7 @@
 use crate::parallel_reduction::{ParallelReduction, stage_buffers::StageBuffers};
 
+use super::ceil_div;
+
 pub struct Stage2 {
     pub buffers: StageBuffers,
     pub bind_group: wgpu::BindGroup,
@@ -121,16 +123,44 @@ impl Stage2 {
             },
         )
     }
+
+    pub fn dispatch(
+        &self,
+        previous_buffers: &StageBuffers,
+        encoder: &mut wgpu::CommandEncoder,
+        uniform_bind_group: &wgpu::BindGroup,
+    ) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some(&format!(
+                "ParallelReduction Stage2 Pass",
+            )),
+            timestamp_writes: None,
+        });
+
+        compute_pass.set_pipeline(&self.pipeline);
+        compute_pass.set_bind_group(0, uniform_bind_group, &[]);
+        compute_pass.set_bind_group(1, &self.bind_group, &[]);
+
+        let dispatch_x = ceil_div(
+            previous_buffers.length,
+            ParallelReduction::WORKGROUP_SIZE,
+        );
+        compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
+
+        drop(compute_pass);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
 
+    use glam::{DQuat, DVec3};
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
 
     use crate::{
-        GpuCalculator, parallel_reduction::stage_buffers::WorkgroupResult,
+        GpuCalculator,
+        parallel_reduction::{self, stage_buffers::WorkgroupResult},
         surface_area::SurfaceAreaCalculator,
     };
 
@@ -174,6 +204,7 @@ mod tests {
         // dig down a bit until we can run stage1
         if let Some(area) = &mut gpu.surface_area {
             if let Some(aero_init) = &mut area.initialized {
+                let parallel_reduction = &mut aero_init.parallel_reduction;
                 if let Some(gpu_init) = &gpu.initialized {
                     let mut encoder = gpu_init
                         .device
@@ -182,32 +213,40 @@ mod tests {
                         );
 
                     let start = Instant::now();
-                    aero_init
-                        .parallel_reduction
+                    parallel_reduction
                         .stage1
                         .dispatch(
-                            aero_init
-                                .parallel_reduction
-                                .n_workgroups_x,
-                            aero_init
-                                .parallel_reduction
-                                .n_workgroups_y,
-                            &aero_init
-                                .parallel_reduction
-                                .uniform_bind_group,
+                            parallel_reduction.n_workgroups_x,
+                            parallel_reduction.n_workgroups_y,
+                            &parallel_reduction.uniform_bind_group,
                             &mut encoder,
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);
                     println!("Reduce time: {:?}", duration);
 
+                    //now run stage2
+                    assert!(
+                        parallel_reduction
+                            .stage2
+                            .len()
+                            > 1,
+                        "expected stage2 to have 2 entries, 4096->16, 16->1",
+                    );
+                    let previous_buffers = &parallel_reduction
+                        .stage1
+                        .buffers;
+                    parallel_reduction.stage2[0].dispatch(
+                        previous_buffers,
+                        &mut encoder,
+                        &parallel_reduction.uniform_bind_group,
+                    );
+
                     let staging_buffer = gpu_init
                         .device
                         .create_buffer(&wgpu::BufferDescriptor {
                             label: Some("test_staging"),
-                            size: (aero_init
-                                .parallel_reduction
-                                .stage1
+                            size: (parallel_reduction.stage2[0]
                                 .buffers
                                 .length
                                 * std::mem::size_of::<WorkgroupResult>() as u32)
@@ -217,17 +256,13 @@ mod tests {
                         });
 
                     encoder.copy_buffer_to_buffer(
-                        &aero_init
-                            .parallel_reduction
-                            .stage1
+                        &parallel_reduction.stage2[0]
                             .buffers
                             .result_buffer,
                         0,
                         &staging_buffer,
                         0,
-                        aero_init
-                            .parallel_reduction
-                            .stage1
+                        parallel_reduction.stage2[0]
                             .buffers
                             .length as u64
                             * std::mem::size_of::<WorkgroupResult>() as u64,
@@ -262,29 +297,479 @@ mod tests {
 
                     let data = buffer_slice.get_mapped_range();
                     let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
-
                     assert!(
-                        results.len() == 4096,
-                        "Result length for this test should be 64 * 64 pixels * 1 object / 256 workers = 16 workgroup elements"
+                        results.len() == 16,
+                        "Result length for this test should be 4096/256 workers = 16 workgroup elements"
                     );
-
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
                         &gpu.scene_bounds,
                         resolution,
                         1.0,
                     );
-                    let mut area = 0.0;
-                    for result in results {
-                        area += result.count as f32 * area_per_pixel;
+                    let mut count_sum = 0;
+                    let mut x_sum = 0.0;
+                    let mut y_sum = 0.0;
+                    let mut z_sum = 0.0;
+                    for result in &results {
+                        count_sum += result.count;
+                        x_sum += result.pos[0];
+                        y_sum += result.pos[1];
+                        z_sum += result.pos[2];
                     }
-                    println!("Surface Area: {:?} m^2", area);
+                    let area = count_sum as f32 * area_per_pixel;
+                    let cop_x = x_sum / count_sum as f32;
+                    let cop_y = y_sum / count_sum as f32;
+                    let cop_z = z_sum / count_sum as f32;
                     assert!(
-                        1.0 - area < 0.07,
-                        "Calculated area should be 1.0 +/- 1%"
+                        area - 1.0 < 0.01,
+                        "area was not within 1% of expectation"
+                    );
+                    assert!(
+                        cop_x - 0.5 < 0.005,
+                        "cop_x was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_y < 0.0005,
+                        "cop_y was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_z < 0.0005,
+                        "cop_z was not within 1% of expecation"
                     );
 
-                    drop(data);
-                    staging_buffer.unmap();
+                    //run stage2 again for final 16 elements
+                    let mut encoder = gpu_init
+                        .device
+                        .create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
+                        );
+
+                    let previous_buffers = &parallel_reduction.stage2[0].buffers;
+                    parallel_reduction.stage2[1].dispatch(
+                        previous_buffers,
+                        &mut encoder,
+                        &parallel_reduction.uniform_bind_group,
+                    );
+
+                    let staging_buffer2 = gpu_init
+                        .device
+                        .create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("test_staging2"),
+                            size: (aero_init
+                                .parallel_reduction
+                                .stage2[1]
+                                .buffers
+                                .length
+                                * std::mem::size_of::<WorkgroupResult>() as u32)
+                                as u64,
+                            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                            mapped_at_creation: false,
+                        });
+
+                    encoder.copy_buffer_to_buffer(
+                        &aero_init
+                            .parallel_reduction
+                            .stage2[1]
+                            .buffers
+                            .result_buffer,
+                        0,
+                        &staging_buffer2,
+                        0,
+                        aero_init
+                            .parallel_reduction
+                            .stage2[1]
+                            .buffers
+                            .length as u64
+                            * std::mem::size_of::<WorkgroupResult>() as u64,
+                    );
+
+                    gpu_init
+                        .queue
+                        .submit(Some(encoder.finish()));
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+
+                    let buffer_slice = staging_buffer2.slice(..);
+                    let (tx, rx) = futures::channel::oneshot::channel();
+
+                    buffer_slice.map_async(
+                        wgpu::MapMode::Read,
+                        move |result| {
+                            tx.send(result)
+                                .unwrap();
+                        },
+                    );
+
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+                    pollster::block_on(rx)
+                        .unwrap()
+                        .unwrap();
+
+                    let data = buffer_slice.get_mapped_range();
+                    let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
+                    assert!(
+                        results.len() == 1,
+                        "Result length for this test should be 16/256 workers = 1 workgroup elements"
+                    );
+                    let result = results[0];
+                    let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
+                        &gpu.scene_bounds,
+                        resolution,
+                        1.0,
+                    );
+                    let area = result.count as f32 * area_per_pixel;
+                    let cop_x = result.pos[0] / result.count as f32;
+                    let cop_y = result.pos[1] / result.count as f32;
+                    let cop_z = result.pos[2] / result.count as f32;
+                    assert!(
+                        area - 1.0 < 0.01,
+                        "area was not within 1% of expectation"
+                    );
+                    assert!(
+                        cop_x - 0.5 < 0.005,
+                        "cop_x was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_y < 0.0005,
+                        "cop_y was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_z < 0.0005,
+                        "cop_z was not within 1% of expecation"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parallel_reduction_stage2_2objects() {
+        // 1024 * 1024  pixels/ 256 threads per workgroup = 4096 workgroups
+        let resolution = 1024; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
+        let mut gpu = GpuCalculator::new()
+            .with_resolution(resolution)
+            .with_surface_area();
+
+        let cube1 = Cuboid::new(1.0, 1.0, 1.0).unwrap();
+        let cube2 = Cuboid::new(2.0, 2.0, 2.0).unwrap();
+        let cube1_state = GeometryState::default();
+        let cube2_state = GeometryState {
+            position: DVec3::new(0.0, 2.0, 0.0),
+            rotation: DQuat::IDENTITY,
+        };
+        gpu.add_geometry(cube1.into(), &cube1_state);
+        gpu.add_geometry(cube2.into(), &cube2_state);
+        gpu.initialize();
+
+        gpu.calculate_scene_bounds();
+        let view_direction = [-1.0, 0.0, 0.0];
+        let start = Instant::now();
+        if let Some(init) = &mut gpu.initialized {
+            if let Some(area) = &mut gpu.surface_area {
+                if let Some(area_init) = &area.initialized {
+                    assert!(
+                        area_init
+                            .parallel_reduction
+                            .stage1
+                            .buffers
+                            .length
+                            == 1024 * 1024 * 2 / 256,
+                        "incorrect stage1 buffer length"
+                    );
+                    assert!(
+                        area_init
+                            .parallel_reduction
+                            .stage2[0]
+                            .buffers
+                            .length
+                            == area_init
+                                .parallel_reduction
+                                .stage1
+                                .buffers
+                                .length
+                                / 256,
+                        "incorrect stage2 buffer length"
+                    );
+                    assert!(
+                        area_init
+                            .parallel_reduction
+                            .stage2[1]
+                            .buffers
+                            .length
+                            == area_init
+                                .parallel_reduction
+                                .stage2[0]
+                                .buffers
+                                .length
+                                / 256,
+                        "incorrect stage2 buffer length"
+                    );
+                }
+                area.render(
+                    &init.device,
+                    &init.queue,
+                    &init.geometry,
+                    &gpu.scene_bounds,
+                    &view_direction,
+                    1.0,
+                    &init.shared_uniform_buffer,
+                    &init.shared_bind_group,
+                    &init.object_id_texture,
+                    &init.position_texture,
+                    &init.depth_texture,
+                );
+            }
+        }
+        let stop = Instant::now();
+        let duration = stop.duration_since(start);
+        println!("Render time: {:?}", duration);
+
+        // dig down a bit until we can run stage1
+        if let Some(area) = &mut gpu.surface_area {
+            if let Some(aero_init) = &mut area.initialized {
+                let parallel_reduction = &mut aero_init.parallel_reduction;
+                if let Some(gpu_init) = &gpu.initialized {
+                    let mut encoder = gpu_init
+                        .device
+                        .create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
+                        );
+
+                    let start = Instant::now();
+                    parallel_reduction
+                        .stage1
+                        .dispatch(
+                            parallel_reduction.n_workgroups_x,
+                            parallel_reduction.n_workgroups_y,
+                            &parallel_reduction.uniform_bind_group,
+                            &mut encoder,
+                        );
+                    let stop = Instant::now();
+                    let duration = stop.duration_since(start);
+                    println!("Reduce time: {:?}", duration);
+
+                    //now run stage2
+                    assert!(
+                        parallel_reduction
+                            .stage2
+                            .len()
+                            > 1,
+                        "expected stage2 to have 2 entries, 8192->32, 32->1",
+                    );
+                    let previous_buffers = &parallel_reduction
+                        .stage1
+                        .buffers;
+                    parallel_reduction.stage2[0].dispatch(
+                        previous_buffers,
+                        &mut encoder,
+                        &parallel_reduction.uniform_bind_group,
+                    );
+
+                    let staging_buffer = gpu_init
+                        .device
+                        .create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("test_staging"),
+                            size: (parallel_reduction.stage2[0]
+                                .buffers
+                                .length
+                                * std::mem::size_of::<WorkgroupResult>() as u32)
+                                as u64,
+                            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                            mapped_at_creation: false,
+                        });
+
+                    encoder.copy_buffer_to_buffer(
+                        &parallel_reduction.stage2[0]
+                            .buffers
+                            .result_buffer,
+                        0,
+                        &staging_buffer,
+                        0,
+                        parallel_reduction.stage2[0]
+                            .buffers
+                            .length as u64
+                            * std::mem::size_of::<WorkgroupResult>() as u64,
+                    );
+
+                    gpu_init
+                        .queue
+                        .submit(Some(encoder.finish()));
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+
+                    let buffer_slice = staging_buffer.slice(..);
+                    let (tx, rx) = futures::channel::oneshot::channel();
+
+                    buffer_slice.map_async(
+                        wgpu::MapMode::Read,
+                        move |result| {
+                            tx.send(result)
+                                .unwrap();
+                        },
+                    );
+
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+                    pollster::block_on(rx)
+                        .unwrap()
+                        .unwrap();
+
+                    let data = buffer_slice.get_mapped_range();
+                    let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
+                    assert!(
+                        results.len() == 16,
+                        "Result length for this test should be 4096/256 workers = 16 workgroup elements"
+                    );
+                    let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
+                        &gpu.scene_bounds,
+                        resolution,
+                        1.0,
+                    );
+                    let mut count_sum = 0;
+                    let mut x_sum = 0.0;
+                    let mut y_sum = 0.0;
+                    let mut z_sum = 0.0;
+                    for result in &results {
+                        count_sum += result.count;
+                        x_sum += result.pos[0];
+                        y_sum += result.pos[1];
+                        z_sum += result.pos[2];
+                    }
+                    let area = count_sum as f32 * area_per_pixel;
+                    let cop_x = x_sum / count_sum as f32;
+                    let cop_y = y_sum / count_sum as f32;
+                    let cop_z = z_sum / count_sum as f32;
+                    assert!(
+                        area - 1.0 < 0.01,
+                        "area was not within 1% of expectation"
+                    );
+                    assert!(
+                        cop_x - 0.5 < 0.005,
+                        "cop_x was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_y < 0.0005,
+                        "cop_y was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_z < 0.0005,
+                        "cop_z was not within 1% of expecation"
+                    );
+
+                    //run stage2 again for final 16 elements
+                    let mut encoder = gpu_init
+                        .device
+                        .create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
+                        );
+
+                    let previous_buffers = &parallel_reduction.stage2[0].buffers;
+                    parallel_reduction.stage2[1].dispatch(
+                        previous_buffers,
+                        &mut encoder,
+                        &parallel_reduction.uniform_bind_group,
+                    );
+
+                    let staging_buffer2 = gpu_init
+                        .device
+                        .create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("test_staging2"),
+                            size: (aero_init
+                                .parallel_reduction
+                                .stage2[1]
+                                .buffers
+                                .length
+                                * std::mem::size_of::<WorkgroupResult>() as u32)
+                                as u64,
+                            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                            mapped_at_creation: false,
+                        });
+
+                    encoder.copy_buffer_to_buffer(
+                        &aero_init
+                            .parallel_reduction
+                            .stage2[1]
+                            .buffers
+                            .result_buffer,
+                        0,
+                        &staging_buffer2,
+                        0,
+                        aero_init
+                            .parallel_reduction
+                            .stage2[1]
+                            .buffers
+                            .length as u64
+                            * std::mem::size_of::<WorkgroupResult>() as u64,
+                    );
+
+                    gpu_init
+                        .queue
+                        .submit(Some(encoder.finish()));
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+
+                    let buffer_slice = staging_buffer2.slice(..);
+                    let (tx, rx) = futures::channel::oneshot::channel();
+
+                    buffer_slice.map_async(
+                        wgpu::MapMode::Read,
+                        move |result| {
+                            tx.send(result)
+                                .unwrap();
+                        },
+                    );
+
+                    gpu_init
+                        .device
+                        .poll(wgpu::PollType::Wait)
+                        .unwrap();
+                    pollster::block_on(rx)
+                        .unwrap()
+                        .unwrap();
+
+                    let data = buffer_slice.get_mapped_range();
+                    let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
+                    assert!(
+                        results.len() == 1,
+                        "Result length for this test should be 16/256 workers = 1 workgroup elements"
+                    );
+                    let result = results[0];
+                    let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
+                        &gpu.scene_bounds,
+                        resolution,
+                        1.0,
+                    );
+                    let area = result.count as f32 * area_per_pixel;
+                    let cop_x = result.pos[0] / result.count as f32;
+                    let cop_y = result.pos[1] / result.count as f32;
+                    let cop_z = result.pos[2] / result.count as f32;
+                    assert!(
+                        area - 1.0 < 0.01,
+                        "area was not within 1% of expectation"
+                    );
+                    assert!(
+                        cop_x - 0.5 < 0.005,
+                        "cop_x was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_y < 0.0005,
+                        "cop_y was not within 1% of expecation"
+                    );
+                    assert!(
+                        cop_z < 0.0005,
+                        "cop_z was not within 1% of expecation"
+                    );
                 }
             }
         }

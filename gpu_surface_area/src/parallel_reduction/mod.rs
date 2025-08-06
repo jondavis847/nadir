@@ -89,7 +89,10 @@ impl ParallelReduction {
         if stage1
             .buffers
             .length
-            > Self::WORKGROUP_SIZE
+            > 1
+        //Self::WORKGROUP_SIZE
+        // was workgroup_size where we sum anything less than workgroup size on the cpu side,
+        // but now we just always sum until we have 1 entry left
         {
             stage2.push(Stage2::new(
                 device,
@@ -102,7 +105,7 @@ impl ParallelReduction {
                 .unwrap()
                 .buffers
                 .length
-                > Self::WORKGROUP_SIZE
+                > 1
             {
                 let last_stage = stage2
                     .last()
@@ -157,52 +160,34 @@ impl ParallelReduction {
             .iter()
             .enumerate()
         {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some(&format!(
-                    "ParallelReduction Stage2 Pass {}",
-                    i
-                )),
-                timestamp_writes: None,
-            });
-
-            compute_pass.set_pipeline(&stage.pipeline);
-            compute_pass.set_bind_group(
-                0,
-                &self.uniform_bind_group,
-                &[],
-            );
-            compute_pass.set_bind_group(1, &stage.bind_group, &[]);
-
-            let input_buffer_length = if i == 0 {
-                // using stage 1 buffer
-                self.stage1
+            let previous_buffers = if i == 0 {
+                &self
+                    .stage1
                     .buffers
-                    .length
             } else {
-                // using previous stage 2 buffer
-                self.stage2[i - 1]
+                &self
+                    .stage2
+                    .last()
+                    .unwrap()
                     .buffers
-                    .length
             };
-
-            let dispatch_x = ceil_div(
-                input_buffer_length,
-                Self::WORKGROUP_SIZE,
+            stage.dispatch(
+                previous_buffers,
+                &mut encoder,
+                &self.uniform_bind_group,
             );
-            compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
-
-            drop(compute_pass);
         }
 
         // --- Copy final stage buffer to result buffer ---
+        let byte_size = std::mem::size_of::<WorkgroupResult>() as u64
+            * self
+                .uniforms
+                .num_objects as u64;
+
         if let Some(final_stage) = self
             .stage2
             .last()
         {
-            let byte_size = std::mem::size_of::<WorkgroupResult>() as u64
-                * self
-                    .uniforms
-                    .num_objects as u64;
             encoder.copy_buffer_to_buffer(
                 &final_stage
                     .buffers
@@ -213,10 +198,6 @@ impl ParallelReduction {
                 byte_size,
             );
         } else {
-            let byte_size = std::mem::size_of::<WorkgroupResult>() as u64
-                * self
-                    .uniforms
-                    .num_objects as u64;
             encoder.copy_buffer_to_buffer(
                 &self
                     .stage1

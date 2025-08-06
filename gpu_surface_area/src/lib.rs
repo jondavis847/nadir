@@ -674,7 +674,7 @@ mod tests {
         );
     }
 
-    //#[test]
+    #[test]
     fn test_cube_area_multiple_views() {
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
 
@@ -724,7 +724,7 @@ mod tests {
         }
     }
 
-    //#[test]
+    #[test]
     fn test_rotated_cube_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
@@ -792,7 +792,7 @@ mod tests {
         );
     }
 
-    //#[test]
+    #[test]
     fn test_2_cubes_area() {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new().with_surface_area();
