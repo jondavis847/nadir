@@ -15,9 +15,11 @@ impl Stage2 {
         previous_buffers: &StageBuffers,
     ) -> Self {
         let bind_group_layout = Self::bind_group_layout(device);
-        let output_buffer_length = (previous_buffers.length + ParallelReduction::WORKGROUP_SIZE
-            - 1)
-            / ParallelReduction::WORKGROUP_SIZE;
+        let output_buffer_length = ceil_div(
+            previous_buffers.length,
+            ParallelReduction::WORKGROUP_SIZE,
+        );
+
         let current_buffers = StageBuffers::new(device, output_buffer_length);
         let bind_group = Self::bind_group(
             device,
@@ -145,6 +147,7 @@ impl Stage2 {
             previous_buffers.length,
             ParallelReduction::WORKGROUP_SIZE,
         );
+        dbg!(dispatch_x);
         compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
 
         drop(compute_pass);
@@ -160,7 +163,7 @@ mod tests {
 
     use crate::{
         GpuCalculator,
-        parallel_reduction::{self, stage_buffers::WorkgroupResult},
+        parallel_reduction::{ceil_div, stage_buffers::WorkgroupResult},
         surface_area::SurfaceAreaCalculator,
     };
 
@@ -478,7 +481,7 @@ mod tests {
                             .stage1
                             .buffers
                             .length
-                            == 1024 * 1024 * 2 / 256,
+                            == ceil_div(1024 * 1024 * 2, 256),
                         "incorrect stage1 buffer length"
                     );
                     assert!(
@@ -487,12 +490,14 @@ mod tests {
                             .stage2[0]
                             .buffers
                             .length
-                            == area_init
-                                .parallel_reduction
-                                .stage1
-                                .buffers
-                                .length
-                                / 256,
+                            == ceil_div(
+                                area_init
+                                    .parallel_reduction
+                                    .stage1
+                                    .buffers
+                                    .length,
+                                256
+                            ),
                         "incorrect stage2 buffer length"
                     );
                     assert!(
@@ -501,12 +506,14 @@ mod tests {
                             .stage2[1]
                             .buffers
                             .length
-                            == area_init
-                                .parallel_reduction
-                                .stage2[0]
-                                .buffers
-                                .length
-                                / 256,
+                            == ceil_div(
+                                area_init
+                                    .parallel_reduction
+                                    .stage2[0]
+                                    .buffers
+                                    .length,
+                                256
+                            ),
                         "incorrect stage2 buffer length"
                     );
                 }
@@ -626,43 +633,85 @@ mod tests {
                     let data = buffer_slice.get_mapped_range();
                     let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
                     assert!(
-                        results.len() == 16,
-                        "Result length for this test should be 4096/256 workers = 16 workgroup elements"
+                        results.len() == 32,
+                        "Result length for this test should be 4096*2 objects/256 workers = 32 workgroup elements, got {:?}",
+                        results.len()
                     );
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
                         &gpu.scene_bounds,
                         resolution,
                         1.0,
                     );
-                    let mut count_sum = 0;
-                    let mut x_sum = 0.0;
-                    let mut y_sum = 0.0;
-                    let mut z_sum = 0.0;
+                    let mut count_sum1 = 0;
+                    let mut x_sum1 = 0.0;
+                    let mut y_sum1 = 0.0;
+                    let mut z_sum1 = 0.0;
+                    let mut count_sum2 = 0;
+                    let mut x_sum2 = 0.0;
+                    let mut y_sum2 = 0.0;
+                    let mut z_sum2 = 0.0;
                     for result in &results {
-                        count_sum += result.count;
-                        x_sum += result.pos[0];
-                        y_sum += result.pos[1];
-                        z_sum += result.pos[2];
+                        if result.id == 1 {
+                            count_sum1 += result.count;
+                            x_sum1 += result.pos[0];
+                            y_sum1 += result.pos[1];
+                            z_sum1 += result.pos[2];
+                        }
+                        if result.id == 2 {
+                            count_sum2 += result.count;
+                            x_sum2 += result.pos[0];
+                            y_sum2 += result.pos[1];
+                            z_sum2 += result.pos[2];
+                        }
                     }
-                    let area = count_sum as f32 * area_per_pixel;
-                    let cop_x = x_sum / count_sum as f32;
-                    let cop_y = y_sum / count_sum as f32;
-                    let cop_z = z_sum / count_sum as f32;
+                    let area1 = count_sum1 as f32 * area_per_pixel;
+                    let cop_x1 = x_sum1 / count_sum1 as f32;
+                    let cop_y1 = y_sum1 / count_sum1 as f32;
+                    let cop_z1 = z_sum1 / count_sum1 as f32;
+                    let area2 = count_sum2 as f32 * area_per_pixel;
+                    let cop_x2 = x_sum2 / count_sum2 as f32;
+                    let cop_y2 = y_sum2 / count_sum2 as f32;
+                    let cop_z2 = z_sum2 / count_sum2 as f32;
                     assert!(
-                        area - 1.0 < 0.01,
-                        "area was not within 1% of expectation"
+                        area1 - 1.0 < 0.01,
+                        "area1 was not within 1% of expectation, got {:?}",
+                        area1
                     );
                     assert!(
-                        cop_x - 0.5 < 0.005,
-                        "cop_x was not within 1% of expecation"
+                        cop_x1 - 0.5 < 0.005,
+                        "cop_x1 was not within 1% of expecation, got {:?}",
+                        cop_x1
                     );
                     assert!(
-                        cop_y < 0.0005,
-                        "cop_y was not within 1% of expecation"
+                        cop_y1 < 0.001,
+                        "cop_y1 was not within 1% of expecation, got {:?}",
+                        cop_y1
                     );
                     assert!(
-                        cop_z < 0.0005,
-                        "cop_z was not within 1% of expecation"
+                        cop_z1 < 0.001,
+                        "cop_z1 was not within 1% of expecation, got {:?}",
+                        cop_z1
+                    );
+
+                    assert!(
+                        area2 - 4.0 < 0.04,
+                        "area was not within 1% of expectation, got {:?}",
+                        area2
+                    );
+                    assert!(
+                        cop_x2 - 1.0 < 0.005,
+                        "cop_x2 was not within 1% of expecation, got {:?}",
+                        cop_x2
+                    );
+                    assert!(
+                        cop_y2 - 2.0 < 0.02,
+                        "cop_y2 was not within 1% of expecation, got {:?}",
+                        cop_y2
+                    );
+                    assert!(
+                        cop_z2 < 0.001,
+                        "cop_z2 was not within 1% of expecation, got {:?}",
+                        cop_z2
                     );
 
                     //run stage2 again for final 16 elements
@@ -760,15 +809,15 @@ mod tests {
                     );
                     assert!(
                         cop_x - 0.5 < 0.005,
-                        "cop_x was not within 1% of expecation"
+                        "cop_x was not within 1% of expectation"
                     );
                     assert!(
                         cop_y < 0.0005,
-                        "cop_y was not within 1% of expecation"
+                        "cop_y was not within 1% of expectation"
                     );
                     assert!(
                         cop_z < 0.0005,
-                        "cop_z was not within 1% of expecation"
+                        "cop_z was not within 1% of expectation"
                     );
                 }
             }
