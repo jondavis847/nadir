@@ -89,15 +89,16 @@ impl ParallelReduction {
         if stage1
             .buffers
             .length
-            > 1
+            > num_objects
         //Self::WORKGROUP_SIZE
         // was workgroup_size where we sum anything less than workgroup size on the cpu side,
-        // but now we just always sum until we have 1 entry left
+        // but now we just always sum until we have 1 entry per object left
         {
             stage2.push(Stage2::new(
                 device,
                 &uniform_bind_group_layout,
                 &stage1.buffers,
+                num_objects,
             ));
 
             while stage2
@@ -105,7 +106,7 @@ impl ParallelReduction {
                 .unwrap()
                 .buffers
                 .length
-                > 1
+                > num_objects
             {
                 let last_stage = stage2
                     .last()
@@ -114,10 +115,21 @@ impl ParallelReduction {
                     device,
                     &uniform_bind_group_layout,
                     &last_stage.buffers,
+                    num_objects,
                 );
                 stage2.push(next_stage);
             }
         }
+
+        assert!(
+            stage2
+                .last()
+                .unwrap()
+                .buffers
+                .length
+                == num_objects,
+            "stage2 buffer length did not equal num_objects. should be 1 element per object"
+        );
 
         let result_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Parallel Reduction Result Buffer"),
@@ -141,18 +153,16 @@ impl ParallelReduction {
     }
 
     pub fn dispatch(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let mut encoder = device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: Some("ParallelReduction Command Encoder") },
-        );
-
         // Stage 1 - Process texture data and perform initial reduction
         self.stage1
             .dispatch(
+                device,
+                queue,
                 self.n_workgroups_x,
                 self.n_workgroups_y,
                 &self.uniform_bind_group,
-                &mut encoder,
             );
+        self.debug_stage1(device, queue);
 
         // Stage 2 - Continue to reduce results from previous stages until final result is achieved
         for (i, stage) in self
@@ -165,17 +175,16 @@ impl ParallelReduction {
                     .stage1
                     .buffers
             } else {
-                &self
-                    .stage2
-                    .last()
-                    .unwrap()
-                    .buffers
+                &stage.buffers
             };
             stage.dispatch(
+                device,
+                queue,
                 previous_buffers,
-                &mut encoder,
                 &self.uniform_bind_group,
             );
+
+            self.debug_stage2(device, queue, i);
         }
 
         // --- Copy final stage buffer to result buffer ---
@@ -184,6 +193,9 @@ impl ParallelReduction {
                 .uniforms
                 .num_objects as u64;
 
+        let mut encoder = device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: Some("ParallelReduction Command Encoder") },
+        );
         if let Some(final_stage) = self
             .stage2
             .last()
@@ -210,11 +222,11 @@ impl ParallelReduction {
             );
         }
 
-        // --- Submit command buffer ---
+        // Submit command buffer
         let command_buffer = encoder.finish();
         queue.submit(Some(command_buffer));
 
-        // Wait for completion (especially useful before mapping)
+        // Wait for completion
         device
             .poll(wgpu::PollType::Wait)
             .expect("poll error");
@@ -290,6 +302,152 @@ impl ParallelReduction {
         drop(data);
         self.result_buffer
             .unmap();
+    }
+
+    fn debug_stage1(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        let mut encoder = device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: Some("ParallelReduction Command Encoder") },
+        );
+
+        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("test_staging"),
+            size: (self
+                .stage1
+                .buffers
+                .length
+                * std::mem::size_of::<WorkgroupResult>() as u32) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_buffer_to_buffer(
+            &self
+                .stage1
+                .buffers
+                .result_buffer,
+            0,
+            &staging_buffer,
+            0,
+            self.stage1
+                .buffers
+                .length as u64
+                * std::mem::size_of::<WorkgroupResult>() as u64,
+        );
+
+        queue.submit(Some(encoder.finish()));
+        device
+            .poll(wgpu::PollType::Wait)
+            .unwrap();
+
+        let buffer_slice = staging_buffer.slice(..);
+        let (tx, rx) = futures::channel::oneshot::channel();
+
+        buffer_slice.map_async(
+            wgpu::MapMode::Read,
+            move |result| {
+                tx.send(result)
+                    .unwrap();
+            },
+        );
+
+        device
+            .poll(wgpu::PollType::Wait)
+            .unwrap();
+        pollster::block_on(rx)
+            .unwrap()
+            .unwrap();
+
+        let data = buffer_slice.get_mapped_range();
+        let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
+        //        dbg!(results);
+        let mut count = 0;
+        let mut rx = 0.0;
+        let mut ry = 0.0;
+        let mut rz = 0.0;
+        for result in results {
+            if result.id == 2 {
+                count += result.count;
+                rx += result.pos[0];
+                ry += result.pos[1];
+                rz += result.pos[2];
+            }
+        }
+        dbg!(count);
+        dbg!(rx);
+        dbg!(ry);
+        dbg!(rz);
+    }
+
+    fn debug_stage2(&self, device: &wgpu::Device, queue: &wgpu::Queue, i: usize) {
+        let mut encoder = device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: Some("ParallelReduction Command Encoder") },
+        );
+
+        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("test_staging"),
+            size: (self.stage2[i]
+                .buffers
+                .length
+                * std::mem::size_of::<WorkgroupResult>() as u32) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_buffer_to_buffer(
+            &self.stage2[i]
+                .buffers
+                .result_buffer,
+            0,
+            &staging_buffer,
+            0,
+            self.stage2[i]
+                .buffers
+                .length as u64
+                * std::mem::size_of::<WorkgroupResult>() as u64,
+        );
+
+        queue.submit(Some(encoder.finish()));
+        device
+            .poll(wgpu::PollType::Wait)
+            .unwrap();
+
+        let buffer_slice = staging_buffer.slice(..);
+        let (tx, rx) = futures::channel::oneshot::channel();
+
+        buffer_slice.map_async(
+            wgpu::MapMode::Read,
+            move |result| {
+                tx.send(result)
+                    .unwrap();
+            },
+        );
+
+        device
+            .poll(wgpu::PollType::Wait)
+            .unwrap();
+        pollster::block_on(rx)
+            .unwrap()
+            .unwrap();
+
+        let data = buffer_slice.get_mapped_range();
+        let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
+        //        dbg!(results);
+        let mut count = 0;
+        let mut rx = 0.0;
+        let mut ry = 0.0;
+        let mut rz = 0.0;
+        for result in results {
+            if result.id == 1 {
+                count += result.count;
+                rx += result.pos[0];
+                ry += result.pos[1];
+                rz += result.pos[2];
+            }
+        }
+        dbg!(count);
+        dbg!(rx);
+        dbg!(ry);
+        dbg!(rz);
     }
 }
 

@@ -32,12 +32,11 @@ fn main(
     @builtin(workgroup_id)         wid: vec3<u32>
 ) {
     let input_length = arrayLength(&input_result_buffer);
+    let input_index = gid.x;
     let lane_id = lid.x;
-
+    
     // Process each object separately
     for (var i = 1u; i <= uniforms.num_objects; i = i + 1u) {
-
-        let input_index = (wid.x * uniforms.num_objects + (i - 1u)) * WORKGROUP_SIZE + lane_id;        
         let output_index = wid.x * uniforms.num_objects + (i - 1u);        
         //let input_index = wid.x * WORKGROUP_SIZE + lane_id;
         
@@ -96,45 +95,3 @@ fn main(
         workgroupBarrier(); // Ensure write is complete before next object
     }
 }
-
-/*
-@compute @workgroup_size(256)
-fn main_loop( //used for debugging
-    @builtin(global_invocation_id) gid: vec3<u32>,
-    @builtin(local_invocation_id)  lid: vec3<u32>,
-    @builtin(workgroup_id)         wid: vec3<u32>
-) {
-    let lane_id = lid.x;
-
-    if (lane_id == 0) {
-        
-    
-    for (var o = 1u; o <= uniforms.num_objects; o = o + 1u) {
-
-        let input_start = (wid.x * uniforms.num_objects + (o - 1u)) * WORKGROUP_SIZE + lane_id;        
-        let input_end = input_start + WORKGROUP_SIZE;
-        let output_index = wid.x * uniforms.num_objects + (o - 1u);        
-        var count = 0;
-        var pos_x = 0.0;
-        var pos_y = 0.0;
-        var pos_z = 0.0;
-        for (var i = input_start; i <= input_end; i = i + 1u) {
-            let input_result = input_result_buffer[i];
-            if input_result.id == o {
-                count += 1;
-                pos_x += input_result.pos_x;
-                pos_y += input_result.pos_y;
-                pos_z += input_result.pos_z;
-            }
-        }
-        output_result_buffer[output_index] = WorkgroupResult(
-            o,
-            count,
-            pos_x, 
-            pos_y, 
-            pos_z,
-            0u, 0u, 0u
-        );              
-    }
-}
-*/

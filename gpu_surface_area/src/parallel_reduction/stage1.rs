@@ -149,12 +149,19 @@ impl Stage1 {
 
     pub fn dispatch(
         &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         n_workgroups_x: u32,
         n_workgroups_y: u32,
         uniform_bind_group: &wgpu::BindGroup,
-        encoder: &mut CommandEncoder,
     ) {
         {
+            let mut encoder = device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("ParallelReductionStage1 Command Encoder"),
+                },
+            );
+
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("ParallelReduction Stage1 Pass"),
                 timestamp_writes: None,
@@ -169,6 +176,9 @@ impl Stage1 {
                 n_workgroups_y,
                 1,
             );
+            drop(compute_pass);
+
+            queue.submit(Some(encoder.finish()));
         }
     }
 }
@@ -226,17 +236,13 @@ mod tests {
         if let Some(area) = &mut gpu.surface_area {
             if let Some(aero_init) = &mut area.initialized {
                 if let Some(gpu_init) = &gpu.initialized {
-                    let mut encoder = gpu_init
-                        .device
-                        .create_command_encoder(
-                            &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
-                        );
-
                     let start = Instant::now();
                     aero_init
                         .parallel_reduction
                         .stage1
                         .dispatch(
+                            &gpu_init.device,
+                            &gpu_init.queue,
                             aero_init
                                 .parallel_reduction
                                 .n_workgroups_x,
@@ -246,7 +252,6 @@ mod tests {
                             &aero_init
                                 .parallel_reduction
                                 .uniform_bind_group,
-                            &mut encoder,
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);
@@ -267,6 +272,13 @@ mod tests {
                             mapped_at_creation: false,
                         });
 
+                    let mut encoder = gpu_init
+                        .device
+                        .create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor {
+                                label: Some("ParallelReduction Command Encoder"),
+                            },
+                        );
                     encoder.copy_buffer_to_buffer(
                         &aero_init
                             .parallel_reduction
@@ -398,6 +410,8 @@ mod tests {
                         .parallel_reduction
                         .stage1
                         .dispatch(
+                            &gpu_init.device,
+                            &gpu_init.queue,
                             aero_init
                                 .parallel_reduction
                                 .n_workgroups_x,
@@ -407,7 +421,6 @@ mod tests {
                             &aero_init
                                 .parallel_reduction
                                 .uniform_bind_group,
-                            &mut encoder,
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);

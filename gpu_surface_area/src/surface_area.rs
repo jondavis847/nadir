@@ -335,7 +335,7 @@ mod tests {
     use nadir_3d::geometry::{GeometryState, cuboid::Cuboid};
     use std::{f32::EPSILON, time::Instant};
 
-    //    #[test]
+    #[test]
     fn render_pixels_id() {
         let resolution = 64; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
         let mut gpu = GpuCalculator::new()
@@ -482,7 +482,7 @@ mod tests {
         }
     }
 
-    //   #[test]
+    #[test]
     fn render_pixels_position() {
         let resolution = 64; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
         let mut gpu = GpuCalculator::new()

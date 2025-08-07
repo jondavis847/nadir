@@ -13,12 +13,14 @@ impl Stage2 {
         device: &wgpu::Device,
         uniform_bind_group_layout: &wgpu::BindGroupLayout,
         previous_buffers: &StageBuffers,
+        num_objects: u32,
     ) -> Self {
         let bind_group_layout = Self::bind_group_layout(device);
         let output_buffer_length = ceil_div(
             previous_buffers.length,
             ParallelReduction::WORKGROUP_SIZE,
-        );
+        )
+        .max(num_objects);
 
         let current_buffers = StageBuffers::new(device, output_buffer_length);
         let bind_group = Self::bind_group(
@@ -128,13 +130,20 @@ impl Stage2 {
 
     pub fn dispatch(
         &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         previous_buffers: &StageBuffers,
-        encoder: &mut wgpu::CommandEncoder,
         uniform_bind_group: &wgpu::BindGroup,
     ) {
+        let mut encoder = device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("ParallelReductionStage2 Command Encoder"),
+            },
+        );
+
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some(&format!(
-                "ParallelReduction Stage2 Pass",
+                "ParallelReductionStage2 Pass",
             )),
             timestamp_writes: None,
         });
@@ -147,10 +156,10 @@ impl Stage2 {
             previous_buffers.length,
             ParallelReduction::WORKGROUP_SIZE,
         );
-        dbg!(dispatch_x);
         compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
 
         drop(compute_pass);
+        queue.submit(Some(encoder.finish()));
     }
 }
 
@@ -209,20 +218,15 @@ mod tests {
             if let Some(aero_init) = &mut area.initialized {
                 let parallel_reduction = &mut aero_init.parallel_reduction;
                 if let Some(gpu_init) = &gpu.initialized {
-                    let mut encoder = gpu_init
-                        .device
-                        .create_command_encoder(
-                            &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
-                        );
-
                     let start = Instant::now();
                     parallel_reduction
                         .stage1
                         .dispatch(
+                            &gpu_init.device,
+                            &gpu_init.queue,
                             parallel_reduction.n_workgroups_x,
                             parallel_reduction.n_workgroups_y,
                             &parallel_reduction.uniform_bind_group,
-                            &mut encoder,
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);
@@ -240,8 +244,9 @@ mod tests {
                         .stage1
                         .buffers;
                     parallel_reduction.stage2[0].dispatch(
+                        &gpu_init.device,
+                        &gpu_init.queue,
                         previous_buffers,
-                        &mut encoder,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -257,6 +262,14 @@ mod tests {
                             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                             mapped_at_creation: false,
                         });
+
+                    let mut encoder = gpu_init
+                        .device
+                        .create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor {
+                                label: Some("ParallelReductionStage2 Command Encoder"),
+                            },
+                        );
 
                     encoder.copy_buffer_to_buffer(
                         &parallel_reduction.stage2[0]
@@ -349,8 +362,9 @@ mod tests {
 
                     let previous_buffers = &parallel_reduction.stage2[0].buffers;
                     parallel_reduction.stage2[1].dispatch(
+                        &gpu_init.device,
+                        &gpu_init.queue,
                         previous_buffers,
-                        &mut encoder,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -453,7 +467,7 @@ mod tests {
     #[test]
     fn parallel_reduction_stage2_2objects() {
         // 1024 * 1024  pixels/ 256 threads per workgroup = 4096 workgroups
-        let resolution = 1024; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
+        let resolution = 2048; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
         let mut gpu = GpuCalculator::new()
             .with_resolution(resolution)
             .with_surface_area();
@@ -481,7 +495,10 @@ mod tests {
                             .stage1
                             .buffers
                             .length
-                            == ceil_div(1024 * 1024 * 2, 256),
+                            == ceil_div(
+                                resolution * resolution * 2,
+                                256
+                            ),
                         "incorrect stage1 buffer length"
                     );
                     assert!(
@@ -551,10 +568,11 @@ mod tests {
                     parallel_reduction
                         .stage1
                         .dispatch(
+                            &gpu_init.device,
+                            &gpu_init.queue,
                             parallel_reduction.n_workgroups_x,
                             parallel_reduction.n_workgroups_y,
                             &parallel_reduction.uniform_bind_group,
-                            &mut encoder,
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);
@@ -572,8 +590,9 @@ mod tests {
                         .stage1
                         .buffers;
                     parallel_reduction.stage2[0].dispatch(
+                        &gpu_init.device,
+                        &gpu_init.queue,
                         previous_buffers,
-                        &mut encoder,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -633,7 +652,7 @@ mod tests {
                     let data = buffer_slice.get_mapped_range();
                     let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
                     assert!(
-                        results.len() == 32,
+                        results.len() == 128,
                         "Result length for this test should be 4096*2 objects/256 workers = 32 workgroup elements, got {:?}",
                         results.len()
                     );
@@ -723,8 +742,9 @@ mod tests {
 
                     let previous_buffers = &parallel_reduction.stage2[0].buffers;
                     parallel_reduction.stage2[1].dispatch(
+                        &gpu_init.device,
+                        &gpu_init.queue,
                         previous_buffers,
-                        &mut encoder,
                         &parallel_reduction.uniform_bind_group,
                     );
 

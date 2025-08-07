@@ -521,14 +521,6 @@ impl GpuCalculator {
         }
     }
 
-    pub fn with_center_of_pressure(mut self) -> Self {
-        todo!()
-    }
-
-    pub fn with_solar_radiation_pressure(mut self) -> Self {
-        todo!()
-    }
-
     pub fn with_resolution(mut self, new_resolution: u32) -> Self {
         match &mut self.method {
             GpuCalculatorMethod::Rasterization { resolution, .. } => {
@@ -795,7 +787,9 @@ mod tests {
     #[test]
     fn test_2_cubes_area() {
         // Create a GPU calculator with surface area capability
-        let mut gpu_calc = GpuCalculator::new().with_surface_area();
+        let mut gpu_calc = GpuCalculator::new()
+            .with_surface_area()
+            .with_resolution(1024);
 
         // Build test geometry (unit cube)
         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
@@ -829,7 +823,7 @@ mod tests {
                 .aerodynamics_result
                 .len(),
             2,
-            "Should have one geometry"
+            "Should have two geometry"
         );
         let calculated_area = result
             .aerodynamics_result
