@@ -179,6 +179,10 @@ impl Stage1 {
             drop(compute_pass);
 
             queue.submit(Some(encoder.finish()));
+
+            // device
+            //     .poll(wgpu::PollType::Wait)
+            //     .unwrap();
         }
     }
 }

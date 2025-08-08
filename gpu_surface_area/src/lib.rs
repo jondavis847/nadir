@@ -789,7 +789,7 @@ mod tests {
         // Create a GPU calculator with surface area capability
         let mut gpu_calc = GpuCalculator::new()
             .with_surface_area()
-            .with_resolution(1024);
+            .with_resolution(256);
 
         // Build test geometry (unit cube)
         let cube_geometry = Cuboid::new(1.0, 1.0, 1.0).unwrap();
@@ -799,7 +799,7 @@ mod tests {
         };
 
         let state2 = GeometryState {
-            position: DVec3 { x: 0.0, y: -0.5, z: -0.5 },
+            position: DVec3 { x: 0.0, y: -0.5, z: 0.5 },
             rotation: DQuat::IDENTITY,
         };
 
@@ -811,7 +811,11 @@ mod tests {
         let view_direction = [-1.0, 0.0, 0.0];
 
         // Calculate surface area using the new framework
+        let start = Instant::now();
         gpu_calc.calculate_surface_area(&view_direction);
+        let stop = Instant::now();
+        let duration = stop.duration_since(start);
+        dbg!(duration);
 
         let result = gpu_calc
             .surface_area

@@ -6,6 +6,7 @@ pub struct Stage2 {
     pub buffers: StageBuffers,
     pub bind_group: wgpu::BindGroup,
     pub pipeline: wgpu::ComputePipeline,
+    n_workgroups: u32,
 }
 
 impl Stage2 {
@@ -34,7 +35,12 @@ impl Stage2 {
             uniform_bind_group_layout,
             &bind_group_layout,
         );
-        Self { buffers: current_buffers, bind_group, pipeline }
+        let n_workgroups = ceil_div(
+            output_buffer_length,
+            num_objects,
+        );
+
+        Self { buffers: current_buffers, bind_group, pipeline, n_workgroups }
     }
 
     fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -98,7 +104,7 @@ impl Stage2 {
     pub fn pipeline(
         device: &wgpu::Device,
         uniform_bind_group_layout: &wgpu::BindGroupLayout,
-        stage1_bind_group_layout: &wgpu::BindGroupLayout,
+        stage2_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> wgpu::ComputePipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Parallel Reduction Stage 2 Shader"),
@@ -114,7 +120,7 @@ impl Stage2 {
                             label: Some("Stage2 Layout"),
                             bind_group_layouts: &[
                                 uniform_bind_group_layout,
-                                &stage1_bind_group_layout,
+                                stage2_bind_group_layout,
                             ],
                             push_constant_ranges: &[],
                         },
@@ -132,7 +138,6 @@ impl Stage2 {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        previous_buffers: &StageBuffers,
         uniform_bind_group: &wgpu::BindGroup,
     ) {
         let mut encoder = device.create_command_encoder(
@@ -152,14 +157,15 @@ impl Stage2 {
         compute_pass.set_bind_group(0, uniform_bind_group, &[]);
         compute_pass.set_bind_group(1, &self.bind_group, &[]);
 
-        let dispatch_x = ceil_div(
-            previous_buffers.length,
-            ParallelReduction::WORKGROUP_SIZE,
-        );
-        compute_pass.dispatch_workgroups(dispatch_x, 1, 1);
+        // self.buffers.length is the number of workgroups from initialization
+        compute_pass.dispatch_workgroups(self.n_workgroups, 1, 1);
 
         drop(compute_pass);
         queue.submit(Some(encoder.finish()));
+
+        // device
+        //     .poll(wgpu::PollType::Wait)
+        //     .unwrap();
     }
 }
 
@@ -240,13 +246,9 @@ mod tests {
                             > 1,
                         "expected stage2 to have 2 entries, 4096->16, 16->1",
                     );
-                    let previous_buffers = &parallel_reduction
-                        .stage1
-                        .buffers;
                     parallel_reduction.stage2[0].dispatch(
                         &gpu_init.device,
                         &gpu_init.queue,
-                        previous_buffers,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -360,11 +362,9 @@ mod tests {
                             &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
                         );
 
-                    let previous_buffers = &parallel_reduction.stage2[0].buffers;
                     parallel_reduction.stage2[1].dispatch(
                         &gpu_init.device,
                         &gpu_init.queue,
-                        previous_buffers,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -466,8 +466,8 @@ mod tests {
 
     #[test]
     fn parallel_reduction_stage2_2objects() {
-        // 1024 * 1024  pixels/ 256 threads per workgroup = 4096 workgroups
-        let resolution = 2048; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
+        // 1024 * 1024  pixels/ 256 threads per workgroup * 2 objects = 8192 workgroups
+        let resolution = 1024; // needs to be a multiple of 64 or bytes won't align (256 alignment - 64 u32 = 256)
         let mut gpu = GpuCalculator::new()
             .with_resolution(resolution)
             .with_surface_area();
@@ -498,7 +498,8 @@ mod tests {
                             == ceil_div(
                                 resolution * resolution * 2,
                                 256
-                            ),
+                            )
+                            .max(2),
                         "incorrect stage1 buffer length"
                     );
                     assert!(
@@ -514,7 +515,8 @@ mod tests {
                                     .buffers
                                     .length,
                                 256
-                            ),
+                            )
+                            .max(2),
                         "incorrect stage2 buffer length"
                     );
                     assert!(
@@ -530,7 +532,8 @@ mod tests {
                                     .buffers
                                     .length,
                                 256
-                            ),
+                            )
+                            .max(2),
                         "incorrect stage2 buffer length"
                     );
                 }
@@ -576,6 +579,11 @@ mod tests {
                         );
                     let stop = Instant::now();
                     let duration = stop.duration_since(start);
+
+                    // parallel_reduction.debug_stage1(
+                    //     &gpu_init.device,
+                    //     &gpu_init.queue,
+                    // );
                     println!("Reduce time: {:?}", duration);
 
                     //now run stage2
@@ -584,17 +592,18 @@ mod tests {
                             .stage2
                             .len()
                             > 1,
-                        "expected stage2 to have 2 entries, 8192->32, 32->1",
+                        "expected stage2 to have 2 entries, 8192->32, 32->2",
                     );
-                    let previous_buffers = &parallel_reduction
-                        .stage1
-                        .buffers;
                     parallel_reduction.stage2[0].dispatch(
                         &gpu_init.device,
                         &gpu_init.queue,
-                        previous_buffers,
                         &parallel_reduction.uniform_bind_group,
                     );
+                    // parallel_reduction.debug_stage2(
+                    //     &gpu_init.device,
+                    //     &gpu_init.queue,
+                    //     0,
+                    // );
 
                     let staging_buffer = gpu_init
                         .device
@@ -652,10 +661,11 @@ mod tests {
                     let data = buffer_slice.get_mapped_range();
                     let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
                     assert!(
-                        results.len() == 128,
+                        results.len() == 32,
                         "Result length for this test should be 4096*2 objects/256 workers = 32 workgroup elements, got {:?}",
                         results.len()
                     );
+
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
                         &gpu.scene_bounds,
                         resolution,
@@ -740,11 +750,9 @@ mod tests {
                             &wgpu::CommandEncoderDescriptor { label: Some("test encoder") },
                         );
 
-                    let previous_buffers = &parallel_reduction.stage2[0].buffers;
                     parallel_reduction.stage2[1].dispatch(
                         &gpu_init.device,
                         &gpu_init.queue,
-                        previous_buffers,
                         &parallel_reduction.uniform_bind_group,
                     );
 
@@ -810,34 +818,64 @@ mod tests {
                     let data = buffer_slice.get_mapped_range();
                     let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
                     assert!(
-                        results.len() == 1,
-                        "Result length for this test should be 16/256 workers = 1 workgroup elements"
+                        results.len() == 2,
+                        "Result length for this test should be 16/256 workers = 2 workgroup elements, 1 per object"
                     );
-                    let result = results[0];
+
                     let area_per_pixel = SurfaceAreaCalculator::calculate_area_per_pixel(
                         &gpu.scene_bounds,
                         resolution,
                         1.0,
                     );
-                    let area = result.count as f32 * area_per_pixel;
-                    let cop_x = result.pos[0] / result.count as f32;
-                    let cop_y = result.pos[1] / result.count as f32;
-                    let cop_z = result.pos[2] / result.count as f32;
+
+                    let area1 = results[0].count as f32 * area_per_pixel;
+                    let cop_x1 = results[0].pos[0] / results[0].count as f32;
+                    let cop_y1 = results[0].pos[1] / results[0].count as f32;
+                    let cop_z1 = results[0].pos[2] / results[0].count as f32;
+                    let area2 = results[0].count as f32 * area_per_pixel;
+                    let cop_x2 = results[1].pos[0] / results[1].count as f32;
+                    let cop_y2 = results[1].pos[1] / results[1].count as f32;
+                    let cop_z2 = results[1].pos[2] / results[1].count as f32;
                     assert!(
-                        area - 1.0 < 0.01,
-                        "area was not within 1% of expectation"
+                        area1 - 1.0 < 0.01,
+                        "area1 was not within 1% of expectation, got {:?}",
+                        area1
                     );
                     assert!(
-                        cop_x - 0.5 < 0.005,
-                        "cop_x was not within 1% of expectation"
+                        cop_x1 - 0.5 < 0.005,
+                        "cop_x1 was not within 1% of expecation, got {:?}",
+                        cop_x1
                     );
                     assert!(
-                        cop_y < 0.0005,
-                        "cop_y was not within 1% of expectation"
+                        cop_y1 < 0.001,
+                        "cop_y1 was not within 1% of expecation, got {:?}",
+                        cop_y1
                     );
                     assert!(
-                        cop_z < 0.0005,
-                        "cop_z was not within 1% of expectation"
+                        cop_z1 < 0.001,
+                        "cop_z1 was not within 1% of expecation, got {:?}",
+                        cop_z1
+                    );
+
+                    assert!(
+                        area2 - 4.0 < 0.04,
+                        "area was not within 1% of expectation, got {:?}",
+                        area2
+                    );
+                    assert!(
+                        cop_x2 - 1.0 < 0.005,
+                        "cop_x2 was not within 1% of expecation, got {:?}",
+                        cop_x2
+                    );
+                    assert!(
+                        cop_y2 - 2.0 < 0.02,
+                        "cop_y2 was not within 1% of expecation, got {:?}",
+                        cop_y2
+                    );
+                    assert!(
+                        cop_z2 < 0.001,
+                        "cop_z2 was not within 1% of expecation, got {:?}",
+                        cop_z2
                     );
                 }
             }

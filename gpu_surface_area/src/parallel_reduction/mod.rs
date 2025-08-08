@@ -58,8 +58,14 @@ impl ParallelReduction {
         let texture_height = object_id_size.height;
 
         // Calculate the number of workgroups required for the calculations
-        let n_workgroups_x = (texture_width + Self::WORKGROUP_WIDTH - 1) / Self::WORKGROUP_WIDTH;
-        let n_workgroups_y = (texture_height + Self::WORKGROUP_HEIGHT - 1) / Self::WORKGROUP_HEIGHT;
+        let n_workgroups_x = ceil_div(
+            texture_width,
+            Self::WORKGROUP_WIDTH,
+        );
+        let n_workgroups_y = ceil_div(
+            texture_height,
+            Self::WORKGROUP_HEIGHT,
+        );
         let num_workgroups = n_workgroups_x * n_workgroups_y;
 
         let uniforms = Uniforms::new(num_objects, num_workgroups);
@@ -92,7 +98,7 @@ impl ParallelReduction {
             > num_objects
         //Self::WORKGROUP_SIZE
         // was workgroup_size where we sum anything less than workgroup size on the cpu side,
-        // but now we just always sum until we have 1 entry per object left
+        // but now we just always sum on the gpu until we have 1 entry per object left
         {
             stage2.push(Stage2::new(
                 device,
@@ -162,29 +168,21 @@ impl ParallelReduction {
                 self.n_workgroups_y,
                 &self.uniform_bind_group,
             );
-        self.debug_stage1(device, queue);
+        // self.debug_stage1(device, queue);
 
         // Stage 2 - Continue to reduce results from previous stages until final result is achieved
-        for (i, stage) in self
+        for (_, stage) in self
             .stage2
             .iter()
             .enumerate()
         {
-            let previous_buffers = if i == 0 {
-                &self
-                    .stage1
-                    .buffers
-            } else {
-                &stage.buffers
-            };
             stage.dispatch(
                 device,
                 queue,
-                previous_buffers,
                 &self.uniform_bind_group,
             );
 
-            self.debug_stage2(device, queue, i);
+            // self.debug_stage2(device, queue, i);
         }
 
         // --- Copy final stage buffer to result buffer ---
@@ -359,12 +357,15 @@ impl ParallelReduction {
 
         let data = buffer_slice.get_mapped_range();
         let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
-        //        dbg!(results);
         let mut count = 0;
         let mut rx = 0.0;
         let mut ry = 0.0;
         let mut rz = 0.0;
-        for result in results {
+        for result in &results {
+            // if result.count != 0 {
+            //     dbg!(&result);
+            // }
+
             if result.id == 2 {
                 count += result.count;
                 rx += result.pos[0];
@@ -372,6 +373,8 @@ impl ParallelReduction {
                 rz += result.pos[2];
             }
         }
+        dbg!("Stage1Result");
+        dbg!(results.len());
         dbg!(count);
         dbg!(rx);
         dbg!(ry);
@@ -431,12 +434,15 @@ impl ParallelReduction {
 
         let data = buffer_slice.get_mapped_range();
         let results: Vec<WorkgroupResult> = bytemuck::cast_slice(&data).to_vec();
-        //        dbg!(results);
+        // dbg!(&results);
         let mut count = 0;
         let mut rx = 0.0;
         let mut ry = 0.0;
         let mut rz = 0.0;
-        for result in results {
+        for result in &results {
+            // if result.count != 0 {
+            //     dbg!(&result);
+            // }
             if result.id == 1 {
                 count += result.count;
                 rx += result.pos[0];
@@ -444,6 +450,8 @@ impl ParallelReduction {
                 rz += result.pos[2];
             }
         }
+        dbg!("Stage2Result");
+        dbg!(results.len());
         dbg!(count);
         dbg!(rx);
         dbg!(ry);
